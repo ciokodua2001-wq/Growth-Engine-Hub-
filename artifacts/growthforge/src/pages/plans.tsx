@@ -1,303 +1,117 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useUser } from "@clerk/react";
 import { motion } from "framer-motion";
-import { Check, Zap, Loader2, Star } from "lucide-react";
+import { Zap, Clock, Check, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
 
-interface StripePrice {
-  id: string;
-  unit_amount: number | null;
-  currency: string | null;
-  recurring: { interval: string } | null;
-}
-
-interface StripeProduct {
-  id: string;
-  name: string;
-  description: string | null;
-  metadata: Record<string, string> | null;
-  prices: StripePrice[];
-}
-
-const TRIAL_FEATURES = [
-  "1 Project",
-  "1 Website Analysis",
-  "3 Competitor Reports",
-  "1 Marketing Strategy",
-  "5 Social Posts",
-  "1 Email Campaign",
-  "1 Video Blueprint",
-  "25 Forge AI Messages",
-  "Dashboard & Analytics Access",
-  "Asset Library Access",
-];
-
-const PLAN_FEATURES: Record<string, string[]> = {
-  Starter: [
-    "1 Project",
-    "Unlimited Website Analyses",
-    "Unlimited Competitor Reports",
-    "1 Marketing Strategy / month",
-    "25 Social Posts / month",
-    "10 Email Campaigns / month",
-    "10 Video Blueprints / month",
-    "100 Forge AI Messages / month",
-    "Full Analytics Dashboard",
-  ],
-  Growth: [
-    "5 Projects",
-    "Everything in Starter",
-    "Unlimited Content Generation",
-    "30 Video Renders / month",
-    "Competitor Video Mining",
-    "AI Campaign Builder",
-    "Social Scheduling",
-    "500 Forge AI Messages / month",
-    "Priority Support",
-  ],
-  Agency: [
-    "Unlimited Projects",
-    "Everything in Growth",
-    "Unlimited Video Renders",
-    "Team Members",
-    "White-Label Reports",
-    "AI Managed Campaigns",
-    "Autonomous Growth Mode",
-    "Unlimited AI Usage",
-    "Dedicated Success Manager",
-  ],
-};
-
-const PLAN_HIGHLIGHTS: Record<string, string> = {
-  Growth: "Most Popular",
-  Agency: "Best Value",
-};
-
-const PLAN_COLORS: Record<string, string> = {
-  Starter: "#00E676",
-  Growth: "#00D4FF",
-  Agency: "#14F195",
-};
-
-const FALLBACK_PLANS = [
-  { name: "Starter", price: 99 },
-  { name: "Growth", price: 299 },
-  { name: "Agency", price: 799 },
+const COMING_SOON_FEATURES = [
+  "Starter — 1 project, unlimited analyses, 100 AI messages/mo",
+  "Growth — 5 projects, video renders, AI campaign builder",
+  "Agency — Unlimited projects, white-label, team members",
+  "Annual billing with up to 40% discount",
+  "7-day money-back guarantee on all paid plans",
 ];
 
 export default function PlansPage() {
   const [, setLocation] = useLocation();
   const { user, isLoaded } = useUser();
-  const [products, setProducts] = useState<StripeProduct[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const [checkingOut, setCheckingOut] = useState(false);
-  const [provisioned, setProvisioned] = useState(false);
 
   useEffect(() => {
     if (!isLoaded) return;
     if (!user) { setLocation("/sign-in"); return; }
-    provisionUser();
-    fetchProducts();
+    provisionAndTrial();
   }, [isLoaded, user]);
 
-  async function provisionUser() {
+  async function provisionAndTrial() {
     try {
       await fetch("/api/auth/provision", { method: "POST" });
-      setProvisioned(true);
-    } catch { setProvisioned(true); }
-  }
-
-  async function fetchProducts() {
-    try {
-      const res = await fetch("/api/stripe/products");
-      const data = await res.json();
-      if (data.data && data.data.length > 0) setProducts(data.data);
-    } catch { /* use fallback */ } finally { setLoadingProducts(false); }
-  }
-
-  async function handleStartTrial() {
-    if (!provisioned) return;
-    setSelectedPlan("trial");
-    setCheckingOut(true);
-    try { await fetch("/api/auth/start-trial", { method: "POST" }); } catch { /* continue */ }
-    setCheckingOut(false);
-    setSelectedPlan(null);
+      await fetch("/api/auth/start-trial", { method: "POST" });
+    } catch { /* continue */ }
     setLocation("/onboarding");
   }
 
-  async function handleSelectPlan(planName: string) {
-    if (!provisioned) return;
-    setSelectedPlan(planName);
-    setCheckingOut(true);
-    const product = products.find((p) => p.name.toLowerCase() === planName.toLowerCase());
-    const priceId = product?.prices[0]?.id;
-    if (!priceId) { setLocation("/onboarding"); return; }
-    try {
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId }),
-      });
-      const data = await res.json();
-      if (data.url) { window.location.href = data.url; }
-      else { setLocation("/onboarding"); }
-    } catch { setLocation("/onboarding"); }
-    finally { setCheckingOut(false); setSelectedPlan(null); }
-  }
-
-  const plansToShow = products.length > 0
-    ? products.map((p) => ({ name: p.name, price: (p.prices[0]?.unit_amount ?? 0) / 100 }))
-    : FALLBACK_PLANS;
-
-  const isTrialLoading = selectedPlan === "trial" && checkingOut;
-
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#040B14" }}>
-      <header className="flex items-center justify-between px-8 py-5 border-b border-white/5">
-        <Link href="/" className="flex items-center gap-2">
-          <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
-            <path d="M20 4L10 16h7L13 28l14-16h-9l5-8z" fill="#00E676" />
-          </svg>
-          <span className="text-lg font-bold text-white">GrowthForge</span>
-        </Link>
-        <div className="flex items-center gap-2 text-sm text-white/50">
-          <div className="w-5 h-5 rounded-full bg-[#00E676]/20 flex items-center justify-center">
-            <Check className="w-3 h-3 text-[#00E676]" />
-          </div>
-          Account created
-          <div className="w-4 h-px bg-white/20 mx-1" />
-          <div className="w-5 h-5 rounded-full bg-[#00E676] flex items-center justify-center">
-            <span className="text-[10px] font-bold text-black">2</span>
-          </div>
-          <span className="text-white">Choose plan</span>
-          <div className="w-4 h-px bg-white/20 mx-1" />
-          <div className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center">
-            <span className="text-[10px] text-white/40">3</span>
-          </div>
-          <span className="text-white/40">Set up workspace</span>
-        </div>
-      </header>
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-16" style={{ background: "#040B14" }}>
+      {/* Logo */}
+      <Link href="/" className="flex items-center gap-2 mb-12">
+        <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+          <path d="M20 4L10 16h7L13 28l14-16h-9l5-8z" fill="#00E676" />
+        </svg>
+        <span className="text-lg font-bold text-white">GrowthForge</span>
+      </Link>
 
-      <main className="flex-1 flex flex-col items-center py-16 px-4">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#00E676]/30 bg-[#00E676]/10 text-[#00E676] text-xs font-medium mb-4">
-            <Zap className="w-3 h-3" /> 14-day free trial · No credit card required
-          </div>
-          <h1 className="text-4xl font-bold text-white mb-3">
-            Start growing with <span className="text-[#00E676]">AI</span>
-          </h1>
-          <p className="text-white/50 text-lg">Try free for 14 days, then pick the plan that fits.</p>
-        </motion.div>
-
-        {/* Free Trial Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-          className="w-full max-w-5xl mb-6"
-        >
-          <div className="relative rounded-2xl border-2 border-[#00E676]/60 p-6 flex flex-col md:flex-row items-start md:items-center gap-6" style={{ backgroundColor: "#061811" }}>
-            <div className="absolute -top-3.5 left-6 px-3 py-1 rounded-full bg-[#00E676] text-black text-xs font-bold flex items-center gap-1.5">
-              <Star className="w-3 h-3" /> Recommended — Start Here
-            </div>
-
-            <div className="flex-1">
-              <div className="flex items-baseline gap-3 mb-1">
-                <h3 className="text-2xl font-bold text-white">Free Trial</h3>
-                <span className="text-[#00E676] font-semibold text-sm border border-[#00E676]/40 rounded-full px-2 py-0.5">14 days · $0</span>
-              </div>
-              <p className="text-white/50 text-sm mb-4">No commitment · No credit card required · Cancel anytime</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-x-4 gap-y-2">
-                {TRIAL_FEATURES.map((f) => (
-                  <div key={f} className="flex items-center gap-1.5 text-sm text-white/70">
-                    <Check className="w-3.5 h-3.5 shrink-0 text-[#00E676]" />
-                    {f}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <button
-              onClick={handleStartTrial}
-              disabled={checkingOut || !provisioned}
-              className="shrink-0 px-8 py-3.5 rounded-xl font-bold text-sm bg-[#00E676] text-black hover:bg-[#14F195] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-[#00E676]/25 hover:scale-[1.02]"
-            >
-              {isTrialLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Starting…</> : <>Start Free Trial <Zap className="w-4 h-4" /></>}
-            </button>
-          </div>
-        </motion.div>
-
-        {/* Paid Plans */}
-        <div className="w-full max-w-5xl">
-          <p className="text-white/30 text-xs text-center mb-4 uppercase tracking-widest">Or choose a paid plan</p>
-          {loadingProducts ? (
-            <div className="flex items-center justify-center gap-2 text-white/50 py-10">
-              <Loader2 className="w-5 h-5 animate-spin" /> Loading plans…
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {plansToShow.map((plan, i) => {
-                const highlight = PLAN_HIGHLIGHTS[plan.name];
-                const color = PLAN_COLORS[plan.name] ?? "#00E676";
-                const features = PLAN_FEATURES[plan.name] ?? [];
-                const isPlanLoading = selectedPlan === plan.name && checkingOut;
-
-                return (
-                  <motion.div
-                    key={plan.name}
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 + i * 0.08 }}
-                    className={`relative rounded-2xl border p-6 flex flex-col gap-5 ${
-                      highlight ? "border-[#00D4FF]/40 bg-gradient-to-b from-[#00D4FF]/8 to-[#0a1628]" : "border-white/8 bg-[#080f1e]"
-                    }`}
-                  >
-                    {highlight && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-semibold text-black" style={{ background: color }}>
-                        {highlight}
-                      </div>
-                    )}
-                    <div>
-                      <h3 className="text-xl font-bold text-white mb-1">{plan.name}</h3>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-4xl font-bold text-white">${plan.price}</span>
-                        <span className="text-white/40 text-sm">/mo</span>
-                      </div>
-                      <p className="text-white/40 text-xs mt-1">Billed monthly · Cancel anytime</p>
-                    </div>
-                    <ul className="flex flex-col gap-2.5 flex-1">
-                      {features.map((f) => (
-                        <li key={f} className="flex items-center gap-2.5 text-sm text-white/70">
-                          <Check className="w-4 h-4 flex-shrink-0" style={{ color }} />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <button
-                      onClick={() => handleSelectPlan(plan.name)}
-                      disabled={checkingOut}
-                      className="w-full py-3 rounded-xl font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      style={{
-                        background: highlight ? color : "transparent",
-                        color: highlight ? "#040B14" : color,
-                        border: highlight ? "none" : `1.5px solid ${color}`,
-                      }}
-                    >
-                      {isPlanLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting…</> : "Get Started"}
-                    </button>
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-lg text-center"
+      >
+        {/* Badge */}
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#00E676]/30 bg-[#00E676]/10 text-[#00E676] text-xs font-semibold mb-6">
+          <Clock className="w-3.5 h-3.5" />
+          Paid Plans — Coming Soon
         </div>
 
-        <p className="mt-8 text-white/30 text-xs text-center max-w-md">
-          All paid plans include a 14-day free trial. You won't be charged until your trial ends. Upgrade, downgrade, or cancel at any time.
+        <h1 className="text-4xl font-black text-white mb-3">
+          Launching <span className="text-[#00E676]">very soon.</span>
+        </h1>
+        <p className="text-white/50 text-lg mb-10">
+          We're putting the finishing touches on our paid plans. In the meantime,
+          your <strong className="text-white">free 14-day trial</strong> gives you full access to everything.
         </p>
-      </main>
+
+        {/* Trial card */}
+        <div className="rounded-2xl border-2 border-[#00E676]/50 p-8 mb-8 text-left" style={{ background: "#061811" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <Zap className="w-5 h-5 text-[#00E676]" />
+            <span className="text-xl font-bold text-white">Free Trial — 14 Days</span>
+          </div>
+          <p className="text-white/40 text-sm mb-5">No credit card required · Full access · Cancel anytime</p>
+          <ul className="space-y-2.5 mb-6">
+            {[
+              "1 Full Website Analysis",
+              "3 Competitor Reports",
+              "1 Marketing Strategy",
+              "5 Social Media Posts",
+              "1 Email Campaign",
+              "1 Video Blueprint",
+              "25 Forge AI Messages",
+            ].map((f) => (
+              <li key={f} className="flex items-center gap-2.5 text-sm text-white/70">
+                <Check className="w-4 h-4 text-[#00E676] shrink-0" />
+                {f}
+              </li>
+            ))}
+          </ul>
+          <button
+            onClick={provisionAndTrial}
+            className="w-full py-3.5 rounded-xl bg-[#00E676] text-black font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#14F195] transition-colors"
+          >
+            Start Free Trial <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Coming soon paid plan teasers */}
+        <div className="rounded-xl border border-white/8 p-5 text-left" style={{ background: "#080f1e" }}>
+          <p className="text-white/40 text-xs uppercase tracking-widest mb-3">Paid plans — coming soon</p>
+          <ul className="space-y-2">
+            {COMING_SOON_FEATURES.map((f) => (
+              <li key={f} className="flex items-center gap-2 text-sm text-white/40">
+                <Clock className="w-3.5 h-3.5 shrink-0 text-white/20" />
+                {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="mt-6 text-white/30 text-xs">
+          Get notified when paid plans launch →{" "}
+          <a href="mailto:hello@usegrowthforge.com" className="text-[#00E676]/60 hover:text-[#00E676] transition-colors">
+            hello@usegrowthforge.com
+          </a>
+        </p>
+      </motion.div>
     </div>
   );
 }
