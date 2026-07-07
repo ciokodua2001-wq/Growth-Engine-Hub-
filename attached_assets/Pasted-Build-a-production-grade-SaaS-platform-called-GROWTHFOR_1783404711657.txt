@@ -1,0 +1,974 @@
+Build a production-grade SaaS platform called:
+
+GROWTHFORGE AI
+
+TAGLINE
+
+"Paste Your URL. Get Your Marketing Department."
+
+OVERVIEW
+
+GrowthForge AI is an AI-powered Growth Operating System.
+
+A user pastes their website URL.
+
+The platform automatically:
+
+- Understands the business
+- Identifies competitors
+- Analyzes market positioning
+- Generates marketing strategy
+- Creates content
+- Creates emails
+- Creates social posts
+- Creates advertising campaigns
+- Creates promotional videos
+- Publishes content
+- Launches ads
+- Optimizes campaigns
+- Tracks growth metrics
+
+The goal is to replace multiple marketing roles with one AI-driven platform.
+
+========================================================
+
+TECH STACK
+
+Frontend
+
+- Next.js 15
+- React
+- TypeScript
+- Tailwind CSS
+- Shadcn UI
+- Framer Motion
+
+Backend
+
+- Next.js API Routes
+- Node.js
+- PostgreSQL
+- Prisma ORM
+
+Authentication
+
+- Clerk
+
+Payments
+
+- Stripe
+
+AI
+
+- OpenAI GPT
+- OpenAI Responses API
+- OpenAI Image Generation
+
+Website Analysis
+
+- Firecrawl API
+- Playwright
+
+Video Creation
+
+- Runway
+- Pika
+- Creatomate
+- Remotion
+
+Storage
+
+- Supabase Storage
+
+Analytics
+
+- PostHog
+- Google Analytics
+
+Deployment
+
+- Vercel
+
+========================================================
+
+LANDING PAGE
+
+Design a premium SaaS website.
+
+Sections:
+
+- Hero
+- Product Demo
+- Features
+- Testimonials
+- Pricing
+- FAQ
+- Call To Action
+
+Headline:
+
+"Paste Your URL. Get An Entire Marketing Team."
+
+Subheadline:
+
+"Analyze your business, generate content, create videos, launch advertising campaigns, and grow automatically with AI."
+
+Primary CTA:
+
+Start Free Analysis
+
+Secondary CTA:
+
+Watch Demo
+
+========================================================
+
+AUTHENTICATION
+
+Implement:
+
+- Sign Up
+- Sign In
+- Google Login
+- Forgot Password
+- Organization Support
+- Team Members
+
+========================================================
+
+DASHBOARD
+
+Sidebar Navigation
+
+- Overview
+- Business Analysis
+- Competitors
+- Marketing Assets
+- Videos
+- Campaigns
+- Social Media
+- Landing Pages
+- Email Campaigns
+- Analytics
+- Asset Library
+- AI Agent
+- Settings
+
+========================================================
+
+URL ANALYSIS ENGINE
+
+Users enter:
+
+https://business.com
+
+Optional Prompt:
+
+"Create promotional videos for home service companies."
+
+Button:
+
+Analyze Website
+
+========================================================
+
+WEBSITE CRAWLING
+
+Use Firecrawl.
+
+Analyze:
+
+- Homepage
+- About Page
+- Services
+- Products
+- Pricing
+- Blog
+- FAQ
+- Contact Page
+
+Extract:
+
+- Headlines
+- Product Information
+- Images
+- Benefits
+- Features
+- Calls To Action
+- Customer Testimonials
+
+Save all data.
+
+========================================================
+
+AI BUSINESS INTELLIGENCE ENGINE
+
+Generate:
+
+Business Summary
+
+Industry
+
+Products
+
+Services
+
+Unique Value Proposition
+
+Target Customers
+
+Ideal Customer Profile
+
+Customer Pain Points
+
+Brand Voice
+
+Brand Positioning
+
+Customer Benefits
+
+Purchase Triggers
+
+Market Opportunities
+
+Growth Opportunities
+
+Display results in polished dashboard cards.
+
+========================================================
+
+CUSTOMER PERSONAS
+
+Generate:
+
+- Demographics
+- Interests
+- Motivations
+- Objections
+- Buying Triggers
+- Buying Journey
+
+Create multiple personas.
+
+========================================================
+
+MARKETING STRATEGY ENGINE
+
+Generate:
+
+- Positioning Statement
+- Messaging Framework
+- Brand Voice Guide
+- SEO Strategy
+- Campaign Strategy
+- Lead Generation Strategy
+- Funnel Recommendations
+
+========================================================
+
+COMPETITOR DISCOVERY
+
+Automatically discover competitors using:
+
+- SERP Analysis
+- Industry Analysis
+- Website Classification
+- Keyword Similarity
+
+Find:
+
+Top 10 Competitors
+
+========================================================
+
+COMPETITOR INTELLIGENCE
+
+Analyze:
+
+- Websites
+- Landing Pages
+- Messaging
+- Offers
+- Social Content
+- Video Content
+- Public Ad Libraries
+
+Generate:
+
+Competitor Intelligence Report
+
+Include:
+
+- Strengths
+- Weaknesses
+- Market Gaps
+- Pricing Insights
+- Messaging Insights
+- Positioning Opportunities
+
+========================================================
+
+COMPETITOR VIDEO MINING
+
+Purpose:
+
+Analyze winning content patterns.
+
+Extract:
+
+- Hooks
+- CTAs
+- Video Structures
+- Storytelling Formats
+- Offers
+- Conversion Triggers
+- Video Durations
+- Engagement Patterns
+
+Identify:
+
+Most effective content angles.
+
+AI must NEVER copy competitors.
+
+AI should:
+
+- Learn patterns
+- Improve patterns
+- Create unique assets
+
+Generate:
+
+- Winning Hooks
+- Winning CTAs
+- Winning Storyboards
+- Winning Campaign Concepts
+
+========================================================
+
+COMPETITIVE ADVANTAGE ENGINE
+
+Score generated content for:
+
+- Hook Strength
+- Conversion Potential
+- Differentiation
+- Engagement Potential
+- Viral Potential
+
+Rate each score 1-100.
+
+========================================================
+
+CONTENT ENGINE
+
+Generate:
+
+- Blog Articles
+- SEO Content
+- Newsletters
+- Whitepapers
+- Lead Magnets
+- Case Studies
+
+For blogs generate:
+
+- Titles
+- Outlines
+- Meta Descriptions
+- Full Articles
+- SEO Keywords
+
+========================================================
+
+SOCIAL CONTENT ENGINE
+
+Generate:
+
+LinkedIn
+
+Facebook
+
+Instagram
+
+TikTok
+
+X
+
+Threads
+
+YouTube Community Posts
+
+Include:
+
+- Captions
+- Hashtags
+- CTAs
+- Images
+- Videos
+
+========================================================
+
+EMAIL MARKETING ENGINE
+
+Generate:
+
+Welcome Series
+
+Sales Sequences
+
+Lead Nurture Campaigns
+
+Reactivation Campaigns
+
+Product Launch Campaigns
+
+Onboarding Sequences
+
+========================================================
+
+AD CREATIVE ENGINE
+
+Create ads for:
+
+Google
+
+Meta
+
+LinkedIn
+
+TikTok
+
+YouTube
+
+Generate:
+
+- Headlines
+- Descriptions
+- CTA Variations
+- Images
+- Video Ads
+
+========================================================
+
+LANDING PAGE ENGINE
+
+Generate complete landing pages.
+
+Include:
+
+- Hero
+- Benefits
+- Features
+- Testimonials
+- Pricing
+- FAQ
+- CTA
+
+Allow export to:
+
+- HTML
+- React
+- Next.js
+
+========================================================
+
+VIDEO GENERATION ENGINE
+
+Most Important Feature.
+
+MODE 1
+
+Automatic Video Creation
+
+User enters URL only.
+
+Generate automatically:
+
+- 3 Promo Videos
+- 3 Product Videos
+- 3 Social Videos
+
+========================================================
+
+MODE 2
+
+Prompt-Based Video Creation
+
+User enters:
+
+URL
+
+and optional prompt.
+
+Example:
+
+"Create three TikTok-style videos targeting homeowners."
+
+========================================================
+
+VIDEO WORKFLOW
+
+STEP 1
+
+Analyze Website
+
+STEP 2
+
+Analyze Competitors
+
+STEP 3
+
+Generate Concepts
+
+STEP 4
+
+Generate Scripts
+
+STEP 5
+
+Generate Storyboards
+
+STEP 6
+
+Generate Voiceovers
+
+STEP 7
+
+Generate Captions
+
+STEP 8
+
+Generate Videos
+
+STEP 9
+
+Export MP4
+
+========================================================
+
+VIDEO TYPES
+
+Generate:
+
+- TikTok Videos
+- Instagram Reels
+- YouTube Shorts
+- Product Demos
+- Explainer Videos
+- Testimonial Videos
+- Promotional Videos
+- Event Videos
+- Retargeting Ads
+
+========================================================
+
+VIDEO EDITOR
+
+Allow editing:
+
+- Script
+- Music
+- Voice
+- Captions
+- Branding
+- Scenes
+
+Allow regeneration.
+
+========================================================
+
+ASSET LIBRARY
+
+Store:
+
+- Videos
+- Images
+- Ads
+- Emails
+- Landing Pages
+- Reports
+- Social Assets
+
+========================================================
+
+AUTOMATED SOCIAL MEDIA PUBLISHING
+
+Connect:
+
+- Facebook
+- Instagram
+- TikTok
+- LinkedIn
+- X
+- YouTube
+
+Generate:
+
+30 Day Content Calendar
+
+60 Day Content Calendar
+
+90 Day Content Calendar
+
+Publishing Options:
+
+- Auto Publish
+- Approval Workflow
+
+Automatically:
+
+- Schedule
+- Publish
+- Track Results
+
+========================================================
+
+SOCIAL ANALYTICS
+
+Track:
+
+- Reach
+- Impressions
+- Engagement
+- Followers
+- Shares
+- Clicks
+- Watch Time
+
+AI should learn from results.
+
+Improve future content automatically.
+
+========================================================
+
+AI MANAGED CAMPAIGNS
+
+Purpose:
+
+Act as an AI Media Buyer.
+
+Connect:
+
+- Google Ads
+- Meta Ads
+- LinkedIn Ads
+- TikTok Ads
+
+========================================================
+
+AI CAMPAIGN CREATION
+
+Generate:
+
+- Campaign Structure
+- Ad Groups
+- Target Audiences
+- Keywords
+- Budgets
+- Placements
+
+Create:
+
+- Images
+- Videos
+- Copy
+- Landing Pages
+
+========================================================
+
+CAMPAIGN DEPLOYMENT
+
+After user approval:
+
+Launch campaigns directly into connected advertising accounts.
+
+========================================================
+
+AI OPTIMIZATION ENGINE
+
+Monitor:
+
+- CTR
+- CPC
+- CPM
+- CPA
+- ROAS
+- Conversion Rate
+
+AI actions:
+
+- Pause losing ads
+- Increase winners
+- Create new creatives
+- Run A/B tests
+- Shift budgets
+
+========================================================
+
+AUTONOMOUS GROWTH MODE
+
+Premium Feature.
+
+User enables:
+
+AUTONOMOUS MODE
+
+AI automatically:
+
+- Creates content
+- Creates videos
+- Schedules content
+- Creates campaigns
+- Launches campaigns
+- Optimizes campaigns
+- Generates reports
+
+User only receives:
+
+- Approvals
+- Summaries
+- Recommendations
+
+========================================================
+
+AI MARKETING AGENT
+
+Chat-based assistant.
+
+Examples:
+
+"Generate 15 TikTok videos"
+
+"Create next month's content"
+
+"Launch a Google Ads campaign"
+
+"Show best performing videos"
+
+"Create a lead generation funnel"
+
+"Generate emails for my webinar"
+
+Agent should execute real actions.
+
+========================================================
+
+AI GROWTH OPERATING SYSTEM
+
+Growth Pipeline:
+
+Website URL
+↓
+Business Intelligence
+↓
+Customer Personas
+↓
+Competitor Intelligence
+↓
+Competitor Video Mining
+↓
+Marketing Strategy
+↓
+Content Creation
+↓
+Video Production
+↓
+Social Publishing
+↓
+Campaign Launch
+↓
+Analytics Collection
+↓
+Optimization
+↓
+Growth Recommendations
+
+========================================================
+
+GROWTH COMMAND CENTER
+
+Executive Dashboard showing:
+
+- Revenue
+- Leads
+- Opportunities
+- Pipeline
+- Ad Spend
+- ROAS
+- Website Traffic
+- SEO Rankings
+- Top Content
+- Top Videos
+- Email Metrics
+- Competitor Alerts
+
+Real-time updates.
+
+========================================================
+
+REPORTING ENGINE
+
+Generate:
+
+Daily Reports
+
+Weekly Reports
+
+Monthly Reports
+
+Quarterly Reports
+
+Include:
+
+- KPI Trends
+- Campaign Performance
+- Content Performance
+- Recommendations
+- Growth Opportunities
+
+========================================================
+
+PAYMENTS
+
+Stripe Integration
+
+Starter Plan
+
+- 5 Analyses
+- 10 Videos
+- Limited Assets
+
+Growth Plan
+
+- 50 Analyses
+- 100 Videos
+- AI Campaign Management
+
+Agency Plan
+
+- Unlimited Projects
+- Team Members
+- Full Automation
+
+Enterprise Plan
+
+- White Label
+- Dedicated AI Agents
+- Custom Integrations
+
+========================================================
+
+ADMIN PORTAL
+
+Manage:
+
+- Users
+- Organizations
+- Revenue
+- Usage
+- Subscriptions
+- Videos
+- Campaigns
+- AI Costs
+- System Health
+
+========================================================
+
+DATABASE MODELS
+
+Users
+
+Organizations
+
+Projects
+
+Websites
+
+ScrapedContent
+
+Competitors
+
+CompetitorInsights
+
+BusinessAnalysis
+
+CustomerPersonas
+
+MarketingStrategies
+
+MarketingAssets
+
+Blogs
+
+Emails
+
+Videos
+
+Campaigns
+
+CampaignPerformance
+
+SocialAccounts
+
+SocialPosts
+
+Reports
+
+Subscriptions
+
+Organizations
+
+AuditLogs
+
+========================================================
+
+DESIGN REQUIREMENTS
+
+Look and feel:
+
+- Premium SaaS
+- Modern
+- AI-first
+- Dark Mode
+- Glassmorphism
+- Responsive
+- Fast
+- Mobile Optimized
+
+Use modern animations.
+
+========================================================
+
+SUCCESS METRIC
+
+A user should be able to:
+
+1. Paste their URL
+
+2. Wait a few minutes
+
+3. Receive:
+
+- Business Analysis
+- Competitor Report
+- Marketing Strategy
+- Customer Personas
+- Blog Content
+- Email Campaigns
+- Social Posts
+- Ad Campaigns
+- Landing Pages
+- Promo Videos
+
+4. Connect social accounts
+
+5. Connect ad accounts
+
+6. Launch campaigns
+
+7. Automatically grow with AI assistance
+
+The final experience should feel like:
+
+"An AI-powered marketing agency, creative studio, media buying team, strategist, and growth department operating from a single platform."

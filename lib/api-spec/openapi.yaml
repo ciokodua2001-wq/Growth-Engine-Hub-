@@ -1,22 +1,32 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: GrowthForge AI API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: projects
+  - name: analysis
+  - name: competitors
+  - name: strategy
+  - name: content
+  - name: social
+  - name: email
+  - name: ads
+  - name: videos
+  - name: campaigns
+  - name: assets
+  - name: analytics
+  - name: agent
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +34,1681 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Projects ──────────────────────────────────────────────────────────────
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List all projects
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create a new project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+
+  /projects/{id}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+    patch:
+      operationId: updateProject
+      tags: [projects]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+    delete:
+      operationId: deleteProject
+      tags: [projects]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /projects/{id}/dashboard:
+    get:
+      operationId: getProjectDashboard
+      tags: [projects]
+      summary: Get dashboard summary for a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  # ── Analysis ───────────────────────────────────────────────────────────────
+  /projects/{id}/analyze:
+    post:
+      operationId: analyzeWebsite
+      tags: [analysis]
+      summary: Trigger website analysis for a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalysisInput"
+      responses:
+        "200":
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessAnalysis"
+
+  /projects/{id}/analysis:
+    get:
+      operationId: getBusinessAnalysis
+      tags: [analysis]
+      summary: Get stored business analysis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Business analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessAnalysis"
+
+  /projects/{id}/personas:
+    get:
+      operationId: listPersonas
+      tags: [analysis]
+      summary: List customer personas
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of personas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CustomerPersona"
+    post:
+      operationId: generatePersonas
+      tags: [analysis]
+      summary: Generate customer personas for a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Generated personas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CustomerPersona"
+
+  # ── Strategy ───────────────────────────────────────────────────────────────
+  /projects/{id}/strategy:
+    get:
+      operationId: getMarketingStrategy
+      tags: [strategy]
+      summary: Get marketing strategy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Marketing strategy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketingStrategy"
+    post:
+      operationId: generateMarketingStrategy
+      tags: [strategy]
+      summary: Generate marketing strategy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Generated strategy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketingStrategy"
+
+  # ── Competitors ────────────────────────────────────────────────────────────
+  /projects/{id}/competitors:
+    get:
+      operationId: listCompetitors
+      tags: [competitors]
+      summary: List competitors for a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of competitors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Competitor"
+    post:
+      operationId: discoverCompetitors
+      tags: [competitors]
+      summary: Discover competitors automatically
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Discovered competitors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Competitor"
+
+  /projects/{id}/competitors/{competitorId}:
+    get:
+      operationId: getCompetitor
+      tags: [competitors]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: competitorId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Competitor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Competitor"
+
+  /projects/{id}/competitor-report:
+    get:
+      operationId: getCompetitorReport
+      tags: [competitors]
+      summary: Get competitive intelligence report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Competitor report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorReport"
+    post:
+      operationId: generateCompetitorReport
+      tags: [competitors]
+      summary: Generate competitive intelligence report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Generated report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitorReport"
+
+  # ── Content ────────────────────────────────────────────────────────────────
+  /projects/{id}/content:
+    get:
+      operationId: listContent
+      tags: [content]
+      summary: List content assets
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of content
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContentAsset"
+    post:
+      operationId: generateContent
+      tags: [content]
+      summary: Generate content assets
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContentGenerationInput"
+      responses:
+        "200":
+          description: Generated content
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContentAsset"
+
+  /projects/{id}/content/{contentId}:
+    get:
+      operationId: getContent
+      tags: [content]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: contentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Content asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentAsset"
+    delete:
+      operationId: deleteContent
+      tags: [content]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: contentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Social ─────────────────────────────────────────────────────────────────
+  /projects/{id}/social-posts:
+    get:
+      operationId: listSocialPosts
+      tags: [social]
+      summary: List social media posts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of social posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SocialPost"
+    post:
+      operationId: generateSocialPosts
+      tags: [social]
+      summary: Generate social media posts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SocialPostInput"
+      responses:
+        "200":
+          description: Generated social posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SocialPost"
+
+  /projects/{id}/content-calendar:
+    get:
+      operationId: getContentCalendar
+      tags: [social]
+      summary: Get content calendar
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Content calendar
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CalendarEntry"
+
+  # ── Email ──────────────────────────────────────────────────────────────────
+  /projects/{id}/emails:
+    get:
+      operationId: listEmails
+      tags: [email]
+      summary: List email campaigns
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of email campaigns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmailCampaign"
+    post:
+      operationId: generateEmails
+      tags: [email]
+      summary: Generate email campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailCampaignInput"
+      responses:
+        "200":
+          description: Generated email campaign
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailCampaign"
+
+  # ── Ads ────────────────────────────────────────────────────────────────────
+  /projects/{id}/ads:
+    get:
+      operationId: listAds
+      tags: [ads]
+      summary: List ad creatives
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of ads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdCreative"
+    post:
+      operationId: generateAds
+      tags: [ads]
+      summary: Generate ad creatives
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdInput"
+      responses:
+        "200":
+          description: Generated ad creatives
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdCreative"
+
+  # ── Videos ─────────────────────────────────────────────────────────────────
+  /projects/{id}/videos:
+    get:
+      operationId: listVideos
+      tags: [videos]
+      summary: List videos
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of videos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Video"
+    post:
+      operationId: generateVideos
+      tags: [videos]
+      summary: Generate videos
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VideoInput"
+      responses:
+        "200":
+          description: Generated videos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Video"
+
+  /projects/{id}/videos/{videoId}:
+    get:
+      operationId: getVideo
+      tags: [videos]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: videoId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Video
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Video"
+    patch:
+      operationId: updateVideo
+      tags: [videos]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: videoId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VideoUpdate"
+      responses:
+        "200":
+          description: Updated video
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Video"
+    delete:
+      operationId: deleteVideo
+      tags: [videos]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: videoId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Campaigns ──────────────────────────────────────────────────────────────
+  /projects/{id}/campaigns:
+    get:
+      operationId: listCampaigns
+      tags: [campaigns]
+      summary: List ad campaigns
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of campaigns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Campaign"
+    post:
+      operationId: createCampaign
+      tags: [campaigns]
+      summary: Create/generate an ad campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CampaignInput"
+      responses:
+        "201":
+          description: Created campaign
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+
+  /projects/{id}/campaigns/{campaignId}:
+    get:
+      operationId: getCampaign
+      tags: [campaigns]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Campaign
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+    patch:
+      operationId: updateCampaign
+      tags: [campaigns]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CampaignUpdate"
+      responses:
+        "200":
+          description: Updated campaign
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+
+  /projects/{id}/campaigns/{campaignId}/performance:
+    get:
+      operationId: getCampaignPerformance
+      tags: [campaigns]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: campaignId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Campaign performance metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CampaignPerformance"
+
+  # ── Assets ─────────────────────────────────────────────────────────────────
+  /projects/{id}/assets:
+    get:
+      operationId: listAssets
+      tags: [assets]
+      summary: List all assets in library
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Asset"
+
+  # ── Analytics ──────────────────────────────────────────────────────────────
+  /projects/{id}/analytics:
+    get:
+      operationId: getProjectAnalytics
+      tags: [analytics]
+      summary: Get project analytics overview
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectAnalytics"
+
+  /projects/{id}/reports:
+    get:
+      operationId: listReports
+      tags: [analytics]
+      summary: List generated reports
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Report"
+    post:
+      operationId: generateReport
+      tags: [analytics]
+      summary: Generate a report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportInput"
+      responses:
+        "200":
+          description: Generated report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+
+  # ── AI Agent ───────────────────────────────────────────────────────────────
+  /projects/{id}/agent/chat:
+    post:
+      operationId: agentChat
+      tags: [agent]
+      summary: Send a message to the AI marketing agent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentMessageInput"
+      responses:
+        "200":
+          description: Agent response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentMessage"
+
+  /projects/{id}/agent/history:
+    get:
+      operationId: getAgentHistory
+      tags: [agent]
+      summary: Get AI agent conversation history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentMessage"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    # ── Project ──────────────────────────────────────────────────────────────
+    Project:
+      type: object
+      required: [id, name, websiteUrl, status, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        websiteUrl:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+        industry:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        autonomousMode:
+          type: boolean
+        plan:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    ProjectInput:
+      type: object
+      required: [name, websiteUrl]
+      properties:
+        name:
+          type: string
+        websiteUrl:
+          type: string
+        description:
+          type: string
+
+    ProjectUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        websiteUrl:
+          type: string
+        description:
+          type: string
+        autonomousMode:
+          type: boolean
+
+    DashboardSummary:
+      type: object
+      required: [projectId, totalContent, totalVideos, totalCampaigns, totalCompetitors, recentActivity]
+      properties:
+        projectId:
+          type: integer
+        totalContent:
+          type: integer
+        totalVideos:
+          type: integer
+        totalCampaigns:
+          type: integer
+        totalCompetitors:
+          type: integer
+        totalAds:
+          type: integer
+        totalEmails:
+          type: integer
+        totalSocialPosts:
+          type: integer
+        analysisStatus:
+          type: ["string", "null"]
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityItem"
+        topMetrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetricItem"
+
+    ActivityItem:
+      type: object
+      required: [id, type, description, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+
+    MetricItem:
+      type: object
+      required: [label, value, change]
+      properties:
+        label:
+          type: string
+        value:
+          type: string
+        change:
+          type: number
+        trend:
+          type: string
+
+    # ── Analysis ─────────────────────────────────────────────────────────────
+    AnalysisInput:
+      type: object
+      required: [websiteUrl]
+      properties:
+        websiteUrl:
+          type: string
+        prompt:
+          type: string
+
+    BusinessAnalysis:
+      type: object
+      required: [id, projectId, status, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        status:
+          type: string
+        businessSummary:
+          type: ["string", "null"]
+        industry:
+          type: ["string", "null"]
+        products:
+          type: ["string", "null"]
+        services:
+          type: ["string", "null"]
+        uniqueValueProposition:
+          type: ["string", "null"]
+        targetCustomers:
+          type: ["string", "null"]
+        idealCustomerProfile:
+          type: ["string", "null"]
+        customerPainPoints:
+          type: ["string", "null"]
+        brandVoice:
+          type: ["string", "null"]
+        brandPositioning:
+          type: ["string", "null"]
+        customerBenefits:
+          type: ["string", "null"]
+        purchaseTriggers:
+          type: ["string", "null"]
+        marketOpportunities:
+          type: ["string", "null"]
+        growthOpportunities:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    CustomerPersona:
+      type: object
+      required: [id, projectId, name, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        age:
+          type: ["string", "null"]
+        gender:
+          type: ["string", "null"]
+        occupation:
+          type: ["string", "null"]
+        income:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+        interests:
+          type: ["string", "null"]
+        motivations:
+          type: ["string", "null"]
+        objections:
+          type: ["string", "null"]
+        buyingTriggers:
+          type: ["string", "null"]
+        buyingJourney:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    # ── Strategy ─────────────────────────────────────────────────────────────
+    MarketingStrategy:
+      type: object
+      required: [id, projectId, status, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        status:
+          type: string
+        positioningStatement:
+          type: ["string", "null"]
+        messagingFramework:
+          type: ["string", "null"]
+        brandVoiceGuide:
+          type: ["string", "null"]
+        seoStrategy:
+          type: ["string", "null"]
+        campaignStrategy:
+          type: ["string", "null"]
+        leadGenerationStrategy:
+          type: ["string", "null"]
+        funnelRecommendations:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    # ── Competitors ──────────────────────────────────────────────────────────
+    Competitor:
+      type: object
+      required: [id, projectId, name, websiteUrl, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        websiteUrl:
+          type: string
+        industry:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        strengths:
+          type: ["string", "null"]
+        weaknesses:
+          type: ["string", "null"]
+        marketGaps:
+          type: ["string", "null"]
+        pricingInsights:
+          type: ["string", "null"]
+        messagingInsights:
+          type: ["string", "null"]
+        hookStrength:
+          type: ["integer", "null"]
+        conversionPotential:
+          type: ["integer", "null"]
+        differentiationScore:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+
+    CompetitorReport:
+      type: object
+      required: [projectId, competitors, generatedAt]
+      properties:
+        projectId:
+          type: integer
+        competitors:
+          type: array
+          items:
+            $ref: "#/components/schemas/Competitor"
+        marketGaps:
+          type: ["string", "null"]
+        positioningOpportunities:
+          type: ["string", "null"]
+        winningHooks:
+          type: ["string", "null"]
+        winningCtas:
+          type: ["string", "null"]
+        generatedAt:
+          type: string
+
+    # ── Content ──────────────────────────────────────────────────────────────
+    ContentGenerationInput:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+        count:
+          type: integer
+        prompt:
+          type: string
+
+    ContentAsset:
+      type: object
+      required: [id, projectId, type, title, status, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        type:
+          type: string
+        title:
+          type: string
+        body:
+          type: ["string", "null"]
+        metaDescription:
+          type: ["string", "null"]
+        seoKeywords:
+          type: ["string", "null"]
+        status:
+          type: string
+        hookStrength:
+          type: ["integer", "null"]
+        conversionPotential:
+          type: ["integer", "null"]
+        engagementPotential:
+          type: ["integer", "null"]
+        viralPotential:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+
+    # ── Social ───────────────────────────────────────────────────────────────
+    SocialPostInput:
+      type: object
+      required: [platforms]
+      properties:
+        platforms:
+          type: array
+          items:
+            type: string
+        count:
+          type: integer
+        prompt:
+          type: string
+
+    SocialPost:
+      type: object
+      required: [id, projectId, platform, caption, status, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        platform:
+          type: string
+        caption:
+          type: string
+        hashtags:
+          type: ["string", "null"]
+        cta:
+          type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
+        status:
+          type: string
+        scheduledAt:
+          type: ["string", "null"]
+        publishedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    CalendarEntry:
+      type: object
+      required: [date, posts]
+      properties:
+        date:
+          type: string
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SocialPost"
+
+    # ── Email ────────────────────────────────────────────────────────────────
+    EmailCampaignInput:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+        subject:
+          type: string
+        prompt:
+          type: string
+
+    EmailCampaign:
+      type: object
+      required: [id, projectId, type, subject, status, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        type:
+          type: string
+        subject:
+          type: string
+        body:
+          type: ["string", "null"]
+        previewText:
+          type: ["string", "null"]
+        status:
+          type: string
+        openRate:
+          type: ["number", "null"]
+        clickRate:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+
+    # ── Ads ──────────────────────────────────────────────────────────────────
+    AdInput:
+      type: object
+      required: [platform]
+      properties:
+        platform:
+          type: string
+        count:
+          type: integer
+        prompt:
+          type: string
+
+    AdCreative:
+      type: object
+      required: [id, projectId, platform, headline, status, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        platform:
+          type: string
+        headline:
+          type: string
+        description:
+          type: ["string", "null"]
+        cta:
+          type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
+        type:
+          type: string
+        hookStrength:
+          type: ["integer", "null"]
+        conversionPotential:
+          type: ["integer", "null"]
+        status:
+          type: string
+        createdAt:
+          type: string
+
+    # ── Videos ───────────────────────────────────────────────────────────────
+    VideoInput:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+        type:
+          type: string
+        count:
+          type: integer
+        prompt:
+          type: string
+
+    Video:
+      type: object
+      required: [id, projectId, title, type, status, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+        script:
+          type: ["string", "null"]
+        storyboard:
+          type: ["string", "null"]
+        voiceover:
+          type: ["string", "null"]
+        thumbnailUrl:
+          type: ["string", "null"]
+        videoUrl:
+          type: ["string", "null"]
+        duration:
+          type: ["integer", "null"]
+        hookStrength:
+          type: ["integer", "null"]
+        engagementPotential:
+          type: ["integer", "null"]
+        viralPotential:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+
+    VideoUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        script:
+          type: string
+        storyboard:
+          type: string
+        voiceover:
+          type: string
+
+    # ── Campaigns ────────────────────────────────────────────────────────────
+    CampaignInput:
+      type: object
+      required: [name, platform]
+      properties:
+        name:
+          type: string
+        platform:
+          type: string
+        budget:
+          type: number
+        prompt:
+          type: string
+
+    CampaignUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+        budget:
+          type: number
+        autonomousOptimization:
+          type: boolean
+
+    Campaign:
+      type: object
+      required: [id, projectId, name, platform, status, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        platform:
+          type: string
+        status:
+          type: string
+        budget:
+          type: ["number", "null"]
+        spent:
+          type: ["number", "null"]
+        impressions:
+          type: ["integer", "null"]
+        clicks:
+          type: ["integer", "null"]
+        conversions:
+          type: ["integer", "null"]
+        roas:
+          type: ["number", "null"]
+        ctr:
+          type: ["number", "null"]
+        cpc:
+          type: ["number", "null"]
+        autonomousOptimization:
+          type: boolean
+        createdAt:
+          type: string
+
+    CampaignPerformance:
+      type: object
+      required: [campaignId, period]
+      properties:
+        campaignId:
+          type: integer
+        period:
+          type: string
+        impressions:
+          type: integer
+        clicks:
+          type: integer
+        conversions:
+          type: integer
+        spend:
+          type: number
+        revenue:
+          type: number
+        roas:
+          type: number
+        ctr:
+          type: number
+        cpc:
+          type: number
+        cpa:
+          type: number
+
+    # ── Assets ───────────────────────────────────────────────────────────────
+    Asset:
+      type: object
+      required: [id, projectId, type, name, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        type:
+          type: string
+        name:
+          type: string
+        url:
+          type: ["string", "null"]
+        thumbnailUrl:
+          type: ["string", "null"]
+        fileSize:
+          type: ["integer", "null"]
+        mimeType:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    # ── Analytics ────────────────────────────────────────────────────────────
+    ProjectAnalytics:
+      type: object
+      required: [projectId, period]
+      properties:
+        projectId:
+          type: integer
+        period:
+          type: string
+        websiteTraffic:
+          type: integer
+        leads:
+          type: integer
+        revenue:
+          type: number
+        adSpend:
+          type: number
+        roas:
+          type: number
+        topContent:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContentAsset"
+        topVideos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Video"
+        chartData:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChartDataPoint"
+
+    ChartDataPoint:
+      type: object
+      required: [date, value]
+      properties:
+        date:
+          type: string
+        value:
+          type: number
+        label:
+          type: string
+
+    ReportInput:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+        period:
+          type: string
+
+    Report:
+      type: object
+      required: [id, projectId, type, period, status, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        type:
+          type: string
+        period:
+          type: string
+        status:
+          type: string
+        summary:
+          type: ["string", "null"]
+        kpiTrends:
+          type: ["string", "null"]
+        recommendations:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    # ── Agent ────────────────────────────────────────────────────────────────
+    AgentMessageInput:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    AgentMessage:
+      type: object
+      required: [id, projectId, role, content, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        actionType:
+          type: ["string", "null"]
+        actionResult:
+          type: ["string", "null"]
+        createdAt:
+          type: string
