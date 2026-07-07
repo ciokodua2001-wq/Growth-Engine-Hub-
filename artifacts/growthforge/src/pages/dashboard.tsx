@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
+import { useUser, UserButton } from "@clerk/react";
 import {
   useListProjects,
   useCreateProject,
@@ -104,7 +105,14 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
 
 export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
+  const [, setLocation] = useLocation();
+  const { user, isLoaded } = useUser();
   const { data: projects, isLoading } = useListProjects();
+
+  if (isLoaded && !user) {
+    setLocation("/sign-in");
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -117,7 +125,10 @@ export default function DashboardPage() {
             </div>
             <span className="font-bold text-lg tracking-tight">GrowthForge</span>
           </div>
-          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Back to Home</Link>
+          <div className="flex items-center gap-3">
+            <Link href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Home</Link>
+            <UserButton afterSignOutUrl="/" appearance={{ baseTheme: undefined, variables: { colorPrimary: "#00E676" } }} />
+          </div>
         </div>
       </header>
 

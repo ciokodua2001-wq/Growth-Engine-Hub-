@@ -70,8 +70,8 @@ export default function LandingPage() {
             <a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors hidden md:block">Sign In</Link>
-            <Link href="/dashboard" className="bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+            <Link href="/sign-in" className="text-sm text-muted-foreground hover:text-foreground transition-colors hidden md:block">Sign In</Link>
+            <Link href="/sign-up" className="bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
               Start Free
             </Link>
           </div>
@@ -119,7 +119,7 @@ export default function LandingPage() {
             transition={{ duration: 0.7, delay: 0.3 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4"
           >
-            <Link href="/dashboard" className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-base px-8 py-4 rounded-xl transition-all shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02]">
+            <Link href="/sign-up" className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-base px-8 py-4 rounded-xl transition-all shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02]">
               Start Free Analysis
               <ArrowRight className="h-5 w-5" />
             </Link>
@@ -257,7 +257,7 @@ export default function LandingPage() {
                       </li>
                     ))}
                   </ul>
-                  <Link href="/dashboard" className={`w-full text-center py-3 rounded-xl font-bold text-sm transition-all ${highlight ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20" : "bg-secondary hover:bg-secondary/80 text-foreground border border-border"}`}>
+                  <Link href="/sign-up" className={`w-full text-center py-3 rounded-xl font-bold text-sm transition-all ${highlight ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20" : "bg-secondary hover:bg-secondary/80 text-foreground border border-border"}`}>
                     {cta}
                   </Link>
                 </div>
@@ -301,7 +301,7 @@ export default function LandingPage() {
           <FadeIn>
             <h2 className="text-5xl font-black tracking-tighter mb-4 relative">Your Marketing Department<br />Starts Now.</h2>
             <p className="text-muted-foreground text-lg mb-8 relative">No agency fees. No hiring. No waiting months for results. Just paste your URL.</p>
-            <Link href="/dashboard" className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-lg px-10 py-5 rounded-xl transition-all shadow-xl shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] relative">
+            <Link href="/sign-up" className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-lg px-10 py-5 rounded-xl transition-all shadow-xl shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] relative">
               Start Your Free Analysis
               <ArrowRight className="h-5 w-5" />
             </Link>

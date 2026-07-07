@@ -1,0 +1,2 @@
+- [Stripe connector settings key](stripe-connector-key.md) — Replit's Stripe connector exposes the secret as `settings.secret`, not `settings.secret_key` (skill template is wrong).
+- [Stripe schema bootstrap](stripe-schema-bootstrap.md) — `runMigrations()` from stripe-replit-sync must succeed before any StripeSync call; first-time it may only create the schema but not tables — run once manually if startup fails.

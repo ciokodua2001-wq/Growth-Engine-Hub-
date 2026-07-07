@@ -1,15 +1,21 @@
 import { Router, type IRouter } from "express";
-import healthRouter from "./health";
-import projectsRouter from "./projects";
-import analysisRouter from "./analysis";
-import competitorsRouter from "./competitors";
-import contentRouter from "./content";
-import videosRouter from "./videos";
-import campaignsRouter from "./campaigns";
+import healthRouter from "./health.js";
+import projectsRouter from "./projects.js";
+import analysisRouter from "./analysis.js";
+import competitorsRouter from "./competitors.js";
+import contentRouter from "./content.js";
+import videosRouter from "./videos.js";
+import campaignsRouter from "./campaigns.js";
+import authRouter from "./auth.js";
+import stripeRouter from "./stripe.js";
+import onboardingRouter from "./onboarding.js";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(authRouter);
+router.use(stripeRouter);
+router.use(onboardingRouter);
 router.use(projectsRouter);
 router.use(analysisRouter);
 router.use(competitorsRouter);
