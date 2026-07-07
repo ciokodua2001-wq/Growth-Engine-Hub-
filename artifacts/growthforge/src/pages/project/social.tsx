@@ -1,15 +1,16 @@
+import { useState } from "react";
 import { useParams } from "wouter";
 import {
   useListSocialPosts,
   useGenerateSocialPosts,
   useGetContentCalendar,
+  useGetProject,
   getListSocialPostsQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Share2, Zap, Calendar } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import GenerateModal from "@/components/ui/generate-modal";
 
 const platforms = ["linkedin", "instagram", "tiktok", "x", "facebook"];
 
@@ -21,32 +22,44 @@ const platformColors: Record<string, { bg: string; text: string; border: string 
   facebook: { bg: "bg-blue-600/15", text: "text-blue-300", border: "border-blue-600/20" },
 };
 
+const SOCIAL_STEPS = [
+  "Analyzing platform trends...",
+  "Crafting platform-native hooks...",
+  "Writing engaging captions...",
+  "Adding hashtag strategy...",
+  "Scheduling content calendar...",
+];
+
 export default function ProjectSocial() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
   const [view, setView] = useState<"posts" | "calendar">("posts");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["linkedin", "instagram", "tiktok"]);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: posts, isLoading } = useListSocialPosts(projectId, { query: { enabled: !!projectId } });
   const { data: calendar } = useGetContentCalendar(projectId, { query: { enabled: !!projectId && view === "calendar" } });
   const generatePosts = useGenerateSocialPosts();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   const togglePlatform = (p: string) => {
     setSelectedPlatforms(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
   };
 
-  const handleGenerate = () => {
-    generatePosts.mutate(
-      { id: projectId, data: { platforms: selectedPlatforms } },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListSocialPostsQueryKey(projectId) });
-          toast({ title: "Social posts generated!" });
-        },
-        onError: () => toast({ title: "Error", variant: "destructive" }),
-      }
-    );
+  const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      generatePosts.mutate(
+        { id: projectId, data: { platforms: selectedPlatforms } },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getListSocialPostsQueryKey(projectId) });
+            resolve();
+          },
+          onError: reject,
+        }
+      );
+    });
   };
 
   const filteredPosts = posts?.filter(p => selectedPlatforms.includes(p.platform.toLowerCase())) ?? [];
@@ -59,16 +72,15 @@ export default function ProjectSocial() {
           <p className="text-muted-foreground mt-1">Platform-optimized posts and content calendar</p>
         </div>
         <button
-          onClick={handleGenerate}
-          disabled={generatePosts.isPending || selectedPlatforms.length === 0}
+          onClick={() => setModalOpen(true)}
+          disabled={selectedPlatforms.length === 0}
           className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
         >
-          {generatePosts.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+          <Zap className="h-4 w-4" />
           Generate Posts
         </button>
       </div>
 
-      {/* Platform toggles */}
       <div className="flex flex-wrap gap-2 mb-6">
         {platforms.map(p => {
           const colors = platformColors[p] ?? { bg: "bg-secondary", text: "text-muted-foreground", border: "border-border" };
@@ -85,7 +97,6 @@ export default function ProjectSocial() {
         })}
       </div>
 
-      {/* View tabs */}
       <div className="flex gap-1 mb-6 bg-secondary rounded-xl p-1 w-fit">
         {([["posts", "Posts"], ["calendar", "Calendar"]] as const).map(([v, label]) => (
           <button
@@ -121,12 +132,8 @@ export default function ProjectSocial() {
                     <span className="text-[10px] text-muted-foreground ml-auto capitalize">{post.status}</span>
                   </div>
                   <p className="text-sm text-foreground leading-relaxed mb-3">{post.caption}</p>
-                  {post.hashtags && (
-                    <p className="text-xs text-primary/70">{post.hashtags}</p>
-                  )}
-                  {post.cta && (
-                    <p className="text-xs text-muted-foreground mt-2 italic">{post.cta}</p>
-                  )}
+                  {post.hashtags && <p className="text-xs text-primary/70">{post.hashtags}</p>}
+                  {post.cta && <p className="text-xs text-muted-foreground mt-2 italic">{post.cta}</p>}
                 </motion.div>
               );
             })}
@@ -136,7 +143,7 @@ export default function ProjectSocial() {
             <Share2 className="h-16 w-16 text-primary/30 mb-6" />
             <h2 className="text-2xl font-bold mb-3">No Posts Yet</h2>
             <p className="text-muted-foreground mb-8 max-w-sm">Generate 30 days of social content across your selected platforms.</p>
-            <button onClick={handleGenerate} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
+            <button onClick={() => setModalOpen(true)} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
               <Zap className="h-4 w-4" /> Generate Posts
             </button>
           </div>
@@ -169,6 +176,18 @@ export default function ProjectSocial() {
           )}
         </div>
       )}
+
+      <GenerateModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Generate Social Posts"
+        subtitle={`Creating content for ${selectedPlatforms.join(", ")}`}
+        defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        instructionsPlaceholder={`Examples:\n• Generate LinkedIn thought leadership\n• Create viral TikTok hooks\n• Focus on product launches\n• Target startup founders`}
+        processingSteps={SOCIAL_STEPS}
+        onSubmit={handleSubmit}
+        ctaLabel="Generate Posts"
+      />
     </div>
   );
 }

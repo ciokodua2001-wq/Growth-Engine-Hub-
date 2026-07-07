@@ -1,14 +1,15 @@
+import { useState } from "react";
 import { useParams } from "wouter";
 import {
   useListEmails,
   useGenerateEmails,
+  useGetProject,
   getListEmailsQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Mail, Zap, ChevronDown, ChevronUp } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import GenerateModal from "@/components/ui/generate-modal";
 
 const emailTypes = ["welcome", "sales", "nurture", "reactivation"];
 
@@ -19,27 +20,39 @@ const typeColors: Record<string, string> = {
   reactivation: "bg-orange-500/15 text-orange-400 border-orange-500/20",
 };
 
+const EMAIL_STEPS = [
+  "Analyzing subscriber journey...",
+  "Writing subject lines...",
+  "Crafting email sequences...",
+  "Personalizing for your audience...",
+  "Optimizing for deliverability...",
+];
+
 export default function ProjectEmail() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
   const [selectedType, setSelectedType] = useState("welcome");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: emails, isLoading } = useListEmails(projectId, { query: { enabled: !!projectId } });
   const generateEmails = useGenerateEmails();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
-  const handleGenerate = () => {
-    generateEmails.mutate(
-      { id: projectId, data: { type: selectedType } },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListEmailsQueryKey(projectId) });
-          toast({ title: "Email campaign generated!" });
-        },
-        onError: () => toast({ title: "Error", variant: "destructive" }),
-      }
-    );
+  const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      generateEmails.mutate(
+        { id: projectId, data: { type: selectedType } },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getListEmailsQueryKey(projectId) });
+            resolve();
+          },
+          onError: reject,
+        }
+      );
+    });
   };
 
   return (
@@ -58,11 +71,10 @@ export default function ProjectEmail() {
             {emailTypes.map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)} Sequence</option>)}
           </select>
           <button
-            onClick={handleGenerate}
-            disabled={generateEmails.isPending}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
+            onClick={() => setModalOpen(true)}
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
           >
-            {generateEmails.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+            <Zap className="h-4 w-4" />
             Generate Email
           </button>
         </div>
@@ -131,11 +143,23 @@ export default function ProjectEmail() {
           <Mail className="h-16 w-16 text-primary/30 mb-6" />
           <h2 className="text-2xl font-bold mb-3">No Email Campaigns Yet</h2>
           <p className="text-muted-foreground mb-8 max-w-sm">Generate welcome sequences, sales emails, nurture campaigns, and reactivation flows.</p>
-          <button onClick={handleGenerate} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
+          <button onClick={() => setModalOpen(true)} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
             <Zap className="h-4 w-4" /> Generate Email Campaign
           </button>
         </div>
       )}
+
+      <GenerateModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={`Generate ${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} Email Sequence`}
+        subtitle="AI will write a high-converting multi-email campaign for your funnel"
+        defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        instructionsPlaceholder={`Examples:\n• Focus on onboarding new users\n• Target enterprise decision makers\n• Emphasize ROI and case studies\n• Use conversational tone`}
+        processingSteps={EMAIL_STEPS}
+        onSubmit={handleSubmit}
+        ctaLabel="Generate Campaign"
+      />
     </div>
   );
 }

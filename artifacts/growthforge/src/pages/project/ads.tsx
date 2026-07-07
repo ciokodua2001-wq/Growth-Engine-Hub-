@@ -1,14 +1,15 @@
+import { useState } from "react";
 import { useParams } from "wouter";
 import {
   useListAds,
   useGenerateAds,
+  useGetProject,
   getListAdsQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Rss, Zap } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import GenerateModal from "@/components/ui/generate-modal";
 
 const adPlatforms = ["Meta", "Google", "LinkedIn", "TikTok", "YouTube"];
 
@@ -20,7 +21,15 @@ const platformColors: Record<string, string> = {
   YouTube: "bg-rose-500/15 text-rose-400 border-rose-500/20",
 };
 
-function ScoreBar({ label, value, color }: { label: string; value: number | null; color: string }) {
+const ADS_STEPS = [
+  "Researching target audience...",
+  "Writing high-converting headlines...",
+  "Crafting ad copy variations...",
+  "Optimizing for platform algorithms...",
+  "Predicting performance scores...",
+];
+
+function ScoreBar({ label, value, color }: { label: string; value: number | null | undefined; color: string }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
@@ -43,22 +52,26 @@ export default function ProjectAds() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
   const [selectedPlatform, setSelectedPlatform] = useState("Meta");
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: ads, isLoading } = useListAds(projectId, { query: { enabled: !!projectId } });
   const generateAds = useGenerateAds();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
-  const handleGenerate = () => {
-    generateAds.mutate(
-      { id: projectId, data: { platform: selectedPlatform, count: 4 } },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListAdsQueryKey(projectId) });
-          toast({ title: "Ad creatives generated!" });
-        },
-        onError: () => toast({ title: "Error", variant: "destructive" }),
-      }
-    );
+  const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      generateAds.mutate(
+        { id: projectId, data: { platform: selectedPlatform, count: 4 } },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getListAdsQueryKey(projectId) });
+            resolve();
+          },
+          onError: reject,
+        }
+      );
+    });
   };
 
   return (
@@ -77,11 +90,10 @@ export default function ProjectAds() {
             {adPlatforms.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
           <button
-            onClick={handleGenerate}
-            disabled={generateAds.isPending}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
+            onClick={() => setModalOpen(true)}
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
           >
-            {generateAds.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+            <Zap className="h-4 w-4" />
             Generate Ads
           </button>
         </div>
@@ -101,7 +113,6 @@ export default function ProjectAds() {
                 transition={{ delay: i * 0.07 }}
                 className="p-5 rounded-xl bg-card border border-border"
               >
-                {/* Ad preview */}
                 <div className="h-32 rounded-lg bg-gradient-to-br from-primary/15 via-secondary to-secondary mb-4 flex flex-col items-center justify-center p-4 text-center">
                   <p className="font-bold text-sm text-foreground mb-1">{ad.headline}</p>
                   {ad.description && <p className="text-xs text-muted-foreground line-clamp-2">{ad.description}</p>}
@@ -136,11 +147,23 @@ export default function ProjectAds() {
           <Rss className="h-16 w-16 text-primary/30 mb-6" />
           <h2 className="text-2xl font-bold mb-3">No Ad Creatives Yet</h2>
           <p className="text-muted-foreground mb-8 max-w-sm">Generate high-converting ad creatives for Meta, Google, LinkedIn, TikTok, and YouTube.</p>
-          <button onClick={handleGenerate} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
+          <button onClick={() => setModalOpen(true)} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
             <Zap className="h-4 w-4" /> Generate Ads
           </button>
         </div>
       )}
+
+      <GenerateModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={`Generate ${selectedPlatform} Ad Creatives`}
+        subtitle="AI will write 4 high-converting ads optimized for your target platform"
+        defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        instructionsPlaceholder={`Examples:\n• Target startup founders\n• Focus on free trial CTA\n• Emphasize ROI and time savings\n• Use bold direct response copy`}
+        processingSteps={ADS_STEPS}
+        onSubmit={handleSubmit}
+        ctaLabel="Generate Ads"
+      />
     </div>
   );
 }

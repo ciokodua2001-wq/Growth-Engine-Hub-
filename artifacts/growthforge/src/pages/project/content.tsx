@@ -1,15 +1,17 @@
+import { useState } from "react";
 import { useParams } from "wouter";
 import {
   useListContent,
   useGenerateContent,
   useDeleteContent,
+  useGetProject,
   getListContentQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, FileText, Zap, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import GenerateModal from "@/components/ui/generate-modal";
 
 const typeOptions = ["blog", "whitepaper", "case-study", "landing-page", "email-sequence", "press-release"];
 
@@ -20,7 +22,15 @@ const typeColors: Record<string, string> = {
   "landing-page": "bg-orange-500/15 text-orange-400 border-orange-500/20",
 };
 
-function ScoreBar({ label, value, color }: { label: string; value: number | null; color: string }) {
+const CONTENT_STEPS = [
+  "Analyzing your brand voice...",
+  "Researching topic angles...",
+  "Writing content structure...",
+  "Crafting headlines and hooks...",
+  "Optimizing for conversion...",
+];
+
+function ScoreBar({ label, value, color }: { label: string; value: number | null | undefined; color: string }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
@@ -44,23 +54,28 @@ export default function ProjectContent() {
   const projectId = parseInt(params.projectId, 10);
   const [selectedType, setSelectedType] = useState("blog");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: content, isLoading } = useListContent(projectId, { query: { enabled: !!projectId } });
   const generateContent = useGenerateContent();
   const deleteContent = useDeleteContent();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const handleGenerate = () => {
-    generateContent.mutate(
-      { id: projectId, data: { type: selectedType, count: 3 } },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListContentQueryKey(projectId) });
-          toast({ title: "Content generated!" });
-        },
-        onError: () => toast({ title: "Error", variant: "destructive" }),
-      }
-    );
+  const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      generateContent.mutate(
+        { id: projectId, data: { type: selectedType, count: 3 } },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getListContentQueryKey(projectId) });
+            resolve();
+          },
+          onError: reject,
+        }
+      );
+    });
   };
 
   const handleDelete = (contentId: number) => {
@@ -86,14 +101,13 @@ export default function ProjectContent() {
             onChange={(e) => setSelectedType(e.target.value)}
             className="bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
-            {typeOptions.map((t) => <option key={t} value={t}>{t.replace("-", " ")}</option>)}
+            {typeOptions.map((t) => <option key={t} value={t}>{t.replace(/-/g, " ")}</option>)}
           </select>
           <button
-            onClick={handleGenerate}
-            disabled={generateContent.isPending}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
+            onClick={() => setModalOpen(true)}
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
           >
-            {generateContent.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+            <Zap className="h-4 w-4" />
             Generate Content
           </button>
         </div>
@@ -138,7 +152,7 @@ export default function ProjectContent() {
                   </button>
                   <button
                     onClick={() => handleDelete(item.id)}
-                    className="p-2 rounded-lg hover:bg-destructive/20 transition-colors text-muted-foreground hover:text-destructive-foreground"
+                    className="p-2 rounded-lg hover:bg-destructive/20 transition-colors text-muted-foreground hover:text-rose-400"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -161,11 +175,23 @@ export default function ProjectContent() {
           <FileText className="h-16 w-16 text-primary/30 mb-6" />
           <h2 className="text-2xl font-bold mb-3">No Content Yet</h2>
           <p className="text-muted-foreground mb-8 max-w-sm">Generate SEO-optimized blog posts, whitepapers, case studies, and more.</p>
-          <button onClick={handleGenerate} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
+          <button onClick={() => setModalOpen(true)} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
             <Zap className="h-4 w-4" /> Generate Content
           </button>
         </div>
       )}
+
+      <GenerateModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={`Generate ${selectedType.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}`}
+        subtitle="AI will write 3 pieces of high-converting content for your audience"
+        defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        instructionsPlaceholder={`Examples:\n• Focus on SEO keyword clusters\n• Write for technical audiences\n• Include case study examples\n• Target early-stage founders`}
+        processingSteps={CONTENT_STEPS}
+        onSubmit={handleSubmit}
+        ctaLabel="Generate Content"
+      />
     </div>
   );
 }

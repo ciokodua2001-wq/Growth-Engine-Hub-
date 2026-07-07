@@ -1,13 +1,23 @@
+import { useState } from "react";
 import { useParams } from "wouter";
 import {
   useGetMarketingStrategy,
   useGenerateMarketingStrategy,
+  useGetProject,
   getGetMarketingStrategyQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Megaphone, Zap, Target, MessageCircle, Globe, TrendingUp, Filter } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import GenerateModal from "@/components/ui/generate-modal";
+
+const STRATEGY_STEPS = [
+  "Analyzing brand positioning...",
+  "Crafting messaging framework...",
+  "Building SEO strategy...",
+  "Designing conversion funnel...",
+  "Finalizing marketing strategy...",
+];
 
 function StrategyCard({ title, content, icon: Icon }: { title: string; content: string | null | undefined; icon: React.ComponentType<{ className?: string }> }) {
   if (!content) return null;
@@ -25,22 +35,26 @@ function StrategyCard({ title, content, icon: Icon }: { title: string; content: 
 export default function ProjectStrategy() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: strategy, isLoading } = useGetMarketingStrategy(projectId, { query: { enabled: !!projectId } });
   const generateStrategy = useGenerateMarketingStrategy();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
-  const handleGenerate = () => {
-    generateStrategy.mutate(
-      { id: projectId },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetMarketingStrategyQueryKey(projectId) });
-          toast({ title: "Marketing strategy generated!" });
-        },
-        onError: () => toast({ title: "Error", variant: "destructive" }),
-      }
-    );
+  const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      generateStrategy.mutate(
+        { id: projectId },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getGetMarketingStrategyQueryKey(projectId) });
+            resolve();
+          },
+          onError: reject,
+        }
+      );
+    });
   };
 
   return (
@@ -51,12 +65,11 @@ export default function ProjectStrategy() {
           <p className="text-muted-foreground mt-1">AI-generated positioning, messaging, and growth strategy</p>
         </div>
         <button
-          onClick={handleGenerate}
-          disabled={generateStrategy.isPending}
-          className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
+          onClick={() => setModalOpen(true)}
+          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
         >
-          {generateStrategy.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-          {generateStrategy.isPending ? "Generating..." : "Generate Strategy"}
+          <Zap className="h-4 w-4" />
+          {strategy ? "Re-Generate Strategy" : "Generate Strategy"}
         </button>
       </div>
 
@@ -79,11 +92,23 @@ export default function ProjectStrategy() {
           <Megaphone className="h-16 w-16 text-primary/30 mb-6" />
           <h2 className="text-2xl font-bold mb-3">No Strategy Yet</h2>
           <p className="text-muted-foreground mb-8 max-w-sm">Generate your AI-powered marketing strategy with positioning, messaging, and growth recommendations.</p>
-          <button onClick={handleGenerate} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
+          <button onClick={() => setModalOpen(true)} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
             <Zap className="h-4 w-4" /> Generate Strategy
           </button>
         </div>
       )}
+
+      <GenerateModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Generate Marketing Strategy"
+        subtitle="AI will create your full positioning, messaging, and growth blueprint"
+        defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        instructionsPlaceholder={`Examples:\n• Focus on SaaS B2B positioning\n• Emphasize competitor differentiation\n• Target startup founders\n• Build aggressive growth funnel`}
+        processingSteps={STRATEGY_STEPS}
+        onSubmit={handleSubmit}
+        ctaLabel={strategy ? "Re-Generate" : "Generate Strategy"}
+      />
     </div>
   );
 }

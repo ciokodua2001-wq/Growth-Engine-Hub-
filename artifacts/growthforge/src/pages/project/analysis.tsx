@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams } from "wouter";
 import {
   useGetBusinessAnalysis,
@@ -11,7 +12,23 @@ import {
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Zap, Users2, Brain, Target, MessageCircle, TrendingUp } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import GenerateModal from "@/components/ui/generate-modal";
+
+const ANALYZE_STEPS = [
+  "Crawling website content...",
+  "Extracting business intelligence...",
+  "Identifying target customers...",
+  "Mapping market opportunities...",
+  "Generating strategic insights...",
+];
+
+const PERSONA_STEPS = [
+  "Analyzing customer data...",
+  "Building behavioral profiles...",
+  "Mapping customer journeys...",
+  "Identifying pain points & motivations...",
+  "Finalizing persona profiles...",
+];
 
 function AnalysisCard({ title, content, icon: Icon }: { title: string; content: string | null | undefined; icon: React.ComponentType<{ className?: string }> }) {
   if (!content) return null;
@@ -29,39 +46,45 @@ function AnalysisCard({ title, content, icon: Icon }: { title: string; content: 
 export default function ProjectAnalysis() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
+  const [analyzeModalOpen, setAnalyzeModalOpen] = useState(false);
+  const [personaModalOpen, setPersonaModalOpen] = useState(false);
+
   const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: analysis, isLoading } = useGetBusinessAnalysis(projectId, { query: { enabled: !!projectId } });
   const { data: personas, isLoading: personasLoading } = useListPersonas(projectId, { query: { enabled: !!projectId } });
   const analyzeWebsite = useAnalyzeWebsite();
   const generatePersonas = useGeneratePersonas();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
-  const handleAnalyze = () => {
-    if (!project?.websiteUrl) return;
-    analyzeWebsite.mutate(
-      { id: projectId, data: { websiteUrl: project.websiteUrl } },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetBusinessAnalysisQueryKey(projectId) });
-          toast({ title: "Analysis complete!" });
-        },
-        onError: () => toast({ title: "Error", description: "Analysis failed.", variant: "destructive" }),
-      }
-    );
+  const handleAnalyze = (websiteUrl: string, _instructions: string): Promise<void> => {
+    const url = websiteUrl || project?.websiteUrl || "";
+    return new Promise((resolve, reject) => {
+      analyzeWebsite.mutate(
+        { id: projectId, data: { websiteUrl: url } },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getGetBusinessAnalysisQueryKey(projectId) });
+            resolve();
+          },
+          onError: reject,
+        }
+      );
+    });
   };
 
-  const handleGeneratePersonas = () => {
-    generatePersonas.mutate(
-      { id: projectId },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListPersonasQueryKey(projectId) });
-          toast({ title: "Personas generated!" });
-        },
-        onError: () => toast({ title: "Error", variant: "destructive" }),
-      }
-    );
+  const handleGeneratePersonas = (_websiteUrl: string, _instructions: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      generatePersonas.mutate(
+        { id: projectId },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getListPersonasQueryKey(projectId) });
+            resolve();
+          },
+          onError: reject,
+        }
+      );
+    });
   };
 
   return (
@@ -72,12 +95,11 @@ export default function ProjectAnalysis() {
           <p className="text-muted-foreground mt-1">AI-powered intelligence about your business, customers, and market</p>
         </div>
         <button
-          onClick={handleAnalyze}
-          disabled={analyzeWebsite.isPending}
-          className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-bold px-5 py-2.5 rounded-xl transition-colors text-sm"
+          onClick={() => setAnalyzeModalOpen(true)}
+          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl transition-colors text-sm"
         >
-          {analyzeWebsite.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-          {analyzeWebsite.isPending ? "Analyzing..." : "Re-Analyze"}
+          <Zap className="h-4 w-4" />
+          {analysis ? "Re-Analyze" : "Start Analysis"}
         </button>
       </div>
 
@@ -85,14 +107,12 @@ export default function ProjectAnalysis() {
         <div className="flex items-center justify-center py-32"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
       ) : analysis ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-          {/* Status banner */}
           <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/10 border border-primary/20">
             <Brain className="h-5 w-5 text-primary" />
             <span className="text-sm font-medium">Analysis complete for {project?.websiteUrl}</span>
             <span className="ml-auto text-xs text-primary bg-primary/20 px-2 py-1 rounded capitalize">{analysis.status}</span>
           </div>
 
-          {/* Business Overview */}
           <div>
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Brain className="h-5 w-5 text-primary" /> Business Overview</h2>
             <div className="grid md:grid-cols-2 gap-4">
@@ -105,7 +125,6 @@ export default function ProjectAnalysis() {
             </div>
           </div>
 
-          {/* Customer Intelligence */}
           <div>
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Users2 className="h-5 w-5 text-cyan-400" /> Customer Intelligence</h2>
             <div className="grid md:grid-cols-2 gap-4">
@@ -118,7 +137,6 @@ export default function ProjectAnalysis() {
             </div>
           </div>
 
-          {/* Opportunities */}
           <div>
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><TrendingUp className="h-5 w-5 text-emerald-400" /> Market Opportunities</h2>
             <div className="grid md:grid-cols-2 gap-4">
@@ -132,24 +150,22 @@ export default function ProjectAnalysis() {
           <Brain className="h-16 w-16 text-primary/30 mb-6" />
           <h2 className="text-2xl font-bold mb-3">No Analysis Yet</h2>
           <p className="text-muted-foreground mb-8 max-w-sm">Run the AI analysis to extract business intelligence from your website.</p>
-          <button onClick={handleAnalyze} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
+          <button onClick={() => setAnalyzeModalOpen(true)} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
             <Zap className="h-4 w-4" /> Start Analysis
           </button>
         </div>
       )}
 
-      {/* Customer Personas */}
       <div className="mt-12">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
             <Users2 className="h-6 w-6 text-cyan-400" /> Customer Personas
           </h2>
           <button
-            onClick={handleGeneratePersonas}
-            disabled={generatePersonas.isPending}
+            onClick={() => setPersonaModalOpen(true)}
             className="flex items-center gap-2 bg-secondary hover:bg-secondary/80 border border-border text-foreground font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
           >
-            {generatePersonas.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users2 className="h-4 w-4" />}
+            <Users2 className="h-4 w-4" />
             Generate Personas
           </button>
         </div>
@@ -201,6 +217,30 @@ export default function ProjectAnalysis() {
           </div>
         )}
       </div>
+
+      <GenerateModal
+        isOpen={analyzeModalOpen}
+        onClose={() => setAnalyzeModalOpen(false)}
+        title={analysis ? "Re-Analyze Website" : "Start Business Analysis"}
+        subtitle="AI will crawl your website and extract deep business intelligence"
+        defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        instructionsPlaceholder={`Examples:\n• Focus on SEO opportunities\n• Analyze competitor positioning\n• Deep dive into customer pain points\n• Map growth opportunities`}
+        processingSteps={ANALYZE_STEPS}
+        onSubmit={handleAnalyze}
+        ctaLabel={analysis ? "Re-Analyze" : "Start Analysis"}
+      />
+
+      <GenerateModal
+        isOpen={personaModalOpen}
+        onClose={() => setPersonaModalOpen(false)}
+        title="Generate Customer Personas"
+        subtitle="AI will build detailed behavioral profiles of your ideal customers"
+        defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        instructionsPlaceholder={`Examples:\n• Focus on B2B decision makers\n• Include millennial entrepreneurs\n• Target e-commerce store owners\n• Profile tech-savvy founders`}
+        processingSteps={PERSONA_STEPS}
+        onSubmit={handleGeneratePersonas}
+        ctaLabel="Generate Personas"
+      />
     </div>
   );
 }

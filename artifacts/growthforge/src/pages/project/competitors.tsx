@@ -1,18 +1,36 @@
+import { useState } from "react";
 import { useParams } from "wouter";
 import {
   useListCompetitors,
   useDiscoverCompetitors,
   useGetCompetitorReport,
   useGenerateCompetitorReport,
+  useGetProject,
   getListCompetitorsQueryKey,
   getGetCompetitorReportQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Users2, TrendingUp, Globe, FileText, Zap } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import GenerateModal from "@/components/ui/generate-modal";
 
-function ScoreBar({ value, color }: { value: number | null; color: string }) {
+const DISCOVER_STEPS = [
+  "Searching competitor landscape...",
+  "Crawling competitor websites...",
+  "Analyzing messaging strategies...",
+  "Identifying market gaps...",
+  "Compiling intelligence data...",
+];
+
+const REPORT_STEPS = [
+  "Processing competitor data...",
+  "Analyzing positioning gaps...",
+  "Identifying winning strategies...",
+  "Mapping differentiation opportunities...",
+  "Generating strategic report...",
+];
+
+function ScoreBar({ value, color }: { value: number | null | undefined; color: string }) {
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
@@ -31,37 +49,44 @@ function ScoreBar({ value, color }: { value: number | null; color: string }) {
 export default function ProjectCompetitors() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
+  const [discoverModalOpen, setDiscoverModalOpen] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+
+  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: competitors, isLoading } = useListCompetitors(projectId, { query: { enabled: !!projectId } });
   const { data: report } = useGetCompetitorReport(projectId, { query: { enabled: !!projectId } });
   const discoverCompetitors = useDiscoverCompetitors();
   const generateReport = useGenerateCompetitorReport();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
-  const handleDiscover = () => {
-    discoverCompetitors.mutate(
-      { id: projectId },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListCompetitorsQueryKey(projectId) });
-          toast({ title: "Competitors discovered!" });
-        },
-        onError: () => toast({ title: "Error", variant: "destructive" }),
-      }
-    );
+  const handleDiscover = (_websiteUrl: string, _instructions: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      discoverCompetitors.mutate(
+        { id: projectId },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getListCompetitorsQueryKey(projectId) });
+            resolve();
+          },
+          onError: reject,
+        }
+      );
+    });
   };
 
-  const handleGenerateReport = () => {
-    generateReport.mutate(
-      { id: projectId },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetCompetitorReportQueryKey(projectId) });
-          toast({ title: "Competitor report generated!" });
-        },
-        onError: () => toast({ title: "Error", variant: "destructive" }),
-      }
-    );
+  const handleGenerateReport = (_websiteUrl: string, _instructions: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      generateReport.mutate(
+        { id: projectId },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getGetCompetitorReportQueryKey(projectId) });
+            resolve();
+          },
+          onError: reject,
+        }
+      );
+    });
   };
 
   return (
@@ -73,25 +98,22 @@ export default function ProjectCompetitors() {
         </div>
         <div className="flex gap-3">
           <button
-            onClick={handleGenerateReport}
-            disabled={generateReport.isPending}
+            onClick={() => setReportModalOpen(true)}
             className="flex items-center gap-2 bg-secondary hover:bg-secondary/80 border border-border text-foreground font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
           >
-            {generateReport.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+            <FileText className="h-4 w-4" />
             Generate Report
           </button>
           <button
-            onClick={handleDiscover}
-            disabled={discoverCompetitors.isPending}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
+            onClick={() => setDiscoverModalOpen(true)}
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
           >
-            {discoverCompetitors.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-            {discoverCompetitors.isPending ? "Discovering..." : "Discover Competitors"}
+            <Zap className="h-4 w-4" />
+            Discover Competitors
           </button>
         </div>
       </div>
 
-      {/* Competitor Report Summary */}
       {report && (report as { marketGaps?: string; positioningOpportunities?: string; winningHooks?: string }).marketGaps && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-8 p-6 rounded-xl bg-primary/5 border border-primary/20">
           <h2 className="font-bold mb-4 flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary" /> Competitive Intelligence Report</h2>
@@ -180,11 +202,35 @@ export default function ProjectCompetitors() {
           <Users2 className="h-16 w-16 text-primary/30 mb-6" />
           <h2 className="text-2xl font-bold mb-3">No Competitors Tracked Yet</h2>
           <p className="text-muted-foreground mb-8 max-w-sm">Discover your top competitors and get strategic intelligence on their messaging, weaknesses, and market gaps.</p>
-          <button onClick={handleDiscover} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
+          <button onClick={() => setDiscoverModalOpen(true)} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
             <Zap className="h-4 w-4" /> Discover Competitors
           </button>
         </div>
       )}
+
+      <GenerateModal
+        isOpen={discoverModalOpen}
+        onClose={() => setDiscoverModalOpen(false)}
+        title="Discover Competitors"
+        subtitle="AI will find and analyze your top competitors' messaging and positioning"
+        defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        instructionsPlaceholder={`Examples:\n• Focus on direct SaaS competitors\n• Include enterprise alternatives\n• Find niche market players\n• Look for positioning gaps`}
+        processingSteps={DISCOVER_STEPS}
+        onSubmit={handleDiscover}
+        ctaLabel="Discover Competitors"
+      />
+
+      <GenerateModal
+        isOpen={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        title="Generate Intelligence Report"
+        subtitle="AI will synthesize competitor data into a strategic positioning report"
+        defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        instructionsPlaceholder={`Examples:\n• Focus on pricing gaps\n• Analyze content strategy differences\n• Identify SEO opportunities\n• Map untapped customer segments`}
+        processingSteps={REPORT_STEPS}
+        onSubmit={handleGenerateReport}
+        ctaLabel="Generate Report"
+      />
     </div>
   );
 }

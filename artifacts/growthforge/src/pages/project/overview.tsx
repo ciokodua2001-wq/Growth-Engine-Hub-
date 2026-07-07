@@ -1,10 +1,19 @@
+import { useState } from "react";
 import { useParams } from "wouter";
 import { useGetProject, useGetProjectDashboard, useAnalyzeWebsite } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { Loader2, Brain, Video, Target, Users2, FileText, Mail, Rss, Share2, Zap, Activity } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetProjectDashboardQueryKey } from "@workspace/api-client-react";
-import { useToast } from "@/hooks/use-toast";
+import GenerateModal from "@/components/ui/generate-modal";
+
+const ANALYSIS_STEPS = [
+  "Crawling website content...",
+  "Extracting business intelligence...",
+  "Identifying target customers...",
+  "Mapping market opportunities...",
+  "Generating strategic insights...",
+];
 
 function ScoreBar({ value, color = "bg-primary" }: { value: number; color?: string }) {
   return (
@@ -22,24 +31,26 @@ function ScoreBar({ value, color = "bg-primary" }: { value: number; color?: stri
 export default function ProjectOverview() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
+  const [modalOpen, setModalOpen] = useState(false);
   const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: dashboard, isLoading } = useGetProjectDashboard(projectId, { query: { enabled: !!projectId } });
   const analyzeWebsite = useAnalyzeWebsite();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
-  const handleAnalyze = () => {
-    if (!project?.websiteUrl) return;
-    analyzeWebsite.mutate(
-      { id: projectId, data: { websiteUrl: project.websiteUrl } },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetProjectDashboardQueryKey(projectId) });
-          toast({ title: "Analysis complete!", description: "Business intelligence is ready to explore." });
-        },
-        onError: () => toast({ title: "Error", description: "Analysis failed. Try again.", variant: "destructive" }),
-      }
-    );
+  const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
+    const url = _websiteUrl || project?.websiteUrl || "";
+    return new Promise((resolve, reject) => {
+      analyzeWebsite.mutate(
+        { id: projectId, data: { websiteUrl: url } },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getGetProjectDashboardQueryKey(projectId) });
+            resolve();
+          },
+          onError: reject,
+        }
+      );
+    });
   };
 
   const stats = [
@@ -55,30 +66,25 @@ export default function ProjectOverview() {
 
   return (
     <div className="p-8 max-w-6xl">
-      {/* Header */}
       <div className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-black tracking-tight">{project?.name ?? "Project Overview"}</h1>
           <p className="text-muted-foreground mt-1">{project?.websiteUrl}</p>
         </div>
         <button
-          onClick={handleAnalyze}
-          disabled={analyzeWebsite.isPending}
-          className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-bold px-5 py-2.5 rounded-xl transition-colors text-sm"
+          onClick={() => setModalOpen(true)}
+          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl transition-colors text-sm"
         >
-          {analyzeWebsite.isPending ? (
-            <><Loader2 className="h-4 w-4 animate-spin" /> Analyzing...</>
-          ) : (
-            <><Zap className="h-4 w-4" /> Run Analysis</>
-          )}
+          <Zap className="h-4 w-4" /> Run Analysis
         </button>
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-32"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
       ) : (
         <>
-          {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {stats.map(({ label, value, icon: Icon, color }, i) => (
               <motion.div
@@ -95,7 +101,6 @@ export default function ProjectOverview() {
             ))}
           </div>
 
-          {/* Top Metrics */}
           {dashboard?.topMetrics && dashboard.topMetrics.length > 0 && (
             <div className="grid md:grid-cols-2 gap-4 mb-8">
               {dashboard.topMetrics.map((metric: { label: string; value: string; change: number; trend: string }) => (
@@ -112,7 +117,6 @@ export default function ProjectOverview() {
             </div>
           )}
 
-          {/* Recent Activity */}
           <div className="rounded-xl bg-card border border-border p-6">
             <div className="flex items-center gap-2 mb-4">
               <Activity className="h-4 w-4 text-primary" />
@@ -136,6 +140,18 @@ export default function ProjectOverview() {
           </div>
         </>
       )}
+
+      <GenerateModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Run Business Analysis"
+        subtitle="AI will analyze your website and extract business intelligence"
+        defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        instructionsPlaceholder={`Examples:\n• Focus on SEO opportunities\n• Analyze competitor positioning\n• Deep dive into customer pain points\n• Map growth opportunities`}
+        processingSteps={ANALYSIS_STEPS}
+        onSubmit={handleSubmit}
+        ctaLabel="Run Analysis"
+      />
     </div>
   );
 }

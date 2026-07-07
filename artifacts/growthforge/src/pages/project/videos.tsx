@@ -1,20 +1,29 @@
+import { useState } from "react";
 import { useParams } from "wouter";
 import {
   useListVideos,
   useGenerateVideos,
+  useGetProject,
   getListVideosQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Video, Zap, Play, Sparkles } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { Loader2, Video, Play, Sparkles } from "lucide-react";
+import GenerateModal from "@/components/ui/generate-modal";
 
 const typeColors: Record<string, string> = {
   promo: "bg-violet-500/15 text-violet-400 border-violet-500/20",
   product: "bg-cyan-500/15 text-cyan-400 border-cyan-500/20",
   social: "bg-pink-500/15 text-pink-400 border-pink-500/20",
 };
+
+const VIDEO_STEPS = [
+  "Analyzing brand story...",
+  "Writing video scripts...",
+  "Creating storyboards...",
+  "Optimizing hooks for virality...",
+  "Finalizing video production pack...",
+];
 
 function ScoreBar({ label, value, color }: { label: string; value: number | null; color: string }) {
   return (
@@ -40,25 +49,30 @@ export default function ProjectVideos() {
   const projectId = parseInt(params.projectId, 10);
   const [mode, setMode] = useState<"auto" | "prompt">("auto");
   const [selectedVideo, setSelectedVideo] = useState<number | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: videos, isLoading } = useListVideos(projectId, { query: { enabled: !!projectId } });
   const generateVideos = useGenerateVideos();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
-  const handleGenerate = () => {
-    generateVideos.mutate(
-      { id: projectId, data: { mode, count: mode === "auto" ? 9 : 3 } },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) });
-          toast({ title: "Videos generated!", description: `${mode === "auto" ? "9" : "3"} marketing videos are ready.` });
-        },
-        onError: () => toast({ title: "Error", variant: "destructive" }),
-      }
-    );
+  const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      generateVideos.mutate(
+        { id: projectId, data: { mode, count: mode === "auto" ? 9 : 3 } },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) });
+            resolve();
+          },
+          onError: reject,
+        }
+      );
+    });
   };
 
   const selectedVideoData = selectedVideo !== null ? videos?.find(v => v.id === selectedVideo) : null;
+  void selectedVideoData;
 
   return (
     <div className="p-8 max-w-6xl">
@@ -80,12 +94,11 @@ export default function ProjectVideos() {
             ))}
           </div>
           <button
-            onClick={handleGenerate}
-            disabled={generateVideos.isPending}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-primary/20"
+            onClick={() => setModalOpen(true)}
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-primary/20"
           >
-            {generateVideos.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {generateVideos.isPending ? "Generating..." : "Generate Videos"}
+            <Sparkles className="h-4 w-4" />
+            Generate Videos
           </button>
         </div>
       </div>
@@ -103,7 +116,6 @@ export default function ProjectVideos() {
               className={`p-5 rounded-xl bg-card border cursor-pointer transition-all ${selectedVideo === video.id ? "border-primary shadow-lg shadow-primary/10" : "border-border hover:border-border/80"}`}
               onClick={() => setSelectedVideo(selectedVideo === video.id ? null : video.id)}
             >
-              {/* Thumbnail placeholder */}
               <div className="h-36 rounded-lg bg-secondary flex items-center justify-center mb-4 relative overflow-hidden group">
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent" />
                 <Play className="h-10 w-10 text-primary/60 group-hover:text-primary transition-colors" />
@@ -121,7 +133,6 @@ export default function ProjectVideos() {
                 <ScoreBar label="Viral Potential" value={video.viralPotential} color="bg-pink-500" />
               </div>
 
-              {/* Expanded content */}
               {selectedVideo === video.id && video.script && (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-4 pt-4 border-t border-border">
                   <div className="mb-3">
@@ -144,12 +155,24 @@ export default function ProjectVideos() {
           <Video className="h-16 w-16 text-primary/30 mb-6" />
           <h2 className="text-2xl font-bold mb-3">No Videos Yet</h2>
           <p className="text-muted-foreground mb-8 max-w-sm">Generate 9 professional marketing videos — promos, product demos, and social shorts — with one click.</p>
-          <button onClick={handleGenerate} disabled={generateVideos.isPending} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
-            {generateVideos.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            Generate 9 Videos
+          <button onClick={() => setModalOpen(true)} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
+            <Sparkles className="h-4 w-4" />
+            Generate {mode === "auto" ? "9 Videos" : "3 Videos"}
           </button>
         </div>
       )}
+
+      <GenerateModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={`Generate ${mode === "auto" ? "9 Marketing Videos" : "Prompt-Based Videos"}`}
+        subtitle="AI will write scripts, storyboards, and production notes for each video"
+        defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        instructionsPlaceholder={`Examples:\n• Focus on product demo videos\n• Create viral TikTok hooks\n• Target founder pain points\n• Include customer testimonial style`}
+        processingSteps={VIDEO_STEPS}
+        onSubmit={handleSubmit}
+        ctaLabel={`Generate ${mode === "auto" ? "9 Videos" : "3 Videos"}`}
+      />
     </div>
   );
 }
