@@ -1,0 +1,530 @@
+REDESIGN AND OPTIMIZE GROWTHFORGE FOR PUBLIC LAUNCH
+
+OBJECTIVE
+
+Transform GrowthForge into a premium SaaS website that looks comparable to Stripe, Linear, Vercel, Notion, Framer, and HubSpot.
+
+Current website is functional but feels too narrow and lacks enough visual proof of value.
+
+The website should feel like a category-defining AI Growth Operating System.
+
+====================================================
+
+DESIGN GOALS
+
+1. Use a much wider layout.
+
+2. Increase perceived value.
+
+3. Improve conversion rates.
+
+4. Improve trust.
+
+5. Improve Stripe review readiness.
+
+6. Improve enterprise credibility.
+
+7. Showcase the product visually.
+
+====================================================
+
+LAYOUT IMPROVEMENTS
+
+Increase website width.
+
+Current layout feels too constrained.
+
+Requirements:
+
+- Use 90% to 95% viewport width.
+- Reduce unnecessary side margins.
+- Create a modern full-width SaaS experience.
+
+Apply wider layouts to:
+
+- Hero
+- Dashboard previews
+- Features
+- Product sections
+- How It Works
+- Testimonials
+- Pricing
+- CTA sections
+
+Maintain responsive design.
+
+Desktop:
+3-column layouts where appropriate.
+
+Tablet:
+2-column layouts.
+
+Mobile:
+1-column layouts.
+
+====================================================
+
+HERO SECTION
+
+Keep headline:
+
+Paste Your URL.
+Get Your Marketing Department.
+
+Do not change this headline.
+
+Update subheadline:
+
+GrowthForge is the AI Growth Operating System that analyzes your business, discovers competitors, creates content, builds campaigns, generates video assets, and helps businesses scale faster.
+
+Primary CTA:
+
+Start Free Trial
+
+Secondary CTA:
+
+Watch Demo
+
+Add trust statement:
+
+No credit card required.
+14-day free trial.
+Cancel anytime.
+
+====================================================
+
+REMOVE FAKE STATISTICS
+
+Remove:
+
+10,000+ Businesses
+
+340% Traffic Growth
+
+9x Content Output
+
+$120K Savings
+
+These statistics are not verifiable and reduce trust.
+
+Replace with benefit-focused cards:
+
+Card 1:
+Business Intelligence
+
+Card 2:
+Competitor Intelligence
+
+Card 3:
+AI Content Creation
+
+Card 4:
+AI Marketing Automation
+
+Each card should explain value instead of showing fake numbers.
+
+====================================================
+
+PRODUCT SHOWCASE SECTION
+
+Add immediately below hero.
+
+Full-width section.
+
+Title:
+
+See GrowthForge In Action
+
+Show large dashboard mockups including:
+
+- Business Analysis
+- Competitor Intelligence
+- Marketing Strategy
+- Video Blueprint
+- Forge AI Agent
+
+Use realistic UI previews.
+
+The screenshot area should be visually dominant.
+
+====================================================
+
+HOW IT WORKS
+
+Add new section.
+
+Title:
+
+How GrowthForge Works
+
+Step 1
+
+Paste Your Website URL
+
+Description:
+
+Enter your website and business details.
+
+Step 2
+
+AI Analyzes Your Business
+
+Description:
+
+GrowthForge identifies your products, audience, positioning, and opportunities.
+
+Step 3
+
+Competitor Discovery
+
+Description:
+
+Identify competitors and uncover market gaps.
+
+Step 4
+
+Generate Marketing Assets
+
+Description:
+
+Create content, campaigns, emails, ads, strategies, and video blueprints.
+
+Step 5
+
+Scale Smarter
+
+Description:
+
+Use AI recommendations to improve marketing performance continuously.
+
+====================================================
+
+WHO IT IS FOR
+
+Title:
+
+Built For Growth-Focused Businesses
+
+Create four cards:
+
+Startups
+
+Launch faster with AI-powered marketing.
+
+Agencies
+
+Deliver more value to clients.
+
+Small Businesses
+
+Operate like a larger marketing team.
+
+Growth Teams
+
+Scale campaigns with less effort.
+
+====================================================
+
+FORGE AI AGENT SECTION
+
+Add dedicated section.
+
+Title:
+
+Meet Forge
+
+Subtitle:
+
+Your AI Growth Partner
+
+Include example prompts:
+
+Analyze my competitors.
+
+Create a content calendar.
+
+Generate a lead generation strategy.
+
+Create a TikTok campaign.
+
+Build a product launch funnel.
+
+Show realistic AI conversation UI.
+
+====================================================
+
+BUSINESS INTELLIGENCE SECTION
+
+Title:
+
+AI-Powered Business Intelligence
+
+Display capabilities:
+
+- Business Analysis
+- Customer Personas
+- Audience Research
+- Positioning Analysis
+- Growth Recommendations
+
+Use icons and dashboard previews.
+
+====================================================
+
+COMPETITOR INTELLIGENCE SECTION
+
+Title:
+
+Discover What Your Competitors Are Missing
+
+Display:
+
+- Competitor Reports
+- Messaging Analysis
+- Strengths & Weaknesses
+- Market Opportunities
+- Positioning Gaps
+
+====================================================
+
+VIDEO BLUEPRINT SECTION
+
+Title:
+
+Create Marketing Videos Faster
+
+Explain:
+
+GrowthForge generates:
+
+- Video Concepts
+- Hooks
+- Storyboards
+- Voiceovers
+- Scene Breakdowns
+- CTAs
+
+Highlight:
+
+No video editing experience required.
+
+====================================================
+
+TRUST SECTION
+
+Add section titled:
+
+Why Businesses Choose GrowthForge
+
+Include:
+
+AI-Powered Insights
+
+Save Time
+
+Scale Faster
+
+Reduce Agency Costs
+
+All-In-One Platform
+
+Use professional visual styling.
+
+====================================================
+
+FAQ SECTION
+
+Add comprehensive FAQ.
+
+Questions:
+
+What is GrowthForge?
+
+How does GrowthForge work?
+
+Do I need marketing experience?
+
+Can I analyze competitors?
+
+Can I generate content?
+
+Can I generate videos?
+
+What happens during the free trial?
+
+Can I upgrade later?
+
+====================================================
+
+LEGAL PAGES
+
+Create:
+
+/privacy
+
+Privacy Policy
+
+/terms
+
+Terms of Service
+
+/contact
+
+Contact Page
+
+/about
+
+About GrowthForge
+
+/refund-policy
+
+Refund Policy
+
+Add links in footer.
+
+====================================================
+
+CONTACT PAGE
+
+Include:
+
+Support Email
+
+Business Contact Form
+
+Sales Contact Form
+
+Response Time Policy
+
+====================================================
+
+ABOUT PAGE
+
+Explain:
+
+Mission
+
+Vision
+
+Product Purpose
+
+Company Story
+
+Why GrowthForge Exists
+
+====================================================
+
+CONVERSION OPTIMIZATION
+
+Place CTA sections throughout page.
+
+After:
+
+- Hero
+- Product Showcase
+- How It Works
+- Features
+- Pricing
+
+CTA Text:
+
+Start Free Trial
+
+Book Demo
+
+Join Early Access
+
+====================================================
+
+SEO
+
+Optimize:
+
+Title:
+
+GrowthForge | AI Growth Operating System
+
+Description:
+
+Paste your URL. Get your marketing department. GrowthForge analyzes your business, discovers competitors, creates content, builds campaigns, and helps businesses grow with AI.
+
+Generate:
+
+- sitemap.xml
+- robots.txt
+- Open Graph metadata
+- Twitter metadata
+
+====================================================
+
+FOOTER
+
+Include:
+
+Features
+
+How It Works
+
+Pricing
+
+About
+
+Contact
+
+Privacy
+
+Terms
+
+Refund Policy
+
+LinkedIn
+
+Copyright
+
+====================================================
+
+DESIGN STYLE
+
+Use:
+
+Dark theme
+
+GrowthForge green accents
+
+Modern gradients
+
+Glassmorphism
+
+Subtle glow effects
+
+Premium SaaS spacing
+
+World-class visual hierarchy
+
+Reference design quality:
+
+Stripe
+Linear
+Vercel
+Notion
+Framer
+
+====================================================
+
+SUCCESS CRITERIA
+
+When someone lands on GrowthForge they should immediately understand:
+
+1. What the platform does.
+
+2. How it works.
+
+3. Who it is for.
+
+4. Why it is different.
+
+5. Why they should trust it.
+
+6. Why they should start a free trial.
+
+The final website should feel comparable to a venture-backed SaaS company and be ready for public launch, Stripe review, customer acquisition, investor presentations, and marketing campaigns.

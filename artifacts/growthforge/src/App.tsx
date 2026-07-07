@@ -16,6 +16,11 @@ import PlansPage from "@/pages/plans";
 import OnboardingPage from "@/pages/onboarding";
 import AnalysisProgressPage from "@/pages/analysis-progress";
 import ProjectLayout from "@/components/layout/project-layout";
+import PrivacyPage from "@/pages/privacy";
+import TermsPage from "@/pages/terms";
+import ContactPage from "@/pages/contact";
+import AboutPage from "@/pages/about";
+import RefundPolicyPage from "@/pages/refund-policy";
 
 import ProjectOverview from "@/pages/project/overview";
 import ProjectAnalysis from "@/pages/project/analysis";
@@ -153,6 +158,13 @@ function AppRoutes() {
       <Route path="/signup"><Redirect to="/sign-up" /></Route>
       <Route path="/features"><Redirect to="/" /></Route>
       <Route path="/how-it-works"><Redirect to="/" /></Route>
+
+      {/* Legal & informational pages */}
+      <Route path="/privacy" component={PrivacyPage} />
+      <Route path="/terms" component={TermsPage} />
+      <Route path="/contact" component={ContactPage} />
+      <Route path="/about" component={AboutPage} />
+      <Route path="/refund-policy" component={RefundPolicyPage} />
 
       <Route path="/dashboard" component={DashboardPage} />
 
