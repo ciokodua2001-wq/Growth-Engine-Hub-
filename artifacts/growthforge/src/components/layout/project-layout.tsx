@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetProject } from "@workspace/api-client-react";
 import { TrialBanner } from "@/components/ui/trial-banner";
+import { TrialStatusPanel } from "@/components/ui/trial-status-panel";
 import {
   LayoutDashboard, Brain, Users2, Megaphone, FileText, Share2,
   Mail, Rss, Video, Target, FolderOpen, BarChart2, Bot, Settings,
@@ -169,9 +170,17 @@ export default function ProjectLayout({ projectId, children }: ProjectLayoutProp
           ))}
         </nav>
 
+        {/* Trial Status Panel */}
+        <TrialStatusPanel
+          projectId={id}
+          trialEndsAt={trialInfo?.trialEndsAt}
+          subscriptionStatus={trialInfo?.subscriptionStatus}
+          collapsed={collapsed}
+        />
+
         {/* Footer */}
         {!collapsed && (
-          <div className="p-4 border-t border-sidebar-border">
+          <div className="px-4 pb-3 border-t border-sidebar-border pt-2">
             <div className="text-[10px] text-muted-foreground/50 font-mono">GrowthForge v1.0</div>
           </div>
         )}

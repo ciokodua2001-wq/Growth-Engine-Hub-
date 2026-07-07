@@ -6,24 +6,38 @@ import {
 } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Send, User, Zap, ChevronRight } from "lucide-react";
+import { Loader2, Send, User, Zap, ChevronRight, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useRef, useEffect } from "react";
+import { useTrialUsage } from "@/hooks/use-trial-usage";
+import { UpgradeModal } from "@/components/ui/upgrade-modal";
+import { Link } from "wouter";
+
+const MESSAGE_LIMIT = 25;
 
 const EXAMPLE_PROMPTS = [
-  { label: "Analyze my competitors.", icon: "🔍" },
-  { label: "Create 30 LinkedIn posts.", icon: "💼" },
-  { label: "Generate a welcome sequence.", icon: "📧" },
-  { label: "Create a product demo video.", icon: "🎬" },
-  { label: "Build a Facebook campaign.", icon: "📢" },
+  { label: "Analyze my business and website.", icon: "🔍" },
+  { label: "Discover my top 3 competitors.", icon: "🏆" },
+  { label: "Create a marketing strategy.", icon: "📈" },
+  { label: "Generate 5 social media posts.", icon: "💬" },
+  { label: "Build a video blueprint.", icon: "🎬" },
 ];
 
 const QUICK_CHIPS = [
-  "Analyze my competitors.",
-  "Create 30 LinkedIn posts.",
-  "Generate a welcome sequence.",
-  "Create a product demo video.",
-  "Build a Facebook campaign.",
+  "Analyze my business.",
+  "Discover competitors.",
+  "Generate social posts.",
+  "Create email campaign.",
+  "Build video blueprint.",
+];
+
+const CAPABILITIES = [
+  "Analyze Your Business",
+  "Discover Competitors",
+  "Create Marketing Strategies",
+  "Generate Content",
+  "Create Video Blueprints",
+  "Build Campaign Ideas",
 ];
 
 function ForgeIcon({ size = 20 }: { size?: number }) {
@@ -61,9 +75,11 @@ export default function ProjectAgent() {
   const projectId = parseInt(params.projectId, 10);
   const [message, setMessage] = useState("");
   const [rows, setRows] = useState(1);
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { data: history, isLoading } = useGetAgentHistory(projectId, { query: { enabled: !!projectId } });
+  const { usage, refetch: refetchUsage } = useTrialUsage(projectId);
   const agentChat = useAgentChat();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -71,6 +87,10 @@ export default function ProjectAgent() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [history, agentChat.isPending]);
+
+  const messagesUsed = history?.filter((m) => m.role === "user").length ?? 0;
+  const messagesRemaining = Math.max(0, MESSAGE_LIMIT - messagesUsed);
+  const limitReached = messagesUsed >= MESSAGE_LIMIT;
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value);
@@ -81,12 +101,19 @@ export default function ProjectAgent() {
   const handleSend = (msg?: string) => {
     const text = msg ?? message;
     if (!text.trim() || agentChat.isPending) return;
+    if (limitReached) {
+      setShowUpgrade(true);
+      return;
+    }
     setMessage("");
     setRows(1);
     agentChat.mutate(
       { id: projectId, data: { message: text } },
       {
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetAgentHistoryQueryKey(projectId) }),
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetAgentHistoryQueryKey(projectId) });
+          refetchUsage();
+        },
         onError: () => toast({ title: "Error", description: "Forge failed to respond.", variant: "destructive" }),
       }
     );
@@ -116,12 +143,67 @@ export default function ProjectAgent() {
             </div>
             <p className="text-xs text-muted-foreground">Your autonomous marketing co-pilot</p>
           </div>
-          <div className="ml-auto flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs text-emerald-400 font-medium">Online</span>
+          <div className="ml-auto flex items-center gap-3">
+            {/* Message counter */}
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium ${
+              limitReached
+                ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                : messagesRemaining <= 5
+                ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                : "bg-primary/8 border-primary/20 text-primary/80"
+            }`}>
+              <MessageSquare className="w-3 h-3" />
+              {messagesRemaining} / {MESSAGE_LIMIT} messages
+            </div>
+            <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs text-emerald-400 font-medium">Online</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Message limit progress bar */}
+        <div className="mt-3">
+          <div className="h-1 rounded-full bg-white/5 overflow-hidden">
+            <motion.div
+              className="h-full rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${(messagesUsed / MESSAGE_LIMIT) * 100}%` }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              style={{
+                background: limitReached
+                  ? "#f59e0b"
+                  : messagesRemaining <= 5
+                  ? "linear-gradient(90deg, #f59e0b, #ef4444)"
+                  : "linear-gradient(90deg, #00E676, #00D4FF)",
+              }}
+            />
           </div>
         </div>
       </div>
+
+      {/* Limit reached banner */}
+      <AnimatePresence>
+        {limitReached && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="px-6 py-3 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-2 text-amber-300 text-sm">
+              <Zap className="w-4 h-4" />
+              <span>You've used all 25 trial messages.</span>
+            </div>
+            <Link
+              href="/plans"
+              className="px-3 py-1 rounded-full bg-[#00E676] text-black text-xs font-bold hover:bg-[#14F195] transition-colors"
+            >
+              Upgrade
+            </Link>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto">
@@ -130,30 +212,60 @@ export default function ProjectAgent() {
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         ) : !hasMessages ? (
-          /* Empty state */
+          /* Welcome empty state */
           <div className="flex flex-col items-center justify-center h-full px-6 py-12 text-center">
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: "spring", duration: 0.6 }}
-              className="h-20 w-20 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary mb-6"
+              className="h-20 w-20 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary mb-5"
             >
               <ForgeIcon size={36} />
             </motion.div>
+
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15, duration: 0.4 }}
+              className="mb-6"
             >
-              <h2 className="text-2xl font-black mb-2">What should Forge build?</h2>
-              <p className="text-muted-foreground text-sm max-w-xs mb-10">
-                Tell Forge what to create and it will execute — generating real outputs saved directly into your project modules.
-              </p>
+              <h2 className="text-3xl font-black mb-1">Hi, I'm Forge.</h2>
+              <p className="text-muted-foreground text-sm">I can help you:</p>
             </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+              className="grid grid-cols-2 gap-2 mb-5 w-full max-w-sm"
+            >
+              {CAPABILITIES.map((cap, i) => (
+                <motion.div
+                  key={cap}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.25 + i * 0.05 }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/15 text-xs text-primary/80"
+                >
+                  <span className="text-primary">✅</span>
+                  {cap}
+                </motion.div>
+              ))}
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="mb-6 px-4 py-2.5 rounded-full bg-primary/8 border border-primary/20 text-sm text-primary/80 font-medium"
+            >
+              Free Trial Includes: <strong className="text-primary">{messagesRemaining} AI Messages</strong>
+            </motion.div>
+
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25, duration: 0.4 }}
+              transition={{ delay: 0.55, duration: 0.4 }}
               className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-md"
             >
               {EXAMPLE_PROMPTS.map((prompt, i) => (
@@ -161,9 +273,9 @@ export default function ProjectAgent() {
                   key={prompt.label}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 + i * 0.06 }}
+                  transition={{ delay: 0.6 + i * 0.06 }}
                   onClick={() => handleSend(prompt.label)}
-                  disabled={agentChat.isPending}
+                  disabled={agentChat.isPending || limitReached}
                   className="group flex items-center gap-3 text-left px-4 py-3 rounded-xl bg-card border border-border hover:border-primary/40 hover:bg-primary/5 transition-all disabled:opacity-50"
                 >
                   <span className="text-lg">{prompt.icon}</span>
@@ -240,21 +352,9 @@ export default function ProjectAgent() {
                 </div>
                 <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3.5">
                   <div className="flex gap-1.5 items-center">
-                    <motion.span
-                      className="h-2 w-2 rounded-full bg-primary"
-                      animate={{ opacity: [0.3, 1, 0.3] }}
-                      transition={{ duration: 1.2, repeat: Infinity, delay: 0 }}
-                    />
-                    <motion.span
-                      className="h-2 w-2 rounded-full bg-primary"
-                      animate={{ opacity: [0.3, 1, 0.3] }}
-                      transition={{ duration: 1.2, repeat: Infinity, delay: 0.2 }}
-                    />
-                    <motion.span
-                      className="h-2 w-2 rounded-full bg-primary"
-                      animate={{ opacity: [0.3, 1, 0.3] }}
-                      transition={{ duration: 1.2, repeat: Infinity, delay: 0.4 }}
-                    />
+                    <motion.span className="h-2 w-2 rounded-full bg-primary" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0 }} />
+                    <motion.span className="h-2 w-2 rounded-full bg-primary" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0.2 }} />
+                    <motion.span className="h-2 w-2 rounded-full bg-primary" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0.4 }} />
                     <span className="ml-2 text-xs text-muted-foreground">Forge is building...</span>
                   </div>
                 </div>
@@ -266,8 +366,8 @@ export default function ProjectAgent() {
         )}
       </div>
 
-      {/* Quick chips — shown when there are messages */}
-      {hasMessages && !agentChat.isPending && (
+      {/* Quick chips */}
+      {hasMessages && !agentChat.isPending && !limitReached && (
         <div className="px-6 pb-2 flex gap-2 overflow-x-auto shrink-0 scrollbar-none">
           {QUICK_CHIPS.map((chip) => (
             <button
@@ -283,19 +383,24 @@ export default function ProjectAgent() {
 
       {/* Input bar */}
       <div className="p-4 pt-3 border-t border-border/60 shrink-0">
-        <div className="flex gap-3 items-end bg-secondary/60 border border-border rounded-2xl px-4 py-3 focus-within:border-primary/40 focus-within:bg-secondary transition-all">
+        <div className={`flex gap-3 items-end rounded-2xl px-4 py-3 transition-all ${
+          limitReached
+            ? "bg-secondary/30 border border-border/40 opacity-60"
+            : "bg-secondary/60 border border-border focus-within:border-primary/40 focus-within:bg-secondary"
+        }`}>
           <textarea
             ref={textareaRef}
             value={message}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Forge anything..."
+            disabled={limitReached}
+            placeholder={limitReached ? "Message limit reached — upgrade to continue" : "Ask Forge anything..."}
             rows={rows}
-            className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground/60 focus:outline-none resize-none leading-relaxed"
+            className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground/60 focus:outline-none resize-none leading-relaxed disabled:cursor-not-allowed"
           />
           <button
-            onClick={() => handleSend()}
-            disabled={!message.trim() || agentChat.isPending}
+            onClick={() => limitReached ? setShowUpgrade(true) : handleSend()}
+            disabled={(!message.trim() && !limitReached) || agentChat.isPending}
             className="h-9 w-9 flex items-center justify-center bg-primary hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed text-primary-foreground rounded-xl transition-all shrink-0 mb-0.5"
           >
             {agentChat.isPending ? (
@@ -306,9 +411,19 @@ export default function ProjectAgent() {
           </button>
         </div>
         <p className="text-center text-[10px] text-muted-foreground/40 mt-2">
-          Forge executes actions and saves outputs to your project modules automatically.
+          {limitReached
+            ? "Upgrade to unlock unlimited AI messages."
+            : "Forge executes actions and saves outputs to your project modules automatically."}
         </p>
       </div>
+
+      <UpgradeModal
+        open={showUpgrade}
+        onClose={() => setShowUpgrade(false)}
+        feature="AI messages"
+        limit={MESSAGE_LIMIT}
+        limitLabel="messages"
+      />
     </div>
   );
 }

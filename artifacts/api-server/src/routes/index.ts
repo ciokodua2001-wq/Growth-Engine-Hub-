@@ -9,6 +9,7 @@ import campaignsRouter from "./campaigns.js";
 import authRouter from "./auth.js";
 import stripeRouter from "./stripe.js";
 import onboardingRouter from "./onboarding.js";
+import trialRouter from "./trial.js";
 
 const router: IRouter = Router();
 
@@ -16,6 +17,7 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(stripeRouter);
 router.use(onboardingRouter);
+router.use(trialRouter);
 router.use(projectsRouter);
 router.use(analysisRouter);
 router.use(competitorsRouter);
