@@ -3,19 +3,55 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>GrowthForge AI</title>
-    <meta name="description" content="GrowthForge AI — built on Replit. Update this description to reflect the app." />
+
+    <!-- Primary meta -->
+    <title>GrowthForge | AI Growth Operating System</title>
+    <meta name="description" content="Paste your URL. Get your marketing department. GrowthForge analyzes your business, discovers competitors, creates content, generates videos, and helps businesses grow with AI." />
     <meta name="robots" content="index, follow" />
-    <meta property="og:title" content="GrowthForge AI" />
-    <meta property="og:description" content="GrowthForge AI — built on Replit. Update this description to reflect the app." />
+    <link rel="canonical" href="https://usegrowthforge.com/" />
+
+    <!-- Open Graph -->
+    <meta property="og:site_name" content="GrowthForge" />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://usegrowthforge.com/" />
+    <meta property="og:title" content="GrowthForge | AI Growth Operating System" />
+    <meta property="og:description" content="Paste your URL. Get your marketing department. GrowthForge analyzes your business, discovers competitors, creates content, generates videos, and helps businesses grow with AI." />
+    <meta property="og:image" content="https://usegrowthforge.com/opengraph.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="GrowthForge — AI Growth Operating System" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="GrowthForge AI" />
-    <meta name="twitter:description" content="GrowthForge AI — built on Replit. Update this description to reflect the app." />
+    <meta name="twitter:site" content="@GrowthForgeAI" />
+    <meta name="twitter:title" content="GrowthForge | AI Growth Operating System" />
+    <meta name="twitter:description" content="Paste your URL. Get your marketing department. GrowthForge analyzes your business, discovers competitors, creates content, generates videos, and helps businesses grow with AI." />
+    <meta name="twitter:image" content="https://usegrowthforge.com/opengraph.jpg" />
+
+    <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- www → apex redirect (client-side for static hosting) -->
+    <script>
+      (function () {
+        var h = window.location.hostname;
+        if (h === 'www.usegrowthforge.com') {
+          window.location.replace(
+            'https://usegrowthforge.com' +
+            window.location.pathname +
+            window.location.search +
+            window.location.hash
+          );
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

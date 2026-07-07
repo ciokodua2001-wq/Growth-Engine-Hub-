@@ -14,6 +14,17 @@ import { logger } from "./lib/logger.js";
 
 const app: Express = express();
 
+// www → apex 301 redirect (must be first)
+app.use((req, res, next) => {
+  const host = req.headers.host ?? "";
+  if (host.startsWith("www.")) {
+    const apex = host.slice(4);
+    res.redirect(301, `https://${apex}${req.originalUrl}`);
+    return;
+  }
+  next();
+});
+
 app.use(
   pinoHttp({
     logger,

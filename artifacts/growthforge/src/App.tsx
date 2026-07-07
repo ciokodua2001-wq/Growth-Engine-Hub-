@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { ClerkProvider, useClerk } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
@@ -146,6 +146,13 @@ function AppRoutes() {
       <Route path="/plans" component={PlansPage} />
       <Route path="/onboarding" component={OnboardingPage} />
       <Route path="/analysis-progress/:projectId" component={AnalysisProgressPage} />
+
+      {/* SEO-friendly route aliases */}
+      <Route path="/pricing"><Redirect to="/plans" /></Route>
+      <Route path="/login"><Redirect to="/sign-in" /></Route>
+      <Route path="/signup"><Redirect to="/sign-up" /></Route>
+      <Route path="/features"><Redirect to="/" /></Route>
+      <Route path="/how-it-works"><Redirect to="/" /></Route>
 
       <Route path="/dashboard" component={DashboardPage} />
 

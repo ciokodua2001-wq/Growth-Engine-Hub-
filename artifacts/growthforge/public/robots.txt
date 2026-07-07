@@ -1,2 +1,9 @@
 User-agent: *
 Allow: /
+Disallow: /dashboard
+Disallow: /onboarding
+Disallow: /projects/
+Disallow: /analysis-progress/
+Disallow: /api/
+
+Sitemap: https://usegrowthforge.com/sitemap.xml
