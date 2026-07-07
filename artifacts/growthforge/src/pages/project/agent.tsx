@@ -6,24 +6,63 @@ import {
 } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Bot, Send, User, Zap } from "lucide-react";
+import { Loader2, Send, User, Zap, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useRef, useEffect } from "react";
 
-const QUICK_COMMANDS = [
-  "Generate 9 marketing videos",
-  "Create 30 days of social content",
-  "Discover my top competitors",
-  "Generate email sequences",
-  "Build a performance report",
-  "Launch Meta ad campaigns",
+const EXAMPLE_PROMPTS = [
+  { label: "Analyze my competitors.", icon: "🔍" },
+  { label: "Create 30 LinkedIn posts.", icon: "💼" },
+  { label: "Generate a welcome sequence.", icon: "📧" },
+  { label: "Create a product demo video.", icon: "🎬" },
+  { label: "Build a Facebook campaign.", icon: "📢" },
 ];
+
+const QUICK_CHIPS = [
+  "Analyze my competitors.",
+  "Create 30 LinkedIn posts.",
+  "Generate a welcome sequence.",
+  "Create a product demo video.",
+  "Build a Facebook campaign.",
+];
+
+function ForgeIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2L4 6V12C4 16.4 7.4 20.5 12 22C16.6 20.5 20 16.4 20 12V6L12 2Z" fill="currentColor" opacity="0.15" />
+      <path d="M12 2L4 6V12C4 16.4 7.4 20.5 12 22C16.6 20.5 20 16.4 20 12V6L12 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M9 12L11 14L15 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function MessageContent({ content }: { content: string }) {
+  const lines = content.split("\n");
+  return (
+    <div className="space-y-1.5">
+      {lines.map((line, i) => {
+        if (!line.trim()) return <div key={i} className="h-1" />;
+        if (line.startsWith("- ")) {
+          return (
+            <div key={i} className="flex gap-2 items-start">
+              <span className="text-primary mt-0.5 shrink-0">•</span>
+              <span>{line.slice(2)}</span>
+            </div>
+          );
+        }
+        return <p key={i}>{line}</p>;
+      })}
+    </div>
+  );
+}
 
 export default function ProjectAgent() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
   const [message, setMessage] = useState("");
+  const [rows, setRows] = useState(1);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { data: history, isLoading } = useGetAgentHistory(projectId, { query: { enabled: !!projectId } });
   const agentChat = useAgentChat();
   const queryClient = useQueryClient();
@@ -31,17 +70,24 @@ export default function ProjectAgent() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [history]);
+  }, [history, agentChat.isPending]);
+
+  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMessage(e.target.value);
+    const lineCount = e.target.value.split("\n").length;
+    setRows(Math.min(Math.max(lineCount, 1), 5));
+  };
 
   const handleSend = (msg?: string) => {
     const text = msg ?? message;
     if (!text.trim() || agentChat.isPending) return;
     setMessage("");
+    setRows(1);
     agentChat.mutate(
       { id: projectId, data: { message: text } },
       {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetAgentHistoryQueryKey(projectId) }),
-        onError: () => toast({ title: "Error", description: "Agent failed to respond.", variant: "destructive" }),
+        onError: () => toast({ title: "Error", description: "Forge failed to respond.", variant: "destructive" }),
       }
     );
   };
@@ -53,75 +99,129 @@ export default function ProjectAgent() {
     }
   };
 
+  const hasMessages = history && history.length > 0;
+
   return (
-    <div className="flex flex-col h-full max-h-screen">
+    <div className="flex flex-col h-full max-h-screen bg-background">
       {/* Header */}
-      <div className="p-6 pb-4 border-b border-border shrink-0">
+      <div className="px-6 py-4 border-b border-border/60 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-primary/20 flex items-center justify-center">
-            <Bot className="h-5 w-5 text-primary" />
+          <div className="h-10 w-10 rounded-xl bg-primary/15 border border-primary/20 flex items-center justify-center text-primary">
+            <ForgeIcon size={20} />
           </div>
           <div>
-            <h1 className="text-xl font-black">AI Marketing Agent</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-black tracking-tight">Forge</h1>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded-full">AI Agent</span>
+            </div>
             <p className="text-xs text-muted-foreground">Your autonomous marketing co-pilot</p>
           </div>
-          <div className="ml-auto flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs text-muted-foreground">Online</span>
+          <div className="ml-auto flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs text-emerald-400 font-medium">Online</span>
           </div>
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      {/* Messages area */}
+      <div className="flex-1 overflow-y-auto">
         {isLoading ? (
-          <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-        ) : !history || history.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-16">
-            <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-              <Zap className="h-8 w-8 text-primary" />
-            </div>
-            <h2 className="text-xl font-bold mb-2">Your AI Marketing Agent</h2>
-            <p className="text-muted-foreground text-sm max-w-sm mb-8">
-              Tell me what to do and I'll execute it. Generate videos, create campaigns, analyze competitors — just ask.
-            </p>
-            <div className="grid grid-cols-2 gap-2 max-w-lg">
-              {QUICK_COMMANDS.map((cmd) => (
-                <button
-                  key={cmd}
-                  onClick={() => handleSend(cmd)}
-                  className="text-left px-3 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : !hasMessages ? (
+          /* Empty state */
+          <div className="flex flex-col items-center justify-center h-full px-6 py-12 text-center">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "spring", duration: 0.6 }}
+              className="h-20 w-20 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary mb-6"
+            >
+              <ForgeIcon size={36} />
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15, duration: 0.4 }}
+            >
+              <h2 className="text-2xl font-black mb-2">What should Forge build?</h2>
+              <p className="text-muted-foreground text-sm max-w-xs mb-10">
+                Tell Forge what to create and it will execute — generating real outputs saved directly into your project modules.
+              </p>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25, duration: 0.4 }}
+              className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-md"
+            >
+              {EXAMPLE_PROMPTS.map((prompt, i) => (
+                <motion.button
+                  key={prompt.label}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 + i * 0.06 }}
+                  onClick={() => handleSend(prompt.label)}
+                  disabled={agentChat.isPending}
+                  className="group flex items-center gap-3 text-left px-4 py-3 rounded-xl bg-card border border-border hover:border-primary/40 hover:bg-primary/5 transition-all disabled:opacity-50"
                 >
-                  {cmd}
-                </button>
+                  <span className="text-lg">{prompt.icon}</span>
+                  <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors flex-1">
+                    {prompt.label}
+                  </span>
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-primary/60 transition-colors shrink-0" />
+                </motion.button>
               ))}
-            </div>
+            </motion.div>
           </div>
         ) : (
-          <>
+          /* Chat messages */
+          <div className="p-6 space-y-5">
             <AnimatePresence initial={false}>
               {history.map((msg) => (
                 <motion.div
                   key={msg.id}
-                  initial={{ opacity: 0, y: 16 }}
+                  initial={{ opacity: 0, y: 14 }}
                   animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
                   className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   {msg.role === "assistant" && (
-                    <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
-                      <Bot className="h-4 w-4 text-primary" />
+                    <div className="h-8 w-8 rounded-lg bg-primary/15 border border-primary/20 flex items-center justify-center text-primary shrink-0 mt-0.5">
+                      <ForgeIcon size={16} />
                     </div>
                   )}
-                  <div className={`max-w-[70%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-card border border-border text-foreground rounded-tl-sm"}`}>
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
+
+                  <div className={`max-w-[72%] flex flex-col gap-1.5 ${msg.role === "user" ? "items-end" : "items-start"}`}>
+                    <div
+                      className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground rounded-tr-sm font-medium"
+                          : "bg-card border border-border text-foreground rounded-tl-sm"
+                      }`}
+                    >
+                      {msg.role === "assistant" ? (
+                        <MessageContent content={msg.content} />
+                      ) : (
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                      )}
+                    </div>
                     {msg.actionResult && (
-                      <div className="mt-2 pt-2 border-t border-primary/20 text-xs opacity-80 flex items-center gap-1">
-                        <Zap className="h-3 w-3" /> {msg.actionResult}
-                      </div>
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.15 }}
+                        className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary rounded-full px-3 py-1 text-xs font-medium"
+                      >
+                        <Zap className="h-3 w-3 shrink-0" />
+                        <span>{msg.actionResult}</span>
+                      </motion.div>
                     )}
                   </div>
+
                   {msg.role === "user" && (
-                    <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 mt-0.5">
+                    <div className="h-8 w-8 rounded-lg bg-secondary border border-border flex items-center justify-center shrink-0 mt-0.5">
                       <User className="h-4 w-4 text-muted-foreground" />
                     </div>
                   )}
@@ -130,58 +230,84 @@ export default function ProjectAgent() {
             </AnimatePresence>
 
             {agentChat.isPending && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3 justify-start">
-                <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
-                  <Bot className="h-4 w-4 text-primary" />
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex gap-3 justify-start"
+              >
+                <div className="h-8 w-8 rounded-lg bg-primary/15 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                  <ForgeIcon size={16} />
                 </div>
-                <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3">
+                <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3.5">
                   <div className="flex gap-1.5 items-center">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "300ms" }} />
+                    <motion.span
+                      className="h-2 w-2 rounded-full bg-primary"
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{ duration: 1.2, repeat: Infinity, delay: 0 }}
+                    />
+                    <motion.span
+                      className="h-2 w-2 rounded-full bg-primary"
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{ duration: 1.2, repeat: Infinity, delay: 0.2 }}
+                    />
+                    <motion.span
+                      className="h-2 w-2 rounded-full bg-primary"
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{ duration: 1.2, repeat: Infinity, delay: 0.4 }}
+                    />
+                    <span className="ml-2 text-xs text-muted-foreground">Forge is building...</span>
                   </div>
                 </div>
               </motion.div>
             )}
-          </>
+
+            <div ref={messagesEndRef} />
+          </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick commands row (when history exists) */}
-      {history && history.length > 0 && (
-        <div className="px-6 pb-2 flex gap-2 overflow-x-auto shrink-0">
-          {QUICK_COMMANDS.slice(0, 4).map((cmd) => (
+      {/* Quick chips — shown when there are messages */}
+      {hasMessages && !agentChat.isPending && (
+        <div className="px-6 pb-2 flex gap-2 overflow-x-auto shrink-0 scrollbar-none">
+          {QUICK_CHIPS.map((chip) => (
             <button
-              key={cmd}
-              onClick={() => handleSend(cmd)}
-              className="shrink-0 px-3 py-1.5 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
+              key={chip}
+              onClick={() => handleSend(chip)}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-secondary border border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all whitespace-nowrap"
             >
-              {cmd}
+              {chip}
             </button>
           ))}
         </div>
       )}
 
-      {/* Input */}
-      <div className="p-6 pt-3 border-t border-border shrink-0">
-        <div className="flex gap-3 items-end">
+      {/* Input bar */}
+      <div className="p-4 pt-3 border-t border-border/60 shrink-0">
+        <div className="flex gap-3 items-end bg-secondary/60 border border-border rounded-2xl px-4 py-3 focus-within:border-primary/40 focus-within:bg-secondary transition-all">
           <textarea
+            ref={textareaRef}
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={handleInput}
             onKeyDown={handleKeyDown}
-            placeholder="Tell your AI agent what to do... (Enter to send)"
-            rows={1}
-            className="flex-1 bg-secondary border border-border rounded-xl px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none max-h-32"
+            placeholder="Ask Forge anything..."
+            rows={rows}
+            className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground/60 focus:outline-none resize-none leading-relaxed"
           />
           <button
             onClick={() => handleSend()}
             disabled={!message.trim() || agentChat.isPending}
-            className="h-11 w-11 flex items-center justify-center bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl transition-colors shrink-0"
+            className="h-9 w-9 flex items-center justify-center bg-primary hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed text-primary-foreground rounded-xl transition-all shrink-0 mb-0.5"
           >
-            {agentChat.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {agentChat.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
           </button>
         </div>
+        <p className="text-center text-[10px] text-muted-foreground/40 mt-2">
+          Forge executes actions and saves outputs to your project modules automatically.
+        </p>
       </div>
     </div>
   );
