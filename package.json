@@ -11,10 +11,7 @@
   "private": true,
   "dependencies": {
     "@replit/connectors-sdk": "^0.4.1",
-    "stripe": "^22.3.0",
-    "stripe-replit-sync": "^1.0.0"
-  },
-  "devDependencies": {
+         "devDependencies": {
     "prettier": "^3.8.4",
     "typescript": "~5.9.3"
   }
