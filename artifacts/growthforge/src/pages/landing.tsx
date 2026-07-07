@@ -120,7 +120,7 @@ export default function LandingPage() {
             className="flex flex-col sm:flex-row items-center justify-center gap-4"
           >
             <Link href="/sign-up" className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-base px-8 py-4 rounded-xl transition-all shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02]">
-              Start Free Analysis
+              Start Free Trial
               <ArrowRight className="h-5 w-5" />
             </Link>
             <a href="#features" className="w-full sm:w-auto flex items-center justify-center gap-2 bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-base px-8 py-4 rounded-xl border border-border transition-colors">
