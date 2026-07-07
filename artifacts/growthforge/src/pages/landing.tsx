@@ -19,7 +19,7 @@ const features = [
 ];
 
 const steps = [
-  { num: "01", title: "Paste Your URL", desc: "Drop your website URL into GrowthForge. Our AI reads and understands your entire business in seconds." },
+  { num: "01", title: "Paste Your URL", desc: "Drop your website URL into GrowthForge at UseGrowthForge.com. Our AI reads and understands your entire business in seconds." },
   { num: "02", title: "AI Builds Your Department", desc: "Within minutes, you have a complete marketing department: strategy, content, videos, ads, emails, and campaigns." },
   { num: "03", title: "Launch & Grow Autonomously", desc: "Review your assets, hit launch, and let AI optimize your campaigns, content, and growth 24/7." },
 ];
@@ -62,7 +62,7 @@ export default function LandingPage() {
             <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">
               <Zap className="h-4 w-4 text-primary" />
             </div>
-            <span className="font-bold text-lg tracking-tight">GrowthForge AI</span>
+            <span className="font-bold text-lg tracking-tight">GrowthForge</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
@@ -111,7 +111,7 @@ export default function LandingPage() {
             transition={{ duration: 0.7, delay: 0.2 }}
             className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed"
           >
-            GrowthForge AI analyzes your business and delivers a complete marketing team in minutes — strategy, content, videos, ads, email campaigns, and autonomous AI agents that work 24/7.
+            GrowthForge analyzes your business and delivers a complete marketing team in minutes — strategy, content, videos, ads, email campaigns, and autonomous AI agents that work 24/7.
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 24 }}
@@ -144,7 +144,7 @@ export default function LandingPage() {
             className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto"
           >
             {[
-              { value: "10,000+", label: "Businesses Using GrowthForge" },
+              { value: "10,000+", label: "Businesses on GrowthForge" },
               { value: "340%", label: "Average Traffic Growth" },
               { value: "9x", label: "More Content Output" },
               { value: "$120K", label: "Average Annual Savings" },
@@ -278,7 +278,7 @@ export default function LandingPage() {
               { q: "How long does the initial analysis take?", a: "The AI completes a full business intelligence analysis, competitor research, and marketing strategy in under 5 minutes. Videos and content can be generated immediately after." },
               { q: "Is the content actually good quality?", a: "Our AI is trained specifically on high-converting marketing content. Every piece is tailored to your brand voice, ICP, and industry — not generic templates." },
               { q: "Can I edit the AI-generated content?", a: "Yes. Everything is fully editable. Think of GrowthForge as a starting point that gets you 90% there instantly. You review, refine, and approve." },
-              { q: "What makes GrowthForge different from other AI tools?", a: "Other tools do one thing (write copy, or make images). GrowthForge is a complete marketing operating system — from business intelligence to campaign management, everything is connected and works together." },
+              { q: "What makes GrowthForge different from other AI tools?", a: "Other tools do one thing (write copy, or make images). GrowthForge by Strapli Technologies is a complete marketing operating system — from business intelligence to campaign management, everything is connected and works together." },
               { q: "Do I need a marketing background to use it?", a: "No. GrowthForge is designed for founders and operators who want results without needing to know marketing strategy. Paste your URL and follow the guided flow." },
             ].map(({ q, a }, i) => (
               <FadeIn key={q} delay={i * 0.08}>
@@ -317,9 +317,12 @@ export default function LandingPage() {
             <div className="h-6 w-6 rounded bg-primary/20 flex items-center justify-center">
               <Zap className="h-3 w-3 text-primary" />
             </div>
-            <span className="font-bold text-sm">GrowthForge AI</span>
+            <span className="font-bold text-sm">GrowthForge</span>
           </div>
-          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} GrowthForge AI. All rights reserved.</p>
+          <div className="flex flex-col md:flex-row items-center gap-2 md:gap-6 text-xs text-muted-foreground">
+            <span>© {new Date().getFullYear()} Strapli Technologies Inc. All rights reserved.</span>
+            <a href="https://usegrowthforge.com" className="hover:text-foreground transition-colors">UseGrowthForge.com</a>
+          </div>
         </div>
       </footer>
     </div>

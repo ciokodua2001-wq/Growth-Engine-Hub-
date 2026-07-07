@@ -115,7 +115,7 @@ export default function DashboardPage() {
             <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">
               <Zap className="h-4 w-4 text-primary" />
             </div>
-            <span className="font-bold text-lg tracking-tight">GrowthForge AI</span>
+            <span className="font-bold text-lg tracking-tight">GrowthForge</span>
           </div>
           <Link href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Back to Home</Link>
         </div>

@@ -163,7 +163,7 @@ export default function ProjectLayout({ projectId, children }: ProjectLayoutProp
         {/* Footer */}
         {!collapsed && (
           <div className="p-4 border-t border-sidebar-border">
-            <div className="text-[10px] text-muted-foreground/50 font-mono">GrowthForge AI v1.0</div>
+            <div className="text-[10px] text-muted-foreground/50 font-mono">GrowthForge v1.0</div>
           </div>
         )}
       </aside>
