@@ -1,0 +1,371 @@
+Build a complete Free Trial onboarding and conversion system for GrowthForge.
+
+OBJECTIVE
+
+Allow users to:
+
+1. Sign up
+2. Start a 14-day free trial
+3. Experience the core value of GrowthForge
+4. Hit logical usage limits
+5. Upgrade to a paid subscription
+
+The goal is to maximize activation and conversion.
+
+====================================================
+
+AUTHENTICATION
+
+When a visitor clicks:
+
+START FREE
+
+Open a modal or dedicated page.
+
+Support:
+
+- Email signup
+- Google signup
+- Microsoft signup
+- LinkedIn signup
+
+Collect:
+
+- Full Name
+- Email
+- Password
+
+Create user account immediately.
+
+====================================================
+
+PLAN SELECTION
+
+After signup:
+
+Display pricing plans.
+
+Plans:
+
+FREE TRIAL
+
+STARTER
+$99/month
+
+GROWTH
+$299/month
+
+AGENCY
+$799/month
+
+The Free Trial should be highlighted.
+
+Display:
+
+14-Day Free Trial
+
+No Commitment
+
+Cancel Anytime
+
+====================================================
+
+PAYMENT FLOW
+
+Use Stripe.
+
+Collect:
+
+- Card
+- Billing Address
+
+Start:
+
+14-Day Free Trial
+
+No charge until trial ends.
+
+Create Stripe Customer.
+
+Store:
+
+- Subscription Status
+- Trial End Date
+- Plan
+
+====================================================
+
+ONBOARDING WIZARD
+
+After successful enrollment:
+
+Step 1
+
+Business Information
+
+Fields:
+
+Business Name
+Website URL
+Industry
+
+Step 2
+
+Primary Goal
+
+Options:
+
+Generate Leads
+
+Increase Sales
+
+Brand Awareness
+
+Launch Product
+
+Improve SEO
+
+Grow Social Media
+
+Step 3
+
+Target Market
+
+Optional
+
+Describe your ideal customer.
+
+Step 4
+
+Create Project
+
+Automatically create user workspace.
+
+====================================================
+
+FIRST-TIME EXPERIENCE
+
+After onboarding:
+
+Automatically launch analysis workflow.
+
+Display progress.
+
+====================================================
+
+ANALYSIS PROGRESS SCREEN
+
+Show realistic steps.
+
+Example:
+
+✅ Scanning website
+
+✅ Understanding business model
+
+✅ Identifying competitors
+
+✅ Creating customer profiles
+
+✅ Building marketing strategy
+
+✅ Generating recommendations
+
+Estimated completion:
+
+30-60 seconds
+
+Display animated progress.
+
+====================================================
+
+FREE TRIAL LIMITS
+
+Free Trial users receive:
+
+1 Project
+
+1 Website Analysis
+
+3 Competitor Insights
+
+5 Social Posts
+
+1 Email Campaign
+
+1 Marketing Strategy
+
+1 Promotional Video
+
+25 AI Agent Messages
+
+Dashboard Access
+
+Analytics Access
+
+Asset Library Access
+
+====================================================
+
+ALLOW ACCESS TO ALL MODULES
+
+Users should see:
+
+- Analysis
+- Competitors
+- Strategy
+- Social
+- Email
+- Ad Creatives
+- Video Studio
+- Campaigns
+- Assets
+- Analytics
+- Forge AI
+
+However limits apply.
+
+Display upgrade prompts when user exceeds usage.
+
+====================================================
+
+ANALYSIS MODULE
+
+Free Trial includes:
+
+1 complete analysis.
+
+Generate:
+
+Business Summary
+
+Industry
+
+Value Proposition
+
+Target Audience
+
+Customer Personas
+
+Pain Points
+
+Positioning
+
+Growth Opportunities
+
+Store analysis results.
+
+====================================================
+
+COMPETITOR INTELLIGENCE
+
+Free Trial includes:
+
+3 competitor reports.
+
+Display:
+
+Competitor Name
+
+Strengths
+
+Weaknesses
+
+Messaging
+
+Market Opportunities
+
+After third competitor:
+
+Show upgrade screen.
+
+====================================================
+
+SOCIAL CONTENT
+
+Free Trial includes:
+
+5 generated social posts.
+
+Platforms:
+
+LinkedIn
+
+Facebook
+
+Instagram
+
+X
+
+TikTok
+
+Display:
+
+Caption
+
+Hashtags
+
+CTA
+
+Remaining Credits Counter
+
+====================================================
+
+EMAIL MARKETING
+
+Free Trial includes:
+
+1 generated campaign.
+
+Types:
+
+Welcome Sequence
+
+Sales Campaign
+
+Product Launch
+
+Newsletter
+
+Display entire campaign.
+
+====================================================
+
+VIDEO STUDIO
+
+Free Trial includes:
+
+1 generated marketing video.
+
+Generate:
+
+Concept
+
+Hook
+
+Storyboard
+
+Voiceover Script
+
+CTA
+
+Mark output:
+
+Created with GrowthForge Trial
+
+Display:
+
+Upgrade for unlimited videos.
+
+====================================================
+
+FORGE AI
+
+Create AI Agent experience.
+
+Welcome message:
+
+Hi, I'm Forge.
+
+I can help you:
+

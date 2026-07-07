@@ -32,6 +32,29 @@ router.post("/auth/provision", async (req, res): Promise<void> => {
   }
 });
 
+router.post("/auth/start-trial", async (req, res): Promise<void> => {
+  try {
+    const auth = getAuth(req);
+    const userId = auth?.userId;
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+    await db
+      .update(usersTable)
+      .set({ plan: "trial", subscriptionStatus: "trial", trialEndsAt })
+      .where(eq(usersTable.id, userId));
+
+    res.json({ trialEndsAt });
+  } catch (err) {
+    req.log.error({ err }, "Error starting trial");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.get("/auth/me", async (req, res): Promise<void> => {
   try {
     const auth = getAuth(req);

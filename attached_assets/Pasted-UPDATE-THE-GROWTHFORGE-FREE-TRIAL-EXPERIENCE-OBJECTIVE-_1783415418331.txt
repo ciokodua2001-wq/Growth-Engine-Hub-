@@ -1,0 +1,443 @@
+UPDATE THE GROWTHFORGE FREE TRIAL EXPERIENCE
+
+OBJECTIVE
+
+Redesign the Free Trial so users experience the value of GrowthForge without creating high AI infrastructure costs.
+
+The Free Trial should focus on:
+
+- Business Intelligence
+- Competitor Intelligence
+- Marketing Strategy
+- Content Generation
+- AI Guidance
+
+Do NOT provide expensive unlimited AI outputs.
+
+====================================================
+
+FREE TRIAL PLAN
+
+Name:
+
+GrowthForge Free Trial
+
+Duration:
+
+14 Days
+
+Price:
+
+$0
+
+Credit Card Required
+
+Cancel Anytime Before Trial Ends
+
+====================================================
+
+FREE TRIAL LIMITS
+
+Allow:
+
+✅ 1 Project
+
+✅ 1 Website Analysis
+
+✅ 3 Competitor Reports
+
+✅ 1 Marketing Strategy
+
+✅ 5 Social Posts
+
+✅ 1 Email Campaign
+
+✅ 1 Video Blueprint
+
+✅ 25 Forge AI Messages
+
+✅ Dashboard Access
+
+✅ Asset Library Access
+
+✅ Analytics Access
+
+Display usage counters throughout the platform.
+
+====================================================
+
+WEBSITE ANALYSIS
+
+Allow:
+
+1 Complete Analysis
+
+Generate:
+
+- Business Summary
+- Industry
+- Products
+- Services
+- Target Audience
+- Ideal Customer Profile
+- Customer Pain Points
+- Customer Benefits
+- Positioning Statement
+- Growth Opportunities
+
+Save results to project.
+
+After first analysis:
+
+Show:
+
+Analysis Limit Reached
+
+Upgrade to run unlimited analyses.
+
+====================================================
+
+COMPETITOR INTELLIGENCE
+
+Allow:
+
+Maximum 3 Competitor Reports
+
+Generate:
+
+- Competitor Name
+- Strengths
+- Weaknesses
+- Messaging Analysis
+- Positioning Analysis
+- Market Opportunities
+
+After third report:
+
+Display Upgrade Modal.
+
+====================================================
+
+MARKETING STRATEGY
+
+Allow:
+
+1 Complete Strategy
+
+Generate:
+
+- Positioning
+- Messaging Framework
+- Content Pillars
+- SEO Opportunities
+- Growth Recommendations
+
+After generation:
+
+Lock future generations.
+
+====================================================
+
+SOCIAL MEDIA CONTENT
+
+Allow:
+
+Maximum 5 Social Posts
+
+Generate:
+
+- Caption
+- Hashtags
+- CTA
+
+Supported Platforms:
+
+- LinkedIn
+- Facebook
+- Instagram
+- X
+- TikTok
+
+Display:
+
+Posts Used:
+0 / 5
+
+Posts Remaining:
+5
+
+Update in real time.
+
+====================================================
+
+EMAIL MARKETING
+
+Allow:
+
+1 Campaign
+
+Types:
+
+- Welcome Series
+- Newsletter
+- Product Launch
+- Lead Nurture
+
+Generate:
+
+- Subject Line
+- Preview Text
+- Email Body
+- CTA
+
+Display:
+
+Email Campaigns Used:
+0 / 1
+
+====================================================
+
+VIDEO STUDIO
+
+IMPORTANT
+
+DO NOT GENERATE FULL AI VIDEOS DURING FREE TRIAL.
+
+Instead generate:
+
+VIDEO BLUEPRINT
+
+Allow:
+
+1 Video Blueprint
+
+Generate:
+
+✅ Video Concept
+
+✅ Hook
+
+✅ Storyboard
+
+✅ Scene Breakdown
+
+✅ Voiceover Script
+
+✅ CTA
+
+✅ Thumbnail Recommendation
+
+OPTIONAL
+
+Generate a very short watermarked preview.
+
+Maximum:
+
+5-10 seconds
+
+Low Resolution
+
+No downloads allowed.
+
+====================================================
+
+VIDEO EXPORT RESTRICTIONS
+
+Free Trial users CANNOT:
+
+- Download MP4
+- Export Video
+- Remove Watermark
+- Create Additional Videos
+
+Display:
+
+Upgrade to Growth to render and export full marketing videos.
+
+====================================================
+
+FORGE AI AGENT
+
+Create Message Limits.
+
+Free Trial includes:
+
+25 Messages
+
+Display:
+
+Messages Used:
+0 / 25
+
+Messages Remaining:
+25
+
+Counter updates after every request.
+
+====================================================
+
+FORGE AI WELCOME SCREEN
+
+Display:
+
+Hi, I'm Forge.
+
+I can help you:
+
+✅ Analyze Your Business
+
+✅ Discover Competitors
+
+✅ Create Marketing Strategies
+
+✅ Generate Content
+
+✅ Create Video Blueprints
+
+✅ Build Campaign Ideas
+
+Free Trial Includes:
+25 AI Messages
+
+====================================================
+
+UPGRADE GATES
+
+Whenever a user reaches a limit:
+
+Display Upgrade Modal.
+
+Title:
+
+You've Reached Your Free Trial Limit
+
+Message:
+
+Upgrade to continue growing with GrowthForge.
+
+====================================================
+
+STARTER PLAN
+
+$99/month
+
+Includes:
+
+- 1 Project
+- Unlimited Analysis
+- Unlimited Competitor Reports
+- 25 Social Posts Per Month
+- 10 Email Campaigns
+- 10 Video Blueprints
+- 100 AI Messages
+
+====================================================
+
+GROWTH PLAN
+
+$299/month
+
+Includes:
+
+- 5 Projects
+- Unlimited Analysis
+- Unlimited Competitor Reports
+- Unlimited Content
+- 30 Video Renders / Month
+- Competitor Video Mining
+- AI Campaign Builder
+- Social Scheduling
+- 500 AI Messages
+
+====================================================
+
+AGENCY PLAN
+
+$799/month
+
+Includes:
+
+- Unlimited Projects
+- Unlimited Video Renders
+- Team Members
+- White Label
+- AI Managed Campaigns
+- Autonomous Growth Mode
+- Unlimited AI Usage
+
+====================================================
+
+DASHBOARD TRIAL BANNER
+
+Display on every page:
+
+TRIAL STATUS
+
+Example:
+
+🎉 Trial Active
+
+Days Remaining:
+12
+
+Project:
+1 / 1
+
+Analyses:
+1 / 1
+
+Competitors:
+2 / 3
+
+Social Posts:
+3 / 5
+
+Emails:
+0 / 1
+
+Video Blueprints:
+0 / 1
+
+AI Messages:
+8 / 25
+
+Button:
+
+Upgrade Now
+
+====================================================
+
+ACTIVATION CHECKLIST
+
+Show checklist:
+
+✅ Website Analyzed
+
+⬜ Competitors Reviewed
+
+⬜ Marketing Strategy Generated
+
+⬜ Social Content Created
+
+⬜ Email Campaign Created
+
+⬜ Video Blueprint Created
+
+⬜ Forge AI Used
+
+Display completion percentage.
+
+====================================================
+
+PRIMARY GOAL
+
+The free trial should provide an "aha" moment while keeping costs low.
+
+Users should clearly understand the value of:
+
+- Analysis
+- Competitor Intelligence
+- Strategy
+- Content Creation
+
+Actual video rendering, exporting, campaign launching, and advanced automation should remain premium paid features.

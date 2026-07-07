@@ -172,7 +172,6 @@ export default function DashboardPage() {
               Home
             </Link>
             <UserButton
-              afterSignOutUrl="/"
               appearance={{ variables: { colorPrimary: "#00E676" } }}
             />
           </div>

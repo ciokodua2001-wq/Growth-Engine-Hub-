@@ -14,6 +14,7 @@ import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import PlansPage from "@/pages/plans";
 import OnboardingPage from "@/pages/onboarding";
+import AnalysisProgressPage from "@/pages/analysis-progress";
 import ProjectLayout from "@/components/layout/project-layout";
 
 import ProjectOverview from "@/pages/project/overview";
@@ -144,6 +145,7 @@ function AppRoutes() {
       {/* Onboarding funnel */}
       <Route path="/plans" component={PlansPage} />
       <Route path="/onboarding" component={OnboardingPage} />
+      <Route path="/analysis-progress/:projectId" component={AnalysisProgressPage} />
 
       <Route path="/dashboard" component={DashboardPage} />
 

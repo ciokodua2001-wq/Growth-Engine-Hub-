@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetProject } from "@workspace/api-client-react";
+import { TrialBanner } from "@/components/ui/trial-banner";
 import {
   LayoutDashboard, Brain, Users2, Megaphone, FileText, Share2,
   Mail, Rss, Video, Target, FolderOpen, BarChart2, Bot, Settings,
@@ -59,8 +60,16 @@ interface ProjectLayoutProps {
 export default function ProjectLayout({ projectId, children }: ProjectLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [location] = useLocation();
+  const [trialInfo, setTrialInfo] = useState<{ subscriptionStatus?: string; trialEndsAt?: string } | null>(null);
   const id = parseInt(projectId, 10);
   const { data: project } = useGetProject(id, { query: { enabled: !!id } });
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((u) => setTrialInfo({ subscriptionStatus: u.subscriptionStatus, trialEndsAt: u.trialEndsAt }))
+      .catch(() => {});
+  }, []);
 
   const isActive = (path: string) => location === `/projects/${projectId}/${path}`;
 
@@ -169,8 +178,12 @@ export default function ProjectLayout({ projectId, children }: ProjectLayoutProp
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
-        {children}
+      <main className="flex-1 overflow-y-auto flex flex-col">
+        <TrialBanner
+          subscriptionStatus={trialInfo?.subscriptionStatus}
+          trialEndsAt={trialInfo?.trialEndsAt}
+        />
+        <div className="flex-1">{children}</div>
       </main>
     </div>
   );

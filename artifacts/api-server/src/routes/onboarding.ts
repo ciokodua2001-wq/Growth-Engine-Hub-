@@ -15,11 +15,12 @@ router.post("/onboarding", async (req, res): Promise<void> => {
       return;
     }
 
-    const { businessName, websiteUrl, industry, primaryGoal } = req.body as {
+    const { businessName, websiteUrl, industry, primaryGoal, targetMarket } = req.body as {
       businessName: string;
       websiteUrl: string;
       industry?: string;
       primaryGoal?: string;
+      targetMarket?: string;
     };
 
     if (!businessName || !websiteUrl) {
@@ -27,14 +28,16 @@ router.post("/onboarding", async (req, res): Promise<void> => {
       return;
     }
 
+    const description = [primaryGoal, targetMarket].filter(Boolean).join(" | ") || null;
+
     const [project] = await db
       .insert(projectsTable)
       .values({
         name: businessName,
         websiteUrl,
         industry: industry ?? null,
-        description: primaryGoal ?? null,
-        plan: "starter",
+        description,
+        plan: "trial",
         status: "pending",
       })
       .returning();
