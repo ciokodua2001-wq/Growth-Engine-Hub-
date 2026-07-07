@@ -64,6 +64,7 @@ export interface DashboardSummary {
   totalSocialPosts?: number;
   /** @nullable */
   analysisStatus?: string | null;
+  hasStrategy?: boolean;
   recentActivity: ActivityItem[];
   topMetrics?: MetricItem[];
 }

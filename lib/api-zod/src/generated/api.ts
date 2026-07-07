@@ -128,6 +128,7 @@ export const GetProjectDashboardResponse = zod.object({
   "totalEmails": zod.number().optional(),
   "totalSocialPosts": zod.number().optional(),
   "analysisStatus": zod.string().nullish(),
+  "hasStrategy": zod.boolean().optional(),
   "recentActivity": zod.array(zod.object({
   "id": zod.number(),
   "type": zod.string(),

@@ -12,6 +12,7 @@ import {
   socialPostsTable,
   emailCampaignsTable,
   adCreativesTable,
+  marketingStrategyTable,
 } from "@workspace/db";
 import {
   CreateProjectBody,
@@ -103,6 +104,7 @@ router.get("/projects/:id/dashboard", async (req, res): Promise<void> => {
   const [socialCountResult] = await db.select({ count: count() }).from(socialPostsTable).where(eq(socialPostsTable.projectId, projectId));
 
   const [analysis] = await db.select({ status: businessAnalysisTable.status }).from(businessAnalysisTable).where(eq(businessAnalysisTable.projectId, projectId));
+  const [strategy] = await db.select({ id: marketingStrategyTable.id }).from(marketingStrategyTable).where(eq(marketingStrategyTable.projectId, projectId));
 
   const recentActivity = await db.select().from(activityTable).where(eq(activityTable.projectId, projectId)).orderBy(desc(activityTable.createdAt)).limit(10);
 
@@ -116,6 +118,7 @@ router.get("/projects/:id/dashboard", async (req, res): Promise<void> => {
     totalEmails: Number(emailsCountResult?.count ?? 0),
     totalSocialPosts: Number(socialCountResult?.count ?? 0),
     analysisStatus: analysis?.status ?? null,
+    hasStrategy: !!strategy,
     recentActivity: recentActivity.map(a => ({
       id: a.id,
       type: a.type,

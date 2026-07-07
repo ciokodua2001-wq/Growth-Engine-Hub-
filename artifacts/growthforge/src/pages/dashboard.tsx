@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useUser, UserButton } from "@clerk/react";
@@ -8,15 +8,31 @@ import {
   getListProjectsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Globe, Zap, ArrowRight, Loader2, X, Brain } from "lucide-react";
+import { Plus, Globe, Zap, ArrowRight, Loader2, X, Brain, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const statusColor: Record<string, string> = {
-  pending: "bg-slate-400",
-  processing: "bg-yellow-400",
-  complete: "bg-green-400",
+  pending: "bg-yellow-400",
+  processing: "bg-yellow-400 animate-pulse",
+  complete: "bg-primary",
   error: "bg-red-400",
 };
+
+const statusLabel: Record<string, string> = {
+  pending: "Ready to start",
+  processing: "Analyzing...",
+  complete: "Active",
+  error: "Error",
+};
+
+const WORKFLOW_LABELS = [
+  "Analysis",
+  "Competitors",
+  "Strategy",
+  "Social",
+  "Videos",
+  "Campaign",
+];
 
 function NewProjectModal({ onClose }: { onClose: () => void }) {
   const [url, setUrl] = useState("");
@@ -24,6 +40,7 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
   const createProject = useCreateProject();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,10 +48,11 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
     createProject.mutate(
       { data: { websiteUrl: url, name: name || url.replace(/^https?:\/\//, "").split("/")[0] } },
       {
-        onSuccess: () => {
+        onSuccess: (project) => {
           queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
-          toast({ title: "Project created!", description: "Your AI marketing department is being set up." });
+          toast({ title: "Project created!", description: "Opening your marketing workflow..." });
           onClose();
+          setLocation(`/projects/${project.id}/overview`);
         },
         onError: () => {
           toast({ title: "Error", description: "Could not create project. Try again.", variant: "destructive" });
@@ -50,14 +68,32 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         className="bg-card border border-border rounded-2xl p-8 w-full max-w-md mx-4 shadow-2xl"
       >
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-2">
           <div>
             <h2 className="text-xl font-bold">New Project</h2>
-            <p className="text-sm text-muted-foreground mt-1">Paste your URL to get your AI marketing department</p>
+            <p className="text-sm text-muted-foreground mt-1">Paste your URL to launch your AI marketing OS</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+          >
             <X className="h-4 w-4" />
           </button>
+        </div>
+
+        {/* Workflow preview */}
+        <div className="my-5 flex items-center gap-1.5 overflow-x-auto pb-1">
+          {WORKFLOW_LABELS.map((label, i) => (
+            <div key={label} className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground/60 bg-secondary px-2 py-1 rounded-full">
+                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
+                {label}
+              </div>
+              {i < WORKFLOW_LABELS.length - 1 && (
+                <ChevronRight className="h-3 w-3 text-muted-foreground/30 shrink-0" />
+              )}
+            </div>
+          ))}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -72,11 +108,14 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
                 placeholder="https://yourwebsite.com"
                 className="w-full bg-secondary border border-border rounded-xl pl-10 pr-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                 required
+                autoFocus
               />
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium mb-2 block">Project Name <span className="text-muted-foreground font-normal">(optional)</span></label>
+            <label className="text-sm font-medium mb-2 block">
+              Project Name <span className="text-muted-foreground font-normal">(optional)</span>
+            </label>
             <input
               type="text"
               value={name}
@@ -89,7 +128,7 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
           <button
             type="submit"
             disabled={createProject.isPending || !url}
-            className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground font-bold py-3.5 rounded-xl transition-all mt-2"
+            className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground font-bold py-3.5 rounded-xl transition-all mt-2 shadow-lg shadow-primary/20"
           >
             {createProject.isPending ? (
               <><Loader2 className="h-4 w-4 animate-spin" /> Creating Project...</>
@@ -109,10 +148,13 @@ export default function DashboardPage() {
   const { user, isLoaded } = useUser();
   const { data: projects, isLoading } = useListProjects();
 
-  if (isLoaded && !user) {
-    setLocation("/sign-in");
-    return null;
-  }
+  useEffect(() => {
+    if (isLoaded && !user) setLocation("/sign-in");
+  }, [isLoaded, user, setLocation]);
+
+  const firstName = user?.firstName ?? user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] ?? "there";
+
+  if (isLoaded && !user) return null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -126,17 +168,29 @@ export default function DashboardPage() {
             <span className="font-bold text-lg tracking-tight">GrowthForge</span>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Home</Link>
-            <UserButton afterSignOutUrl="/" appearance={{ baseTheme: undefined, variables: { colorPrimary: "#00E676" } }} />
+            <Link href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Home
+            </Link>
+            <UserButton
+              afterSignOutUrl="/"
+              appearance={{ variables: { colorPrimary: "#00E676" } }}
+            />
           </div>
         </div>
       </header>
 
       <div className="max-w-6xl mx-auto px-6 py-12">
+        {/* Page header */}
         <div className="flex items-start justify-between mb-10">
           <div>
-            <h1 className="text-3xl font-black tracking-tight">Your Projects</h1>
-            <p className="text-muted-foreground mt-1">Each project is a full AI marketing department for one business.</p>
+            <h1 className="text-3xl font-black tracking-tight">
+              Hey {firstName} 👋
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              {projects && projects.length > 0
+                ? `${projects.length} marketing OS${projects.length === 1 ? "" : "es"} running for you`
+                : "Let's build your AI marketing department."}
+            </p>
           </div>
           <motion.button
             whileHover={{ scale: 1.02 }}
@@ -164,48 +218,117 @@ export default function DashboardPage() {
               >
                 <Link href={`/projects/${project.id}/overview`}>
                   <div className="group p-6 rounded-2xl bg-card border border-border hover:border-primary/40 transition-all cursor-pointer hover:shadow-lg hover:shadow-primary/5">
+                    {/* Card header */}
                     <div className="flex items-start justify-between mb-4">
                       <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
                         <Globe className="h-5 w-5 text-primary" />
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className={`h-2 w-2 rounded-full ${statusColor[project.status] ?? "bg-slate-400"}`} />
-                        <span className="text-xs text-muted-foreground capitalize">{project.status}</span>
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${statusColor[project.status] ?? "bg-slate-400"}`}
+                        />
+                        <span className="text-muted-foreground">
+                          {statusLabel[project.status] ?? project.status}
+                        </span>
                       </div>
                     </div>
 
-                    <h3 className="font-bold text-foreground mb-1 group-hover:text-primary transition-colors truncate">
+                    <h3 className="font-bold text-foreground mb-0.5 group-hover:text-primary transition-colors truncate">
                       {project.name}
                     </h3>
-                    <p className="text-xs text-muted-foreground truncate mb-4">{project.websiteUrl}</p>
+                    <p className="text-xs text-muted-foreground truncate mb-5">{project.websiteUrl}</p>
+
+                    {/* 6-step workflow dots */}
+                    <div className="mb-4">
+                      <div className="flex items-center gap-1 mb-1.5">
+                        {WORKFLOW_LABELS.map((label, idx) => (
+                          <div
+                            key={label}
+                            title={label}
+                            className={`h-1 flex-1 rounded-full transition-colors ${
+                              project.status === "complete" && idx === 0
+                                ? "bg-primary"
+                                : "bg-secondary"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground/60">
+                        {project.status === "complete"
+                          ? "Analysis done · Continue workflow →"
+                          : "Start your 6-step marketing workflow"}
+                      </p>
+                    </div>
 
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-primary bg-primary/10 px-2 py-1 rounded">
-                        {project.plan}
+                        {project.plan ?? "STARTER"}
                       </span>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                        <span>Open</span>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </div>
                     </div>
                   </div>
                 </Link>
               </motion.div>
             ))}
+
+            {/* Add new project card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: projects.length * 0.07 }}
+            >
+              <button
+                onClick={() => setShowModal(true)}
+                className="w-full h-full min-h-[220px] group p-6 rounded-2xl border border-dashed border-border hover:border-primary/40 transition-all cursor-pointer hover:bg-primary/3 flex flex-col items-center justify-center gap-3"
+              >
+                <div className="h-12 w-12 rounded-xl bg-primary/10 group-hover:bg-primary/15 flex items-center justify-center transition-colors">
+                  <Plus className="h-6 w-6 text-primary" />
+                </div>
+                <div className="text-center">
+                  <p className="font-semibold text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                    Add New Project
+                  </p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Paste a URL to start</p>
+                </div>
+              </button>
+            </motion.div>
           </div>
         ) : (
+          /* Empty state */
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center justify-center py-32 text-center"
+            className="flex flex-col items-center justify-center py-20 text-center"
           >
             <div className="h-20 w-20 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
               <Brain className="h-10 w-10 text-primary" />
             </div>
             <h2 className="text-2xl font-bold mb-3">Create Your First Project</h2>
-            <p className="text-muted-foreground max-w-sm mb-8 leading-relaxed">
-              Paste a website URL and your AI marketing department will be ready in minutes.
+            <p className="text-muted-foreground max-w-sm mb-4 leading-relaxed">
+              Paste a website URL and GrowthForge AI will guide you through a 6-step marketing workflow to build your complete AI marketing department.
             </p>
+
+            {/* Workflow preview strip */}
+            <div className="flex items-center gap-2 mb-8 flex-wrap justify-center">
+              {WORKFLOW_LABELS.map((label, i) => (
+                <div key={label} className="flex items-center gap-2">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-secondary px-3 py-1.5 rounded-full border border-border">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary/50" />
+                    {label}
+                  </span>
+                  {i < WORKFLOW_LABELS.length - 1 && (
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30" />
+                  )}
+                </div>
+              ))}
+            </div>
+
             <button
               onClick={() => setShowModal(true)}
-              className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-6 py-3 rounded-xl transition-colors"
+              className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-6 py-3 rounded-xl transition-colors shadow-lg shadow-primary/20"
             >
               <Plus className="h-4 w-4" />
               Create New Project
