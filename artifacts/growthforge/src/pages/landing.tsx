@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, AnimatePresence } from "framer-motion";
 import {
   Brain, Video, Target, BarChart2, Zap, ArrowRight, Check,
-  Users2, FileText, Share2, Mail, Bot, Star,
+  Users2, FileText, Share2, Mail, Bot, Star, Bell, X, Clock,
 } from "lucide-react";
 
 const features = [
@@ -31,10 +31,73 @@ const testimonials = [
 ];
 
 const pricing = [
-  { name: "Starter", price: 99, features: ["1 project", "Content Engine", "Competitor analysis", "Email campaigns", "10 videos/month", "Analytics dashboard"], cta: "Start Free Trial", highlight: false },
-  { name: "Growth", price: 299, features: ["5 projects", "Everything in Starter", "30 videos/month", "AI Agent chat", "Autonomous campaigns", "Priority support"], cta: "Start Free Trial", highlight: true },
-  { name: "Agency", price: 799, features: ["Unlimited projects", "Everything in Growth", "Unlimited videos", "White-label reports", "Team collaboration", "Dedicated success manager"], cta: "Book a Demo", highlight: false },
+  { name: "Starter", price: 99, features: ["1 project", "Content Engine", "Competitor analysis", "Email campaigns", "10 videos/month", "Analytics dashboard"], highlight: false },
+  { name: "Growth", price: 299, features: ["5 projects", "Everything in Starter", "30 videos/month", "AI Agent chat", "Autonomous campaigns", "Priority support"], highlight: true },
+  { name: "Agency", price: 799, features: ["Unlimited projects", "Everything in Growth", "Unlimited videos", "White-label reports", "Team collaboration", "Dedicated success manager"], highlight: false },
 ];
+
+function LandingEarlyAccessModal({ plan, onClose }: { plan: string; onClose: () => void }) {
+  const [email, setEmail] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.92, y: 16 }}
+        transition={{ type: "spring", damping: 22, stiffness: 320 }}
+        className="w-full max-w-md rounded-2xl border border-white/10 p-8 relative"
+        style={{ background: "#080f1e" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+        {!submitted ? (
+          <>
+            <div className="w-12 h-12 rounded-xl bg-[#00E676]/10 border border-[#00E676]/20 flex items-center justify-center mb-5">
+              <Bell className="w-6 h-6 text-[#00E676]" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-1">Join the {plan} waitlist</h2>
+            <p className="text-white/50 text-sm mb-6">
+              Paid plans are launching very soon. Be first in line and receive an exclusive early-access discount when {plan} goes live.
+            </p>
+            <form onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }} className="flex flex-col gap-3">
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-[#00E676]/50 text-sm"
+              />
+              <button type="submit" className="w-full py-3 rounded-xl bg-[#00E676] text-black font-bold text-sm hover:bg-[#14F195] transition-colors">
+                Notify Me at Launch
+              </button>
+            </form>
+            <p className="text-white/25 text-xs text-center mt-3">No spam. Unsubscribe anytime.</p>
+          </>
+        ) : (
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-4">
+            <div className="w-16 h-16 rounded-full bg-[#00E676]/15 border border-[#00E676]/30 flex items-center justify-center mx-auto mb-4">
+              <Check className="w-8 h-8 text-[#00E676]" />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">You're on the list!</h3>
+            <p className="text-white/50 text-sm mb-6">We'll email <strong className="text-white">{email}</strong> when {plan} launches with your exclusive discount.</p>
+            <button onClick={onClose} className="px-6 py-2.5 rounded-full bg-white/8 text-white/70 text-sm hover:bg-white/15 transition-colors">Got it</button>
+          </motion.div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
 
 function FadeIn({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
   const ref = useRef(null);
@@ -53,6 +116,7 @@ function FadeIn({ children, delay = 0, className = "" }: { children: React.React
 }
 
 export default function LandingPage() {
+  const [earlyAccessPlan, setEarlyAccessPlan] = useState<string | null>(null);
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
       {/* Nav */}
@@ -233,14 +297,20 @@ export default function LandingPage() {
       {/* Pricing */}
       <section id="pricing" className="py-24 px-6 border-t border-border">
         <div className="max-w-5xl mx-auto">
-          <FadeIn className="text-center mb-16">
+          <FadeIn className="text-center mb-10">
             <h2 className="text-4xl font-black tracking-tight mb-4">Simple, Transparent Pricing</h2>
             <p className="text-muted-foreground text-lg">Replace a $120K/year marketing team for a fraction of the cost.</p>
           </FadeIn>
+          <FadeIn className="flex items-center justify-center mb-8">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-amber-500/30 bg-amber-500/10">
+              <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="text-amber-400 text-sm font-semibold">Paid plans launching soon — start free today, join the early access waitlist for a discount</span>
+            </div>
+          </FadeIn>
           <div className="grid md:grid-cols-3 gap-6">
-            {pricing.map(({ name, price, features: feats, cta, highlight }, i) => (
+            {pricing.map(({ name, price, features: feats, highlight }, i) => (
               <FadeIn key={name} delay={i * 0.1}>
-                <div className={`p-8 rounded-2xl border flex flex-col gap-6 ${highlight ? "bg-primary/10 border-primary shadow-lg shadow-primary/10" : "bg-card border-border"}`}>
+                <div className={`p-8 rounded-2xl border flex flex-col gap-6 h-full ${highlight ? "bg-primary/10 border-primary shadow-lg shadow-primary/10" : "bg-card border-border"}`}>
                   {highlight && <div className="text-xs font-bold uppercase tracking-widest text-primary">Most Popular</div>}
                   <div>
                     <div className="text-xl font-bold mb-1">{name}</div>
@@ -257,15 +327,38 @@ export default function LandingPage() {
                       </li>
                     ))}
                   </ul>
-                  <Link href="/sign-up" className={`w-full text-center py-3 rounded-xl font-bold text-sm transition-all ${highlight ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20" : "bg-secondary hover:bg-secondary/80 text-foreground border border-border"}`}>
-                    {cta}
-                  </Link>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => setEarlyAccessPlan(name)}
+                      className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all ${highlight ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20" : "bg-secondary hover:bg-secondary/80 text-foreground border border-border"}`}
+                    >
+                      <Bell className="w-3.5 h-3.5" /> Join Early Access
+                    </button>
+                    <p className="text-center text-[10px] text-muted-foreground">Billing coming soon · No charge now</p>
+                  </div>
                 </div>
               </FadeIn>
             ))}
           </div>
+          <FadeIn className="text-center mt-8">
+            <p className="text-muted-foreground text-sm">
+              Want to use GrowthForge now?{" "}
+              <Link href="/sign-up" className="text-primary hover:underline font-semibold">Start your free 14-day trial</Link>
+              {" "}— no credit card required.
+            </p>
+          </FadeIn>
         </div>
       </section>
+
+      {/* Early Access Modal */}
+      <AnimatePresence>
+        {earlyAccessPlan && (
+          <LandingEarlyAccessModal
+            plan={earlyAccessPlan}
+            onClose={() => setEarlyAccessPlan(null)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* FAQ */}
       <section className="py-24 px-6 border-t border-border">

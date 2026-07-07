@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
-import { Zap, X } from "lucide-react";
+import { Zap, X, Bell } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface TrialBannerProps {
@@ -13,9 +13,9 @@ export function TrialBanner({ trialEndsAt, subscriptionStatus }: TrialBannerProp
 
   if (subscriptionStatus !== "trial" || dismissed || !trialEndsAt) return null;
 
-  const end = new Date(trialEndsAt);
-  const now = new Date();
-  const daysLeft = Math.max(0, Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+  const daysLeft = Math.max(0, Math.ceil(
+    (new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+  ));
 
   if (daysLeft === 0) return null;
 
@@ -37,15 +37,15 @@ export function TrialBanner({ trialEndsAt, subscriptionStatus }: TrialBannerProp
           <Zap className="w-3.5 h-3.5 shrink-0" />
           <span>
             <strong>{daysLeft} day{daysLeft !== 1 ? "s" : ""}</strong> left in your free trial.{" "}
-            {isUrgent ? "Upgrade now to keep your data and progress." : ""}
+            {isUrgent ? "Paid plans launching soon — join the waitlist." : ""}
           </span>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <Link
             href="/plans"
-            className="px-3 py-1 rounded-full bg-[#00E676] text-black text-xs font-bold hover:bg-[#14F195] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#00E676] text-black text-xs font-bold hover:bg-[#14F195] transition-colors"
           >
-            Upgrade
+            <Bell className="w-3 h-3" /> Early Access
           </Link>
           <button
             onClick={() => setDismissed(true)}

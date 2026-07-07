@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Zap, ArrowRight, Check } from "lucide-react";
+import { Zap, Check, Bell } from "lucide-react";
 import { useTrialUsage } from "@/hooks/use-trial-usage";
 
 interface TrialStatusPanelProps {
@@ -40,11 +40,8 @@ export function TrialStatusPanel({ projectId, trialEndsAt, subscriptionStatus, c
     : 14;
 
   if (collapsed) {
-    const totalItems = CHECKLIST.length;
-    const doneItems = usage
-      ? CHECKLIST.filter((c) => (usage[c.key] ?? 0) > 0).length
-      : 0;
-    const pct = Math.round((doneItems / totalItems) * 100);
+    const doneItems = usage ? CHECKLIST.filter((c) => (usage[c.key] ?? 0) > 0).length : 0;
+    const pct = Math.round((doneItems / CHECKLIST.length) * 100);
     return (
       <div className="px-2 pb-3">
         <Link
@@ -128,13 +125,13 @@ export function TrialStatusPanel({ projectId, trialEndsAt, subscriptionStatus, c
           </div>
         </div>
 
-        {/* Upgrade CTA */}
+        {/* Early Access CTA */}
         <div className="px-3 pb-3">
           <Link
             href="/plans"
             className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg bg-[#00E676] text-black text-[11px] font-bold hover:bg-[#14F195] transition-colors"
           >
-            Upgrade Now <ArrowRight className="w-3 h-3" />
+            <Bell className="w-3 h-3" /> Join Early Access
           </Link>
         </div>
       </div>
