@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import {
   LayoutDashboard, Users, FolderOpen, CreditCard, Brain,
   FileText, HeadphonesIcon, BarChart2, ToggleLeft, Settings,
   Activity, Shield, Megaphone, ChevronLeft, ChevronRight,
-  Zap, LogOut, Menu,
+  Zap, LogOut, Menu, Loader2,
 } from "lucide-react";
 
 const NAV = [
@@ -29,12 +29,30 @@ interface Props { children: React.ReactNode }
 export default function AdminLayout({ children }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [location] = useLocation();
-  const { user } = useUser();
+  const [location, setLocation] = useLocation();
+  const { user, isLoaded, isSignedIn } = useUser();
   const { signOut } = useClerk();
+
+  // Direct navigation to /admin (e.g. typing the URL, or a bookmark) should
+  // prompt sign-in immediately instead of rendering a dead-end "Access
+  // Denied" screen. signInFallbackRedirectUrl already routes admins to
+  // /admin post-login, so bouncing here is enough to land them right back.
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      setLocation("/sign-in", { replace: true });
+    }
+  }, [isLoaded, isSignedIn, setLocation]);
 
   const isActive = (href: string) =>
     href === "/admin" ? location === "/admin" : location.startsWith(href);
+
+  if (!isLoaded || !isSignedIn) {
+    return (
+      <div className="flex h-screen items-center justify-center" style={{ background: "#040B14" }}>
+        <Loader2 className="w-6 h-6 text-white/40 animate-spin" />
+      </div>
+    );
+  }
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
