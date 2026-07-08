@@ -79,7 +79,7 @@ export default function ProjectVideos() {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-black tracking-tight">Video Studio</h1>
-          <p className="text-muted-foreground mt-1">AI-generated marketing videos with scripts and storyboards</p>
+          <p className="text-muted-foreground mt-1">AI-generated video blueprints with scripts, storyboards, and production notes</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex rounded-xl border border-border overflow-hidden">
@@ -89,7 +89,7 @@ export default function ProjectVideos() {
                 onClick={() => setMode(m)}
                 className={`px-4 py-2 text-sm font-medium transition-colors ${mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
               >
-                {m === "auto" ? "Auto (9 Videos)" : "Prompt-Based"}
+                {m === "auto" ? "Auto (9 Blueprints)" : "Prompt-Based"}
               </button>
             ))}
           </div>
@@ -98,7 +98,7 @@ export default function ProjectVideos() {
             className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-primary/20"
           >
             <Sparkles className="h-4 w-4" />
-            Generate Videos
+            Generate Blueprints
           </button>
         </div>
       </div>
@@ -153,11 +153,11 @@ export default function ProjectVideos() {
       ) : (
         <div className="flex flex-col items-center justify-center py-32 text-center">
           <Video className="h-16 w-16 text-primary/30 mb-6" />
-          <h2 className="text-2xl font-bold mb-3">No Videos Yet</h2>
-          <p className="text-muted-foreground mb-8 max-w-sm">Generate 9 professional marketing videos — promos, product demos, and social shorts — with one click.</p>
+          <h2 className="text-2xl font-bold mb-3">No Blueprints Yet</h2>
+          <p className="text-muted-foreground mb-8 max-w-sm">Generate video blueprints — scripts, storyboards, and production notes for promos, product demos, and social shorts.</p>
           <button onClick={() => setModalOpen(true)} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
             <Sparkles className="h-4 w-4" />
-            Generate {mode === "auto" ? "9 Videos" : "3 Videos"}
+            Generate {mode === "auto" ? "9 Blueprints" : "3 Blueprints"}
           </button>
         </div>
       )}

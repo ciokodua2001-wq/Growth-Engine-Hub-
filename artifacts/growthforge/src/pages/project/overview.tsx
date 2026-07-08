@@ -94,14 +94,14 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
   },
   {
     id: "videos",
-    label: "Video Production",
-    completionLabel: "Videos Generated",
+    label: "Video Blueprints",
+    completionLabel: "Blueprints Generated",
     description: "Create video scripts, storyboards, and production notes for every platform.",
     icon: Video,
     accentClass: "text-cyan-400",
     bgClass: "bg-cyan-400/10 border-cyan-400/20",
     route: "videos",
-    actionLabel: "Create Videos",
+    actionLabel: "Create Blueprints",
   },
   {
     id: "campaign",
