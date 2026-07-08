@@ -21,24 +21,30 @@ AI-powered marketing OS SaaS by Strapli Technologies Inc. — turns any business
 - Build: esbuild (CJS bundle)
 - Auth: Clerk (Replit-managed, app_3GAO5duvU6bI7Y0N5ww2FwrFxlf) — email + Google
 - Frontend: React + Vite + Wouter + Tailwind v4 + Framer Motion
+- AI: Anthropic Claude (`claude-sonnet-4-6`) via Replit AI Integrations (`@workspace/integrations-anthropic-ai`)
 
 ## Where things live
 
 - `lib/db/src/schema/` — DB schema (Drizzle): `users.ts`, `projects.ts`, `index.ts`
 - `artifacts/api-server/src/` — Express API server
    - `app.ts` — Express app setup (middleware order critical: webhook → Clerk proxy → json → routes)
+   - `lib/websiteFetcher.ts` — fetches + strips a live website's HTML down to plain text (timeout, size cap, throws `WebsiteFetchError` on failure)
+   - `lib/aiJson.ts` — calls Claude and parses a strict-JSON response; used by analysis/personas/competitors/strategy routes
+   - `routes/analysis.ts` — business analysis, personas, marketing strategy (all real AI, grounded in fetched website content)
+   - `routes/competitors.ts` — competitor discovery + competitive report (real AI, grounded in business analysis)
 - `artifacts/growthforge/src/pages/` — Frontend pages
   - `sign-in.tsx`, `sign-up.tsx` — Clerk auth pages (dark theme)
-
-  - `onboarding.tsx` — 4-field onboarding wizard
+  - `onboarding.tsx` — 3-step onboarding wizard (business info incl. website URL, goal, target market — industry is no longer asked, it's inferred by AI)
+  - `analysis-progress.tsx` — runs the real analyze → competitors → personas → strategy pipeline sequentially against the API and shows live progress/errors (no fake timers)
   - `dashboard.tsx` — Main app dashboard with auth guard + UserButton
   - `landing.tsx` — Public landing page
 
 ## Architecture decisions
 
-
 - Clerk proxy middleware must be registered before `express.json()` and before `clerkMiddleware()`.
 - Auth guards use `useEffect` for redirects (not inline `setLocation()` during render).
+- Business analysis is the source of truth for a project's industry — set by AI after reading the live website, not collected from the user during onboarding.
+- If a project's website can't be fetched/analyzed, the business analysis is stored with `status: "failed"` (never fabricated data); personas/competitors/strategy generation are blocked until analysis is `"complete"`.
 
 ## Product
 

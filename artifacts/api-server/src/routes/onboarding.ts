@@ -15,10 +15,9 @@ router.post("/onboarding", async (req, res): Promise<void> => {
       return;
     }
 
-    const { businessName, websiteUrl, industry, primaryGoal, targetMarket } = req.body as {
+    const { businessName, websiteUrl, primaryGoal, targetMarket } = req.body as {
       businessName: string;
       websiteUrl: string;
-      industry?: string;
       primaryGoal?: string;
       targetMarket?: string;
     };
@@ -35,7 +34,7 @@ router.post("/onboarding", async (req, res): Promise<void> => {
       .values({
         name: businessName,
         websiteUrl,
-        industry: industry ?? null,
+        industry: null,
         description,
         plan: "trial",
         status: "pending",

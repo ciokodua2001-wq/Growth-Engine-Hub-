@@ -20,12 +20,6 @@ import {
   Share2,
 } from "lucide-react";
 
-const INDUSTRIES = [
-  "E-commerce", "SaaS / Tech", "Agency", "Consulting",
-  "Healthcare", "Finance", "Education", "Real Estate",
-  "Media / Content", "Other",
-];
-
 const GOALS = [
   { label: "Generate Leads", icon: TrendingUp },
   { label: "Increase Sales", icon: ShoppingCart },
@@ -49,7 +43,6 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [businessName, setBusinessName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
-  const [industry, setIndustry] = useState("");
   const [primaryGoal, setPrimaryGoal] = useState("");
   const [targetMarket, setTargetMarket] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -91,7 +84,6 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           businessName: businessName.trim(),
           websiteUrl: websiteUrl.trim(),
-          industry,
           primaryGoal,
           targetMarket,
         }),
@@ -228,25 +220,9 @@ export default function OnboardingPage() {
                     />
                   </div>
 
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-medium text-white/70">Industry</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {INDUSTRIES.map((ind) => (
-                        <button
-                          key={ind}
-                          type="button"
-                          onClick={() => setIndustry(ind === industry ? "" : ind)}
-                          className={`px-3 py-2 rounded-lg text-sm text-left transition-all ${
-                            industry === ind
-                              ? "bg-[#00E676]/15 border border-[#00E676]/50 text-[#00E676]"
-                              : "bg-[#0d1b2e] border border-white/10 text-white/50 hover:border-white/25"
-                          }`}
-                        >
-                          {ind}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <p className="text-white/30 text-xs -mt-1">
+                    Our AI will read your website and automatically detect your industry, products, and audience.
+                  </p>
 
                   {error && (
                     <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">

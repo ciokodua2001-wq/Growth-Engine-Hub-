@@ -2,3 +2,4 @@
 - [Stripe schema bootstrap](stripe-schema-bootstrap.md) — `runMigrations()` from stripe-replit-sync must succeed before any StripeSync call; first-time it may only create the schema but not tables — run once manually if startup fails.
 - [Clerk role-based redirect](clerk-role-based-redirect.md) — post-login role routing needs an intermediate redirect page + persistence useEffect; Clerk UserButton supports custom MenuItems/Link compound components.
 - [Clerk protected-page auth guard race](clerk-auth-guard-race.md) — gate protected-page data fetches on `isLoaded` (not just `isSignedIn`), or a genuinely signed-in user can see a permanent false "access denied".
+- [GrowthForge pre-existing typecheck debt](growthforge-typecheck-debt.md) — repo-wide `queryKey` and `admin.ts` string[] errors predate AI-analysis work; don't assume they're caused by your current change.
