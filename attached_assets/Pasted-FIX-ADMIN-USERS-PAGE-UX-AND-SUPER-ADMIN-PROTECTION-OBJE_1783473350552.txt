@@ -1,0 +1,350 @@
+FIX ADMIN USERS PAGE UX AND SUPER ADMIN PROTECTION
+
+OBJECTIVE
+
+Improve the Admin > Users experience and implement permanent Super Admin protection.
+
+The current actions dropdown is partially hidden and difficult to use.
+
+The Super Admin account (platform owner) must have special protections and cannot be suspended, deleted, downgraded, or modified by any other user.
+
+====================================================
+
+PART 1 - FIX USERS ACTIONS DROPDOWN
+
+ISSUE
+
+The actions menu opens off-screen and is partially hidden.
+
+Administrators cannot see all available actions.
+
+====================================================
+
+REQUIRED FIX
+
+Redesign the Actions dropdown menu.
+
+Requirements:
+
+1. Automatically detect available screen space.
+
+2. If dropdown is near right edge:
+   - Open left instead of right.
+
+3. If dropdown is near bottom edge:
+   - Open upward instead of downward.
+
+4. Ensure entire menu remains visible.
+
+5. Raise z-index above all containers.
+
+6. Prevent clipping by:
+   - Tables
+   - Cards
+   - Parent containers
+   - Scroll regions
+
+7. Add proper spacing and shadows.
+
+8. Add hover states.
+
+9. Menu must remain fully visible on:
+   - Desktop
+   - Laptop
+   - Tablet
+
+====================================================
+
+ALTERNATIVE UX (PREFERRED)
+
+Replace dropdown menu with:
+
+View User button
+
+When clicked:
+
+Open a right-side slide-out drawer.
+
+Width:
+
+450px to 550px
+
+Display:
+
+- User details
+- Role
+- Plan
+- Status
+- Actions
+
+This prevents hidden actions entirely.
+
+====================================================
+
+PART 2 - SUPER ADMIN PROTECTION
+
+A Super Admin is the platform owner.
+
+Super Admin accounts are protected accounts.
+
+====================================================
+
+SUPER ADMIN RULES
+
+If role = SUPER_ADMIN
+
+Disable:
+
+- Suspend
+- Delete
+- Downgrade
+- Remove Role
+- Revoke Access
+
+These actions must never appear.
+
+====================================================
+
+VISIBLE LABEL
+
+Display:
+
+👑 Owner
+
+or
+
+Platform Owner
+
+beside the Super Admin badge.
+
+Example:
+
+SUPER_ADMIN
+👑 Platform Owner
+
+====================================================
+
+ACTION MENU FOR SUPER ADMIN
+
+If user is Super Admin:
+
+Only show:
+
+View User
+
+View Activity
+
+View Audit History
+
+Nothing else.
+
+Remove:
+
+Suspend
+
+Delete
+
+Reset Trial
+
+Make Admin
+
+Demote
+
+Deactivate
+
+====================================================
+
+OWNER IMMUNITY
+
+Implement hard protection in backend.
+
+Even if someone attempts:
+
+POST /suspend
+
+POST /delete
+
+POST /change-role
+
+POST /deactivate
+
+the request must fail.
+
+Return:
+
+403 Forbidden
+
+Message:
+
+Platform Owner account cannot be modified.
+
+====================================================
+
+PART 3 - ADMIN HIERARCHY
+
+Roles:
+
+SUPER_ADMIN
+
+ADMIN
+
+USER
+
+====================================================
+
+SUPER ADMIN CAN
+
+- Create Admin
+- Remove Admin
+- Suspend Users
+- Delete Users
+- Change Roles
+- Access Everything
+
+====================================================
+
+ADMIN CAN
+
+- View Users
+- View Projects
+- View Analytics
+- Support Users
+
+ADMIN CANNOT
+
+- Modify Super Admin
+- Delete Super Admin
+- Change Super Admin role
+- Suspend Super Admin
+
+====================================================
+
+PART 4 - OWNER ACCOUNT PROTECTION
+
+Protect my account permanently.
+
+Use current account:
+
+Role:
+SUPER_ADMIN
+
+Add system flag:
+
+isOwner = true
+
+====================================================
+
+OWNER ACCOUNT RESTRICTIONS
+
+If:
+
+isOwner = true
+
+then:
+
+- cannot be deleted
+- cannot be suspended
+- cannot be downgraded
+- cannot be removed
+- cannot lose Super Admin privileges
+
+The system should always preserve this account.
+
+====================================================
+
+PART 5 - USERS TABLE IMPROVEMENTS
+
+Improve table layout.
+
+Columns:
+
+Avatar
+
+Name
+
+Email
+
+Role
+
+Plan
+
+Status
+
+Created Date
+
+Last Login
+
+Actions
+
+====================================================
+
+ROLE BADGES
+
+SUPER_ADMIN
+
+Color:
+Gold
+
+Label:
+👑 Owner
+
+ADMIN
+
+Color:
+Green
+
+USER
+
+Color:
+Gray
+
+====================================================
+
+STATUS BADGES
+
+Active
+
+Trial
+
+Suspended
+
+Expired
+
+Use clear color indicators.
+
+====================================================
+
+PART 6 - AUDIT LOGGING
+
+Track all admin actions.
+
+Log:
+
+- User Suspended
+- User Deleted
+- Role Changed
+- Plan Changed
+
+If someone attempts to modify Super Admin:
+
+Log:
+
+"Unauthorized attempt to modify Platform Owner"
+
+====================================================
+
+SUCCESS CRITERIA
+
+1. Actions menu is always visible.
+
+2. No clipped dropdowns.
+
+3. Super Admin is clearly labeled as Platform Owner.
+
+4. No one can suspend or delete the Platform Owner.
+
+5. No one can remove Super Admin privileges.
+
+6. Backend enforces these protections.
+
+7. Admin interface feels professional and enterprise-grade.

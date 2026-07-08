@@ -45,6 +45,38 @@ async function auditLog(
   });
 }
 
+/** Returns 403 if the target user is the platform owner or a super_admin. */
+async function guardOwner(
+  req: Request,
+  res: Response,
+  targetId: string,
+  attemptedAction: string,
+): Promise<boolean> {
+  const [target] = await db
+    .select({ role: usersTable.role, isOwner: usersTable.isOwner, email: usersTable.email })
+    .from(usersTable)
+    .where(eq(usersTable.id, targetId));
+
+  if (!target) return false; // let the caller handle 404
+
+  if (target.isOwner || target.role === "super_admin") {
+    const auth = getAuth(req);
+    // Log the unauthorized attempt
+    await auditLog(
+      auth.userId ?? "unknown",
+      auth.sessionClaims?.email as string | undefined,
+      "unauthorized_modify_owner",
+      "user",
+      targetId,
+      { attempted: attemptedAction, targetEmail: target.email },
+    ).catch(() => {});
+
+    res.status(403).json({ error: "Platform Owner account cannot be modified." });
+    return true; // blocked
+  }
+  return false; // allowed
+}
+
 /* ─── Stats ─────────────────────────────────────────────────── */
 
 router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
@@ -121,6 +153,7 @@ router.get("/admin/users/:id", requireAdmin, async (req, res): Promise<void> => 
     const userProjects = await db
       .select()
       .from(projectsTable)
+      .where(eq(projectsTable.userId, req.params.id))
       .orderBy(desc(projectsTable.createdAt))
       .limit(10);
 
@@ -134,12 +167,20 @@ router.get("/admin/users/:id", requireAdmin, async (req, res): Promise<void> => 
 router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> => {
   try {
     const auth = getAuth(req);
+
+    // ── Owner protection ──────────────────────────────────────
+    const blocked = await guardOwner(req, res, req.params.id, "patch");
+    if (blocked) return;
+
     const { role, plan, subscriptionStatus, suspended } = req.body as {
       role?: string; plan?: string; subscriptionStatus?: string; suspended?: boolean;
     };
 
+    // Prevent any admin from granting super_admin via this endpoint
+    const safeRole = role === "super_admin" ? undefined : role;
+
     const update: Partial<typeof usersTable.$inferInsert> = { updatedAt: new Date() };
-    if (role !== undefined) update.role = role;
+    if (safeRole !== undefined) update.role = safeRole;
     if (plan !== undefined) update.plan = plan;
     if (subscriptionStatus !== undefined) update.subscriptionStatus = subscriptionStatus;
     if (suspended !== undefined) update.suspended = suspended;
@@ -158,6 +199,11 @@ router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> =
 router.delete("/admin/users/:id", requireAdmin, async (req, res): Promise<void> => {
   try {
     const auth = getAuth(req);
+
+    // ── Owner protection ──────────────────────────────────────
+    const blocked = await guardOwner(req, res, req.params.id, "delete");
+    if (blocked) return;
+
     await db.delete(usersTable).where(eq(usersTable.id, req.params.id));
     await auditLog(auth.userId!, auth.sessionClaims?.email as string, "user_deleted", "user", req.params.id);
     res.json({ success: true });
@@ -368,7 +414,7 @@ router.post("/admin/feature-flags/seed", requireAdmin, async (req, res): Promise
   }
 });
 
-/* ─── Self: promote current user to super_admin ─────────────── */
+/* ─── Self: promote current user to super_admin (one-time) ─── */
 
 router.post("/admin/self/promote", async (req, res): Promise<void> => {
   try {
@@ -387,11 +433,12 @@ router.post("/admin/self/promote", async (req, res): Promise<void> => {
 
     const [user] = await db
       .update(usersTable)
-      .set({ role: "super_admin", updatedAt: new Date() })
+      .set({ role: "super_admin", isOwner: true, updatedAt: new Date() })
       .where(eq(usersTable.id, userId))
       .returning();
 
-    res.json({ message: "Promoted to super_admin", user });
+    await auditLog(userId, auth.sessionClaims?.email as string, "self_promoted_owner", "user", userId);
+    res.json({ message: "Promoted to super_admin and marked as Platform Owner", user });
   } catch (err) {
     req.log.error({ err }, "Error promoting user");
     res.status(500).json({ error: "Internal server error" });

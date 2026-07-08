@@ -4,6 +4,7 @@ export const usersTable = pgTable("users", {
   id: text("id").primaryKey(),
   email: text("email"),
   role: text("role").notNull().default("user"),
+  isOwner: boolean("is_owner").notNull().default(false),
   suspended: boolean("suspended").notNull().default(false),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
