@@ -7,9 +7,10 @@ import {
   Users2, FileText, Share2, Mail, Bot, Star, Bell, X, Clock,
   Play, TrendingUp, Layers, Shield, Cpu, ChevronDown, ChevronUp,
   MessageSquare, Rocket, Globe, Building2, LineChart, Sparkles,
-  LayoutDashboard, Crown,
+  LayoutDashboard, Crown, Menu,
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 /* ─── Data ─────────────────────────────────────────────────── */
 
@@ -405,6 +406,7 @@ export default function LandingPage() {
   const [earlyAccessPlan, setEarlyAccessPlan] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("Analysis");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
   const [, setLocation] = useLocation();
@@ -420,13 +422,13 @@ export default function LandingPage() {
     }
   }, [isAuthed, isAdmin, setLocation]);
 
-  const W = "w-[93vw] max-w-[1380px] mx-auto";
+  const W = "max-w-[1380px] mx-auto";
 
   return (
     <div className="min-h-screen text-foreground overflow-x-hidden" style={{ background: "#040B14" }}>
 
       {/* ── Nav ── */}
-      <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/8" style={{ background: "rgba(4,11,20,0.85)", backdropFilter: "blur(16px)" }}>
+      <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/8 px-4 sm:px-6 lg:px-8" style={{ background: "rgba(4,11,20,0.85)", backdropFilter: "blur(16px)" }}>
         <div className={`${W} h-16 flex items-center justify-between`}>
           {/* Logo — routes to /admin for admins, /dashboard when signed in, / when not */}
           <Link href={isAdmin ? "/admin" : isAuthed ? "/dashboard" : "/"} className="flex items-center gap-2.5">
@@ -464,6 +466,13 @@ export default function LandingPage() {
                     </UserButton.MenuItems>
                   )}
                 </UserButton>
+                <button
+                  onClick={() => setMobileNavOpen(true)}
+                  className="md:hidden flex items-center justify-center h-9 w-9 rounded-lg text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                  aria-label="Open menu"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
               </div>
             </>
           ) : (
@@ -478,14 +487,105 @@ export default function LandingPage() {
               </div>
               <div className="flex items-center gap-3">
                 <Link href="/sign-in" className="text-sm text-white/50 hover:text-white transition-colors hidden md:block">Sign In</Link>
-                <Link href="/sign-up" className="text-sm font-bold px-4 py-2 rounded-lg text-black transition-all hover:scale-[1.02]" style={{ background: "#00E676" }}>
+                <Link href="/sign-up" className="text-sm font-bold px-4 py-2 rounded-lg text-black transition-all hover:scale-[1.02] hidden sm:inline-flex" style={{ background: "#00E676" }}>
                   Start Free
                 </Link>
+                <button
+                  onClick={() => setMobileNavOpen(true)}
+                  className="md:hidden flex items-center justify-center h-9 w-9 rounded-lg text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                  aria-label="Open menu"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
               </div>
             </>
           )}
         </div>
       </nav>
+
+      {/* ── Mobile Nav Sheet ── */}
+      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+        <SheetContent
+          side="right"
+          className="w-[80vw] max-w-sm border-l border-white/10 p-0 flex flex-col"
+          style={{ background: "#040B14" }}
+        >
+          <SheetTitle className="sr-only">Navigation menu</SheetTitle>
+          <div className="flex items-center gap-2.5 px-6 py-5 border-b border-white/8">
+            <div className="h-8 w-8 rounded-lg bg-[#00E676]/20 flex items-center justify-center">
+              <Zap className="h-4 w-4 text-[#00E676]" />
+            </div>
+            <span className="font-bold text-lg tracking-tight text-white">GrowthForge</span>
+          </div>
+
+          <div className="flex flex-col gap-1 px-3 py-4 flex-1 overflow-y-auto">
+            {isAuthed
+              ? (isAdmin ? ADMIN_NAV_LINKS : APP_NAV_LINKS).map(({ label, href, icon: Icon }) => (
+                  <Link
+                    key={label}
+                    href={href}
+                    onClick={() => setMobileNavOpen(false)}
+                    className="flex items-center gap-3 px-3 py-3 rounded-xl text-base text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    <Icon className="h-4 w-4" />{label}
+                  </Link>
+                ))
+              : NAV_LINKS.map(({ label, href }) =>
+                  href.startsWith("#") ? (
+                    <a
+                      key={label}
+                      href={href}
+                      onClick={() => setMobileNavOpen(false)}
+                      className="px-3 py-3 rounded-xl text-base text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      {label}
+                    </a>
+                  ) : (
+                    <Link
+                      key={label}
+                      href={href}
+                      onClick={() => setMobileNavOpen(false)}
+                      className="px-3 py-3 rounded-xl text-base text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      {label}
+                    </Link>
+                  )
+                )}
+          </div>
+
+          <div className="flex flex-col gap-3 p-4 border-t border-white/8">
+            {isAuthed ? (
+              <button
+                onClick={() => {
+                  setMobileNavOpen(false);
+                  signOut(() => setLocation("/"));
+                }}
+                className="w-full text-center text-sm font-semibold px-4 py-3 rounded-xl text-white/70 border border-white/10 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                Sign Out
+              </button>
+            ) : (
+              <>
+                <Link
+                  href="/sign-in"
+                  onClick={() => setMobileNavOpen(false)}
+                  className="w-full text-center text-sm font-semibold px-4 py-3 rounded-xl text-white/70 border border-white/10 hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/sign-up"
+                  onClick={() => setMobileNavOpen(false)}
+                  className="w-full text-center text-sm font-bold px-4 py-3 rounded-xl text-black transition-all"
+                  style={{ background: "#00E676" }}
+                >
+                  Start Free
+                </Link>
+              </>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* ── Hero ── */}
       <section className="pt-36 pb-28 px-4 relative overflow-hidden">
@@ -986,7 +1086,7 @@ export default function LandingPage() {
 
       {/* ── FAQ ── */}
       <section className="py-24 px-4 border-t border-white/8">
-        <div className="w-[93vw] max-w-[760px] mx-auto">
+        <div className="max-w-[760px] mx-auto">
           <FadeIn className="text-center mb-12">
             <SectionLabel>FAQ</SectionLabel>
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">Frequently Asked Questions</h2>
