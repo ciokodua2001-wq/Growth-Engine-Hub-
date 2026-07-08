@@ -65,7 +65,7 @@ export default function ProjectSocial() {
   const filteredPosts = posts?.filter(p => selectedPlatforms.includes(p.platform.toLowerCase())) ?? [];
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 max-w-6xl">
+    <div className="p-4 sm:p-6 md:p-8 w-full">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-black tracking-tight">Social Media Hub</h1>
