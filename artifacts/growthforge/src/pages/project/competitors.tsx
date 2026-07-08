@@ -90,13 +90,13 @@ export default function ProjectCompetitors() {
   };
 
   return (
-    <div className="p-8 max-w-6xl">
-      <div className="flex items-start justify-between mb-8">
+    <div className="p-4 sm:p-6 md:p-8 max-w-6xl">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-black tracking-tight">Competitor Intelligence</h1>
           <p className="text-muted-foreground mt-1">AI-analyzed competitors with strategic insights and positioning opportunities</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           <button
             onClick={() => setReportModalOpen(true)}
             className="flex items-center gap-2 bg-secondary hover:bg-secondary/80 border border-border text-foreground font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"

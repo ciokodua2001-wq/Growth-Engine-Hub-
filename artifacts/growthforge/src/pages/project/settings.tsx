@@ -48,7 +48,7 @@ export default function ProjectSettings() {
   }
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-4 sm:p-6 md:p-8 max-w-2xl">
       <div className="mb-8">
         <h1 className="text-3xl font-black tracking-tight flex items-center gap-2">
           <Settings className="h-7 w-7 text-muted-foreground" /> Project Settings

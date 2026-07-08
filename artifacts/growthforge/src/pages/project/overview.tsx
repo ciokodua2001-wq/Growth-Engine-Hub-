@@ -195,7 +195,7 @@ export default function ProjectOverview() {
   };
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-4 sm:p-6 max-w-5xl">
       {/* Page header */}
       <div className="mb-8">
         <h1 className="text-2xl font-black tracking-tight">{project?.name ?? "Project Overview"}</h1>

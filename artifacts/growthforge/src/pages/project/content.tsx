@@ -89,13 +89,13 @@ export default function ProjectContent() {
   };
 
   return (
-    <div className="p-8 max-w-6xl">
-      <div className="flex items-start justify-between mb-8">
+    <div className="p-4 sm:p-6 md:p-8 max-w-6xl">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-black tracking-tight">Content Engine</h1>
           <p className="text-muted-foreground mt-1">AI-generated content tailored to your brand voice and ICP</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <select
             value={selectedType}
             onChange={(e) => setSelectedType(e.target.value)}

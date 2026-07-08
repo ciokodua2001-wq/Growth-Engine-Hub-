@@ -75,13 +75,13 @@ export default function ProjectVideos() {
   void selectedVideoData;
 
   return (
-    <div className="p-8 max-w-6xl">
-      <div className="flex items-start justify-between mb-8">
+    <div className="p-4 sm:p-6 md:p-8 max-w-6xl">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-black tracking-tight">Video Studio</h1>
           <p className="text-muted-foreground mt-1">AI-generated marketing videos with scripts and storyboards</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="flex rounded-xl border border-border overflow-hidden">
             {(["auto", "prompt"] as const).map((m) => (
               <button
