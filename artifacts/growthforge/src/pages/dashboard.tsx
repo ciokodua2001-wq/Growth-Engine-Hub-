@@ -161,16 +161,17 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="border-b border-border bg-background/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+          <Link href="/dashboard" className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">
               <Zap className="h-4 w-4 text-primary" />
             </div>
             <span className="font-bold text-lg tracking-tight">GrowthForge</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Home
-            </Link>
+          </Link>
+          <div className="flex items-center gap-4">
+            <nav className="hidden md:flex items-center gap-4 text-sm text-muted-foreground">
+              <Link href="/dashboard" className="text-foreground font-medium">Dashboard</Link>
+              <Link href="/dashboard" className="hover:text-foreground transition-colors">Projects</Link>
+            </nav>
             <UserButton
               appearance={{ variables: { colorPrimary: "#00E676" } }}
             />

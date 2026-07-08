@@ -1,11 +1,13 @@
 import { useRef, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { motion, useInView, AnimatePresence } from "framer-motion";
+import { useUser, UserButton, useClerk } from "@clerk/react";
 import {
   Brain, Video, Target, BarChart2, Zap, ArrowRight, Check,
   Users2, FileText, Share2, Mail, Bot, Star, Bell, X, Clock,
   Play, TrendingUp, Layers, Shield, Cpu, ChevronDown, ChevronUp,
   MessageSquare, Rocket, Globe, Building2, LineChart, Sparkles,
+  LayoutDashboard,
 } from "lucide-react";
 
 /* ─── Data ─────────────────────────────────────────────────── */
@@ -385,10 +387,22 @@ function DashboardMockup({ active }: { active: string }) {
 
 /* ─── Page ──────────────────────────────────────────────────── */
 
+const APP_NAV_LINKS = [
+  { label: "Home", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Projects", href: "/dashboard", icon: Brain },
+  { label: "Forge AI", href: "/dashboard", icon: Bot },
+  { label: "Analytics", href: "/dashboard", icon: BarChart2 },
+];
+
 export default function LandingPage() {
   const [earlyAccessPlan, setEarlyAccessPlan] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("Analysis");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
+  const [, setLocation] = useLocation();
+
+  const isAuthed = isLoaded && !!user;
 
   const W = "w-[93vw] max-w-[1380px] mx-auto";
 
@@ -398,25 +412,52 @@ export default function LandingPage() {
       {/* ── Nav ── */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/8" style={{ background: "rgba(4,11,20,0.85)", backdropFilter: "blur(16px)" }}>
         <div className={`${W} h-16 flex items-center justify-between`}>
-          <Link href="/" className="flex items-center gap-2.5">
+          {/* Logo — routes to /dashboard when signed in, / when not */}
+          <Link href={isAuthed ? "/dashboard" : "/"} className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-[#00E676]/20 flex items-center justify-center">
               <Zap className="h-4 w-4 text-[#00E676]" />
             </div>
             <span className="font-bold text-lg tracking-tight text-white">GrowthForge</span>
           </Link>
-          <div className="hidden md:flex items-center gap-7 text-sm text-white/50">
-            {NAV_LINKS.map(({ label, href }) =>
-              href.startsWith("#")
-                ? <a key={label} href={href} className="hover:text-white transition-colors">{label}</a>
-                : <Link key={label} href={href} className="hover:text-white transition-colors">{label}</Link>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <Link href="/sign-in" className="text-sm text-white/50 hover:text-white transition-colors hidden md:block">Sign In</Link>
-            <Link href="/sign-up" className="text-sm font-bold px-4 py-2 rounded-lg text-black transition-all hover:scale-[1.02]" style={{ background: "#00E676" }}>
-              Start Free
-            </Link>
-          </div>
+
+          {isAuthed ? (
+            /* ── Authenticated nav ── */
+            <>
+              <div className="hidden md:flex items-center gap-6 text-sm text-white/50">
+                {APP_NAV_LINKS.map(({ label, href, icon: Icon }) => (
+                  <Link key={label} href={href} className="flex items-center gap-1.5 hover:text-white transition-colors">
+                    <Icon className="h-3.5 w-3.5" />{label}
+                  </Link>
+                ))}
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => signOut(() => setLocation("/"))}
+                  className="text-sm text-white/50 hover:text-white transition-colors hidden md:block"
+                >
+                  Sign Out
+                </button>
+                <UserButton appearance={{ variables: { colorPrimary: "#00E676" } }} />
+              </div>
+            </>
+          ) : (
+            /* ── Public nav ── */
+            <>
+              <div className="hidden md:flex items-center gap-7 text-sm text-white/50">
+                {NAV_LINKS.map(({ label, href }) =>
+                  href.startsWith("#")
+                    ? <a key={label} href={href} className="hover:text-white transition-colors">{label}</a>
+                    : <Link key={label} href={href} className="hover:text-white transition-colors">{label}</Link>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <Link href="/sign-in" className="text-sm text-white/50 hover:text-white transition-colors hidden md:block">Sign In</Link>
+                <Link href="/sign-up" className="text-sm font-bold px-4 py-2 rounded-lg text-black transition-all hover:scale-[1.02]" style={{ background: "#00E676" }}>
+                  Start Free
+                </Link>
+              </div>
+            </>
+          )}
         </div>
       </nav>
 
@@ -441,10 +482,17 @@ export default function LandingPage() {
           </motion.p>
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.3 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
-            <Link href="/sign-up" className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold text-base px-8 py-4 rounded-xl transition-all shadow-lg hover:scale-[1.02] text-black"
-              style={{ background: "#00E676", boxShadow: "0 0 40px rgba(0,230,118,0.25)" }}>
-              Start Free Trial <ArrowRight className="h-5 w-5" />
-            </Link>
+            {isAuthed ? (
+              <Link href="/dashboard" className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold text-base px-8 py-4 rounded-xl transition-all shadow-lg hover:scale-[1.02] text-black"
+                style={{ background: "#00E676", boxShadow: "0 0 40px rgba(0,230,118,0.25)" }}>
+                Go To Dashboard <ArrowRight className="h-5 w-5" />
+              </Link>
+            ) : (
+              <Link href="/sign-up" className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold text-base px-8 py-4 rounded-xl transition-all shadow-lg hover:scale-[1.02] text-black"
+                style={{ background: "#00E676", boxShadow: "0 0 40px rgba(0,230,118,0.25)" }}>
+                Start Free Trial <ArrowRight className="h-5 w-5" />
+              </Link>
+            )}
             <a href="#showcase" className="w-full sm:w-auto flex items-center justify-center gap-2 text-white/70 font-semibold text-base px-8 py-4 rounded-xl border border-white/10 hover:border-white/25 hover:text-white transition-all"
               style={{ background: "rgba(255,255,255,0.04)" }}>
               <Play className="h-4 w-4" /> Watch Demo

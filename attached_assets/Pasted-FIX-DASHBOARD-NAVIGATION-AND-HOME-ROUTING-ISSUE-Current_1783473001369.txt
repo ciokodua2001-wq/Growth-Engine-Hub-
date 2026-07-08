@@ -1,0 +1,249 @@
+FIX DASHBOARD NAVIGATION AND HOME ROUTING
+
+ISSUE
+
+Currently:
+
+When a logged-in user is inside the GrowthForge application and clicks:
+
+Home
+
+they are redirected to the public marketing landing page.
+
+This is incorrect.
+
+The Home link should keep authenticated users inside the application.
+
+====================================================
+
+REQUIRED BEHAVIOR
+
+IF USER IS NOT LOGGED IN
+
+Home should route to:
+
+/
+
+(the public landing page)
+
+====================================================
+
+IF USER IS LOGGED IN
+
+Home should route to:
+
+/dashboard
+
+or
+
+/user/home
+
+(depending on the existing dashboard route)
+
+The user should never be sent back to the marketing homepage while authenticated.
+
+====================================================
+
+NAVIGATION LOGIC
+
+Create two navigation experiences.
+
+PUBLIC NAVIGATION
+
+Visible when user is not authenticated.
+
+Links:
+
+Home
+Features
+How It Works
+Pricing
+About
+
+Buttons:
+
+Sign In
+Start Free
+
+====================================================
+
+AUTHENTICATED NAVIGATION
+
+Visible when user is logged in.
+
+Replace public navigation with:
+
+Home
+Projects
+Forge AI
+Campaigns
+Analytics
+Settings
+
+Profile Menu
+
+Sign Out
+
+Remove:
+
+Start Free
+
+Remove:
+
+Sign In
+
+These should never appear for authenticated users.
+
+====================================================
+
+LOGO BEHAVIOR
+
+When user clicks the GrowthForge logo:
+
+IF NOT AUTHENTICATED
+
+Redirect to:
+
+/
+
+IF AUTHENTICATED
+
+Redirect to:
+
+/dashboard
+
+====================================================
+
+SESSION DETECTION
+
+Detect user authentication status.
+
+If session exists:
+
+Load authenticated navigation.
+
+If session does not exist:
+
+Load marketing navigation.
+
+====================================================
+
+START FREE BUTTON
+
+When user is already logged in:
+
+Do not show:
+
+Start Free
+
+Instead show:
+
+Go To Dashboard
+
+====================================================
+
+SIGN IN BUTTON
+
+When user is logged in:
+
+Do not show:
+
+Sign In
+
+Instead show:
+
+Dashboard
+
+or user avatar.
+
+====================================================
+
+USER EXPERIENCE
+
+A logged-in user should feel like they are inside a software application.
+
+They should never accidentally return to the public marketing website unless they explicitly select:
+
+Marketing Site
+
+or
+
+Visit Homepage
+
+from a user menu.
+
+====================================================
+
+OPTIONAL
+
+Add breadcrumb:
+
+Dashboard > Projects
+
+Dashboard > Analytics
+
+Dashboard > Settings
+
+to reinforce app navigation.
+
+====================================================
+
+VERIFY
+
+Test these scenarios:
+
+Scenario 1
+
+Not logged in.
+
+Click Home.
+
+Result:
+
+Landing page.
+
+====================================================
+
+Scenario 2
+
+Logged in.
+
+Click Home.
+
+Result:
+
+Dashboard.
+
+====================================================
+
+Scenario 3
+
+Logged in.
+
+Click GrowthForge logo.
+
+Result:
+
+Dashboard.
+
+====================================================
+
+Scenario 4
+
+Logged in.
+
+Navigation should not display:
+
+Sign In
+
+Start Free
+
+====================================================
+
+SUCCESS CRITERIA
+
+Authenticated users remain inside the GrowthForge application.
+
+Home always means application home for logged-in users.
+
+Marketing homepage is only used for visitors and logged-out users.
