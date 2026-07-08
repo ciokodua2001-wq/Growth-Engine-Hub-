@@ -8,6 +8,20 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 
+import AdminDashboard from "@/pages/admin/index";
+import AdminUsers from "@/pages/admin/users";
+import AdminProjects from "@/pages/admin/projects";
+import AdminSubscriptions from "@/pages/admin/subscriptions";
+import AdminAI from "@/pages/admin/ai";
+import AdminContent from "@/pages/admin/content";
+import AdminSupport from "@/pages/admin/support";
+import AdminAnalytics from "@/pages/admin/analytics";
+import AdminFeatures from "@/pages/admin/features";
+import AdminAnnouncements from "@/pages/admin/announcements";
+import AdminActivity from "@/pages/admin/activity";
+import AdminAudit from "@/pages/admin/audit";
+import AdminSettings from "@/pages/admin/settings";
+
 import LandingPage from "@/pages/landing";
 import DashboardPage from "@/pages/dashboard";
 import SignInPage from "@/pages/sign-in";
@@ -167,6 +181,21 @@ function AppRoutes() {
       <Route path="/refund-policy" component={RefundPolicyPage} />
 
       <Route path="/dashboard" component={DashboardPage} />
+
+      {/* Admin routes */}
+      <Route path="/admin" component={AdminDashboard} />
+      <Route path="/admin/users" component={AdminUsers} />
+      <Route path="/admin/projects" component={AdminProjects} />
+      <Route path="/admin/subscriptions" component={AdminSubscriptions} />
+      <Route path="/admin/ai" component={AdminAI} />
+      <Route path="/admin/content" component={AdminContent} />
+      <Route path="/admin/support" component={AdminSupport} />
+      <Route path="/admin/analytics" component={AdminAnalytics} />
+      <Route path="/admin/features" component={AdminFeatures} />
+      <Route path="/admin/announcements" component={AdminAnnouncements} />
+      <Route path="/admin/activity" component={AdminActivity} />
+      <Route path="/admin/audit" component={AdminAudit} />
+      <Route path="/admin/settings" component={AdminSettings} />
 
       <Route path="/projects/:projectId/:path*">
         {(params) => (

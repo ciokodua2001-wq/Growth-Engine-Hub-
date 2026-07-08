@@ -1,0 +1,634 @@
+BUILD A COMPLETE GROWTHFORGE ADMIN CONTROL CENTER
+
+OBJECTIVE
+
+Create a secure Admin Backend for GrowthForge.
+
+The Admin Backend should allow me to manage the entire platform from one location.
+
+Create a dedicated route:
+
+/admin
+
+This route must only be accessible to Admin users.
+
+====================================================
+
+ROLES
+
+Create user roles:
+
+1. Super Admin
+2. Admin
+3. User
+
+Permissions:
+
+SUPER ADMIN
+
+- Full access
+- User management
+- Subscription management
+- AI usage monitoring
+- Content management
+- Feature flags
+- Analytics
+- Platform settings
+
+ADMIN
+
+- User management
+- Customer support
+- Analytics
+
+USER
+
+- Access only their own workspace
+
+====================================================
+
+ADMIN LOGIN
+
+Create:
+
+/admin/login
+
+Only authorized admin users may sign in.
+
+Use existing GrowthForge authentication.
+
+After successful login:
+
+Redirect to:
+
+/admin
+
+====================================================
+
+ADMIN DASHBOARD
+
+Create a central dashboard.
+
+Display:
+
+Total Users
+
+Active Users
+
+Trial Users
+
+Paid Users
+
+Cancelled Users
+
+Projects Created
+
+Monthly Revenue
+
+Annual Revenue
+
+Total AI Requests
+
+AI Cost Estimates
+
+Platform Health
+
+Display KPI cards.
+
+Use charts where appropriate.
+
+====================================================
+
+USER MANAGEMENT
+
+Create:
+
+/admin/users
+
+Show table.
+
+Columns:
+
+Name
+
+Email
+
+Role
+
+Plan
+
+Account Status
+
+Signup Date
+
+Last Login
+
+Total Projects
+
+Actions:
+
+View User
+
+Edit User
+
+Suspend User
+
+Delete User
+
+Reset Limits
+
+Change Plan
+
+Change Role
+
+Grant Trial Extension
+
+Grant Credits
+
+====================================================
+
+USER PROFILE VIEW
+
+Clicking a user should show:
+
+Account Details
+
+Subscription
+
+Usage Statistics
+
+Projects
+
+AI Usage
+
+Generated Assets
+
+Login History
+
+====================================================
+
+SUBSCRIPTION MANAGEMENT
+
+Create:
+
+/admin/subscriptions
+
+Display:
+
+Starter
+
+Growth
+
+Agency
+
+Metrics:
+
+Monthly Recurring Revenue
+
+Annual Recurring Revenue
+
+Trial Conversions
+
+Churn Rate
+
+Cancelled Accounts
+
+Actions:
+
+Upgrade User
+
+Downgrade User
+
+Cancel Subscription
+
+Reactivate Subscription
+
+Grant Free Trial
+
+====================================================
+
+PROJECT MANAGEMENT
+
+Create:
+
+/admin/projects
+
+Display:
+
+Project Name
+
+Business Name
+
+Website URL
+
+Owner
+
+Status
+
+Created Date
+
+Last Activity
+
+Actions:
+
+Open Project
+
+Archive Project
+
+Delete Project
+
+====================================================
+
+AI USAGE DASHBOARD
+
+Create:
+
+/admin/ai
+
+Track:
+
+Total AI Requests
+
+OpenAI Usage
+
+Tokens Consumed
+
+Estimated AI Cost
+
+Messages Generated
+
+Competitor Reports Generated
+
+Email Campaigns Generated
+
+Video Blueprints Generated
+
+Social Posts Generated
+
+Display:
+
+Today
+
+Last 7 Days
+
+Last 30 Days
+
+====================================================
+
+CONTENT MANAGEMENT
+
+Create:
+
+/admin/content
+
+View all generated assets.
+
+Categories:
+
+Business Analyses
+
+Marketing Strategies
+
+Competitor Reports
+
+Email Campaigns
+
+Social Content
+
+Video Blueprints
+
+Actions:
+
+View
+
+Export
+
+Delete
+
+Archive
+
+====================================================
+
+SUPPORT CENTER
+
+Create:
+
+/admin/support
+
+Display:
+
+Support Requests
+
+Contact Forms
+
+Bug Reports
+
+Feature Requests
+
+User Feedback
+
+Actions:
+
+Reply
+
+Close Ticket
+
+Assign Ticket
+
+Mark Resolved
+
+====================================================
+
+PLATFORM ANALYTICS
+
+Create:
+
+/admin/analytics
+
+Display:
+
+New Users
+
+Daily Active Users
+
+Monthly Active Users
+
+Trials Started
+
+Trial Conversion Rate
+
+Paid Subscriptions
+
+Revenue
+
+Top Features Used
+
+Retention Rate
+
+====================================================
+
+FEATURE FLAGS
+
+Create:
+
+/admin/features
+
+Allow admins to enable/disable:
+
+Forge AI
+
+Video Studio
+
+Competitor Intelligence
+
+Email Generation
+
+Social Content
+
+Campaign Builder
+
+Analytics
+
+Onboarding
+
+API Integrations
+
+These settings should update without code changes.
+
+====================================================
+
+PLATFORM SETTINGS
+
+Create:
+
+/admin/settings
+
+Manage:
+
+Site Name
+
+Support Email
+
+Brand Colors
+
+Logo
+
+Contact Information
+
+Feature Limits
+
+Trial Length
+
+Subscription Settings
+
+====================================================
+
+CUSTOMER ACTIVITY LOG
+
+Create:
+
+/admin/activity
+
+Track:
+
+User Signups
+
+Logins
+
+Project Creation
+
+Content Generation
+
+AI Usage
+
+Subscription Changes
+
+Admin Actions
+
+Store timestamps.
+
+====================================================
+
+AUDIT LOG
+
+Create:
+
+/admin/audit
+
+Track every admin action.
+
+Examples:
+
+User Deleted
+
+Subscription Modified
+
+Feature Enabled
+
+Role Changed
+
+Project Deleted
+
+Store:
+
+Admin Name
+
+Action
+
+Date
+
+Time
+
+====================================================
+
+ANNOUNCEMENTS
+
+Create:
+
+/admin/announcements
+
+Allow admins to create banners.
+
+Examples:
+
+New Feature Released
+
+Scheduled Maintenance
+
+Platform Updates
+
+Display banners to users.
+
+====================================================
+
+SYSTEM HEALTH
+
+Create:
+
+/admin/system
+
+Display:
+
+Database Status
+
+Authentication Status
+
+OpenAI Status
+
+Storage Usage
+
+API Health
+
+Background Jobs
+
+====================================================
+
+DASHBOARD QUICK ACTIONS
+
+Add buttons:
+
+Create User
+
+Grant Trial
+
+View Analytics
+
+Send Announcement
+
+View AI Costs
+
+Manage Plans
+
+====================================================
+
+DESIGN
+
+Use GrowthForge branding.
+
+Theme:
+
+Dark Mode
+
+GrowthForge Green
+
+Modern SaaS Admin Interface
+
+Look similar to:
+
+Stripe Dashboard
+
+HubSpot Admin
+
+Vercel Dashboard
+
+Linear Admin
+
+Use:
+
+- KPI cards
+- Charts
+- Tables
+- Filters
+- Search
+
+====================================================
+
+SECURITY
+
+Protect all admin routes.
+
+Non-admin users should receive:
+
+403 Unauthorized
+
+Create middleware protection.
+
+Only users with:
+
+role = ADMIN
+
+or
+
+role = SUPER_ADMIN
+
+may access admin routes.
+
+====================================================
+
+SUPER ADMIN ACCOUNT
+
+Create support for a designated Super Admin account.
+
+Super Admin can:
+
+- Access everything
+- Create Admin users
+- Remove Admin users
+- Manage roles
+- Access all projects
+
+====================================================
+
+SUCCESS CRITERIA
+
+As the owner of GrowthForge, I should be able to:
+
+1. Log into /admin
+
+2. View revenue
+
+3. View users
+
+4. Manage subscriptions
+
+5. Monitor AI costs
+
+6. Review generated content
+
+7. Manage support requests
+
+8. Control platform features
+
+9. Track growth metrics
+
+10. Operate the entire GrowthForge platform from the Admin Control Center.

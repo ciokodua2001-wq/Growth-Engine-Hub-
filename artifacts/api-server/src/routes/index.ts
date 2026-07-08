@@ -9,6 +9,7 @@ import campaignsRouter from "./campaigns.js";
 import authRouter from "./auth.js";
 import onboardingRouter from "./onboarding.js";
 import trialRouter from "./trial.js";
+import adminRouter from "./admin.js";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(competitorsRouter);
 router.use(contentRouter);
 router.use(videosRouter);
 router.use(campaignsRouter);
+router.use(adminRouter);
 
 export default router;

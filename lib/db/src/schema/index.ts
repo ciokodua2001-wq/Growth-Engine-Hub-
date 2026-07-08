@@ -5,3 +5,4 @@ export * from "./content";
 export * from "./videos";
 export * from "./campaigns";
 export * from "./users";
+export * from "./admin";
