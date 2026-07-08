@@ -24,6 +24,7 @@ import AdminSettings from "@/pages/admin/settings";
 
 import LandingPage from "@/pages/landing";
 import DashboardPage from "@/pages/dashboard";
+import AuthRedirectPage from "@/pages/auth-redirect";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import PlansPage from "@/pages/plans";
@@ -160,6 +161,7 @@ function AppRoutes() {
       {/* Auth — /*? optional wildcard required for Clerk OAuth sub-paths */}
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
+      <Route path="/auth/redirect" component={AuthRedirectPage} />
 
       {/* Onboarding funnel */}
       <Route path="/plans" component={PlansPage} />
@@ -275,7 +277,7 @@ function ClerkProviderWithRoutes() {
       appearance={clerkAppearance}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
-      signInFallbackRedirectUrl={`${basePath}/dashboard`}
+      signInFallbackRedirectUrl={`${basePath}/auth/redirect`}
       signUpFallbackRedirectUrl={`${basePath}/plans`}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}

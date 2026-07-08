@@ -1,0 +1,184 @@
+FIX SUPER ADMIN LOGIN FLOW
+
+CURRENT ISSUE
+
+The Super Admin account can only access the Admin Dashboard by:
+
+1. Logging in as a regular user
+2. Landing in the user dashboard
+3. Manually changing the URL to /admin
+
+This is incorrect and creates a poor admin experience.
+
+====================================================
+
+REQUIRED BEHAVIOR
+
+When a user with role:
+
+SUPER_ADMIN
+
+logs into GrowthForge,
+
+the system should automatically recognize the role and redirect appropriately.
+
+====================================================
+
+LOGIN REDIRECT RULES
+
+IF role = SUPER_ADMIN
+
+Redirect immediately to:
+
+/admin
+
+Do NOT redirect to:
+
+/dashboard
+
+====================================================
+
+IF role = ADMIN
+
+Redirect to:
+
+/admin
+
+====================================================
+
+IF role = USER
+
+Redirect to:
+
+/dashboard
+
+====================================================
+
+ADMIN ACCESS DETECTION
+
+At login:
+
+1. Check authenticated user
+2. Retrieve role
+3. Route automatically
+
+No manual URL changes required.
+
+====================================================
+
+PROFILE MENU
+
+For SUPER_ADMIN users add:
+
+Admin Dashboard
+
+to the user menu.
+
+When clicked:
+
+Go directly to:
+
+/admin
+
+====================================================
+
+NAVIGATION
+
+If logged in as SUPER_ADMIN:
+
+Replace Home with:
+
+Admin Dashboard
+
+The logo should also redirect to:
+
+/admin
+
+instead of:
+
+/dashboard
+
+====================================================
+
+ADMIN SHORTCUT
+
+Add a visible button in the user profile dropdown:
+
+👑 Admin Console
+
+Route:
+
+/admin
+
+====================================================
+
+PERSISTENCE
+
+If a SUPER_ADMIN is already logged in and revisits:
+
+https://usegrowthforge.com
+
+Automatically redirect:
+
+→ /admin
+
+instead of the marketing homepage.
+
+====================================================
+
+PROTECTED ROUTES
+
+SUPER_ADMIN
+
+Can access:
+
+/admin
+/admin/users
+/admin/projects
+/admin/settings
+/admin/analytics
+
+====================================================
+
+USER EXPERIENCE GOAL
+
+The platform owner should have a seamless experience.
+
+Expected flow:
+
+Visit:
+https://usegrowthforge.com
+
+↓
+
+Click Sign In
+
+↓
+
+Authenticate with Google
+
+↓
+
+Automatically land in:
+
+https://usegrowthforge.com/admin
+
+No manual URL editing.
+
+No detour through the user dashboard.
+
+====================================================
+
+SUCCESS CRITERIA
+
+✅ Super Admin signs in and lands directly in Admin Dashboard
+
+✅ Admin users land in Admin Dashboard
+
+✅ Regular users land in User Dashboard
+
+✅ Admin Console is available from profile menu
+
+✅ Logo redirects correctly based on role
+
+✅ No manual URL manipulation required

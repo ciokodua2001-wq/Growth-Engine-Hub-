@@ -8,8 +8,9 @@ import {
   getListProjectsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Globe, Zap, ArrowRight, Loader2, X, Brain, ChevronRight } from "lucide-react";
+import { Plus, Globe, Zap, ArrowRight, Loader2, X, Brain, ChevronRight, Crown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 const statusColor: Record<string, string> = {
   pending: "bg-yellow-400",
@@ -147,14 +148,21 @@ export default function DashboardPage() {
   const [, setLocation] = useLocation();
   const { user, isLoaded } = useUser();
   const { data: projects, isLoading } = useListProjects();
+  const { isAdmin } = useCurrentUser();
 
   useEffect(() => {
     if (isLoaded && !user) setLocation("/sign-in");
   }, [isLoaded, user, setLocation]);
 
+  // Admins/super admins should never land on the user dashboard — send them to the Admin Console.
+  useEffect(() => {
+    if (isAdmin) setLocation("/admin", { replace: true });
+  }, [isAdmin, setLocation]);
+
   const firstName = user?.firstName ?? user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] ?? "there";
 
   if (isLoaded && !user) return null;
+  if (isAdmin) return null;
 
   return (
     <div className="min-h-screen bg-background">

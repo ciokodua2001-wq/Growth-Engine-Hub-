@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { useUser, UserButton, useClerk } from "@clerk/react";
@@ -7,8 +7,9 @@ import {
   Users2, FileText, Share2, Mail, Bot, Star, Bell, X, Clock,
   Play, TrendingUp, Layers, Shield, Cpu, ChevronDown, ChevronUp,
   MessageSquare, Rocket, Globe, Building2, LineChart, Sparkles,
-  LayoutDashboard,
+  LayoutDashboard, Crown,
 } from "lucide-react";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 /* ─── Data ─────────────────────────────────────────────────── */
 
@@ -394,6 +395,12 @@ const APP_NAV_LINKS = [
   { label: "Analytics", href: "/dashboard", icon: BarChart2 },
 ];
 
+const ADMIN_NAV_LINKS = [
+  { label: "Admin Dashboard", href: "/admin", icon: LayoutDashboard },
+  { label: "Users", href: "/admin/users", icon: Users2 },
+  { label: "Analytics", href: "/admin/analytics", icon: BarChart2 },
+];
+
 export default function LandingPage() {
   const [earlyAccessPlan, setEarlyAccessPlan] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("Analysis");
@@ -403,6 +410,15 @@ export default function LandingPage() {
   const [, setLocation] = useLocation();
 
   const isAuthed = isLoaded && !!user;
+  const { isAdmin } = useCurrentUser();
+
+  // Persistence: a signed-in admin/super_admin revisiting the marketing homepage
+  // should land in the Admin Console, not the public landing page.
+  useEffect(() => {
+    if (isAuthed && isAdmin) {
+      setLocation("/admin", { replace: true });
+    }
+  }, [isAuthed, isAdmin, setLocation]);
 
   const W = "w-[93vw] max-w-[1380px] mx-auto";
 
@@ -412,8 +428,8 @@ export default function LandingPage() {
       {/* ── Nav ── */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/8" style={{ background: "rgba(4,11,20,0.85)", backdropFilter: "blur(16px)" }}>
         <div className={`${W} h-16 flex items-center justify-between`}>
-          {/* Logo — routes to /dashboard when signed in, / when not */}
-          <Link href={isAuthed ? "/dashboard" : "/"} className="flex items-center gap-2.5">
+          {/* Logo — routes to /admin for admins, /dashboard when signed in, / when not */}
+          <Link href={isAdmin ? "/admin" : isAuthed ? "/dashboard" : "/"} className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-[#00E676]/20 flex items-center justify-center">
               <Zap className="h-4 w-4 text-[#00E676]" />
             </div>
@@ -424,7 +440,7 @@ export default function LandingPage() {
             /* ── Authenticated nav ── */
             <>
               <div className="hidden md:flex items-center gap-6 text-sm text-white/50">
-                {APP_NAV_LINKS.map(({ label, href, icon: Icon }) => (
+                {(isAdmin ? ADMIN_NAV_LINKS : APP_NAV_LINKS).map(({ label, href, icon: Icon }) => (
                   <Link key={label} href={href} className="flex items-center gap-1.5 hover:text-white transition-colors">
                     <Icon className="h-3.5 w-3.5" />{label}
                   </Link>
@@ -437,7 +453,17 @@ export default function LandingPage() {
                 >
                   Sign Out
                 </button>
-                <UserButton appearance={{ variables: { colorPrimary: "#00E676" } }} />
+                <UserButton appearance={{ variables: { colorPrimary: "#00E676" } }}>
+                  {isAdmin && (
+                    <UserButton.MenuItems>
+                      <UserButton.Link
+                        label="👑 Admin Console"
+                        href="/admin"
+                        labelIcon={<Crown className="h-4 w-4" />}
+                      />
+                    </UserButton.MenuItems>
+                  )}
+                </UserButton>
               </div>
             </>
           ) : (
