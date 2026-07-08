@@ -22,8 +22,11 @@ import {
   GenerateAdsParams,
   GenerateAdsBody,
 } from "@workspace/api-zod";
+import { requireProjectOwnershipParam } from "../lib/authz.js";
 
 const router: IRouter = Router();
+
+router.param("id", requireProjectOwnershipParam());
 
 // Content
 router.get("/projects/:id/content", async (req, res): Promise<void> => {

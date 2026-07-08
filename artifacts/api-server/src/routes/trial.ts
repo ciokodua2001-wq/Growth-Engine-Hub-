@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { trialUsageTable } from "@workspace/db";
 import { TRIAL_LIMITS } from "../lib/trialLimits.js";
+import { requireUserId, loadOwnedProject } from "../lib/authz.js";
 
 const router: IRouter = Router();
 
@@ -10,6 +11,14 @@ router.get("/trial/usage/:projectId", async (req, res): Promise<void> => {
   const projectId = parseInt(req.params.projectId, 10);
   if (isNaN(projectId)) {
     res.status(400).json({ error: "Invalid projectId" });
+    return;
+  }
+
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const project = await loadOwnedProject(userId, projectId);
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
     return;
   }
 

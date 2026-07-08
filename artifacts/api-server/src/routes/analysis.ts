@@ -21,8 +21,11 @@ import {
 import { fetchWebsiteContent, WebsiteFetchError } from "../lib/websiteFetcher.js";
 import { generateJson } from "../lib/aiJson.js";
 import { consumeTrialQuota } from "../lib/trialLimits.js";
+import { requireProjectOwnershipParam } from "../lib/authz.js";
 
 const router: IRouter = Router();
+
+router.param("id", requireProjectOwnershipParam());
 
 interface BusinessAnalysisResult {
   industry: string;

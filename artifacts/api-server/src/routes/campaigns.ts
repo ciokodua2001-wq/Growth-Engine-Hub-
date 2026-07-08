@@ -29,8 +29,11 @@ import {
   AgentChatBody,
   GetAgentHistoryParams,
 } from "@workspace/api-zod";
+import { requireProjectOwnershipParam } from "../lib/authz.js";
 
 const router: IRouter = Router();
+
+router.param("id", requireProjectOwnershipParam());
 
 // Campaigns
 router.get("/projects/:id/campaigns", async (req, res): Promise<void> => {

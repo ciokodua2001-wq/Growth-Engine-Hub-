@@ -14,8 +14,11 @@ import {
   UpdateVideoBody,
   DeleteVideoParams,
 } from "@workspace/api-zod";
+import { requireProjectOwnershipParam } from "../lib/authz.js";
 
 const router: IRouter = Router();
+
+router.param("id", requireProjectOwnershipParam());
 
 router.get("/projects/:id/videos", async (req, res): Promise<void> => {
   const params = ListVideosParams.safeParse(req.params);

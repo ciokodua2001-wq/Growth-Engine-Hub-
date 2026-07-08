@@ -46,6 +46,9 @@ AI-powered marketing OS SaaS by Strapli Technologies Inc. — turns any business
 
 ## Architecture decisions
 
+- Every project-scoped route enforces ownership: `projectsTable.ownerId` (nullable text FK → `users.id`) is set from the authenticated Clerk user on creation (both `POST /projects` and onboarding), and `artifacts/api-server/src/lib/authz.ts` provides `requireUserId()`/`loadOwnedProject()`/`requireProjectOwnershipParam()` — the latter wired once per router via `router.param("id", requireProjectOwnershipParam())` in `projects.ts`, `analysis.ts`, `competitors.ts`, `content.ts`, `videos.ts`, `campaigns.ts` (covers every nested `:id/...` route on that router automatically). Unauthenticated → 401; authenticated-but-not-owner → 404 (never leaks existence). `trial.ts` uses `:projectId` instead of `:id` so it does the same check manually inline. Admin routes (`routes/admin.ts`, `/admin/*`) are a separate namespace gated by `requireAdmin` and intentionally see all projects regardless of owner.
+- `POST /projects` always forces `plan: "trial"` server-side (never trusts a client-supplied plan) so the trial AI-spend cap can't be bypassed by any project-creation path, matching what onboarding already did.
+
 - Clerk proxy middleware must be registered before `express.json()` and before `clerkMiddleware()`.
 - Auth guards use `useEffect` for redirects (not inline `setLocation()` during render).
 - Business analysis is the source of truth for a project's industry — set by AI after reading the live website, not collected from the user during onboarding.

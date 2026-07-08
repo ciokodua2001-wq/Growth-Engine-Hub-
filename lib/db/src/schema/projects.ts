@@ -1,9 +1,11 @@
 import { pgTable, text, serial, timestamp, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./users";
 
 export const projectsTable = pgTable("projects", {
   id: serial("id").primaryKey(),
+  ownerId: text("owner_id").references(() => usersTable.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   websiteUrl: text("website_url").notNull(),
   description: text("description"),

@@ -32,6 +32,7 @@ router.post("/onboarding", async (req, res): Promise<void> => {
     const [project] = await db
       .insert(projectsTable)
       .values({
+        ownerId: userId,
         name: businessName,
         websiteUrl,
         industry: null,

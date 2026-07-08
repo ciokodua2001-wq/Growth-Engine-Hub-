@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, count } from "drizzle-orm";
+import { eq, desc, count, and } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   projectsTable,
@@ -22,21 +22,40 @@ import {
   GetProjectParams,
   GetProjectDashboardParams,
 } from "@workspace/api-zod";
+import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
 
 const router: IRouter = Router();
 
-router.get("/projects", async (_req, res): Promise<void> => {
-  const projects = await db.select().from(projectsTable).orderBy(desc(projectsTable.createdAt));
+// Every route below has an `:id` segment except `GET/POST /projects`, which are handled
+// explicitly. This verifies auth + ownership once per request and attaches `req.project`.
+router.param("id", requireProjectOwnershipParam());
+
+router.get("/projects", async (req, res): Promise<void> => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const projects = await db
+    .select()
+    .from(projectsTable)
+    .where(eq(projectsTable.ownerId, userId))
+    .orderBy(desc(projectsTable.createdAt));
   res.json(projects);
 });
 
 router.post("/projects", async (req, res): Promise<void> => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
   const parsed = CreateProjectBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [project] = await db.insert(projectsTable).values(parsed.data).returning();
+  // `plan` is always forced to "trial" here (never taken from the client) so every
+  // project-creation path is subject to the trial AI-spend cap, matching onboarding.
+  const [project] = await db
+    .insert(projectsTable)
+    .values({ ...parsed.data, ownerId: userId, plan: "trial" })
+    .returning();
   res.status(201).json(project);
 });
 
@@ -46,12 +65,7 @@ router.get("/projects/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, params.data.id));
-  if (!project) {
-    res.status(404).json({ error: "Project not found" });
-    return;
-  }
-  res.json(project);
+  res.json(req.project);
 });
 
 router.patch("/projects/:id", async (req, res): Promise<void> => {
@@ -65,7 +79,11 @@ router.patch("/projects/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [project] = await db.update(projectsTable).set(parsed.data).where(eq(projectsTable.id, params.data.id)).returning();
+  const [project] = await db
+    .update(projectsTable)
+    .set(parsed.data)
+    .where(and(eq(projectsTable.id, params.data.id), eq(projectsTable.ownerId, req.project!.ownerId!)))
+    .returning();
   if (!project) {
     res.status(404).json({ error: "Project not found" });
     return;
@@ -79,7 +97,10 @@ router.delete("/projects/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [project] = await db.delete(projectsTable).where(eq(projectsTable.id, params.data.id)).returning();
+  const [project] = await db
+    .delete(projectsTable)
+    .where(and(eq(projectsTable.id, params.data.id), eq(projectsTable.ownerId, req.project!.ownerId!)))
+    .returning();
   if (!project) {
     res.status(404).json({ error: "Project not found" });
     return;
