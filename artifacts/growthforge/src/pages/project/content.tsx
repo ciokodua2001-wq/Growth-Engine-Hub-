@@ -185,7 +185,7 @@ export default function ProjectContent() {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title={`Generate ${selectedType.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}`}
-        subtitle="AI will write 3 pieces of high-converting content for your audience"
+        subtitle="AI will write high-converting content tailored to your audience"
         defaultWebsiteUrl={project?.websiteUrl ?? ""}
         instructionsPlaceholder={`Examples:\n• Focus on SEO keyword clusters\n• Write for technical audiences\n• Include case study examples\n• Target early-stage founders`}
         processingSteps={CONTENT_STEPS}

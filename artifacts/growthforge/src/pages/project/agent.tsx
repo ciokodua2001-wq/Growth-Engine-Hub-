@@ -13,7 +13,7 @@ import { useTrialUsage } from "@/hooks/use-trial-usage";
 import { UpgradeModal } from "@/components/ui/upgrade-modal";
 import { Link } from "wouter";
 
-const MESSAGE_LIMIT = 25;
+const MESSAGE_LIMIT = 10;
 
 const EXAMPLE_PROMPTS = [
   { label: "Analyze my business and website.", icon: "🔍" },

@@ -142,7 +142,7 @@ export default function ProjectSocial() {
           <div className="flex flex-col items-center justify-center py-32 text-center">
             <Share2 className="h-16 w-16 text-primary/30 mb-6" />
             <h2 className="text-2xl font-bold mb-3">No Posts Yet</h2>
-            <p className="text-muted-foreground mb-8 max-w-sm">Generate 30 days of social content across your selected platforms.</p>
+            <p className="text-muted-foreground mb-8 max-w-sm">Generate social posts across your selected platforms.</p>
             <button onClick={() => setModalOpen(true)} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
               <Zap className="h-4 w-4" /> Generate Posts
             </button>
