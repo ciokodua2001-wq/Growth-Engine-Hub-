@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { campaignsTable, assetsTable, reportsTable, agentMessagesTable, activityTable, competitorsTable, socialPostsTable, emailCampaignsTable, adCreativesTable, videosTable } from "@workspace/db";
+import { consumeTrialQuota } from "../lib/trialLimits.js";
 import {
   ListCampaignsParams,
   CreateCampaignParams,
@@ -231,6 +232,12 @@ router.post("/projects/:id/agent/chat", async (req, res): Promise<void> => {
 
   const projectId = params.data.id;
   const userMessage = parsed.data.message;
+
+  const quota = await consumeTrialQuota(projectId, "agent_messages", 1);
+  if (!quota.allowed) {
+    res.status(403).json({ error: quota.message });
+    return;
+  }
 
   await db.insert(agentMessagesTable).values({ projectId, role: "user", content: userMessage });
 

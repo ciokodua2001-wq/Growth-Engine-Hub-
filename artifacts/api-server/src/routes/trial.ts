@@ -1,13 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq, count, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@workspace/db";
-import {
-  socialPostsTable,
-  emailCampaignsTable,
-  videosTable,
-  agentMessagesTable,
-  trialUsageTable,
-} from "@workspace/db";
+import { trialUsageTable } from "@workspace/db";
 import { TRIAL_LIMITS } from "../lib/trialLimits.js";
 
 const router: IRouter = Router();
@@ -20,22 +14,7 @@ router.get("/trial/usage/:projectId", async (req, res): Promise<void> => {
   }
 
   try {
-    const [
-      usageRows,
-      [socialPosts],
-      [emailCampaigns],
-      [videoBlueprints],
-      [agentMessages],
-    ] = await Promise.all([
-      db.select().from(trialUsageTable).where(eq(trialUsageTable.projectId, projectId)),
-      db.select({ count: count() }).from(socialPostsTable).where(eq(socialPostsTable.projectId, projectId)),
-      db.select({ count: count() }).from(emailCampaignsTable).where(eq(emailCampaignsTable.projectId, projectId)),
-      db.select({ count: count() }).from(videosTable).where(eq(videosTable.projectId, projectId)),
-      db.select({ count: count() }).from(agentMessagesTable).where(
-        and(eq(agentMessagesTable.projectId, projectId), eq(agentMessagesTable.role, "user"))
-      ),
-    ]);
-
+    const usageRows = await db.select().from(trialUsageTable).where(eq(trialUsageTable.projectId, projectId));
     const usageByFeature = Object.fromEntries(usageRows.map((row) => [row.feature, row.count]));
 
     res.json({
@@ -44,20 +23,20 @@ router.get("/trial/usage/:projectId", async (req, res): Promise<void> => {
       personas: usageByFeature.personas ?? 0,
       strategies: usageByFeature.strategy ?? 0,
       competitorReports: usageByFeature.competitor_report ?? 0,
-      socialPosts: socialPosts.count,
-      emailCampaigns: emailCampaigns.count,
-      videoBlueprints: videoBlueprints.count,
-      agentMessages: agentMessages.count,
+      socialPosts: usageByFeature.social_posts ?? 0,
+      emailCampaigns: usageByFeature.email_campaigns ?? 0,
+      videoBlueprints: usageByFeature.video_blueprints ?? 0,
+      agentMessages: usageByFeature.agent_messages ?? 0,
       limits: {
         analyses: TRIAL_LIMITS.analysis,
         competitors: TRIAL_LIMITS.competitors,
         personas: TRIAL_LIMITS.personas,
         strategies: TRIAL_LIMITS.strategy,
         competitorReports: TRIAL_LIMITS.competitor_report,
-        socialPosts: 5,
-        emailCampaigns: 1,
-        videoBlueprints: 1,
-        agentMessages: 25,
+        socialPosts: TRIAL_LIMITS.social_posts,
+        emailCampaigns: TRIAL_LIMITS.email_campaigns,
+        videoBlueprints: TRIAL_LIMITS.video_blueprints,
+        agentMessages: TRIAL_LIMITS.agent_messages,
       },
     });
   } catch (err) {

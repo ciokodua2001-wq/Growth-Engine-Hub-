@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { videosTable, activityTable } from "@workspace/db";
+import { consumeTrialQuota } from "../lib/trialLimits.js";
 import {
   ListVideosParams,
   GenerateVideosParams,
@@ -42,6 +43,12 @@ router.post("/projects/:id/videos", async (req, res): Promise<void> => {
     { title: "Explainer — How the AI Works", type: "product", script: "STEP 1: You paste your website URL.\nSTEP 2: Our AI reads your entire site in seconds.\nSTEP 3: It identifies your business, customers, competitors, and opportunities.\nSTEP 4: It generates your marketing strategy, content calendar, email sequences, video scripts, and ad campaigns.\nSTEP 5: You review, approve, and launch.\n\nThe whole process takes minutes — not months.", storyboard: "Clean animation: URL input\nAI scanning animation\nData extraction visualization\nContent populating (grid view)\nLaunch button pressed\nGrowth chart rising", duration: 90, hookStrength: 83, engagementPotential: 86, viralPotential: 74 },
     { title: "Event Promo — The End of Marketing Agencies", type: "promo", script: "Marketing agencies charge $5,000-$50,000 per month.\n\nFor strategy. For content. For ads. For reporting.\n\nAI does all of it — faster, smarter, cheaper.\n\nThe era of bloated agency retainers is ending.\n\nJoin 10,000+ businesses who switched to GrowthForge AI.", storyboard: "Bold typography on dark background\nAgency invoice montage\nContrast: AI dashboard\nTestimonial quotes\nCommunity counter\nStrong CTA", duration: 45, hookStrength: 90, engagementPotential: 84, viralPotential: 88 },
   ];
+
+  const quota = await consumeTrialQuota(projectId, "video_blueprints", 1);
+  if (!quota.allowed) {
+    res.status(403).json({ error: quota.message });
+    return;
+  }
 
   const toCreate = videoTemplates.slice(0, count);
   const inserted = await db.insert(videosTable).values(

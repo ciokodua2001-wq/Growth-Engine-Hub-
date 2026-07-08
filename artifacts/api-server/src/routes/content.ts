@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { contentTable, socialPostsTable, emailCampaignsTable, adCreativesTable, activityTable } from "@workspace/db";
+import { consumeTrialQuota } from "../lib/trialLimits.js";
 import {
   ListContentParams,
   GenerateContentParams,
@@ -147,6 +148,12 @@ router.post("/projects/:id/social-posts", async (req, res): Promise<void> => {
     }
   }
 
+  const quota = await consumeTrialQuota(projectId, "social_posts", toInsert.length);
+  if (!quota.allowed) {
+    res.status(403).json({ error: quota.message });
+    return;
+  }
+
   const inserted = await db.insert(socialPostsTable).values(toInsert).returning();
 
   await db.insert(activityTable).values({
@@ -214,6 +221,12 @@ router.post("/projects/:id/emails", async (req, res): Promise<void> => {
     nurture: { subject: "The #1 mistake companies make with AI marketing (are you doing this?)", previewText: "Most businesses get this backwards", body: "Hi {{first_name}},\n\nI've talked to hundreds of founders this year. And there's one mistake I see over and over.\n\nThey use AI to automate what they're already doing instead of doing things they couldn't do before.\n\nExample: Using AI to write the same 3 blog posts faster.\n\nInstead of: Using AI to create 30 pieces of content a day, run competitor intelligence, produce videos, and launch ads — all simultaneously.\n\nThe businesses that win with AI aren't using it to go slightly faster. They're using it to operate at a completely different scale.\n\nThat's what we built GrowthForge to do.\n\nSee the difference: [Start Free Analysis]\n\nBest,\nThe Team" },
     reactivation: { subject: "{{first_name}}, we noticed you haven't logged in — here's what you're missing", previewText: "Big updates since you last visited", body: "Hi {{first_name}},\n\nWe've been busy. Since you last logged in, we've shipped:\n\n• AI Video Generation (create 9 videos in one click)\n• Competitor Intelligence Reports (10 competitors analyzed automatically)\n• Autonomous Mode (AI runs campaigns 24/7 without you)\n\nYour competitors might already be using these features.\n\nLog back in and see what's waiting for you: [Continue Your Analysis]\n\nBest,\nThe Team" },
   };
+
+  const quota = await consumeTrialQuota(projectId, "email_campaigns", 1);
+  if (!quota.allowed) {
+    res.status(403).json({ error: quota.message });
+    return;
+  }
 
   const template = emailTemplates[type] ?? emailTemplates.welcome;
 
