@@ -1,0 +1,172 @@
+Migrate authentication from Replit Auth to custom Google OAuth branded as GrowthForge.
+
+OBJECTIVE
+
+Users should never see Replit branding during sign in.
+
+Users should see:
+
+"Sign in to continue to GrowthForge"
+
+instead of:
+
+"Sign in to continue to Replit"
+
+====================================================
+
+AUTHENTICATION PROVIDERS
+
+Remove dependency on Replit Authentication.
+
+Configure custom authentication using:
+
+- Google OAuth
+
+Prepare architecture for future support of:
+
+- Microsoft OAuth
+- LinkedIn OAuth
+
+====================================================
+
+GOOGLE OAUTH SETTINGS
+
+Use my existing Google OAuth application.
+
+Brand Name:
+
+GrowthForge
+
+Application Name:
+
+GrowthForge
+
+Homepage URL:
+
+https://usegrowthforge.com
+
+Privacy Policy:
+
+https://usegrowthforge.com/privacy
+
+Terms of Service:
+
+https://usegrowthforge.com/terms
+
+====================================================
+
+LOGIN EXPERIENCE
+
+Replace all Replit authentication screens.
+
+Create branded GrowthForge authentication pages.
+
+Pages:
+
+/login
+
+/signup
+
+====================================================
+
+DESIGN REQUIREMENTS
+
+Use GrowthForge branding.
+
+Logo:
+
+GrowthForge
+
+Theme:
+
+- Dark background
+- Green accent colors
+- Modern SaaS styling
+- Consistent with landing page design
+
+Page Titles:
+
+Sign In To GrowthForge
+
+Create Your GrowthForge Account
+
+====================================================
+
+SIGN IN OPTIONS
+
+Support:
+
+- Google Sign In
+
+Future placeholders:
+
+- Microsoft (Coming Soon)
+- LinkedIn (Coming Soon)
+
+====================================================
+
+POST AUTHENTICATION FLOW
+
+After successful sign in:
+
+If new user:
+
+→ Onboarding
+
+If existing user:
+
+→ Dashboard
+
+====================================================
+
+SESSION MANAGEMENT
+
+Implement:
+
+- Secure sessions
+- Logout
+- Protected routes
+- Auto-login persistence
+
+Protect:
+
+/dashboard
+/onboarding
+/projects
+/strategy
+/videos
+/settings
+
+====================================================
+
+UPDATE ALL BUTTONS
+
+Update:
+
+Start Free
+
+Sign In
+
+Get Started
+
+Upgrade
+
+to use the new authentication system.
+
+====================================================
+
+VERIFY
+
+Confirm that:
+
+1. Google OAuth displays GrowthForge branding.
+2. No Replit branding appears.
+3. Users authenticate through my Google OAuth application.
+4. All authentication routes work correctly.
+5. Users are redirected properly after login.
+
+Generate a migration report showing:
+- Replit authentication removed
+- Google OAuth connected
+- Branding updated to GrowthForge
+- Routes secured
