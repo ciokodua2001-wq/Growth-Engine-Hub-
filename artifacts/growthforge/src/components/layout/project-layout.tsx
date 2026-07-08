@@ -194,55 +194,60 @@ export default function ProjectLayout({ projectId, children }: ProjectLayoutProp
           </div>
         )}
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
-          {navGroups.map(({ group, items }) => (
-            <div key={group}>
-              {!effectiveCollapsed && (
-                <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
-                  {group}
-                </p>
-              )}
-              <div className="space-y-0.5">
-                {items.map(({ label, path, icon: Icon }) => {
-                  const active = isActive(path);
-                  return (
-                    <Link
-                      key={path}
-                      href={`/projects/${projectId}/${path}`}
-                      className={cn(
-                        "flex items-center gap-3 px-2 py-2 rounded-md text-sm transition-all duration-150",
-                        active
-                          ? "bg-primary/15 text-primary font-medium"
-                          : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
-                        effectiveCollapsed && "justify-center px-0"
-                      )}
-                      title={effectiveCollapsed ? label : undefined}
-                    >
-                      <Icon className={cn("h-4 w-4 shrink-0", active && "text-primary")} />
-                      {!effectiveCollapsed && <span>{label}</span>}
-                    </Link>
-                  );
-                })}
+        {/* Scrollable body: nav + trial panel + footer share one scroll region so the
+            trial panel can never squeeze the nav links out of view */}
+        <div className="flex-1 overflow-y-auto flex flex-col">
+          <nav className="py-3 px-2 space-y-4 shrink-0">
+            {navGroups.map(({ group, items }) => (
+              <div key={group}>
+                {!effectiveCollapsed && (
+                  <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+                    {group}
+                  </p>
+                )}
+                <div className="space-y-0.5">
+                  {items.map(({ label, path, icon: Icon }) => {
+                    const active = isActive(path);
+                    return (
+                      <Link
+                        key={path}
+                        href={`/projects/${projectId}/${path}`}
+                        className={cn(
+                          "flex items-center gap-3 px-2 py-2 rounded-md text-sm transition-all duration-150",
+                          active
+                            ? "bg-primary/15 text-primary font-medium"
+                            : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
+                          effectiveCollapsed && "justify-center px-0"
+                        )}
+                        title={effectiveCollapsed ? label : undefined}
+                      >
+                        <Icon className={cn("h-4 w-4 shrink-0", active && "text-primary")} />
+                        {!effectiveCollapsed && <span>{label}</span>}
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
-        </nav>
+            ))}
+          </nav>
 
-        {/* Trial Status Panel */}
-        <TrialStatusPanel
-          projectId={id}
-          trialEndsAt={trialInfo?.trialEndsAt}
-          subscriptionStatus={trialInfo?.subscriptionStatus}
-          collapsed={effectiveCollapsed}
-        />
+          {/* Trial Status Panel */}
+          <div className="shrink-0 mt-auto">
+            <TrialStatusPanel
+              projectId={id}
+              trialEndsAt={trialInfo?.trialEndsAt}
+              subscriptionStatus={trialInfo?.subscriptionStatus}
+              collapsed={effectiveCollapsed}
+            />
 
-        {/* Footer */}
-        {!effectiveCollapsed && (
-          <div className="px-4 pb-3 border-t border-sidebar-border pt-2">
-            <div className="text-[10px] text-muted-foreground/50 font-mono">GrowthForge v1.0</div>
+            {/* Footer */}
+            {!effectiveCollapsed && (
+              <div className="px-4 pb-3 border-t border-sidebar-border pt-2">
+                <div className="text-[10px] text-muted-foreground/50 font-mono">GrowthForge v1.0</div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </aside>
 
       {/* Main content */}
