@@ -7,12 +7,12 @@ import { Link } from "wouter";
 
 const TRIAL_FEATURES = [
   "1 Website Analysis",
-  "3 Competitor Reports",
+  "1 Competitor Report",
   "1 Marketing Strategy",
   "5 Social Posts",
   "1 Email Campaign",
   "1 Video Blueprint",
-  "25 Forge AI Messages",
+  "10 Forge AI Messages",
   "Full Dashboard Access",
 ];
 

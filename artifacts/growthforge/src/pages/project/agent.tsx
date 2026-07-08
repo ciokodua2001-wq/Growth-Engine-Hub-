@@ -193,7 +193,7 @@ export default function ProjectAgent() {
           >
             <div className="flex items-center gap-2 text-amber-300 text-sm">
               <Zap className="w-4 h-4" />
-              <span>You've used all 25 trial messages.</span>
+              <span>You've used all 10 trial messages.</span>
             </div>
             <Link
               href="/plans"

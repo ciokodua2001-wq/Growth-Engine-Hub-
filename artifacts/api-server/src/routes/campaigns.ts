@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { campaignsTable, assetsTable, reportsTable, agentMessagesTable, activityTable, competitorsTable, socialPostsTable, emailCampaignsTable, adCreativesTable, videosTable } from "@workspace/db";
-import { consumeTrialQuota, type TrialFeature } from "../lib/trialLimits.js";
+import { consumeTrialQuota, TRIAL_MAX_VIDEO_BATCH, type TrialFeature } from "../lib/trialLimits.js";
 import { generateJson } from "../lib/aiJson.js";
 import { getGroundingContext, renderGroundingBlock, type GroundingContext } from "../lib/projectContext.js";
 import {
@@ -276,9 +276,7 @@ const ACTION_FEATURES: Record<AgentActionIntent, TrialFeature> = {
   social_posts: "social_posts",
   emails: "email_campaigns",
   videos: "video_blueprints",
-  // Ads aren't on the trial pricing card / TRIAL_LIMITS, so this key is unused at
-  // runtime (ads branch below never calls consumeTrialQuota) — kept for type completeness.
-  ads: "email_campaigns",
+  ads: "ads",
 };
 
 interface AgentClassification {
@@ -391,7 +389,8 @@ async function performAgentAction(
       return { actionType: "generate_emails", actionResult: `Email campaign saved to Email Marketing (id ${inserted.id})` };
     }
     case "videos": {
-      const count = Math.min(classification.videoParams?.count ?? 3, 9);
+      const requested = Math.min(classification.videoParams?.count ?? 3, 9);
+      const count = ctx.project.plan === "trial" ? Math.min(requested, TRIAL_MAX_VIDEO_BATCH) : requested;
       const results = await generateVideoBlueprints(ctx, { count, type: classification.videoParams?.type ?? undefined });
       const inserted = await db.insert(videosTable).values(results.map(t => ({ ...t, projectId, status: "complete" as const }))).returning();
       await db.insert(activityTable).values({ projectId, type: "videos", description: `Forge generated ${inserted.length} marketing videos` });
@@ -446,10 +445,10 @@ router.post("/projects/:id/agent/chat", async (req, res): Promise<void> => {
   } else if (classification.intent === "chat") {
     responseContent = classification.responseMessage;
   } else {
-    // "ads" has no trial-plan cap (matches content.ts's ungated /ads endpoint — ads
-    // aren't on the pricing card), so it skips the sub-quota check entirely.
-    const feature = classification.intent === "ads" ? null : ACTION_FEATURES[classification.intent];
-    const actionQuota = feature ? await consumeTrialQuota(projectId, feature, classification.quotaAmount) : { allowed: true as const };
+    // Every action intent consumes its own feature quota on top of the flat agent_messages
+    // cap, closing off unlimited generation via chat once the message cap alone is spent.
+    const feature = ACTION_FEATURES[classification.intent];
+    const actionQuota = await consumeTrialQuota(projectId, feature, classification.quotaAmount);
     if (!actionQuota.allowed) {
       responseContent = `I can do that, but ${actionQuota.message}`;
     } else {

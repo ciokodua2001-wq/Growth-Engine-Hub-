@@ -271,6 +271,15 @@ router.post("/projects/:id/ads", async (req, res): Promise<void> => {
   const platform = parsed.data.platform;
   const count = parsed.data.count ?? 3;
 
+  // These are still hardcoded templates today (no AI cost), but capped anyway so this
+  // endpoint stays within the trial spend budget if it's ever wired to real AI generation
+  // (matching how the agent-chat "ads" intent already calls generateAdCreatives).
+  const quota = await consumeTrialQuota(projectId, "ads", count);
+  if (!quota.allowed) {
+    res.status(403).json({ error: quota.message });
+    return;
+  }
+
   const adTemplates = [
     { headline: "Paste Your URL. Get Your Marketing Team.", description: "AI analyzes your business, generates content, creates videos, and launches campaigns automatically. Replace your marketing agency.", cta: "Start Free Analysis", type: "image", hookStrength: 89, conversionPotential: 84 },
     { headline: "Your Competitors Are Using AI. Are You?", description: "GrowthForge AI creates 9 videos, 30 social posts, email sequences, and full ad campaigns from just your website URL. Try free.", cta: "Try It Free", type: "image", hookStrength: 82, conversionPotential: 79 },

@@ -12,12 +12,12 @@ interface TrialStatusPanelProps {
 
 const METERS = [
   { key: "analyses" as const, label: "Analyses", limit: 1 },
-  { key: "competitors" as const, label: "Competitors", limit: 3 },
+  { key: "competitors" as const, label: "Competitors", limit: 2 },
   { key: "strategies" as const, label: "Strategy", limit: 1 },
   { key: "socialPosts" as const, label: "Social Posts", limit: 5 },
   { key: "emailCampaigns" as const, label: "Emails", limit: 1 },
   { key: "videoBlueprints" as const, label: "Video Blueprints", limit: 1 },
-  { key: "agentMessages" as const, label: "AI Messages", limit: 25 },
+  { key: "agentMessages" as const, label: "AI Messages", limit: 10 },
 ];
 
 const CHECKLIST = [

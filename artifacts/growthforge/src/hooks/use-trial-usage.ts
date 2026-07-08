@@ -21,12 +21,12 @@ export interface TrialUsage {
 
 export const TRIAL_LIMITS = {
   analyses: 1,
-  competitors: 3,
+  competitors: 2,
   strategies: 1,
   socialPosts: 5,
   emailCampaigns: 1,
   videoBlueprints: 1,
-  agentMessages: 25,
+  agentMessages: 10,
 };
 
 export function useTrialUsage(projectId: number | null) {
