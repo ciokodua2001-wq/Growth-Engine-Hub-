@@ -17,7 +17,7 @@ const TRIAL_FEATURES = [
   "5 Social Posts",
   "1 Email Campaign",
   "5 Video Blueprints (scripts — no rendering)",
-  "10 Forge AI Messages",
+  "10 Forge AI Chats",
   "Full Dashboard Access",
 ];
 
@@ -47,7 +47,7 @@ const PLANS: Plan[] = [
     stats: [
       { value: "1", label: "Project" },
       { value: "4 min", label: "Video / mo" },
-      { value: "100", label: "AI Messages" },
+      { value: "35", label: "Content / mo" },
     ],
     groups: [
       {
@@ -83,7 +83,7 @@ const PLANS: Plan[] = [
         icon: <Bot className="w-3.5 h-3.5" />,
         label: "Forge AI Agent",
         items: [
-          "100 Messages / month",
+          "100 Forge AI Chats / month",
           "Full Analytics Dashboard",
         ],
       },
@@ -98,7 +98,7 @@ const PLANS: Plan[] = [
     stats: [
       { value: "3", label: "Projects" },
       { value: "8+1K min", label: "Video / mo" },
-      { value: "300", label: "AI Messages" },
+      { value: "80", label: "Content / mo" },
     ],
     groups: [
       {
@@ -143,7 +143,7 @@ const PLANS: Plan[] = [
         icon: <Bot className="w-3.5 h-3.5" />,
         label: "Forge AI Agent",
         items: [
-          "300 Messages / month",
+          "300 Forge AI Chats / month",
           "Priority Support",
         ],
       },
@@ -157,7 +157,7 @@ const PLANS: Plan[] = [
     stats: [
       { value: "6", label: "Projects" },
       { value: "25+4K min", label: "Video / mo" },
-      { value: "500", label: "AI Messages" },
+      { value: "160", label: "Content / mo" },
     ],
     groups: [
       {
@@ -203,7 +203,7 @@ const PLANS: Plan[] = [
         icon: <Bot className="w-3.5 h-3.5" />,
         label: "Forge AI Agent",
         items: [
-          "500 Messages / month",
+          "500 Forge AI Chats / month",
         ],
       },
     ],
@@ -217,7 +217,7 @@ const PLANS: Plan[] = [
     stats: [
       { value: "20", label: "Projects" },
       { value: "60+10K min", label: "Video / mo" },
-      { value: "2,000", label: "AI Messages" },
+      { value: "320", label: "Content / mo" },
     ],
     groups: [
       {
@@ -262,7 +262,7 @@ const PLANS: Plan[] = [
         icon: <Users className="w-3.5 h-3.5" />,
         label: "Agency Tools",
         items: [
-          "2,000 Forge AI Messages / month",
+          "2,000 Forge AI Chats / month",
           "Team Members",
           "Dedicated Success Manager",
         ],
