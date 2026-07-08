@@ -2,14 +2,13 @@ import { Router, type IRouter } from "express";
 import { eq, count, and } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
-  businessAnalysisTable,
-  competitorsTable,
-  marketingStrategyTable,
   socialPostsTable,
   emailCampaignsTable,
   videosTable,
   agentMessagesTable,
+  trialUsageTable,
 } from "@workspace/db";
+import { TRIAL_LIMITS } from "../lib/trialLimits.js";
 
 const router: IRouter = Router();
 
@@ -22,17 +21,13 @@ router.get("/trial/usage/:projectId", async (req, res): Promise<void> => {
 
   try {
     const [
-      [analyses],
-      [competitors],
-      [strategies],
+      usageRows,
       [socialPosts],
       [emailCampaigns],
       [videoBlueprints],
       [agentMessages],
     ] = await Promise.all([
-      db.select({ count: count() }).from(businessAnalysisTable).where(eq(businessAnalysisTable.projectId, projectId)),
-      db.select({ count: count() }).from(competitorsTable).where(eq(competitorsTable.projectId, projectId)),
-      db.select({ count: count() }).from(marketingStrategyTable).where(eq(marketingStrategyTable.projectId, projectId)),
+      db.select().from(trialUsageTable).where(eq(trialUsageTable.projectId, projectId)),
       db.select({ count: count() }).from(socialPostsTable).where(eq(socialPostsTable.projectId, projectId)),
       db.select({ count: count() }).from(emailCampaignsTable).where(eq(emailCampaignsTable.projectId, projectId)),
       db.select({ count: count() }).from(videosTable).where(eq(videosTable.projectId, projectId)),
@@ -41,18 +36,24 @@ router.get("/trial/usage/:projectId", async (req, res): Promise<void> => {
       ),
     ]);
 
+    const usageByFeature = Object.fromEntries(usageRows.map((row) => [row.feature, row.count]));
+
     res.json({
-      analyses: analyses.count,
-      competitors: competitors.count,
-      strategies: strategies.count,
+      analyses: usageByFeature.analysis ?? 0,
+      competitors: usageByFeature.competitors ?? 0,
+      personas: usageByFeature.personas ?? 0,
+      strategies: usageByFeature.strategy ?? 0,
+      competitorReports: usageByFeature.competitor_report ?? 0,
       socialPosts: socialPosts.count,
       emailCampaigns: emailCampaigns.count,
       videoBlueprints: videoBlueprints.count,
       agentMessages: agentMessages.count,
       limits: {
-        analyses: 1,
-        competitors: 3,
-        strategies: 1,
+        analyses: TRIAL_LIMITS.analysis,
+        competitors: TRIAL_LIMITS.competitors,
+        personas: TRIAL_LIMITS.personas,
+        strategies: TRIAL_LIMITS.strategy,
+        competitorReports: TRIAL_LIMITS.competitor_report,
         socialPosts: 5,
         emailCampaigns: 1,
         videoBlueprints: 1,

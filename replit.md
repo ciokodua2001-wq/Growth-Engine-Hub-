@@ -45,6 +45,8 @@ AI-powered marketing OS SaaS by Strapli Technologies Inc. — turns any business
 - Auth guards use `useEffect` for redirects (not inline `setLocation()` during render).
 - Business analysis is the source of truth for a project's industry — set by AI after reading the live website, not collected from the user during onboarding.
 - If a project's website can't be fetched/analyzed, the business analysis is stored with `status: "failed"` (never fabricated data); personas/competitors/strategy generation are blocked until analysis is `"complete"`.
+- Trial-plan AI usage is enforced server-side (not just advisory) via `trialUsageTable` + `consumeTrialQuota()` in `lib/trialLimits.ts`, gated with a row-level lock so concurrent requests can't double-spend quota. Limits: analysis 1x, competitors 3x, personas 1x, strategy 1x, competitor report 3x. Enforcement only applies when `project.plan === "trial"`. Exceeding a limit returns 403 before any AI call is made.
+- `GET /competitor-report` never calls AI — it only reads the cached `competitorReportTable` row (populated by `POST /competitor-report`), preventing unbounded AI cost from repeated page views.
 
 ## Product
 

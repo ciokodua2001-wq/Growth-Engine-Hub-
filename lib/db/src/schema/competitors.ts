@@ -24,3 +24,18 @@ export const competitorsTable = pgTable("competitors", {
 export const insertCompetitorSchema = createInsertSchema(competitorsTable).omit({ id: true, createdAt: true });
 export type InsertCompetitor = z.infer<typeof insertCompetitorSchema>;
 export type Competitor = typeof competitorsTable.$inferSelect;
+
+export const competitorReportTable = pgTable("competitor_report", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().references(() => projectsTable.id, { onDelete: "cascade" }).unique(),
+  marketGaps: text("market_gaps"),
+  positioningOpportunities: text("positioning_opportunities"),
+  winningHooks: text("winning_hooks"),
+  winningCtas: text("winning_ctas"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertCompetitorReportSchema = createInsertSchema(competitorReportTable).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCompetitorReport = z.infer<typeof insertCompetitorReportSchema>;
+export type CompetitorReport = typeof competitorReportTable.$inferSelect;

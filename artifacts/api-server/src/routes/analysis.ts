@@ -20,6 +20,7 @@ import {
 } from "@workspace/api-zod";
 import { fetchWebsiteContent, WebsiteFetchError } from "../lib/websiteFetcher.js";
 import { generateJson } from "../lib/aiJson.js";
+import { consumeTrialQuota } from "../lib/trialLimits.js";
 
 const router: IRouter = Router();
 
@@ -104,6 +105,13 @@ router.post("/projects/:id/analyze", async (req, res): Promise<void> => {
   let result: BusinessAnalysisResult;
   try {
     const site = await fetchWebsiteContent(websiteUrl);
+
+    const quota = await consumeTrialQuota(projectId, "analysis");
+    if (!quota.allowed) {
+      res.status(403).json({ error: quota.message });
+      return;
+    }
+
     result = await analyzeBusinessWithAi({
       websiteUrl: site.url,
       title: site.title,
@@ -235,6 +243,12 @@ router.post("/projects/:id/personas", async (req, res): Promise<void> => {
     return;
   }
 
+  const personasQuota = await consumeTrialQuota(projectId, "personas");
+  if (!personasQuota.allowed) {
+    res.status(403).json({ error: personasQuota.message });
+    return;
+  }
+
   let personaResults: PersonaResult[];
   try {
     const response = await generateJson<{ personas: PersonaResult[] }>({
@@ -339,6 +353,12 @@ router.post("/projects/:id/strategy", async (req, res): Promise<void> => {
 
   const personas = await db.select().from(personasTable).where(eq(personasTable.projectId, projectId));
   const competitors = await db.select().from(competitorsTable).where(eq(competitorsTable.projectId, projectId));
+
+  const strategyQuota = await consumeTrialQuota(projectId, "strategy");
+  if (!strategyQuota.allowed) {
+    res.status(403).json({ error: strategyQuota.message });
+    return;
+  }
 
   let strategyData: StrategyResult;
   try {

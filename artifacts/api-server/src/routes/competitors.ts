@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { competitorsTable, businessAnalysisTable, projectsTable, activityTable } from "@workspace/db";
+import { competitorsTable, businessAnalysisTable, projectsTable, activityTable, competitorReportTable } from "@workspace/db";
 import {
   ListCompetitorsParams,
   DiscoverCompetitorsParams,
@@ -10,6 +10,7 @@ import {
   GenerateCompetitorReportParams,
 } from "@workspace/api-zod";
 import { generateJson } from "../lib/aiJson.js";
+import { consumeTrialQuota } from "../lib/trialLimits.js";
 
 const router: IRouter = Router();
 
@@ -55,6 +56,12 @@ router.post("/projects/:id/competitors", async (req, res): Promise<void> => {
 
   if (!project || !analysis || analysis.status !== "complete") {
     res.status(409).json({ error: "Run business analysis before discovering competitors" });
+    return;
+  }
+
+  const quota = await consumeTrialQuota(projectId, "competitors");
+  if (!quota.allowed) {
+    res.status(403).json({ error: quota.message });
     return;
   }
 
@@ -136,24 +143,24 @@ interface CompetitorReportInsights {
   winningCtas: string;
 }
 
-async function buildReportInsights(projectId: number, req: import("express").Request): Promise<{
-  competitors: (typeof competitorsTable.$inferSelect)[];
-  insights: CompetitorReportInsights | null;
-}> {
+async function generateReportInsights(
+  projectId: number,
+  competitors: (typeof competitorsTable.$inferSelect)[],
+  req: import("express").Request,
+): Promise<CompetitorReportInsights | null> {
   const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId));
   const [analysis] = await db
     .select()
     .from(businessAnalysisTable)
     .where(eq(businessAnalysisTable.projectId, projectId))
     .orderBy(desc(businessAnalysisTable.createdAt));
-  const competitors = await db.select().from(competitorsTable).where(eq(competitorsTable.projectId, projectId)).orderBy(desc(competitorsTable.createdAt));
 
   if (!project || !analysis || competitors.length === 0) {
-    return { competitors, insights: null };
+    return null;
   }
 
   try {
-    const insights = await generateJson<CompetitorReportInsights>({
+    return await generateJson<CompetitorReportInsights>({
       system:
         "You are a competitive intelligence strategist. Synthesize the competitor data into concrete, " +
         "specific insights for this exact business. Respond with ONLY a single JSON object, no prose.",
@@ -172,30 +179,41 @@ Return JSON:
   "winningCtas": "3-5 pipe-separated calls-to-action tailored to this business"
 }`,
     });
-    return { competitors, insights };
   } catch (err) {
     req.log.error({ err }, "Competitor report synthesis failed");
-    return { competitors, insights: null };
+    return null;
   }
 }
 
+function serializeReport(
+  projectId: number,
+  competitors: (typeof competitorsTable.$inferSelect)[],
+  report: (typeof competitorReportTable.$inferSelect) | null,
+) {
+  return {
+    projectId,
+    competitors: competitors.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() })),
+    marketGaps: report?.marketGaps ?? null,
+    positioningOpportunities: report?.positioningOpportunities ?? null,
+    winningHooks: report?.winningHooks ?? null,
+    winningCtas: report?.winningCtas ?? null,
+    generatedAt: (report?.updatedAt ?? new Date()).toISOString(),
+  };
+}
+
+// Returns the most recently generated report without calling the AI. A fresh report is only
+// produced via POST (subject to trial quota) to avoid incurring AI cost on every page view.
 router.get("/projects/:id/competitor-report", async (req, res): Promise<void> => {
   const params = GetCompetitorReportParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const { competitors, insights } = await buildReportInsights(params.data.id, req);
+  const projectId = params.data.id;
+  const competitors = await db.select().from(competitorsTable).where(eq(competitorsTable.projectId, projectId)).orderBy(desc(competitorsTable.createdAt));
+  const [report] = await db.select().from(competitorReportTable).where(eq(competitorReportTable.projectId, projectId));
 
-  res.json({
-    projectId: params.data.id,
-    competitors: competitors.map((c: typeof competitorsTable.$inferSelect) => ({ ...c, createdAt: c.createdAt.toISOString() })),
-    marketGaps: insights?.marketGaps ?? null,
-    positioningOpportunities: insights?.positioningOpportunities ?? null,
-    winningHooks: insights?.winningHooks ?? null,
-    winningCtas: insights?.winningCtas ?? null,
-    generatedAt: new Date().toISOString(),
-  });
+  res.json(serializeReport(projectId, competitors, report ?? null));
 });
 
 router.post("/projects/:id/competitor-report", async (req, res): Promise<void> => {
@@ -205,11 +223,27 @@ router.post("/projects/:id/competitor-report", async (req, res): Promise<void> =
     return;
   }
   const projectId = params.data.id;
-  const { competitors, insights } = await buildReportInsights(projectId, req);
+  const competitors = await db.select().from(competitorsTable).where(eq(competitorsTable.projectId, projectId)).orderBy(desc(competitorsTable.createdAt));
 
   if (competitors.length === 0) {
     res.status(409).json({ error: "Discover competitors before generating a report" });
     return;
+  }
+
+  const quota = await consumeTrialQuota(projectId, "competitor_report");
+  if (!quota.allowed) {
+    res.status(403).json({ error: quota.message });
+    return;
+  }
+
+  const insights = await generateReportInsights(projectId, competitors, req);
+
+  const [existing] = await db.select().from(competitorReportTable).where(eq(competitorReportTable.projectId, projectId));
+  let report: typeof competitorReportTable.$inferSelect;
+  if (existing) {
+    [report] = await db.update(competitorReportTable).set({ ...insights }).where(eq(competitorReportTable.projectId, projectId)).returning();
+  } else {
+    [report] = await db.insert(competitorReportTable).values({ projectId, ...insights }).returning();
   }
 
   await db.insert(activityTable).values({
@@ -218,15 +252,7 @@ router.post("/projects/:id/competitor-report", async (req, res): Promise<void> =
     description: "Competitor intelligence report generated",
   });
 
-  res.json({
-    projectId,
-    competitors: competitors.map((c: typeof competitorsTable.$inferSelect) => ({ ...c, createdAt: c.createdAt.toISOString() })),
-    marketGaps: insights?.marketGaps ?? null,
-    positioningOpportunities: insights?.positioningOpportunities ?? null,
-    winningHooks: insights?.winningHooks ?? null,
-    winningCtas: insights?.winningCtas ?? null,
-    generatedAt: new Date().toISOString(),
-  });
+  res.json(serializeReport(projectId, competitors, report));
 });
 
 export default router;
