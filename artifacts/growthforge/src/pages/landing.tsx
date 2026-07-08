@@ -18,6 +18,61 @@ const NAV_LINKS = [
   { label: "About", href: "/about" },
 ];
 
+const BUILDS_FROM_URL = [
+  {
+    icon: Brain,
+    title: "Business Intelligence",
+    desc: "Understand your company, customers, positioning, strengths, weaknesses, and growth opportunities.",
+    features: ["Business Analysis", "Customer Personas", "Market Research", "Audience Segmentation"],
+    color: "#00E676",
+  },
+  {
+    icon: Users2,
+    title: "Competitor Intelligence",
+    desc: "Discover competitors, identify market gaps, and uncover winning strategies.",
+    features: ["Competitor Research", "Messaging Analysis", "Positioning Insights", "Opportunity Discovery"],
+    color: "#00D4FF",
+  },
+  {
+    icon: FileText,
+    title: "Marketing Content",
+    desc: "Generate content that helps attract and convert customers.",
+    features: ["Blog Articles", "Social Media Posts", "Email Campaigns", "Ad Copy"],
+    color: "#14F195",
+  },
+  {
+    icon: Video,
+    title: "Video Blueprints",
+    desc: "Create ready-to-produce marketing videos without any editing experience.",
+    features: ["Video Concepts", "Hooks", "Storyboards", "Voiceover Scripts"],
+    color: "#00E676",
+  },
+  {
+    icon: LineChart,
+    title: "Growth Strategy",
+    desc: "Receive actionable, AI-generated recommendations to scale your business.",
+    features: ["SEO Strategy", "Growth Recommendations", "Conversion Opportunities", "Lead Generation Plans"],
+    color: "#00D4FF",
+  },
+  {
+    icon: Bot,
+    title: "Forge AI Agent",
+    desc: "Your always-on AI marketing assistant ready to execute on demand.",
+    features: ["Campaign Ideas", "Content Creation", "Competitor Analysis", "Marketing Guidance"],
+    color: "#14F195",
+  },
+];
+
+const WORKFLOW_PIPELINE = [
+  { icon: Globe, label: "Website URL" },
+  { icon: Brain, label: "Business Analysis" },
+  { icon: Users2, label: "Competitor Intelligence" },
+  { icon: Target, label: "Marketing Strategy" },
+  { icon: FileText, label: "Content Creation" },
+  { icon: Video, label: "Video Blueprint" },
+  { icon: TrendingUp, label: "Growth Recommendations" },
+];
+
 const BENEFIT_CARDS = [
   { icon: Brain, title: "Business Intelligence", desc: "AI scans your website, extracts your ICP, positioning, and growth opportunities in seconds." },
   { icon: Users2, title: "Competitor Intelligence", desc: "Discover competitors, map gaps, and see exactly how to win your market." },
@@ -382,7 +437,7 @@ export default function LandingPage() {
           </motion.h1>
           <motion.p initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.2 }}
             className="text-xl md:text-2xl text-white/50 max-w-3xl mx-auto mb-10 leading-relaxed">
-            GrowthForge is the AI Growth Operating System that analyzes your business, discovers competitors, creates content, builds campaigns, generates video assets, and helps businesses scale faster.
+            GrowthForge is the AI Growth Operating System that analyzes your business, discovers competitors, creates marketing assets, generates video campaigns, and helps businesses scale faster.
           </motion.p>
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.3 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
@@ -469,6 +524,67 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── Visual Workflow ── */}
+      <section className="py-24 px-4 border-t border-white/8">
+        <div className={W}>
+          <FadeIn className="text-center mb-16">
+            <SectionLabel>The Pipeline</SectionLabel>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">From One URL to a Full Marketing Engine</h2>
+            <p className="text-white/50 text-lg max-w-xl mx-auto">Every output is generated automatically — in minutes, not months.</p>
+          </FadeIn>
+          <FadeIn>
+            {/* Desktop: horizontal flow */}
+            <div className="hidden md:flex items-center justify-center gap-0 overflow-x-auto pb-4">
+              {WORKFLOW_PIPELINE.map(({ icon: Icon, label }, i) => (
+                <div key={label} className="flex items-center">
+                  <div className="flex flex-col items-center gap-3 min-w-[110px]">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-all`}
+                      style={{
+                        background: i === 0 ? "rgba(0,230,118,0.15)" : "rgba(255,255,255,0.04)",
+                        border: i === 0 ? "1px solid rgba(0,230,118,0.4)" : "1px solid rgba(255,255,255,0.1)",
+                        boxShadow: i === 0 ? "0 0 24px rgba(0,230,118,0.15)" : "none",
+                      }}>
+                      <Icon className="w-5 h-5" style={{ color: i === 0 ? "#00E676" : i === WORKFLOW_PIPELINE.length - 1 ? "#14F195" : "rgba(255,255,255,0.5)" }} />
+                    </div>
+                    <span className="text-xs text-center font-medium leading-tight" style={{ color: i === 0 ? "#00E676" : i === WORKFLOW_PIPELINE.length - 1 ? "#14F195" : "rgba(255,255,255,0.5)" }}>
+                      {label}
+                    </span>
+                  </div>
+                  {i < WORKFLOW_PIPELINE.length - 1 && (
+                    <div className="flex items-center -mt-6 mx-1">
+                      <div className="w-6 h-px" style={{ background: "linear-gradient(90deg, rgba(0,230,118,0.3), rgba(0,212,255,0.3))" }} />
+                      <ArrowRight className="w-3.5 h-3.5 -ml-1" style={{ color: "rgba(0,230,118,0.4)" }} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {/* Mobile: vertical flow */}
+            <div className="md:hidden flex flex-col items-center gap-0 max-w-xs mx-auto">
+              {WORKFLOW_PIPELINE.map(({ icon: Icon, label }, i) => (
+                <div key={label} className="flex flex-col items-center">
+                  <div className="flex items-center gap-4 py-3">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                      style={{
+                        background: i === 0 ? "rgba(0,230,118,0.15)" : "rgba(255,255,255,0.04)",
+                        border: i === 0 ? "1px solid rgba(0,230,118,0.4)" : "1px solid rgba(255,255,255,0.1)",
+                      }}>
+                      <Icon className="w-5 h-5" style={{ color: i === 0 ? "#00E676" : i === WORKFLOW_PIPELINE.length - 1 ? "#14F195" : "rgba(255,255,255,0.5)" }} />
+                    </div>
+                    <span className="text-sm font-medium" style={{ color: i === 0 ? "#00E676" : i === WORKFLOW_PIPELINE.length - 1 ? "#14F195" : "rgba(255,255,255,0.6)" }}>
+                      {label}
+                    </span>
+                  </div>
+                  {i < WORKFLOW_PIPELINE.length - 1 && (
+                    <div className="w-px h-6" style={{ background: "linear-gradient(180deg, rgba(0,230,118,0.3), rgba(0,212,255,0.3))" }} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
       {/* ── Mid CTA ── */}
       <section className="py-16 px-4 border-t border-white/8">
         <div className={W}>
@@ -482,6 +598,54 @@ export default function LandingPage() {
               style={{ background: "#00E676", boxShadow: "0 0 30px rgba(0,230,118,0.2)" }}>
               Start Free Trial <ArrowRight className="w-4 h-4" />
             </Link>
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* ── Builds From URL ── */}
+      <section className="py-24 px-4 border-t border-white/8">
+        <div className={W}>
+          <FadeIn className="text-center mb-16">
+            <SectionLabel>What You Get</SectionLabel>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">
+              Everything GrowthForge Builds<br className="hidden md:block" /> From One URL
+            </h2>
+            <p className="text-white/50 text-lg max-w-2xl mx-auto">Turn a single website URL into a complete AI-powered marketing engine.</p>
+          </FadeIn>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5 mb-12">
+            {BUILDS_FROM_URL.map(({ icon: Icon, title, desc, features: feats, color }, i) => (
+              <FadeIn key={title} delay={i * 0.07}>
+                <div className="group p-6 rounded-2xl border border-white/8 hover:border-white/20 h-full transition-all relative overflow-hidden"
+                  style={{ background: "rgba(255,255,255,0.02)", backdropFilter: "blur(12px)" }}>
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl"
+                    style={{ background: `radial-gradient(ellipse at top left, ${color}08 0%, transparent 60%)` }} />
+                  <div className="relative">
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-colors"
+                      style={{ background: `${color}15`, border: `1px solid ${color}25` }}>
+                      <Icon className="w-5 h-5" style={{ color }} />
+                    </div>
+                    <h3 className="font-bold text-white text-base mb-2">{title}</h3>
+                    <p className="text-white/40 text-sm leading-relaxed mb-5">{desc}</p>
+                    <div className="flex flex-col gap-2">
+                      {feats.map((f) => (
+                        <div key={f} className="flex items-center gap-2.5 text-xs text-white/50">
+                          <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />{f}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+          <FadeIn className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link href="/sign-up" className="flex items-center gap-2 font-bold px-8 py-4 rounded-xl text-black transition-all hover:scale-[1.02]"
+              style={{ background: "#00E676", boxShadow: "0 0 30px rgba(0,230,118,0.2)" }}>
+              Start Free Trial <ArrowRight className="w-4 h-4" />
+            </Link>
+            <a href="#features" className="flex items-center gap-2 font-semibold px-8 py-4 rounded-xl border border-white/10 text-white/60 hover:text-white hover:border-white/25 transition-all">
+              See All Features
+            </a>
           </FadeIn>
         </div>
       </section>
