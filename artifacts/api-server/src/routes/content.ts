@@ -3,6 +3,8 @@ import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { contentTable, socialPostsTable, emailCampaignsTable, adCreativesTable, activityTable } from "@workspace/db";
 import { consumeTrialQuota } from "../lib/trialLimits.js";
+import { getGroundingContext } from "../lib/projectContext.js";
+import { generateSocialPosts, generateEmailCampaign, type SocialPostResult, type EmailResult } from "../lib/contentGenerators.js";
 import {
   ListContentParams,
   GenerateContentParams,
@@ -118,41 +120,38 @@ router.post("/projects/:id/social-posts", async (req, res): Promise<void> => {
 
   const projectId = params.data.id;
   const platforms = parsed.data.platforms;
+  const perPlatform = parsed.data.count ?? 2;
 
-  const postTemplates: Record<string, { caption: string; hashtags: string; cta: string }[]> = {
-    linkedin: [
-      { caption: "Most businesses spend 80% of their marketing budget on agency fees, tools, and headcount. We built an AI that replaces all of that for a fraction of the cost. Paste your URL. Get your marketing department.", hashtags: "#AI #Marketing #Growth #StartUp #SaaS", cta: "Try it free today — link in bio" },
-      { caption: "We analyzed 1,000 competitor websites so you don't have to. Our AI identifies your market gaps, competitor weaknesses, and your best positioning opportunities in minutes.", hashtags: "#CompetitorAnalysis #MarketingStrategy #AI #GrowthHacking", cta: "Get your competitor report free" },
-    ],
-    instagram: [
-      { caption: "Stop paying $10K/month for a marketing agency. Start using AI instead.", hashtags: "#AIMarketing #Entrepreneur #StartupLife #GrowthHacking #DigitalMarketing #MarketingTips", cta: "Link in bio for free trial" },
-      { caption: "Your competitors are already using AI to create content while you read this.", hashtags: "#AIContent #Marketing #ContentCreation #SocialMediaMarketing #MarketingStrategy", cta: "Don't fall behind — try it free" },
-    ],
-    tiktok: [
-      { caption: "POV: You paste your website URL and an AI builds your entire marketing department in 5 minutes. This is actually happening right now.", hashtags: "#AIMarketing #Entrepreneur #TechTok #BusinessTips #StartUpLife #Marketing", cta: "Try it free at the link" },
-      { caption: "Replacing a $15K/month marketing team with AI — here's what happened after 30 days.", hashtags: "#AI #Marketing #Entrepreneur #BusinessGrowth #AITools #StartupTips", cta: "Full breakdown in bio" },
-    ],
-    x: [
-      { caption: "Hot take: In 2 years, most small businesses won't have a marketing team. They'll have an AI platform that does it all — content, videos, ads, strategy, analytics — automatically.\n\nWe're building that platform right now.", hashtags: "#AI #Marketing #SaaS", cta: "" },
-    ],
-    facebook: [
-      { caption: "What if you could paste your website URL and get an entire marketing department back in minutes?\n\nBusiness analysis. Competitor research. Content calendar. Email sequences. Ad campaigns. Video production.\n\nAll done by AI. All ready to launch.", hashtags: "#AIMarketing #SmallBusiness #GrowthMarketing #ContentMarketing", cta: "Get started free — see the link below" },
-    ],
-  };
-
-  const toInsert = [];
-  for (const platform of platforms) {
-    const templates = postTemplates[platform.toLowerCase()] ?? postTemplates.linkedin;
-    for (const t of templates) {
-      toInsert.push({ projectId, platform, status: "draft", ...t });
-    }
+  const ctx = await getGroundingContext(projectId);
+  if (!ctx) {
+    res.status(409).json({ error: "Run business analysis before generating social posts" });
+    return;
   }
 
-  const quota = await consumeTrialQuota(projectId, "social_posts", toInsert.length);
+  const requestedTotal = platforms.length * perPlatform;
+  const quota = await consumeTrialQuota(projectId, "social_posts", requestedTotal);
   if (!quota.allowed) {
     res.status(403).json({ error: quota.message });
     return;
   }
+
+  let postResults: SocialPostResult[];
+  try {
+    postResults = await generateSocialPosts(ctx, { platforms, perPlatform, prompt: parsed.data.prompt });
+  } catch (err) {
+    req.log.error({ err }, "Social post generation failed");
+    res.status(502).json({ error: "Failed to generate social posts" });
+    return;
+  }
+
+  const toInsert = postResults.map(p => ({
+    projectId,
+    status: "draft" as const,
+    platform: p.platform,
+    caption: p.caption,
+    hashtags: p.hashtags,
+    cta: p.cta,
+  }));
 
   const inserted = await db.insert(socialPostsTable).values(toInsert).returning();
 
@@ -215,12 +214,11 @@ router.post("/projects/:id/emails", async (req, res): Promise<void> => {
   const projectId = params.data.id;
   const type = parsed.data.type;
 
-  const emailTemplates: Record<string, { subject: string; body: string; previewText: string }> = {
-    welcome: { subject: "Welcome to [Company] — Here's How to Get Started", previewText: "Your journey to smarter marketing starts now", body: "Hi {{first_name}},\n\nWelcome aboard! You've just made the smartest marketing decision of the year.\n\nHere's what to do next:\n\n1. Complete your profile setup (2 minutes)\n2. Connect your first channel\n3. Watch your first AI analysis\n\nAny questions? Reply to this email — we read every one.\n\nBest,\nThe Team" },
-    sales: { subject: "{{first_name}}, here's why [Company] is growing 40% faster than competitors", previewText: "The secret is simpler than you think", body: "Hi {{first_name}},\n\nI wanted to share something that might change how you think about marketing ROI.\n\nOur customers who use all three core features — AI analysis, video generation, and campaign management — are seeing an average of 40% faster growth compared to their previous approach.\n\nHere's why it works:\n\n✓ AI replaces hours of manual research\n✓ Video content drives 3x more engagement\n✓ Autonomous campaigns optimize 24/7\n\nWant to see your personalized growth projection? Reply 'SHOW ME' and I'll set up a 15-minute call.\n\nBest,\nThe Growth Team" },
-    nurture: { subject: "The #1 mistake companies make with AI marketing (are you doing this?)", previewText: "Most businesses get this backwards", body: "Hi {{first_name}},\n\nI've talked to hundreds of founders this year. And there's one mistake I see over and over.\n\nThey use AI to automate what they're already doing instead of doing things they couldn't do before.\n\nExample: Using AI to write the same 3 blog posts faster.\n\nInstead of: Using AI to create 30 pieces of content a day, run competitor intelligence, produce videos, and launch ads — all simultaneously.\n\nThe businesses that win with AI aren't using it to go slightly faster. They're using it to operate at a completely different scale.\n\nThat's what we built GrowthForge to do.\n\nSee the difference: [Start Free Analysis]\n\nBest,\nThe Team" },
-    reactivation: { subject: "{{first_name}}, we noticed you haven't logged in — here's what you're missing", previewText: "Big updates since you last visited", body: "Hi {{first_name}},\n\nWe've been busy. Since you last logged in, we've shipped:\n\n• AI Video Generation (create 9 videos in one click)\n• Competitor Intelligence Reports (10 competitors analyzed automatically)\n• Autonomous Mode (AI runs campaigns 24/7 without you)\n\nYour competitors might already be using these features.\n\nLog back in and see what's waiting for you: [Continue Your Analysis]\n\nBest,\nThe Team" },
-  };
+  const ctx = await getGroundingContext(projectId);
+  if (!ctx) {
+    res.status(409).json({ error: "Run business analysis before generating an email campaign" });
+    return;
+  }
 
   const quota = await consumeTrialQuota(projectId, "email_campaigns", 1);
   if (!quota.allowed) {
@@ -228,7 +226,14 @@ router.post("/projects/:id/emails", async (req, res): Promise<void> => {
     return;
   }
 
-  const template = emailTemplates[type] ?? emailTemplates.welcome;
+  let emailResult: EmailResult;
+  try {
+    emailResult = await generateEmailCampaign(ctx, { type, subjectHint: parsed.data.subject, prompt: parsed.data.prompt });
+  } catch (err) {
+    req.log.error({ err }, "Email campaign generation failed");
+    res.status(502).json({ error: "Failed to generate email campaign" });
+    return;
+  }
 
   const [email] = await db.insert(emailCampaignsTable).values({
     projectId,
@@ -236,7 +241,7 @@ router.post("/projects/:id/emails", async (req, res): Promise<void> => {
     status: "draft",
     openRate: String((Math.random() * 20 + 20).toFixed(1)),
     clickRate: String((Math.random() * 8 + 3).toFixed(1)),
-    ...template,
+    ...emailResult,
   }).returning();
 
   await db.insert(activityTable).values({

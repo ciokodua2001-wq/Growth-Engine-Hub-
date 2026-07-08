@@ -4,3 +4,4 @@
 - [Clerk role-based redirect](clerk-role-based-redirect.md) — post-login role routing needs an intermediate redirect page + persistence useEffect; Clerk UserButton supports custom MenuItems/Link compound components.
 - [Clerk protected-page auth guard race](clerk-auth-guard-race.md) — gate protected-page data fetches on `isLoaded` (not just `isSignedIn`), or a genuinely signed-in user can see a permanent false "access denied".
 - [GrowthForge pre-existing typecheck debt](growthforge-typecheck-debt.md) — repo-wide `queryKey` and `admin.ts` string[] errors predate AI-analysis work; don't assume they're caused by your current change.
+- [Agent chat intent classification pattern](agent-chat-intent-classification.md) — split chat-agent into a cheap classify call + a real generation call so per-feature quotas can gate before the AI-costing action runs.
