@@ -681,7 +681,7 @@ export default function LandingPage() {
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">How GrowthForge Works</h2>
             <p className="text-white/50 text-lg">From URL to full marketing department in under 10 minutes.</p>
           </FadeIn>
-          <div className="grid md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {HOW_STEPS.map(({ num, icon: Icon, title, desc }, i) => (
               <FadeIn key={num} delay={i * 0.09}>
                 <div className="relative p-6 rounded-2xl border border-white/8 hover:border-[#00E676]/30 transition-all group h-full" style={{ background: "rgba(255,255,255,0.02)" }}>
@@ -786,7 +786,7 @@ export default function LandingPage() {
             </h2>
             <p className="text-white/50 text-lg max-w-2xl mx-auto">Turn a single website URL into a complete AI-powered marketing engine.</p>
           </FadeIn>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5 mb-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-12">
             {BUILDS_FROM_URL.map(({ icon: Icon, title, desc, features: feats, color }, i) => (
               <FadeIn key={title} delay={i * 0.07}>
                 <div className="group p-6 rounded-2xl border border-white/8 hover:border-white/20 h-full transition-all relative overflow-hidden"
@@ -832,7 +832,7 @@ export default function LandingPage() {
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">Everything a Marketing Team Does</h2>
             <p className="text-white/50 text-lg max-w-2xl mx-auto">One platform that replaces strategy consultants, content writers, video producers, ad managers, and data analysts.</p>
           </FadeIn>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {FEATURES.map(({ icon: Icon, title, desc }, i) => (
               <FadeIn key={title} delay={i * 0.06}>
                 <div className="p-6 rounded-2xl border border-white/8 hover:border-[#00E676]/30 transition-all group h-full" style={{ background: "rgba(255,255,255,0.02)" }}>
@@ -855,7 +855,7 @@ export default function LandingPage() {
             <SectionLabel>Who It's For</SectionLabel>
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">Built For Growth-Focused Businesses</h2>
           </FadeIn>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {WHO_CARDS.map(({ icon: Icon, title, desc }, i) => (
               <FadeIn key={title} delay={i * 0.08}>
                 <div className="p-7 rounded-2xl border border-white/8 hover:border-[#00E676]/30 transition-all text-center group h-full" style={{ background: "rgba(255,255,255,0.02)" }}>
@@ -874,7 +874,7 @@ export default function LandingPage() {
       {/* ── Forge AI ── */}
       <section id="forge" className="py-24 px-4 border-t border-white/8">
         <div className={W}>
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <FadeIn>
               <SectionLabel>Forge AI Agent</SectionLabel>
               <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">Meet Forge</h2>
@@ -901,7 +901,7 @@ export default function LandingPage() {
       {/* ── Business Intelligence ── */}
       <section className="py-24 px-4 border-t border-white/8">
         <div className={W}>
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <FadeIn delay={0.1}>
               <DashboardMockup active="Analysis" />
             </FadeIn>
@@ -926,7 +926,7 @@ export default function LandingPage() {
       {/* ── Competitor Intelligence ── */}
       <section className="py-24 px-4 border-t border-white/8">
         <div className={W}>
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <FadeIn>
               <SectionLabel>Competitive Edge</SectionLabel>
               <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">Discover What Your Competitors Are Missing</h2>
@@ -951,7 +951,7 @@ export default function LandingPage() {
       {/* ── Video Blueprint ── */}
       <section className="py-24 px-4 border-t border-white/8">
         <div className={W}>
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <FadeIn delay={0.1}>
               <DashboardMockup active="Videos" />
             </FadeIn>
@@ -983,7 +983,7 @@ export default function LandingPage() {
             <SectionLabel>Social Proof</SectionLabel>
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">What Early Users Are Saying</h2>
           </FadeIn>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {TESTIMONIALS.map(({ name, role, quote, stars }, i) => (
               <FadeIn key={name} delay={i * 0.1}>
                 <div className="p-7 rounded-2xl border border-white/8 flex flex-col gap-5 h-full" style={{ background: "rgba(255,255,255,0.02)" }}>
@@ -1009,7 +1009,7 @@ export default function LandingPage() {
             <SectionLabel>Why GrowthForge</SectionLabel>
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">Why Businesses Choose GrowthForge</h2>
           </FadeIn>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {TRUST_POINTS.map(({ icon: Icon, title, desc }, i) => (
               <FadeIn key={title} delay={i * 0.07}>
                 <div className="flex gap-4 p-6 rounded-2xl border border-white/8 h-full" style={{ background: "rgba(255,255,255,0.02)" }}>
@@ -1041,7 +1041,7 @@ export default function LandingPage() {
               <span className="text-amber-400 text-sm font-semibold">Paid plans launching soon — start free today</span>
             </div>
           </FadeIn>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {PRICING.map(({ name, price, desc, features: feats, highlight }, i) => (
               <FadeIn key={name} delay={i * 0.1}>
                 <div className={`p-8 rounded-2xl border flex flex-col gap-6 h-full relative ${highlight ? "border-[#00E676]/40" : "border-white/8"}`}
