@@ -235,7 +235,7 @@ export default function PlansPage() {
                 <h3 className="text-2xl font-bold text-white">Free Trial</h3>
                 <span className="text-[#00E676] font-semibold text-sm border border-[#00E676]/40 rounded-full px-2 py-0.5">14 days · $0</span>
               </div>
-              <p className="text-white/50 text-sm mb-4">No credit card · No commitment · Full access to all features</p>
+              <p className="text-white/50 text-sm mb-4">No credit card · No commitment · Access to all trial features</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
                 {TRIAL_FEATURES.map((f) => (
                   <div key={f} className="flex items-center gap-1.5 text-sm text-white/70">
