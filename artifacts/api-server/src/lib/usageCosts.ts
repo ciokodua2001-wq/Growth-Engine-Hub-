@@ -14,23 +14,36 @@ export const ACTION_COST_USD: Record<string, number> = {
   strategy:          0.020,
   social_posts:      0.005,   // per post
   email_campaigns:   0.020,
-  video_blueprints:  0.030,   // per batch call (clamped)
+  video_blueprints:  0.030,   // per batch call (clamped on trial)
   ads:               0.005,   // per ad
   agent_messages:    0.012,
-  video_render_1080p: 0.015,  // per minute rendered
-  video_render_4k:    0.033,  // per minute rendered (≈2.2× cost)
+  image_generation:  0.005,   // per image (managed billing)
+
+  // Video render pipeline — all-in cost per 30-second render segment
+  video_render_footage_30s:  0.107,  // MiniMax T2V clips + ElevenLabs TTS + Shotstack 1080p
+  video_render_avatar_30s:   0.158,  // MiniMax I2V (talking photo) + ElevenLabs TTS + Shotstack
+  video_render_combined_30s: 0.205,  // MiniMax I2V + T2V clips + ElevenLabs TTS + Shotstack
+  video_render_4k_surcharge: 0.009,  // Shotstack 4K vs 1080p delta per 30s render
+
+  // Legacy per-minute costs retained for backward compatibility with existing refund records
+  video_render_1080p: 0.015,  // per minute rendered (Shotstack only)
+  video_render_4k:    0.033,  // per minute rendered (Shotstack 4K only)
 };
 
 /**
  * Monthly AI cost ceiling per plan at full utilization (internal).
- * Threshold = 15% of this value.
+ * Represents worst-case spend when every video render uses combined mode (avatar + footage).
+ * Threshold = 15% of this value for refund ineligibility.
+ *
+ * Plan pricing: Starter $29 · Get-Going $79 · Growth $199 · Agency $599
+ * All plans land ~11-13% of revenue at 100% utilization — well within 20% target.
  */
 export const PLAN_MONTHLY_AI_CEILING: Record<string, number> = {
   trial:       0.45,
-  starter:     1.65,
-  "get-going": 5.10,
-  growth:      11.00,
-  agency:      22.00,
+  starter:     3.65,
+  "get-going": 9.62,
+  growth:      23.54,
+  agency:      69.34,
 };
 
 /** Internal refund ineligibility threshold (fraction of monthly ceiling) */

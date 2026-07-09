@@ -744,7 +744,16 @@ export const ListVideosResponseItem = zod.object({
   "hookStrength": zod.number().nullish(),
   "engagementPotential": zod.number().nullish(),
   "viralPotential": zod.number().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "renderStatus": zod.string().optional(),
+  "renderMode": zod.string().nullish(),
+  "renderResolution": zod.string().nullish(),
+  "renderJobId": zod.string().nullish(),
+  "renderStartedAt": zod.string().nullish(),
+  "renderCompletedAt": zod.string().nullish(),
+  "renderError": zod.string().nullish(),
+  "voiceoverUrl": zod.string().nullish(),
+  "avatarPhotoPath": zod.string().nullish()
 })
 export const ListVideosResponse = zod.array(ListVideosResponseItem)
 
@@ -778,7 +787,16 @@ export const GenerateVideosResponseItem = zod.object({
   "hookStrength": zod.number().nullish(),
   "engagementPotential": zod.number().nullish(),
   "viralPotential": zod.number().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "renderStatus": zod.string().optional(),
+  "renderMode": zod.string().nullish(),
+  "renderResolution": zod.string().nullish(),
+  "renderJobId": zod.string().nullish(),
+  "renderStartedAt": zod.string().nullish(),
+  "renderCompletedAt": zod.string().nullish(),
+  "renderError": zod.string().nullish(),
+  "voiceoverUrl": zod.string().nullish(),
+  "avatarPhotoPath": zod.string().nullish()
 })
 export const GenerateVideosResponse = zod.array(GenerateVideosResponseItem)
 
@@ -803,7 +821,16 @@ export const GetVideoResponse = zod.object({
   "hookStrength": zod.number().nullish(),
   "engagementPotential": zod.number().nullish(),
   "viralPotential": zod.number().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "renderStatus": zod.string().optional(),
+  "renderMode": zod.string().nullish(),
+  "renderResolution": zod.string().nullish(),
+  "renderJobId": zod.string().nullish(),
+  "renderStartedAt": zod.string().nullish(),
+  "renderCompletedAt": zod.string().nullish(),
+  "renderError": zod.string().nullish(),
+  "voiceoverUrl": zod.string().nullish(),
+  "avatarPhotoPath": zod.string().nullish()
 })
 
 
@@ -834,7 +861,16 @@ export const UpdateVideoResponse = zod.object({
   "hookStrength": zod.number().nullish(),
   "engagementPotential": zod.number().nullish(),
   "viralPotential": zod.number().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "renderStatus": zod.string().optional(),
+  "renderMode": zod.string().nullish(),
+  "renderResolution": zod.string().nullish(),
+  "renderJobId": zod.string().nullish(),
+  "renderStartedAt": zod.string().nullish(),
+  "renderCompletedAt": zod.string().nullish(),
+  "renderError": zod.string().nullish(),
+  "voiceoverUrl": zod.string().nullish(),
+  "avatarPhotoPath": zod.string().nullish()
 })
 
 
@@ -844,6 +880,151 @@ export const DeleteVideoParams = zod.object({
 })
 
 export const DeleteVideoResponse = zod.void()
+
+
+/**
+ * @summary Start a video render (paid plans only)
+ */
+export const StartVideoRenderParams = zod.object({
+  "id": zod.coerce.number(),
+  "videoId": zod.coerce.number()
+})
+
+export const startVideoRenderBodyModeDefault = `footage`;
+export const startVideoRenderBodyResolutionDefault = `1080p`;
+
+export const StartVideoRenderBody = zod.object({
+  "mode": zod.enum(['footage', 'avatar', 'combined']).default(startVideoRenderBodyModeDefault),
+  "resolution": zod.enum(['1080p', '4k']).default(startVideoRenderBodyResolutionDefault)
+})
+
+export const StartVideoRenderResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "title": zod.string(),
+  "type": zod.string(),
+  "status": zod.string(),
+  "script": zod.string().nullish(),
+  "storyboard": zod.string().nullish(),
+  "voiceover": zod.string().nullish(),
+  "thumbnailUrl": zod.string().nullish(),
+  "videoUrl": zod.string().nullish(),
+  "duration": zod.number().nullish(),
+  "hookStrength": zod.number().nullish(),
+  "engagementPotential": zod.number().nullish(),
+  "viralPotential": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "renderStatus": zod.string().optional(),
+  "renderMode": zod.string().nullish(),
+  "renderResolution": zod.string().nullish(),
+  "renderJobId": zod.string().nullish(),
+  "renderStartedAt": zod.string().nullish(),
+  "renderCompletedAt": zod.string().nullish(),
+  "renderError": zod.string().nullish(),
+  "voiceoverUrl": zod.string().nullish(),
+  "avatarPhotoPath": zod.string().nullish()
+})
+
+
+/**
+ * @summary Poll video render status
+ */
+export const GetVideoRenderStatusParams = zod.object({
+  "id": zod.coerce.number(),
+  "videoId": zod.coerce.number()
+})
+
+export const GetVideoRenderStatusResponse = zod.object({
+  "videoId": zod.number(),
+  "renderStatus": zod.string(),
+  "renderMode": zod.string().nullish(),
+  "renderResolution": zod.string().nullish(),
+  "renderStartedAt": zod.string().nullish(),
+  "renderCompletedAt": zod.string().nullish(),
+  "renderError": zod.string().nullish(),
+  "videoUrl": zod.string().nullish(),
+  "voiceoverUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Generate AI marketing images grounded in business context
+ */
+export const GenerateImageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const generateImageBodyStyleDefault = `photorealistic`;
+export const generateImageBodyOrientationDefault = `landscape`;
+export const generateImageBodyCountDefault = 1;
+export const generateImageBodyCountMax = 4;
+
+
+
+export const GenerateImageBody = zod.object({
+  "prompt": zod.string().nullish(),
+  "style": zod.enum(['photorealistic', 'illustration', '3d', 'minimal', 'cinematic']).default(generateImageBodyStyleDefault),
+  "orientation": zod.enum(['landscape', 'portrait', 'square']).default(generateImageBodyOrientationDefault),
+  "count": zod.number().min(1).max(generateImageBodyCountMax).default(generateImageBodyCountDefault)
+})
+
+export const GenerateImageResponse = zod.object({
+  "urls": zod.array(zod.string()),
+  "prompt": zod.string().optional(),
+  "style": zod.string().optional(),
+  "orientation": zod.string().optional(),
+  "count": zod.number()
+})
+
+
+/**
+ * @summary Request a presigned URL for file upload
+ */
+
+
+
+
+
+export const RequestUploadUrlBody = zod.object({
+  "name": zod.string().min(1),
+  "size": zod.number().min(1),
+  "contentType": zod.string().min(1)
+})
+
+
+
+
+
+
+export const RequestUploadUrlResponse = zod.object({
+  "uploadURL": zod.string().url(),
+  "objectPath": zod.string(),
+  "metadata": zod.object({
+  "name": zod.string().min(1),
+  "size": zod.number().min(1),
+  "contentType": zod.string().min(1)
+}).optional()
+})
+
+
+/**
+ * @summary Serve a public asset
+ */
+export const GetPublicObjectParams = zod.object({
+  "filePath": zod.coerce.string()
+})
+
+export const GetPublicObjectResponse = zod.unknown()
+
+
+/**
+ * @summary Serve an object from private storage
+ */
+export const GetStorageObjectParams = zod.object({
+  "objectPath": zod.coerce.string()
+})
+
+export const GetStorageObjectResponse = zod.unknown()
 
 
 /**
@@ -1047,7 +1228,16 @@ export const GetProjectAnalyticsResponse = zod.object({
   "hookStrength": zod.number().nullish(),
   "engagementPotential": zod.number().nullish(),
   "viralPotential": zod.number().nullish(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "renderStatus": zod.string().optional(),
+  "renderMode": zod.string().nullish(),
+  "renderResolution": zod.string().nullish(),
+  "renderJobId": zod.string().nullish(),
+  "renderStartedAt": zod.string().nullish(),
+  "renderCompletedAt": zod.string().nullish(),
+  "renderError": zod.string().nullish(),
+  "voiceoverUrl": zod.string().nullish(),
+  "avatarPhotoPath": zod.string().nullish()
 })).optional(),
   "chartData": zod.array(zod.object({
   "date": zod.string(),

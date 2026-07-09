@@ -31,4 +31,21 @@ export interface Video {
   /** @nullable */
   viralPotential?: number | null;
   createdAt: string;
+  renderStatus?: string;
+  /** @nullable */
+  renderMode?: string | null;
+  /** @nullable */
+  renderResolution?: string | null;
+  /** @nullable */
+  renderJobId?: string | null;
+  /** @nullable */
+  renderStartedAt?: string | null;
+  /** @nullable */
+  renderCompletedAt?: string | null;
+  /** @nullable */
+  renderError?: string | null;
+  /** @nullable */
+  voiceoverUrl?: string | null;
+  /** @nullable */
+  avatarPhotoPath?: string | null;
 }

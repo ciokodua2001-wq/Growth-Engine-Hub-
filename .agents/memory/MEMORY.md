@@ -8,3 +8,4 @@
 - [Agent chat intent classification pattern](agent-chat-intent-classification.md) — split chat-agent into a cheap classify call + a real generation call so per-feature quotas can gate before the AI-costing action runs.
 - [GrowthForge trial activation trigger](growthforge-trial-activation.md) — subscriptionStatus only becomes "trial" via /plans "Start Free Trial", not at signup/onboarding; route through /plans first when testing trial-gated UI.
 - [pdfkit esbuild externalization](pdfkit-esbuild-external.md) — pdfkit and fontkit must be in esbuild externals (build.mjs); fontkit's @swc/helpers CJS dependency breaks when bundled.
+- [Babel mixed type import collision](babel-type-import-collision.md) — `type X as Y` inside a mixed value+type import block causes Babel duplicate-identifier error in Vite; always use a separate `import type { X as Y }` statement instead.

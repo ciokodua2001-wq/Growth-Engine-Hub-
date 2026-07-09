@@ -343,6 +343,23 @@ export interface Video {
   /** @nullable */
   viralPotential?: number | null;
   createdAt: string;
+  renderStatus?: string;
+  /** @nullable */
+  renderMode?: string | null;
+  /** @nullable */
+  renderResolution?: string | null;
+  /** @nullable */
+  renderJobId?: string | null;
+  /** @nullable */
+  renderStartedAt?: string | null;
+  /** @nullable */
+  renderCompletedAt?: string | null;
+  /** @nullable */
+  renderError?: string | null;
+  /** @nullable */
+  voiceoverUrl?: string | null;
+  /** @nullable */
+  avatarPhotoPath?: string | null;
 }
 
 export interface VideoUpdate {
@@ -459,6 +476,111 @@ export interface Report {
   /** @nullable */
   recommendations?: string | null;
   createdAt: string;
+}
+
+export type VideoRenderInputMode = typeof VideoRenderInputMode[keyof typeof VideoRenderInputMode];
+
+
+export const VideoRenderInputMode = {
+  footage: 'footage',
+  avatar: 'avatar',
+  combined: 'combined',
+} as const;
+
+export type VideoRenderInputResolution = typeof VideoRenderInputResolution[keyof typeof VideoRenderInputResolution];
+
+
+export const VideoRenderInputResolution = {
+  '1080p': '1080p',
+  '4k': '4k',
+} as const;
+
+export interface VideoRenderInput {
+  mode?: VideoRenderInputMode;
+  resolution?: VideoRenderInputResolution;
+}
+
+export interface VideoRenderStatus {
+  videoId: number;
+  renderStatus: string;
+  /** @nullable */
+  renderMode?: string | null;
+  /** @nullable */
+  renderResolution?: string | null;
+  /** @nullable */
+  renderStartedAt?: string | null;
+  /** @nullable */
+  renderCompletedAt?: string | null;
+  /** @nullable */
+  renderError?: string | null;
+  /** @nullable */
+  videoUrl?: string | null;
+  /** @nullable */
+  voiceoverUrl?: string | null;
+}
+
+export interface AvatarUploadResponse {
+  avatarPhotoPath: string;
+  video?: Video;
+}
+
+export type ImageGenerateInputStyle = typeof ImageGenerateInputStyle[keyof typeof ImageGenerateInputStyle];
+
+
+export const ImageGenerateInputStyle = {
+  photorealistic: 'photorealistic',
+  illustration: 'illustration',
+  '3d': '3d',
+  minimal: 'minimal',
+  cinematic: 'cinematic',
+} as const;
+
+export type ImageGenerateInputOrientation = typeof ImageGenerateInputOrientation[keyof typeof ImageGenerateInputOrientation];
+
+
+export const ImageGenerateInputOrientation = {
+  landscape: 'landscape',
+  portrait: 'portrait',
+  square: 'square',
+} as const;
+
+export interface ImageGenerateInput {
+  /** @nullable */
+  prompt?: string | null;
+  style?: ImageGenerateInputStyle;
+  orientation?: ImageGenerateInputOrientation;
+  /**
+     * @minimum 1
+     * @maximum 4
+     */
+  count?: number;
+}
+
+export interface GeneratedImages {
+  urls: string[];
+  prompt?: string;
+  style?: string;
+  orientation?: string;
+  count: number;
+}
+
+export interface UploadUrlRequest {
+  /** @minLength 1 */
+  name: string;
+  /** @minimum 1 */
+  size: number;
+  /** @minLength 1 */
+  contentType: string;
+}
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+  metadata?: UploadUrlRequest;
+}
+
+export interface ErrorEnvelope {
+  error: string;
 }
 
 export interface AgentMessageInput {

@@ -6,6 +6,16 @@ import { projectsTable, trialUsageTable } from "@workspace/db";
 // project at or below $0.45 (see cost-per-unit table in the trial-spend-cap memory
 // note / replit.md). Every limit below participates in that budget — do not add a
 // new AI-costing feature without a matching entry here and a re-check of the total.
+//
+// Worst-case budget at max trial utilization (~$0.370 total, under $0.45 cap):
+//   analysis $0.030, 2×competitors $0.040, personas $0.020, strategy $0.020,
+//   competitor_report $0.040, 5×social_posts $0.025, email_campaigns $0.020,
+//   video_blueprints $0.030, 5×ads $0.025, 10×agent_messages $0.120,
+//   5×image_generation $0.025 → total ~$0.395
+//
+// Video renders are NOT available on trial — they are exclusively a paid feature.
+// Any new AI-costing feature must get its own TRIAL_LIMITS entry and be re-checked
+// against the $0.45 budget before shipping.
 export const TRIAL_LIMITS = {
   analysis: 1,
   competitors: 2,
@@ -17,6 +27,7 @@ export const TRIAL_LIMITS = {
   video_blueprints: 1,
   ads: 5,
   agent_messages: 10,
+  image_generation: 5,
 } as const;
 
 export type TrialFeature = keyof typeof TRIAL_LIMITS;
@@ -32,6 +43,7 @@ const FEATURE_LABELS: Record<TrialFeature, string> = {
   video_blueprints: "video blueprint generation",
   ads: "ad creative generation",
   agent_messages: "Forge AI messages",
+  image_generation: "AI image generation",
 };
 
 const FEATURE_UNITS: Record<TrialFeature, string> = {
@@ -45,6 +57,7 @@ const FEATURE_UNITS: Record<TrialFeature, string> = {
   video_blueprints: "time",
   ads: "ad",
   agent_messages: "message",
+  image_generation: "image",
 };
 
 /** Trial-plan video blueprint batches are capped smaller than the platform's normal

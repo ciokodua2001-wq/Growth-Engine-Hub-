@@ -21,6 +21,9 @@ tags:
   - name: assets
   - name: analytics
   - name: agent
+  - name: render
+  - name: images
+  - name: storage
 paths:
   /healthz:
     get:
@@ -721,6 +724,161 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  # ── Video Renders ────────────────────────────────────────────────────────────
+  /projects/{id}/videos/{videoId}/render:
+    post:
+      operationId: startVideoRender
+      tags: [render]
+      summary: Start a video render (paid plans only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: videoId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VideoRenderInput"
+      responses:
+        "200":
+          description: Video with updated render status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Video"
+        "409":
+          description: Render already in progress
+        "422":
+          description: Avatar photo missing for avatar/combined mode
+        "503":
+          description: Render services not yet configured
+    get:
+      operationId: getVideoRenderStatus
+      tags: [render]
+      summary: Poll video render status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: videoId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current render status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoRenderStatus"
+
+  # ── AI Images ────────────────────────────────────────────────────────────────
+  /projects/{id}/images/generate:
+    post:
+      operationId: generateImage
+      tags: [images]
+      summary: Generate AI marketing images grounded in business context
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImageGenerateInput"
+      responses:
+        "200":
+          description: Generated image URLs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedImages"
+        "403":
+          description: Trial limit exceeded
+
+  # ── Object Storage ──────────────────────────────────────────────────────────
+  /storage/uploads/request-url:
+    post:
+      tags: [storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Presigned upload URL generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "400":
+          description: Missing or invalid required fields
+        "500":
+          description: Failed to generate upload URL
+
+  /storage/public-objects/{filePath}:
+    get:
+      tags: [storage]
+      operationId: getPublicObject
+      summary: Serve a public asset
+      parameters:
+        - name: filePath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object content
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: File not found
+
+  /storage/objects/{objectPath}:
+    get:
+      tags: [storage]
+      operationId: getStorageObject
+      summary: Serve an object from private storage
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object content
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Object not found
 
   # ── Campaigns ──────────────────────────────────────────────────────────────
   /projects/{id}/campaigns:
@@ -1488,6 +1646,24 @@ components:
           type: ["integer", "null"]
         createdAt:
           type: string
+        renderStatus:
+          type: string
+        renderMode:
+          type: ["string", "null"]
+        renderResolution:
+          type: ["string", "null"]
+        renderJobId:
+          type: ["string", "null"]
+        renderStartedAt:
+          type: ["string", "null"]
+        renderCompletedAt:
+          type: ["string", "null"]
+        renderError:
+          type: ["string", "null"]
+        voiceoverUrl:
+          type: ["string", "null"]
+        avatarPhotoPath:
+          type: ["string", "null"]
 
     VideoUpdate:
       type: object
@@ -1686,6 +1862,122 @@ components:
         recommendations:
           type: ["string", "null"]
         createdAt:
+          type: string
+
+    # ── Video Render ─────────────────────────────────────────────────────────
+    VideoRenderInput:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [footage, avatar, combined]
+          default: footage
+        resolution:
+          type: string
+          enum: ["1080p", "4k"]
+          default: "1080p"
+
+    VideoRenderStatus:
+      type: object
+      required: [videoId, renderStatus]
+      properties:
+        videoId:
+          type: integer
+        renderStatus:
+          type: string
+        renderMode:
+          type: ["string", "null"]
+        renderResolution:
+          type: ["string", "null"]
+        renderStartedAt:
+          type: ["string", "null"]
+        renderCompletedAt:
+          type: ["string", "null"]
+        renderError:
+          type: ["string", "null"]
+        videoUrl:
+          type: ["string", "null"]
+        voiceoverUrl:
+          type: ["string", "null"]
+
+    AvatarUploadResponse:
+      type: object
+      required: [avatarPhotoPath]
+      properties:
+        avatarPhotoPath:
+          type: string
+        video:
+          $ref: "#/components/schemas/Video"
+
+    # ── Images ───────────────────────────────────────────────────────────────
+    ImageGenerateInput:
+      type: object
+      properties:
+        prompt:
+          type: ["string", "null"]
+        style:
+          type: string
+          enum: [photorealistic, illustration, "3d", minimal, cinematic]
+          default: photorealistic
+        orientation:
+          type: string
+          enum: [landscape, portrait, square]
+          default: landscape
+        count:
+          type: integer
+          minimum: 1
+          maximum: 4
+          default: 1
+
+    GeneratedImages:
+      type: object
+      required: [urls, count]
+      properties:
+        urls:
+          type: array
+          items:
+            type: string
+        prompt:
+          type: string
+        style:
+          type: string
+        orientation:
+          type: string
+        count:
+          type: integer
+
+    # ── Storage ──────────────────────────────────────────────────────────────
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        size:
+          type: integer
+          minimum: 1
+        contentType:
+          type: string
+          minLength: 1
+
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL:
+          type: string
+          format: uri
+        objectPath:
+          type: string
+        metadata:
+          $ref: "#/components/schemas/UploadUrlRequest"
+
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
           type: string
 
     # ── Agent ────────────────────────────────────────────────────────────────

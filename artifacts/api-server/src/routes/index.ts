@@ -5,11 +5,14 @@ import analysisRouter from "./analysis.js";
 import competitorsRouter from "./competitors.js";
 import contentRouter from "./content.js";
 import videosRouter from "./videos.js";
+import renderRouter from "./render.js";
+import imagesRouter from "./images.js";
 import campaignsRouter from "./campaigns.js";
 import authRouter from "./auth.js";
 import onboardingRouter from "./onboarding.js";
 import trialRouter from "./trial.js";
 import adminRouter from "./admin.js";
+import storageRouter from "./storage.js";
 
 const router: IRouter = Router();
 
@@ -22,7 +25,10 @@ router.use(analysisRouter);
 router.use(competitorsRouter);
 router.use(contentRouter);
 router.use(videosRouter);
+router.use(renderRouter);
+router.use(imagesRouter);
 router.use(campaignsRouter);
 router.use(adminRouter);
+router.use(storageRouter);
 
 export default router;

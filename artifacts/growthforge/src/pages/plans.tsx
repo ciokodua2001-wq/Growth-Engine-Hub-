@@ -41,7 +41,7 @@ type Plan = {
 const PLANS: Plan[] = [
   {
     name: "Starter",
-    price: 39,
+    price: 29,
     color: "#00E676",
     description: "For solo founders and small businesses",
     stats: [
@@ -91,7 +91,7 @@ const PLANS: Plan[] = [
   },
   {
     name: "Get-Going",
-    price: 99,
+    price: 79,
     color: "#00D4FF",
     highlight: "Most Popular",
     description: "For growing creators ready to scale",
@@ -151,7 +151,7 @@ const PLANS: Plan[] = [
   },
   {
     name: "Growth",
-    price: 299,
+    price: 199,
     color: "#14F195",
     description: "For teams serious about growth",
     stats: [
@@ -210,7 +210,7 @@ const PLANS: Plan[] = [
   },
   {
     name: "Agency",
-    price: 799,
+    price: 599,
     color: "#FF6B35",
     highlight: "Best Value",
     description: "For agencies managing multiple clients",
