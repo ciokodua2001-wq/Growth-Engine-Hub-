@@ -14,7 +14,7 @@ import {
   UpdateVideoBody,
   DeleteVideoParams,
 } from "@workspace/api-zod";
-import { requireProjectOwnershipParam } from "../lib/authz.js";
+import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGeneratedBatch } from "../lib/contentIntegrity.js";
 
 const router: IRouter = Router();
@@ -28,7 +28,7 @@ router.get("/projects/:id/videos", async (req, res): Promise<void> => {
   res.json(videos.map(v => ({ ...v, createdAt: v.createdAt.toISOString() })));
 });
 
-router.post("/projects/:id/videos", async (req, res): Promise<void> => {
+router.post("/projects/:id/videos", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = GenerateVideosParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = GenerateVideosBody.safeParse(req.body);

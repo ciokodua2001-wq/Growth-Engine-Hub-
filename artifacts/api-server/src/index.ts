@@ -1,5 +1,6 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
+import { startArchivalJob } from "./lib/archivalJob.js";
 
 const rawPort = process.env["PORT"];
 if (!rawPort) throw new Error("PORT environment variable is required but was not provided.");
@@ -13,4 +14,5 @@ app.listen(port, (err) => {
     process.exit(1);
   }
   logger.info({ port }, "Server listening");
+  startArchivalJob();
 });

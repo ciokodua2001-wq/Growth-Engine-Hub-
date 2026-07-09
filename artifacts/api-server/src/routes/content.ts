@@ -22,7 +22,7 @@ import {
   GenerateAdsParams,
   GenerateAdsBody,
 } from "@workspace/api-zod";
-import { requireProjectOwnershipParam } from "../lib/authz.js";
+import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGeneratedBatch, recordGenerated, hashContent } from "../lib/contentIntegrity.js";
 
 const router: IRouter = Router();
@@ -37,7 +37,7 @@ router.get("/projects/:id/content", async (req, res): Promise<void> => {
   res.json(items.map(c => ({ ...c, createdAt: c.createdAt.toISOString() })));
 });
 
-router.post("/projects/:id/content", async (req, res): Promise<void> => {
+router.post("/projects/:id/content", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = GenerateContentParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = GenerateContentBody.safeParse(req.body);
@@ -116,7 +116,7 @@ router.get("/projects/:id/social-posts", async (req, res): Promise<void> => {
   })));
 });
 
-router.post("/projects/:id/social-posts", async (req, res): Promise<void> => {
+router.post("/projects/:id/social-posts", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = GenerateSocialPostsParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = GenerateSocialPostsBody.safeParse(req.body);
@@ -220,7 +220,7 @@ router.get("/projects/:id/emails", async (req, res): Promise<void> => {
   res.json(emails.map(e => ({ ...e, openRate: e.openRate ? Number(e.openRate) : null, clickRate: e.clickRate ? Number(e.clickRate) : null, createdAt: e.createdAt.toISOString() })));
 });
 
-router.post("/projects/:id/emails", async (req, res): Promise<void> => {
+router.post("/projects/:id/emails", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = GenerateEmailsParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = GenerateEmailsBody.safeParse(req.body);
@@ -287,7 +287,7 @@ router.get("/projects/:id/ads", async (req, res): Promise<void> => {
   res.json(ads.map(a => ({ ...a, createdAt: a.createdAt.toISOString() })));
 });
 
-router.post("/projects/:id/ads", async (req, res): Promise<void> => {
+router.post("/projects/:id/ads", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = GenerateAdsParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = GenerateAdsBody.safeParse(req.body);

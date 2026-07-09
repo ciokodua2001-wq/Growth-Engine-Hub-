@@ -29,7 +29,7 @@ import {
   AgentChatBody,
   GetAgentHistoryParams,
 } from "@workspace/api-zod";
-import { requireProjectOwnershipParam } from "../lib/authz.js";
+import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 
 const router: IRouter = Router();
 
@@ -52,7 +52,7 @@ router.get("/projects/:id/campaigns", async (req, res): Promise<void> => {
   })));
 });
 
-router.post("/projects/:id/campaigns", async (req, res): Promise<void> => {
+router.post("/projects/:id/campaigns", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = CreateCampaignParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = CreateCampaignBody.safeParse(req.body);
@@ -201,7 +201,7 @@ router.get("/projects/:id/reports", async (req, res): Promise<void> => {
   res.json(reports.map(r => ({ ...r, createdAt: r.createdAt.toISOString() })));
 });
 
-router.post("/projects/:id/reports", async (req, res): Promise<void> => {
+router.post("/projects/:id/reports", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = GenerateReportParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = GenerateReportBody.safeParse(req.body);
@@ -412,7 +412,7 @@ async function performAgentAction(
   }
 }
 
-router.post("/projects/:id/agent/chat", async (req, res): Promise<void> => {
+router.post("/projects/:id/agent/chat", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = AgentChatParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = AgentChatBody.safeParse(req.body);

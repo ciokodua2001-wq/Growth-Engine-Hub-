@@ -21,7 +21,7 @@ import {
 import { fetchWebsiteContent, WebsiteFetchError } from "../lib/websiteFetcher.js";
 import { generateJson } from "../lib/aiJson.js";
 import { consumeTrialQuota } from "../lib/trialLimits.js";
-import { requireProjectOwnershipParam } from "../lib/authz.js";
+import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGenerated, recordGeneratedBatch, hashContent } from "../lib/contentIntegrity.js";
 
 const router: IRouter = Router();
@@ -91,7 +91,7 @@ Return a JSON object with exactly these string fields, each 1-3 sentences, speci
 }
 
 // Analyze website and generate business intelligence
-router.post("/projects/:id/analyze", async (req, res): Promise<void> => {
+router.post("/projects/:id/analyze", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = AnalyzeWebsiteParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -238,7 +238,7 @@ interface PersonaResult {
   buyingJourney: string;
 }
 
-router.post("/projects/:id/personas", async (req, res): Promise<void> => {
+router.post("/projects/:id/personas", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = GeneratePersonasParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -357,7 +357,7 @@ interface StrategyResult {
   funnelRecommendations: string;
 }
 
-router.post("/projects/:id/strategy", async (req, res): Promise<void> => {
+router.post("/projects/:id/strategy", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = GenerateMarketingStrategyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });

@@ -11,7 +11,7 @@ import {
 } from "@workspace/api-zod";
 import { generateJson } from "../lib/aiJson.js";
 import { consumeTrialQuota } from "../lib/trialLimits.js";
-import { requireProjectOwnershipParam } from "../lib/authz.js";
+import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGeneratedBatch, recordGenerated, hashContent } from "../lib/contentIntegrity.js";
 
 const router: IRouter = Router();
@@ -43,7 +43,7 @@ router.get("/projects/:id/competitors", async (req, res): Promise<void> => {
   res.json(competitors.map(c => ({ ...c, createdAt: c.createdAt.toISOString() })));
 });
 
-router.post("/projects/:id/competitors", async (req, res): Promise<void> => {
+router.post("/projects/:id/competitors", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = DiscoverCompetitorsParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -231,7 +231,7 @@ router.get("/projects/:id/competitor-report", async (req, res): Promise<void> =>
   res.json(serializeReport(projectId, competitors, report ?? null));
 });
 
-router.post("/projects/:id/competitor-report", async (req, res): Promise<void> => {
+router.post("/projects/:id/competitor-report", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = GenerateCompetitorReportParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });

@@ -12,6 +12,7 @@ export const usersTable = pgTable("users", {
   plan: text("plan").notNull().default("trial"),
   subscriptionStatus: text("subscription_status").notNull().default("trial"),
   trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   onboardingComplete: boolean("onboarding_complete").notNull().default(false),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

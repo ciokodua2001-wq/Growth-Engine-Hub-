@@ -189,7 +189,14 @@ router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> =
     const update: Partial<typeof usersTable.$inferInsert> = { updatedAt: new Date() };
     if (safeRole !== undefined) update.role = safeRole;
     if (plan !== undefined) update.plan = plan;
-    if (subscriptionStatus !== undefined) update.subscriptionStatus = subscriptionStatus;
+    if (subscriptionStatus !== undefined) {
+      update.subscriptionStatus = subscriptionStatus;
+      if (subscriptionStatus === "cancelled" && !update.cancelledAt) {
+        update.cancelledAt = new Date();
+      } else if (subscriptionStatus !== "cancelled") {
+        update.cancelledAt = null;
+      }
+    }
     if (suspended !== undefined) update.suspended = suspended;
 
     const [user] = await db.update(usersTable).set(update).where(eq(usersTable.id, req.params.id as string)).returning();

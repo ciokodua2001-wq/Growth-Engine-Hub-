@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { getAuth } from "@clerk/express";
 import { eq } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { projectsTable, type Project } from "@workspace/db";
+import { projectsTable, usersTable, type Project } from "@workspace/db";
 
 declare global {
   namespace Express {
@@ -31,6 +31,30 @@ export async function loadOwnedProject(userId: string, projectId: number): Promi
   const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId));
   if (!project || project.ownerId !== userId) return null;
   return project;
+}
+
+/**
+ * Route middleware that blocks AI content generation for cancelled subscribers.
+ * Cancelled users retain read-only access (GET routes) for 90 days post-cancellation;
+ * any attempt to generate new content returns 403 with a clear message.
+ * Wire onto individual POST routes that cost AI quota.
+ */
+export async function requireActiveSubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const userId = getAuth(req)?.userId;
+  if (!userId) { next(); return; }
+
+  const [user] = await db.select({ subscriptionStatus: usersTable.subscriptionStatus })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+
+  if (user?.subscriptionStatus === "cancelled") {
+    res.status(403).json({
+      error: "subscription_cancelled",
+      message: "Your subscription has been cancelled. Your existing content remains available in read-only mode for 90 days. To generate new content, please reactivate your subscription.",
+    });
+    return;
+  }
+  next();
 }
 
 /**
