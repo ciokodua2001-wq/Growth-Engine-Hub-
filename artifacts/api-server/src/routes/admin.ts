@@ -10,7 +10,7 @@ import {
   subscriptionUsageEventsTable,
   adminAlertsTable,
 } from "@workspace/db";
-import { eq, desc, count, sql, and, ilike, or, sum, max } from "drizzle-orm";
+import { eq, desc, count, sql, and, ilike, or, sum, max, isNotNull } from "drizzle-orm";
 import PDFDocument from "pdfkit";
 import nodemailer from "nodemailer";
 import { PassThrough } from "stream";
@@ -189,6 +189,8 @@ router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> =
     const update: Partial<typeof usersTable.$inferInsert> = { updatedAt: new Date() };
     if (safeRole !== undefined) update.role = safeRole;
     if (plan !== undefined) update.plan = plan;
+    const reactivating = subscriptionStatus !== undefined && subscriptionStatus !== "cancelled";
+
     if (subscriptionStatus !== undefined) {
       update.subscriptionStatus = subscriptionStatus;
       if (subscriptionStatus === "cancelled" && !update.cancelledAt) {
@@ -199,10 +201,21 @@ router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> =
     }
     if (suspended !== undefined) update.suspended = suspended;
 
-    const [user] = await db.update(usersTable).set(update).where(eq(usersTable.id, req.params.id as string)).returning();
+    const targetUserId = req.params.id as string;
+
+    const [user] = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(usersTable).set(update).where(eq(usersTable.id, targetUserId)).returning();
+      if (reactivating && updated) {
+        await tx
+          .update(projectsTable)
+          .set({ deletedAt: null })
+          .where(and(eq(projectsTable.ownerId, targetUserId), isNotNull(projectsTable.deletedAt)));
+      }
+      return [updated];
+    });
     if (!user) { res.status(404).json({ error: "Not found" }); return; }
 
-    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "user_updated", "user", req.params.id as string, { changes: update });
+    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "user_updated", "user", targetUserId, { changes: update, projectsRestored: reactivating });
     res.json(user);
   } catch (err) {
     req.log.error({ err }, "Error updating user");
