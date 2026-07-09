@@ -81,12 +81,25 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-white mb-3">7. Intellectual Property</h2>
+            <h2 className="text-xl font-bold text-white mb-3">7. Data Retention & Content Integrity</h2>
+            <p>Strapli Technologies maintains a cryptographic integrity log of all AI-generated assets delivered to your account. By using the Service, you acknowledge and agree to the following:</p>
+            <ul className="list-disc list-inside space-y-2 ml-2 mt-3">
+              <li><strong className="text-white">Content Delivery Records:</strong> Every AI-generated asset (including business analyses, marketing strategies, competitor reports, social posts, email campaigns, video blueprints, and ad creatives) is logged at the moment of generation with a SHA-256 cryptographic hash, a timestamp, and a delivery record linked to your account. These records are immutable and cannot be altered or deleted.</li>
+              <li><strong className="text-white">Retention Period:</strong> Strapli Technologies retains content integrity records for a minimum of twenty-four (24) months from the date of generation. The underlying generated assets stored in your account are retained for the duration of your active subscription and for ninety (90) days following account closure or cancellation.</li>
+              <li><strong className="text-white">User Responsibility to Export:</strong> You are solely responsible for exporting or downloading any generated assets you wish to preserve before cancelling your subscription or closing your account. Strapli Technologies assumes no liability for the loss of assets following the 90-day post-cancellation retention window.</li>
+              <li><strong className="text-white">No Liability for Platform Disruption:</strong> Strapli Technologies shall not be liable for the temporary unavailability of generated assets due to scheduled maintenance, force majeure events, or infrastructure outages, provided that the cryptographic integrity record of the asset is preserved. Temporary unavailability does not constitute loss or deletion of intellectual property.</li>
+              <li><strong className="text-white">Integrity Records as Legal Evidence:</strong> In the event of a dispute, claim, or legal proceeding concerning the existence, delivery, or content of any asset generated on this platform, Strapli Technologies reserves the right to produce the cryptographic integrity log, delivery timestamps, and associated access records as evidence. These records are authoritative as to what was generated and when.</li>
+              <li><strong className="text-white">Test and Internal Accounts:</strong> Accounts designated as internal, test, or administrative by Strapli Technologies are excluded from the legal integrity log and from any evidence produced in subscriber disputes. This exclusion applies solely to platform-operator accounts and does not affect subscriber records.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-white mb-3">8. Intellectual Property</h2>
             <p>The Service, including all software, content, and materials, is owned by Strapli Technologies Inc. and protected by intellectual property laws. You retain ownership of content you create using the Service. By using the Service, you grant us a limited license to process your content to provide and improve the Service.</p>
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-white mb-3">8. AI-Generated Content</h2>
+            <h2 className="text-xl font-bold text-white mb-3">9. AI-Generated Content</h2>
             <p>GrowthForge uses artificial intelligence to generate content, strategies, and recommendations. You acknowledge that:</p>
             <ul className="list-disc list-inside space-y-1.5 ml-2 mt-3">
               <li>AI-generated content may not always be accurate or complete</li>
@@ -98,27 +111,27 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-white mb-3">9. Disclaimer of Warranties</h2>
+            <h2 className="text-xl font-bold text-white mb-3">10. Disclaimer of Warranties</h2>
             <p>THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR MEET YOUR SPECIFIC REQUIREMENTS.</p>
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-white mb-3">10. Limitation of Liability</h2>
+            <h2 className="text-xl font-bold text-white mb-3">11. Limitation of Liability</h2>
             <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, STRAPLI TECHNOLOGIES INC. SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING OUT OF YOUR USE OF THE SERVICE.</p>
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-white mb-3">11. Termination</h2>
+            <h2 className="text-xl font-bold text-white mb-3">12. Termination</h2>
             <p>We reserve the right to suspend or terminate your account at our discretion if you violate these Terms, including without limitation any breach of the acceptable use or refund abuse provisions. You may cancel your account at any time. Upon termination, your right to use the Service ceases immediately. No refund is issued upon termination for cause.</p>
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-white mb-3">12. Governing Law</h2>
+            <h2 className="text-xl font-bold text-white mb-3">13. Governing Law</h2>
             <p>These Terms shall be governed by and construed in accordance with the laws of the jurisdiction in which Strapli Technologies Inc. is incorporated, without regard to conflict of law principles.</p>
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-white mb-3">13. Contact</h2>
+            <h2 className="text-xl font-bold text-white mb-3">14. Contact</h2>
             <div className="mt-3 p-4 rounded-xl border border-white/8 bg-white/3">
               <p><strong className="text-white">Strapli Technologies Inc.</strong></p>
               <p>Legal: <a href="mailto:legal@usegrowthforge.com" className="text-[#00E676]">legal@usegrowthforge.com</a></p>

@@ -22,6 +22,7 @@ import { fetchWebsiteContent, WebsiteFetchError } from "../lib/websiteFetcher.js
 import { generateJson } from "../lib/aiJson.js";
 import { consumeTrialQuota } from "../lib/trialLimits.js";
 import { requireProjectOwnershipParam } from "../lib/authz.js";
+import { recordGenerated, recordGeneratedBatch, hashContent } from "../lib/contentIntegrity.js";
 
 const router: IRouter = Router();
 
@@ -171,6 +172,17 @@ router.post("/projects/:id/analyze", async (req, res): Promise<void> => {
 
   await db.update(projectsTable).set({ industry: result.industry }).where(eq(projectsTable.id, projectId));
 
+  if (analysis) {
+    await recordGenerated({
+      userId: req.project!.ownerId!,
+      projectId,
+      contentType: "business_analysis",
+      contentId: String(analysis.id),
+      contentHash: hashContent(result),
+      summary: `Business analysis for ${websiteUrl}`,
+    });
+  }
+
   await db.insert(activityTable).values({
     projectId,
     type: "analysis",
@@ -297,6 +309,17 @@ Generate exactly 3 distinct, realistic buyer personas for this specific business
     personaResults.map(p => ({ ...p, avatarUrl: null, projectId }))
   ).returning();
 
+  await recordGeneratedBatch({
+    userId: req.project!.ownerId!,
+    projectId,
+    contentType: "personas",
+    items: inserted.map((p) => ({
+      id: p.id,
+      data: { name: p.name, occupation: p.occupation, motivations: p.motivations, objections: p.objections, buyingTriggers: p.buyingTriggers },
+      summary: `${p.name} (${p.occupation})`,
+    })),
+  });
+
   await db.insert(activityTable).values({
     projectId,
     type: "personas",
@@ -405,6 +428,17 @@ Return a JSON object with exactly these string fields, specific to THIS business
     [strategy] = await db.update(marketingStrategyTable).set({ status: "complete", ...strategyData }).where(eq(marketingStrategyTable.projectId, projectId)).returning();
   } else {
     [strategy] = await db.insert(marketingStrategyTable).values({ projectId, status: "complete", ...strategyData }).returning();
+  }
+
+  if (strategy) {
+    await recordGenerated({
+      userId: req.project!.ownerId!,
+      projectId,
+      contentType: "marketing_strategy",
+      contentId: String(strategy.id),
+      contentHash: hashContent(strategyData),
+      summary: `Marketing strategy`,
+    });
   }
 
   await db.insert(activityTable).values({

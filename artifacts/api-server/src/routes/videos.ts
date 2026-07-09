@@ -15,6 +15,7 @@ import {
   DeleteVideoParams,
 } from "@workspace/api-zod";
 import { requireProjectOwnershipParam } from "../lib/authz.js";
+import { recordGeneratedBatch } from "../lib/contentIntegrity.js";
 
 const router: IRouter = Router();
 
@@ -71,6 +72,17 @@ router.post("/projects/:id/videos", async (req, res): Promise<void> => {
   const inserted = await db.insert(videosTable).values(
     videoResults.map(t => ({ ...t, projectId, status: "complete" as const }))
   ).returning();
+
+  await recordGeneratedBatch({
+    userId: req.project!.ownerId!,
+    projectId,
+    contentType: "video_blueprints",
+    items: inserted.map((v) => ({
+      id: v.id,
+      data: { title: v.title, type: v.type, script: v.script, storyboard: v.storyboard, voiceover: v.voiceover },
+      summary: v.title,
+    })),
+  });
 
   await db.insert(activityTable).values({
     projectId,

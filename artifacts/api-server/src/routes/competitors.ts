@@ -12,6 +12,7 @@ import {
 import { generateJson } from "../lib/aiJson.js";
 import { consumeTrialQuota } from "../lib/trialLimits.js";
 import { requireProjectOwnershipParam } from "../lib/authz.js";
+import { recordGeneratedBatch, recordGenerated, hashContent } from "../lib/contentIntegrity.js";
 
 const router: IRouter = Router();
 
@@ -115,6 +116,17 @@ industry. Return JSON:
   const inserted = await db.insert(competitorsTable).values(
     competitorResults.map(c => ({ ...c, projectId }))
   ).returning();
+
+  await recordGeneratedBatch({
+    userId: req.project!.ownerId!,
+    projectId,
+    contentType: "competitors",
+    items: inserted.map((c) => ({
+      id: c.id,
+      data: { name: c.name, websiteUrl: c.websiteUrl, strengths: c.strengths, weaknesses: c.weaknesses, marketGaps: c.marketGaps },
+      summary: c.name,
+    })),
+  });
 
   await db.insert(activityTable).values({
     projectId,
@@ -248,6 +260,15 @@ router.post("/projects/:id/competitor-report", async (req, res): Promise<void> =
   } else {
     [report] = await db.insert(competitorReportTable).values({ projectId, ...insights }).returning();
   }
+
+  await recordGenerated({
+    userId: req.project!.ownerId!,
+    projectId,
+    contentType: "competitor_report",
+    contentId: String(report.id),
+    contentHash: hashContent(insights),
+    summary: `Competitor intelligence report`,
+  });
 
   await db.insert(activityTable).values({
     projectId,

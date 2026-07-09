@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, FolderOpen, CreditCard, Brain,
   FileText, HeadphonesIcon, BarChart2, ToggleLeft, Settings,
   Activity, Shield, Megaphone, ChevronLeft, ChevronRight,
-  Zap, LogOut, Menu, Loader2,
+  Zap, LogOut, Menu, Loader2, DatabaseZap,
 } from "lucide-react";
 
 const NAV = [
@@ -13,6 +13,7 @@ const NAV = [
   { label: "Users",         href: "/admin/users",        icon: Users },
   { label: "Projects",      href: "/admin/projects",     icon: FolderOpen },
   { label: "Subscriptions", href: "/admin/subscriptions",icon: CreditCard },
+  { label: "Data Integrity", href: "/admin/integrity",   icon: DatabaseZap },
   { label: "AI Usage",      href: "/admin/ai",           icon: Brain },
   { label: "Content",       href: "/admin/content",      icon: FileText },
   { label: "Support",       href: "/admin/support",      icon: HeadphonesIcon },

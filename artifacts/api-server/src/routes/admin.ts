@@ -15,6 +15,7 @@ import PDFDocument from "pdfkit";
 import nodemailer from "nodemailer";
 import { PassThrough } from "stream";
 import { computeRefundStatus, PLAN_MONTHLY_AI_CEILING, REFUND_INELIGIBILITY_THRESHOLD } from "../lib/usageCosts.js";
+import { contentIntegrityLogTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -847,6 +848,167 @@ router.post("/admin/self/promote", async (req, res): Promise<void> => {
     res.json({ message: "Promoted to super_admin and marked as Platform Owner", user });
   } catch (err) {
     req.log.error({ err }, "Error promoting user");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/* ─── Content Integrity ─────────────────────────────────────── */
+
+router.get("/admin/integrity", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const rows = await db
+      .select({
+        userId: contentIntegrityLogTable.userId,
+        email: usersTable.email,
+        plan: usersTable.plan,
+        subscriptionStatus: usersTable.subscriptionStatus,
+        isTestAccount: contentIntegrityLogTable.isTestAccount,
+        totalAssets: count(contentIntegrityLogTable.id),
+        firstGenerated: sql<string>`MIN(${contentIntegrityLogTable.generatedAt})`,
+        lastGenerated: sql<string>`MAX(${contentIntegrityLogTable.generatedAt})`,
+        lastAccessed: sql<string>`MAX(${contentIntegrityLogTable.lastAccessedAt})`,
+      })
+      .from(contentIntegrityLogTable)
+      .leftJoin(usersTable, eq(contentIntegrityLogTable.userId, usersTable.id))
+      .groupBy(
+        contentIntegrityLogTable.userId,
+        usersTable.email,
+        usersTable.plan,
+        usersTable.subscriptionStatus,
+        contentIntegrityLogTable.isTestAccount,
+      )
+      .orderBy(desc(sql`MAX(${contentIntegrityLogTable.generatedAt})`));
+
+    res.json(rows);
+  } catch (err) {
+    req.log.error({ err }, "Error fetching integrity overview");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/admin/integrity/:userId", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const userId = req.params["userId"] as string;
+    const assets = await db
+      .select()
+      .from(contentIntegrityLogTable)
+      .where(eq(contentIntegrityLogTable.userId, userId))
+      .orderBy(desc(contentIntegrityLogTable.generatedAt));
+
+    const [user] = await db
+      .select({ email: usersTable.email, plan: usersTable.plan, subscriptionStatus: usersTable.subscriptionStatus, isOwner: usersTable.isOwner })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId));
+
+    res.json({
+      user: user ?? null,
+      assets: assets.map((a) => ({
+        ...a,
+        generatedAt: a.generatedAt.toISOString(),
+        firstAccessedAt: a.firstAccessedAt?.toISOString() ?? null,
+        lastAccessedAt: a.lastAccessedAt?.toISOString() ?? null,
+      })),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Error fetching user integrity assets");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/admin/integrity/:userId/evidence-pdf", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const targetUserId = req.params["userId"] as string;
+    const auth = getAuth(req);
+
+    const [user] = await db
+      .select({ email: usersTable.email, plan: usersTable.plan, createdAt: usersTable.createdAt })
+      .from(usersTable)
+      .where(eq(usersTable.id, targetUserId));
+
+    const assets = await db
+      .select()
+      .from(contentIntegrityLogTable)
+      .where(and(eq(contentIntegrityLogTable.userId, targetUserId), eq(contentIntegrityLogTable.isTestAccount, false)))
+      .orderBy(contentIntegrityLogTable.generatedAt);
+
+    await auditLog(
+      auth.userId ?? "unknown",
+      auth.sessionClaims?.email as string | undefined,
+      "integrity_evidence_pdf_downloaded",
+      "user",
+      targetUserId,
+      { assetCount: assets.length },
+    );
+
+    const doc = new PDFDocument({ margin: 50, size: "A4" });
+    const pass = new PassThrough();
+    doc.pipe(pass);
+
+    const generatedOn = new Date().toUTCString();
+    const green = "#00E676";
+
+    doc.fontSize(22).fillColor(green).text("GrowthForge — Content Integrity Evidence Report", { align: "center" });
+    doc.moveDown(0.4);
+    doc.fontSize(10).fillColor("#aaaaaa").text(`Generated: ${generatedOn}`, { align: "center" });
+    doc.moveDown(0.4);
+    doc.fontSize(10).fillColor("#ffffff").text(`User: ${user?.email ?? targetUserId}   Plan: ${user?.plan ?? "—"}   Account created: ${user?.createdAt?.toUTCString() ?? "—"}`, { align: "center" });
+    doc.moveDown(1);
+
+    doc.fontSize(12).fillColor("#ffffff").text("Legal Notice", { underline: true });
+    doc.moveDown(0.3);
+    doc.fontSize(9).fillColor("#cccccc").text(
+      "This report is an immutable record produced by GrowthForge\'s content integrity system. Each row represents an AI-generated asset delivered to the subscriber\'s account. The SHA-256 hash is computed from the exact content delivered at generation time and is stored independently from the asset itself, providing cryptographic proof of delivery. This document may be submitted as evidence in payment dispute resolution proceedings in accordance with §5 and §7 of the GrowthForge Terms of Service.",
+      { lineGap: 3 },
+    );
+    doc.moveDown(1);
+
+    doc.fontSize(12).fillColor("#ffffff").text(`Asset Delivery Log (${assets.length} records)`, { underline: true });
+    doc.moveDown(0.5);
+
+    const colX = [50, 150, 260, 360, 460];
+    const headers = ["Type", "Summary", "Content ID", "Generated (UTC)", "Hash (first 16)"];
+    doc.fontSize(8).fillColor(green);
+    headers.forEach((h, i) => doc.text(h, colX[i], doc.y, { width: colX[i + 1] ? colX[i + 1] - colX[i] - 4 : 80, continued: i < headers.length - 1 }));
+    doc.moveDown(0.5);
+    doc.moveTo(50, doc.y).lineTo(550, doc.y).strokeColor("#444444").stroke();
+    doc.moveDown(0.3);
+
+    for (const asset of assets) {
+      const y = doc.y;
+      if (y > 760) {
+        doc.addPage();
+        doc.fontSize(8).fillColor(green);
+        headers.forEach((h, i) => doc.text(h, colX[i], doc.y, { width: colX[i + 1] ? colX[i + 1] - colX[i] - 4 : 80, continued: i < headers.length - 1 }));
+        doc.moveDown(0.5);
+        doc.moveTo(50, doc.y).lineTo(550, doc.y).strokeColor("#444444").stroke();
+        doc.moveDown(0.3);
+      }
+      const rowY = doc.y;
+      const cols = [
+        asset.contentType.replace(/_/g, " "),
+        (asset.summary ?? "—").slice(0, 28),
+        `#${asset.contentId}`,
+        asset.generatedAt.toISOString().replace("T", " ").slice(0, 19),
+        asset.contentHash.slice(0, 16) + "…",
+      ];
+      doc.fontSize(7.5).fillColor("#dddddd");
+      cols.forEach((v, i) => doc.text(v, colX[i], rowY, { width: colX[i + 1] ? colX[i + 1] - colX[i] - 4 : 80, continued: i < cols.length - 1, lineBreak: false }));
+      doc.moveDown(0.7);
+    }
+
+    doc.moveDown(1);
+    doc.fontSize(9).fillColor("#888888").text(
+      `Report exported by admin ${auth.sessionClaims?.email ?? auth.userId} on ${generatedOn}. Total verified assets: ${assets.length}. Strapli Technologies Inc.`,
+      { align: "center" },
+    );
+
+    doc.end();
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="integrity-evidence-${targetUserId.slice(0, 8)}-${Date.now()}.pdf"`);
+    pass.pipe(res);
+  } catch (err) {
+    req.log.error({ err }, "Error generating integrity evidence PDF");
     res.status(500).json({ error: "Internal server error" });
   }
 });

@@ -12,6 +12,7 @@ import AdminDashboard from "@/pages/admin/index";
 import AdminUsers from "@/pages/admin/users";
 import AdminProjects from "@/pages/admin/projects";
 import AdminSubscriptions from "@/pages/admin/subscriptions";
+import AdminIntegrity from "@/pages/admin/integrity";
 import AdminAI from "@/pages/admin/ai";
 import AdminContent from "@/pages/admin/content";
 import AdminSupport from "@/pages/admin/support";
@@ -189,6 +190,7 @@ function AppRoutes() {
       <Route path="/admin/users" component={AdminUsers} />
       <Route path="/admin/projects" component={AdminProjects} />
       <Route path="/admin/subscriptions" component={AdminSubscriptions} />
+      <Route path="/admin/integrity" component={AdminIntegrity} />
       <Route path="/admin/ai" component={AdminAI} />
       <Route path="/admin/content" component={AdminContent} />
       <Route path="/admin/support" component={AdminSupport} />

@@ -23,6 +23,7 @@ import {
   GenerateAdsBody,
 } from "@workspace/api-zod";
 import { requireProjectOwnershipParam } from "../lib/authz.js";
+import { recordGeneratedBatch, recordGenerated, hashContent } from "../lib/contentIntegrity.js";
 
 const router: IRouter = Router();
 
@@ -158,6 +159,17 @@ router.post("/projects/:id/social-posts", async (req, res): Promise<void> => {
 
   const inserted = await db.insert(socialPostsTable).values(toInsert).returning();
 
+  await recordGeneratedBatch({
+    userId: req.project!.ownerId!,
+    projectId,
+    contentType: "social_posts",
+    items: inserted.map((p) => ({
+      id: p.id,
+      data: { platform: p.platform, caption: p.caption, hashtags: p.hashtags, cta: p.cta },
+      summary: `${p.platform} social post`,
+    })),
+  });
+
   await db.insert(activityTable).values({
     projectId,
     type: "social",
@@ -247,6 +259,17 @@ router.post("/projects/:id/emails", async (req, res): Promise<void> => {
     ...emailResult,
   }).returning();
 
+  if (email) {
+    await recordGenerated({
+      userId: req.project!.ownerId!,
+      projectId,
+      contentType: "email_campaign",
+      contentId: String(email.id),
+      contentHash: hashContent({ type: email.type, subject: email.subject, body: email.body }),
+      summary: `${type} email: ${email.subject ?? "(no subject)"}`,
+    });
+  }
+
   await db.insert(activityTable).values({
     projectId,
     type: "email",
@@ -292,6 +315,17 @@ router.post("/projects/:id/ads", async (req, res): Promise<void> => {
 
   const toInsert = adTemplates.slice(0, count).map(t => ({ projectId, platform, status: "draft", ...t }));
   const inserted = await db.insert(adCreativesTable).values(toInsert).returning();
+
+  await recordGeneratedBatch({
+    userId: req.project!.ownerId!,
+    projectId,
+    contentType: "ad_creatives",
+    items: inserted.map((a) => ({
+      id: a.id,
+      data: { platform: a.platform, headline: a.headline, description: a.description, cta: a.cta },
+      summary: `${platform} ad: ${a.headline}`,
+    })),
+  });
 
   await db.insert(activityTable).values({
     projectId,

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, count, and } from "drizzle-orm";
+import { eq, desc, count, and, isNull } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   projectsTable,
@@ -36,7 +36,7 @@ router.get("/projects", async (req, res): Promise<void> => {
   const projects = await db
     .select()
     .from(projectsTable)
-    .where(eq(projectsTable.ownerId, userId))
+    .where(and(eq(projectsTable.ownerId, userId), isNull(projectsTable.deletedAt)))
     .orderBy(desc(projectsTable.createdAt));
   res.json(projects);
 });
@@ -98,8 +98,9 @@ router.delete("/projects/:id", async (req, res): Promise<void> => {
     return;
   }
   const [project] = await db
-    .delete(projectsTable)
-    .where(and(eq(projectsTable.id, params.data.id), eq(projectsTable.ownerId, req.project!.ownerId!)))
+    .update(projectsTable)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(projectsTable.id, params.data.id), eq(projectsTable.ownerId, req.project!.ownerId!), isNull(projectsTable.deletedAt)))
     .returning();
   if (!project) {
     res.status(404).json({ error: "Project not found" });
