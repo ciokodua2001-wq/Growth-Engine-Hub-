@@ -854,6 +854,33 @@ router.post("/admin/self/promote", async (req, res): Promise<void> => {
 
 /* ─── Content Integrity ─────────────────────────────────────── */
 
+router.patch("/admin/users/:userId/test-account", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const targetUserId = req.params["userId"] as string;
+    const { isTestAccount } = req.body as { isTestAccount: boolean };
+    if (typeof isTestAccount !== "boolean") {
+      res.status(400).json({ error: "isTestAccount must be a boolean" });
+      return;
+    }
+    await db.transaction(async (tx) => {
+      await tx.update(usersTable).set({ isTestAccount }).where(eq(usersTable.id, targetUserId));
+      await tx.update(contentIntegrityLogTable).set({ isTestAccount }).where(eq(contentIntegrityLogTable.userId, targetUserId));
+    });
+    const auth = getAuth(req);
+    await auditLog(
+      auth.userId ?? "unknown",
+      auth.sessionClaims?.email as string | undefined,
+      isTestAccount ? "user_marked_test_account" : "user_unmarked_test_account",
+      "user",
+      targetUserId,
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Error toggling test account flag");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.get("/admin/integrity", requireAdmin, async (req, res): Promise<void> => {
   try {
     const rows = await db
@@ -862,7 +889,7 @@ router.get("/admin/integrity", requireAdmin, async (req, res): Promise<void> => 
         email: usersTable.email,
         plan: usersTable.plan,
         subscriptionStatus: usersTable.subscriptionStatus,
-        isTestAccount: contentIntegrityLogTable.isTestAccount,
+        isTestAccount: usersTable.isTestAccount,
         totalAssets: count(contentIntegrityLogTable.id),
         firstGenerated: sql<string>`MIN(${contentIntegrityLogTable.generatedAt})`,
         lastGenerated: sql<string>`MAX(${contentIntegrityLogTable.generatedAt})`,
@@ -875,7 +902,7 @@ router.get("/admin/integrity", requireAdmin, async (req, res): Promise<void> => 
         usersTable.email,
         usersTable.plan,
         usersTable.subscriptionStatus,
-        contentIntegrityLogTable.isTestAccount,
+        usersTable.isTestAccount,
       )
       .orderBy(desc(sql`MAX(${contentIntegrityLogTable.generatedAt})`));
 

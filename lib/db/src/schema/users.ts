@@ -6,6 +6,7 @@ export const usersTable = pgTable("users", {
   role: text("role").notNull().default("user"),
   isOwner: boolean("is_owner").notNull().default(false),
   suspended: boolean("suspended").notNull().default(false),
+  isTestAccount: boolean("is_test_account").notNull().default(false),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   plan: text("plan").notNull().default("trial"),

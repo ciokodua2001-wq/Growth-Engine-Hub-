@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DatabaseZap, Hash, Clock, Eye, Download,
   ShieldCheck, TestTube, Search, ChevronRight, X, FileText,
@@ -41,6 +41,7 @@ interface UserDetail {
     plan: string | null;
     subscriptionStatus: string | null;
     isOwner: boolean;
+    isTestAccount: boolean;
   } | null;
   assets: AssetRow[];
 }
@@ -86,8 +87,8 @@ const TYPE_COLOR: Record<string, string> = {
 
 /* ── Drawer ─────────────────────────────────────────────────── */
 
-function UserDrawer({ userId, onClose }: { userId: string; onClose: () => void }) {
-  const { data, isLoading } = useQuery<UserDetail>({
+function UserDrawer({ userId, onClose, onTestAccountChanged }: { userId: string; onClose: () => void; onTestAccountChanged: () => void }) {
+  const { data, isLoading, refetch } = useQuery<UserDetail>({
     queryKey: ["/api/admin/integrity", userId],
     queryFn: async () => {
       const r = await fetch(`/api/admin/integrity/${userId}`, { credentials: "include" });
@@ -97,6 +98,30 @@ function UserDrawer({ userId, onClose }: { userId: string; onClose: () => void }
   });
 
   const [search, setSearch] = useState("");
+  const [togglingTest, setTogglingTest] = useState(false);
+
+  async function handleToggleTest() {
+    const current = data?.user?.isTestAccount ?? false;
+    const next = !current;
+    const label = next ? "test account" : "live subscriber";
+    if (!confirm(`Mark this account as a ${label}? This will ${next ? "exclude it from" : "include it in"} all evidence PDFs and retroactively update all their integrity log records.`)) return;
+    setTogglingTest(true);
+    try {
+      const r = await fetch(`/api/admin/users/${userId}/test-account`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isTestAccount: next }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      await refetch();
+      onTestAccountChanged();
+    } catch (err) {
+      alert(`Failed to update: ${err}`);
+    } finally {
+      setTogglingTest(false);
+    }
+  }
 
   const filtered = (data?.assets ?? []).filter((a) => {
     const q = search.toLowerCase();
@@ -138,12 +163,27 @@ function UserDrawer({ userId, onClose }: { userId: string; onClose: () => void }
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <button
+              onClick={handleToggleTest}
+              disabled={togglingTest || isLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all disabled:opacity-50"
+              style={
+                data?.user?.isTestAccount
+                  ? { background: "#ffffff10", borderColor: "#ffffff20", color: "#ffffff70" }
+                  : { background: "#FFB80015", borderColor: "#FFB80040", color: "#FFB800" }
+              }
+              title={data?.user?.isTestAccount ? "Unmark as test account" : "Mark as test account"}
+            >
+              <TestTube className="w-3 h-3" />
+              {data?.user?.isTestAccount ? "Unmark test" : "Mark as test"}
+            </button>
             <button
               onClick={handleDownloadPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              disabled={data?.user?.isTestAccount}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: "#00E676", color: "#000" }}
-              title="Download evidence PDF"
+              title={data?.user?.isTestAccount ? "Test accounts are excluded from evidence PDFs" : "Download evidence PDF"}
             >
               <Download className="w-3 h-3" />
               Evidence PDF
@@ -224,6 +264,7 @@ function UserDrawer({ userId, onClose }: { userId: string; onClose: () => void }
 /* ── Main page ──────────────────────────────────────────────── */
 
 export default function IntegrityPage() {
+  const queryClient = useQueryClient();
   const [searchQ, setSearchQ] = useState("");
   const [showTest, setShowTest] = useState(false);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
@@ -352,7 +393,11 @@ export default function IntegrityPage() {
       </div>
 
       {selectedUser && (
-        <UserDrawer userId={selectedUser} onClose={() => setSelectedUser(null)} />
+        <UserDrawer
+          userId={selectedUser}
+          onClose={() => setSelectedUser(null)}
+          onTestAccountChanged={() => queryClient.invalidateQueries({ queryKey: ["/api/admin/integrity"] })}
+        />
       )}
     </AdminLayout>
   );

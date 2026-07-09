@@ -23,11 +23,11 @@ export function hashContent(data: unknown): string {
 
 async function getIsTestAccount(userId: string): Promise<boolean> {
   const [user] = await db
-    .select({ isOwner: usersTable.isOwner, role: usersTable.role })
+    .select({ isOwner: usersTable.isOwner, role: usersTable.role, isTestAccount: usersTable.isTestAccount })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
   if (!user) return false;
-  return user.isOwner || ["admin", "super_admin"].includes(user.role ?? "");
+  return user.isOwner || user.isTestAccount || ["admin", "super_admin"].includes(user.role ?? "");
 }
 
 export async function recordGenerated(params: {
