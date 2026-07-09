@@ -176,7 +176,7 @@ const PRICING = [
   {
     name: "Get-Going", price: 99, color: "#00D4FF", highlight: true, highlightLabel: "Most Popular",
     desc: "For growing creators ready to scale",
-    stats: [{ value: "3", label: "Projects" }, { value: "8+1K min", label: "Video/mo" }, { value: "80", label: "Content/mo" }],
+    stats: [{ value: "3", label: "Projects" }, { value: "8+1 min", label: "1080p+4K/mo" }, { value: "80", label: "Content/mo" }],
     groups: [
       { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["8 Website Re-analyses / month", "6 Competitor Reports / month", "3 Marketing Strategies / month", "10 AI Customer Personas / month"] },
       { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["50 Social Posts / month", "15 Email Campaigns / month", "15 AI Ad Creatives / month"] },
@@ -188,7 +188,7 @@ const PRICING = [
   {
     name: "Growth", price: 299, color: "#14F195", highlight: false,
     desc: "For teams serious about growth",
-    stats: [{ value: "6", label: "Projects" }, { value: "25+4K min", label: "Video/mo" }, { value: "160", label: "Content/mo" }],
+    stats: [{ value: "6", label: "Projects" }, { value: "25+4 min", label: "1080p+4K/mo" }, { value: "160", label: "Content/mo" }],
     groups: [
       { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["15 Website Re-analyses / month", "12 Competitor Reports / month", "6 Marketing Strategies / month", "20 AI Customer Personas / month", "Competitor Video Mining"] },
       { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["100 Social Posts / month", "30 Email Campaigns / month", "30 AI Ad Creatives / month"] },
@@ -200,7 +200,7 @@ const PRICING = [
   {
     name: "Agency", price: 799, color: "#FF6B35", highlight: false, highlightLabel: "Best Value",
     desc: "For agencies managing multiple clients",
-    stats: [{ value: "20", label: "Projects" }, { value: "60+10K min", label: "Video/mo" }, { value: "320", label: "Content/mo" }],
+    stats: [{ value: "20", label: "Projects" }, { value: "60+10 min", label: "1080p+4K/mo" }, { value: "320", label: "Content/mo" }],
     groups: [
       { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["30 Website Re-analyses / month", "25 Competitor Reports / month", "15 Marketing Strategies / month", "50 AI Customer Personas / month"] },
       { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["200 Social Posts / month", "60 Email Campaigns / month", "60 AI Ad Creatives / month"] },

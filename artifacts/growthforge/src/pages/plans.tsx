@@ -97,7 +97,7 @@ const PLANS: Plan[] = [
     description: "For growing creators ready to scale",
     stats: [
       { value: "3", label: "Projects" },
-      { value: "8+1K min", label: "Video / mo" },
+      { value: "8+1 min", label: "1080p+4K/mo" },
       { value: "80", label: "Content / mo" },
     ],
     groups: [
@@ -156,7 +156,7 @@ const PLANS: Plan[] = [
     description: "For teams serious about growth",
     stats: [
       { value: "6", label: "Projects" },
-      { value: "25+4K min", label: "Video / mo" },
+      { value: "25+4 min", label: "1080p+4K/mo" },
       { value: "160", label: "Content / mo" },
     ],
     groups: [
@@ -216,7 +216,7 @@ const PLANS: Plan[] = [
     description: "For agencies managing multiple clients",
     stats: [
       { value: "20", label: "Projects" },
-      { value: "60+10K min", label: "Video / mo" },
+      { value: "60+10 min", label: "1080p+4K/mo" },
       { value: "320", label: "Content / mo" },
     ],
     groups: [
