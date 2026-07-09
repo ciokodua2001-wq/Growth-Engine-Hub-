@@ -1,31 +1,31 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Wallet, TrendingUp, TrendingDown, AlertTriangle, CheckCircle,
-  Plus, Settings, ChevronDown, ChevronUp, RefreshCw, ArrowUpCircle, ArrowDownCircle,
+  RefreshCw, ExternalLink, CheckCircle, XCircle, AlertTriangle,
+  Minus, ArrowDownCircle,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/admin-layout";
 
-interface Bank {
-  id: number;
+interface ProviderStatus {
   provider: string;
   displayName: string;
+  icon: string;
+  keyConfigured: boolean;
+  keyValid: boolean | null;
+  balance: number | null;
+  used: number | null;
+  limit: number | null;
   unit: string;
-  balance: number;
-  peakBalance: number;
-  totalAdded: number;
-  alertThresholdPct: number;
-  alertEmail: string | null;
-  alertEnabled: boolean;
-  lastAlertAt: string | null;
-  notes: string | null;
-  updatedAt: string;
+  pct: number | null;
+  managedBy: string | null;
+  dashboardUrl: string;
+  error: string | null;
 }
 
 interface Transaction {
   id: number;
   provider: string;
-  type: "topup" | "deduction";
+  type: string;
   amount: number;
   balanceAfter: number;
   description: string;
@@ -41,453 +41,246 @@ const PROVIDER_COLORS: Record<string, string> = {
   shotstack:  "#14F195",
 };
 
-const PROVIDER_ICONS: Record<string, string> = {
-  anthropic:  "🧠",
-  openai:     "🖼️",
-  minimax:    "🎬",
-  elevenlabs: "🎙️",
-  shotstack:  "⚙️",
-};
-
 function fmt(n: number, unit: string) {
   if (unit === "USD") return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  return `${n.toLocaleString("en-US", { maximumFractionDigits: 2 })} ${unit}`;
+  return n.toLocaleString("en-US", { maximumFractionDigits: 0 }) + " " + unit;
 }
 
-function pct(bank: Bank) {
-  if (bank.peakBalance <= 0) return 100;
-  return Math.min(100, Math.round((bank.balance / bank.peakBalance) * 100));
-}
-
-function BalanceBar({ value, threshold }: { value: number; threshold: number }) {
-  const color = value <= threshold ? "#ef4444" : value <= threshold * 1.5 ? "#f59e0b" : "#00E676";
+function BalanceBar({ pct, threshold = 30 }: { pct: number; threshold?: number }) {
+  const color = pct <= threshold ? "#ef4444" : pct <= threshold * 1.5 ? "#f59e0b" : "#00E676";
   return (
-    <div className="w-full h-2 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
-      <div
-        className="h-2 rounded-full transition-all duration-500"
-        style={{ width: `${value}%`, background: color }}
-      />
+    <div className="w-full h-1.5 rounded-full mt-2" style={{ background: "rgba(255,255,255,0.08)" }}>
+      <div className="h-1.5 rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
     </div>
   );
 }
 
-function TopUpModal({ bank, onClose, onSuccess }: { bank: Bank; onClose: () => void; onSuccess: () => void }) {
-  const [amount, setAmount] = useState("");
-  const [notes, setNotes] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  async function submit() {
-    const n = parseFloat(amount);
-    if (!n || n <= 0) { setError("Enter a positive amount"); return; }
-    setLoading(true);
-    setError("");
-    try {
-      const r = await fetch(`/api/admin/credits/${bank.provider}/topup`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: n, notes }),
-      });
-      if (!r.ok) throw new Error(await r.text());
-      onSuccess();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
-      <div className="w-full max-w-md rounded-2xl border border-white/10 p-6 space-y-4" style={{ background: "#0d1b2e" }}>
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">{PROVIDER_ICONS[bank.provider] ?? "💳"}</span>
-          <div>
-            <div className="text-white font-bold text-lg">Top Up {bank.displayName}</div>
-            <div className="text-white/40 text-sm">Current: {fmt(bank.balance, bank.unit)}</div>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div>
-            <label className="text-white/60 text-xs font-semibold uppercase tracking-widest block mb-1.5">
-              Amount ({bank.unit})
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="any"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder={`e.g. 1000`}
-              className="w-full px-4 py-3 rounded-xl text-white text-sm outline-none border border-white/10 focus:border-white/30 transition-all"
-              style={{ background: "rgba(255,255,255,0.06)" }}
-            />
-          </div>
-          <div>
-            <label className="text-white/60 text-xs font-semibold uppercase tracking-widest block mb-1.5">
-              Notes (optional)
-            </label>
-            <input
-              type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. MiniMax invoice #1234"
-              className="w-full px-4 py-3 rounded-xl text-white text-sm outline-none border border-white/10 focus:border-white/30 transition-all"
-              style={{ background: "rgba(255,255,255,0.06)" }}
-            />
-          </div>
-          {error && <div className="text-red-400 text-sm">{error}</div>}
-        </div>
-
-        <div className="flex gap-3 pt-2">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold text-white/50 border border-white/10 hover:text-white hover:border-white/30 transition-all"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={submit}
-            disabled={loading}
-            className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-black transition-all hover:scale-[1.02] disabled:opacity-50"
-            style={{ background: "#00E676" }}
-          >
-            {loading ? "Adding…" : "Add Credits"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+function KeyStatus({ valid }: { valid: boolean | null }) {
+  if (valid === null) return null;
+  return valid
+    ? <span className="flex items-center gap-1 text-emerald-400 text-xs font-semibold"><CheckCircle className="w-3 h-3" /> Key valid</span>
+    : <span className="flex items-center gap-1 text-red-400 text-xs font-semibold"><XCircle className="w-3 h-3" /> Key invalid</span>;
 }
 
-function SettingsPanel({ bank, onSave }: { bank: Bank; onSave: () => void }) {
-  const [threshold, setThreshold] = useState(String(bank.alertThresholdPct));
-  const [email, setEmail] = useState(bank.alertEmail ?? "");
-  const [enabled, setEnabled] = useState(bank.alertEnabled);
-  const [unit, setUnit] = useState(bank.unit);
-  const [loading, setLoading] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  async function save() {
-    setLoading(true);
-    try {
-      const r = await fetch(`/api/admin/credits/${bank.provider}/settings`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          alertThresholdPct: parseInt(threshold, 10),
-          alertEmail: email,
-          alertEnabled: enabled,
-          unit,
-        }),
-      });
-      if (!r.ok) throw new Error(await r.text());
-      setSaved(true);
-      setTimeout(() => { setSaved(false); onSave(); }, 1200);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="space-y-4 pt-4 border-t border-white/8">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-white/50 text-xs uppercase tracking-widest block mb-1">Alert Threshold %</label>
-          <input
-            type="number" min="1" max="99" value={threshold}
-            onChange={(e) => setThreshold(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg text-white text-sm border border-white/10 focus:border-white/30 outline-none transition-all"
-            style={{ background: "rgba(255,255,255,0.06)" }}
-          />
-        </div>
-        <div>
-          <label className="text-white/50 text-xs uppercase tracking-widest block mb-1">Credit Unit Label</label>
-          <input
-            type="text" value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg text-white text-sm border border-white/10 focus:border-white/30 outline-none transition-all"
-            style={{ background: "rgba(255,255,255,0.06)" }}
-          />
-        </div>
-      </div>
-      <div>
-        <label className="text-white/50 text-xs uppercase tracking-widest block mb-1">Alert Email</label>
-        <input
-          type="email" value={email} placeholder="you@example.com"
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg text-white text-sm border border-white/10 focus:border-white/30 outline-none transition-all"
-          style={{ background: "rgba(255,255,255,0.06)" }}
-        />
-      </div>
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-white/70 text-sm font-medium">Email alerts enabled</div>
-          <div className="text-white/30 text-xs">Requires SMTP_HOST to be configured</div>
-        </div>
-        <button
-          onClick={() => setEnabled(!enabled)}
-          className="relative w-11 h-6 rounded-full transition-all"
-          style={{ background: enabled ? "#00E676" : "rgba(255,255,255,0.1)" }}
-        >
-          <div className={`absolute top-1 w-4 h-4 bg-black rounded-full transition-all ${enabled ? "left-6" : "left-1"}`} />
-        </button>
-      </div>
-      <button
-        onClick={save}
-        disabled={loading}
-        className="px-4 py-2 rounded-lg text-xs font-bold text-black transition-all hover:scale-[1.02] disabled:opacity-50"
-        style={{ background: saved ? "#14F195" : "#00E676" }}
-      >
-        {saved ? "✓ Saved" : loading ? "Saving…" : "Save Settings"}
-      </button>
-    </div>
-  );
-}
-
-function BankCard({ bank, onRefresh }: { bank: Bank; onRefresh: () => void }) {
+function ProviderCard({ p }: { p: ProviderStatus }) {
   const [showTxns, setShowTxns] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showTopUp, setShowTopUp] = useState(false);
+  const color = PROVIDER_COLORS[p.provider] ?? "#ffffff";
+  const isManaged = !!p.managedBy;
 
   const { data: txns } = useQuery<Transaction[]>({
-    queryKey: ["/api/admin/credits", bank.provider, "transactions"],
+    queryKey: ["/api/admin/credits/live", p.provider, "transactions"],
     queryFn: async () => {
-      const r = await fetch(`/api/admin/credits/${bank.provider}/transactions?limit=20`, { credentials: "include" });
+      const r = await fetch(`/api/admin/credits/live/${p.provider}/transactions`, { credentials: "include" });
       if (!r.ok) throw new Error(await r.text());
       return r.json();
     },
     enabled: showTxns,
   });
 
-  const balancePct = pct(bank);
-  const isLow = balancePct <= bank.alertThresholdPct;
-  const isWarning = !isLow && balancePct <= bank.alertThresholdPct * 1.5;
-  const color = PROVIDER_COLORS[bank.provider] ?? "#ffffff";
-
   return (
-    <>
-      {showTopUp && (
-        <TopUpModal
-          bank={bank}
-          onClose={() => setShowTopUp(false)}
-          onSuccess={() => { setShowTopUp(false); onRefresh(); }}
-        />
-      )}
-
-      <div
-        className="rounded-2xl border p-5 space-y-4 transition-all"
-        style={{
-          background: "rgba(255,255,255,0.02)",
-          borderColor: isLow ? "rgba(239,68,68,0.3)" : isWarning ? "rgba(245,158,11,0.3)" : "rgba(255,255,255,0.08)",
-        }}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
-              style={{ background: `${color}18`, border: `1px solid ${color}30` }}
-            >
-              {PROVIDER_ICONS[bank.provider] ?? "💳"}
-            </div>
-            <div>
-              <div className="text-white font-bold text-sm">{bank.displayName}</div>
-              <div className="text-white/40 text-xs mt-0.5">
-                {isLow
-                  ? <span className="text-red-400 font-semibold flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Low balance</span>
-                  : isWarning
-                  ? <span className="text-amber-400 font-semibold flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Getting low</span>
-                  : <span className="text-emerald-400 flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Healthy</span>
-                }
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={() => setShowTopUp(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-black shrink-0 transition-all hover:scale-[1.04]"
-            style={{ background: "#00E676" }}
+    <div
+      className="rounded-2xl border p-5 space-y-4 flex flex-col"
+      style={{
+        background: "rgba(255,255,255,0.02)",
+        borderColor: !p.keyConfigured
+          ? "rgba(255,255,255,0.08)"
+          : p.keyValid === false
+          ? "rgba(239,68,68,0.25)"
+          : isManaged
+          ? `${color}20`
+          : p.pct !== null && p.pct <= 30
+          ? "rgba(239,68,68,0.25)"
+          : "rgba(255,255,255,0.08)",
+      }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
+            style={{ background: `${color}15`, border: `1px solid ${color}25` }}
           >
-            <Plus className="w-3 h-3" /> Top Up
-          </button>
-        </div>
-
-        <div>
-          <div className="flex items-baseline justify-between mb-1.5">
-            <span className="text-white text-2xl font-black">{fmt(bank.balance, bank.unit)}</span>
-            <span className="text-white/40 text-xs">{balancePct}% remaining</span>
+            {p.icon}
           </div>
-          <BalanceBar value={balancePct} threshold={bank.alertThresholdPct} />
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)" }}>
-            <div className="text-white/40 text-xs mb-0.5">Total added</div>
-            <div className="text-white font-semibold text-sm">{fmt(bank.totalAdded, bank.unit)}</div>
-          </div>
-          <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)" }}>
-            <div className="text-white/40 text-xs mb-0.5">Total used</div>
-            <div className="text-white font-semibold text-sm">{fmt(bank.totalAdded - bank.balance, bank.unit)}</div>
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            onClick={() => { setShowTxns(!showTxns); setShowSettings(false); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/50 hover:text-white border border-white/8 hover:border-white/20 transition-all"
-          >
-            {showTxns ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            History
-          </button>
-          <button
-            onClick={() => { setShowSettings(!showSettings); setShowTxns(false); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white/50 hover:text-white border border-white/8 hover:border-white/20 transition-all"
-          >
-            <Settings className="w-3 h-3" />
-            Alert settings
-          </button>
-        </div>
-
-        {showTxns && (
-          <div className="space-y-1.5 max-h-56 overflow-y-auto">
-            {!txns
-              ? <div className="text-white/30 text-xs text-center py-4">Loading…</div>
-              : txns.length === 0
-              ? <div className="text-white/30 text-xs text-center py-4">No transactions yet</div>
-              : txns.map((t) => (
-                <div key={t.id} className="flex items-center gap-3 px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
-                  {t.type === "topup"
-                    ? <ArrowUpCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    : <ArrowDownCircle className="w-4 h-4 text-red-400 shrink-0" />
-                  }
-                  <div className="flex-1 min-w-0">
-                    <div className="text-white/70 text-xs truncate">{t.description}</div>
-                    <div className="text-white/30 text-[10px]">{new Date(t.createdAt).toLocaleString()}</div>
-                  </div>
-                  <div className={`text-xs font-bold shrink-0 ${t.type === "topup" ? "text-emerald-400" : "text-red-400"}`}>
-                    {t.type === "topup" ? "+" : "-"}{fmt(t.amount, bank.unit)}
-                  </div>
-                </div>
-              ))
+          <div>
+            <div className="text-white font-bold text-sm">{p.displayName}</div>
+            {p.managedBy
+              ? <div className="text-xs mt-0.5" style={{ color }}>{p.managedBy}</div>
+              : <KeyStatus valid={p.keyValid} />
             }
           </div>
-        )}
-
-        {showSettings && <SettingsPanel bank={bank} onSave={onRefresh} />}
+        </div>
+        <a
+          href={p.dashboardUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white/40 hover:text-white border border-white/8 hover:border-white/20 transition-all shrink-0"
+        >
+          <ExternalLink className="w-3 h-3" /> Dashboard
+        </a>
       </div>
-    </>
+
+      {!p.keyConfigured ? (
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs text-white/40" style={{ background: "rgba(255,255,255,0.04)" }}>
+          <Minus className="w-3 h-3 shrink-0" />
+          API key not configured yet. Add <code className="font-mono text-white/60 mx-0.5">{p.provider.toUpperCase()}_API_KEY</code> to Replit Secrets.
+        </div>
+      ) : isManaged ? (
+        <div className="px-3 py-2.5 rounded-xl text-xs text-white/40" style={{ background: "rgba(255,255,255,0.04)" }}>
+          {p.error}
+        </div>
+      ) : (
+        <>
+          {p.pct !== null && p.balance !== null && p.limit !== null ? (
+            <div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-white text-2xl font-black">{fmt(p.balance, p.unit)}</span>
+                <span className="text-white/40 text-xs">{p.pct}% remaining</span>
+              </div>
+              <BalanceBar pct={p.pct} />
+              <div className="flex gap-3 mt-2 text-xs text-white/30">
+                {p.used !== null && <span>Used: {fmt(p.used, p.unit)}</span>}
+                {p.limit !== null && <span>Limit: {fmt(p.limit, p.unit)}</span>}
+              </div>
+              {p.pct <= 30 && (
+                <div className="flex items-center gap-2 mt-2 text-xs text-red-400">
+                  <AlertTriangle className="w-3 h-3" /> Low — top up from your provider dashboard
+                </div>
+              )}
+            </div>
+          ) : p.keyValid ? (
+            <div className="px-3 py-2.5 rounded-xl text-xs" style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.4)" }}>
+              {p.error ?? "Key active — balance not available via API for this account type"}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs text-red-400" style={{ background: "rgba(239,68,68,0.06)" }}>
+              <XCircle className="w-3 h-3 shrink-0" /> {p.error ?? "API key is invalid or revoked"}
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowTxns(!showTxns)}
+            className="text-xs text-white/30 hover:text-white/60 transition-all text-left"
+          >
+            {showTxns ? "▲ Hide" : "▼ Show"} platform usage log
+          </button>
+
+          {showTxns && (
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {!txns
+                ? <div className="text-white/20 text-xs text-center py-3">Loading…</div>
+                : txns.length === 0
+                ? <div className="text-white/20 text-xs text-center py-3">No usage logged yet</div>
+                : txns.map((t) => (
+                  <div key={t.id} className="flex items-center gap-3 px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
+                    <ArrowDownCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white/60 text-xs truncate">{t.description}</div>
+                      <div className="text-white/25 text-[10px]">{new Date(t.createdAt).toLocaleString()}</div>
+                    </div>
+                    <div className="text-red-400 text-xs font-bold shrink-0">
+                      -{t.amount.toLocaleString()}
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
 export default function AdminCredits() {
   const qc = useQueryClient();
-  const { data: banks, isLoading, error } = useQuery<Bank[]>({
-    queryKey: ["/api/admin/credits"],
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const { data: providers, isLoading, error, isFetching } = useQuery<ProviderStatus[]>({
+    queryKey: ["/api/admin/credits/live", refreshKey],
     queryFn: async () => {
-      const r = await fetch("/api/admin/credits", { credentials: "include" });
+      const r = await fetch("/api/admin/credits/live", { credentials: "include" });
       if (!r.ok) throw new Error(await r.text());
       return r.json();
     },
+    staleTime: 60_000,
   });
 
-  function refresh() { qc.invalidateQueries({ queryKey: ["/api/admin/credits"] }); }
+  function refresh() {
+    setRefreshKey((k) => k + 1);
+    qc.invalidateQueries({ queryKey: ["/api/admin/credits/live"] });
+  }
 
-  const totalLow = banks?.filter((b) => pct(b) <= b.alertThresholdPct).length ?? 0;
-  const totalWarning = banks?.filter((b) => { const p = pct(b); return p > b.alertThresholdPct && p <= b.alertThresholdPct * 1.5; }).length ?? 0;
+  const configured = providers?.filter((p) => p.keyConfigured && !p.managedBy) ?? [];
+  const invalid = configured.filter((p) => p.keyValid === false);
+  const low = configured.filter((p) => p.pct !== null && p.pct <= 30);
 
   return (
     <AdminLayout>
       <div className="p-6 md:p-8 space-y-8">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black text-white tracking-tight">Credit Banks</h1>
-            <p className="text-white/40 text-sm mt-1">Manage AI provider credit balances — only visible to you</p>
+            <h1 className="text-2xl font-black text-white tracking-tight">AI Provider Status</h1>
+            <p className="text-white/40 text-sm mt-1">Live balances pulled directly from each provider's API — admin only</p>
           </div>
           <button
             onClick={refresh}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 text-white/40 hover:text-white hover:border-white/30 transition-all text-sm"
+            disabled={isFetching}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 text-white/50 hover:text-white hover:border-white/30 transition-all text-sm disabled:opacity-40"
           >
-            <RefreshCw className="w-4 h-4" /> Refresh
+            <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
+            {isFetching ? "Fetching…" : "Refresh"}
           </button>
         </div>
 
-        {(totalLow > 0 || totalWarning > 0) && (
-          <div
-            className="flex items-start gap-3 p-4 rounded-2xl border"
-            style={{
-              background: totalLow > 0 ? "rgba(239,68,68,0.06)" : "rgba(245,158,11,0.06)",
-              borderColor: totalLow > 0 ? "rgba(239,68,68,0.2)" : "rgba(245,158,11,0.2)",
-            }}
-          >
-            <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${totalLow > 0 ? "text-red-400" : "text-amber-400"}`} />
-            <div>
-              <div className={`font-semibold text-sm ${totalLow > 0 ? "text-red-400" : "text-amber-400"}`}>
-                {totalLow > 0
-                  ? `${totalLow} bank${totalLow > 1 ? "s are" : " is"} critically low — top up to avoid service interruptions`
-                  : `${totalWarning} bank${totalWarning > 1 ? "s are" : " is"} getting low — consider topping up soon`
-                }
+        {(invalid.length > 0 || low.length > 0) && (
+          <div className="space-y-2">
+            {invalid.length > 0 && (
+              <div className="flex items-center gap-3 p-4 rounded-2xl border border-red-500/20 bg-red-500/5">
+                <XCircle className="w-5 h-5 text-red-400 shrink-0" />
+                <span className="text-red-400 text-sm font-semibold">
+                  {invalid.length} provider{invalid.length > 1 ? "s have" : " has"} an invalid API key
+                </span>
               </div>
-              <div className="text-white/40 text-xs mt-0.5">Configure an alert email in each bank's settings to receive automatic warnings</div>
-            </div>
-          </div>
-        )}
-
-        {banks && banks.length > 0 && (
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            {[
-              { label: "Banks", value: banks.length, icon: <Wallet className="w-4 h-4" />, color: "#00E676" },
-              { label: "Critical", value: totalLow, icon: <AlertTriangle className="w-4 h-4" />, color: "#ef4444" },
-              { label: "Warning", value: totalWarning, icon: <AlertTriangle className="w-4 h-4" />, color: "#f59e0b" },
-              { label: "Healthy", value: (banks.length - totalLow - totalWarning), icon: <CheckCircle className="w-4 h-4" />, color: "#14F195" },
-              {
-                label: "Total Used (USD)",
-                value: `$${banks.filter(b => b.unit === "USD").reduce((s, b) => s + (b.totalAdded - b.balance), 0).toFixed(2)}`,
-                icon: <TrendingDown className="w-4 h-4" />, color: "#00D4FF",
-              },
-            ].map(({ label, value, icon, color }) => (
-              <div key={label} className="rounded-xl p-4 border border-white/8" style={{ background: "rgba(255,255,255,0.02)" }}>
-                <div className="flex items-center gap-2 mb-2" style={{ color }}>
-                  {icon}
-                  <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">{label}</span>
-                </div>
-                <div className="text-white text-xl font-black">{value}</div>
+            )}
+            {low.length > 0 && (
+              <div className="flex items-center gap-3 p-4 rounded-2xl border border-amber-500/20 bg-amber-500/5">
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+                <span className="text-amber-400 text-sm font-semibold">
+                  {low.map((p) => p.displayName).join(", ")} {low.length > 1 ? "are" : "is"} below 30% — top up soon
+                </span>
               </div>
-            ))}
+            )}
           </div>
         )}
 
         {isLoading && (
-          <div className="flex items-center justify-center py-16 text-white/30 gap-3">
-            <RefreshCw className="w-5 h-5 animate-spin" /> Loading banks…
+          <div className="flex items-center justify-center py-20 gap-3 text-white/30">
+            <RefreshCw className="w-5 h-5 animate-spin" />
+            <span>Checking provider APIs…</span>
           </div>
         )}
 
         {error && (
-          <div className="text-red-400 text-sm text-center py-8">Failed to load credit banks. Make sure you're signed in as admin.</div>
+          <div className="text-red-400 text-sm text-center py-10">
+            Could not load provider status. Make sure you're signed in as admin.
+          </div>
         )}
 
-        {banks && (
+        {providers && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {banks.map((bank) => (
-              <BankCard key={bank.provider} bank={bank} onRefresh={refresh} />
-            ))}
+            {providers.map((p) => <ProviderCard key={p.provider} p={p} />)}
           </div>
         )}
 
-        <div className="rounded-2xl border border-white/8 p-5" style={{ background: "rgba(255,255,255,0.02)" }}>
-          <div className="flex items-center gap-2 mb-3">
-            <TrendingUp className="w-4 h-4" style={{ color: "#00E676" }} />
-            <span className="text-white/60 text-xs font-semibold uppercase tracking-widest">How it works</span>
+        <div className="rounded-2xl border border-white/8 p-5 space-y-2" style={{ background: "rgba(255,255,255,0.02)" }}>
+          <div className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-3">How balances work</div>
+          <div className="space-y-1.5 text-white/35 text-sm">
+            <p>• <span className="text-white/55">Anthropic (Claude)</span> — billed through Replit. No balance to track here.</p>
+            <p>• <span className="text-white/55">ElevenLabs</span> — shows your real character usage and monthly limit from their API.</p>
+            <p>• <span className="text-white/55">OpenAI</span> — verifies your key is active; credit balance shown if you're on a prepaid plan.</p>
+            <p>• <span className="text-white/55">MiniMax & Shotstack</span> — verifies your key; balance requires checking their dashboard directly.</p>
+            <p>• The usage log below each provider shows what your platform customers have consumed.</p>
           </div>
-          <ul className="space-y-1.5 text-white/40 text-sm">
-            <li>• Each bank tracks credits for one AI provider independently in the unit you define</li>
-            <li>• Credits are deducted automatically as your customers use platform features</li>
-            <li>• Top up by entering the amount you purchased from the provider's dashboard</li>
-            <li>• Email alerts fire when balance drops below your threshold (requires SMTP_HOST secret)</li>
-            <li>• All balances are admin-only — customers never see this information</li>
-          </ul>
         </div>
       </div>
     </AdminLayout>
