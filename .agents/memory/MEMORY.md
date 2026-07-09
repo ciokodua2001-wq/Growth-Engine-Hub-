@@ -7,3 +7,4 @@
 - [GrowthForge pre-existing typecheck debt](growthforge-typecheck-debt.md) — repo-wide `queryKey` and `admin.ts` string[] errors predate AI-analysis work; don't assume they're caused by your current change.
 - [Agent chat intent classification pattern](agent-chat-intent-classification.md) — split chat-agent into a cheap classify call + a real generation call so per-feature quotas can gate before the AI-costing action runs.
 - [GrowthForge trial activation trigger](growthforge-trial-activation.md) — subscriptionStatus only becomes "trial" via /plans "Start Free Trial", not at signup/onboarding; route through /plans first when testing trial-gated UI.
+- [pdfkit esbuild externalization](pdfkit-esbuild-external.md) — pdfkit and fontkit must be in esbuild externals (build.mjs); fontkit's @swc/helpers CJS dependency breaks when bundled.

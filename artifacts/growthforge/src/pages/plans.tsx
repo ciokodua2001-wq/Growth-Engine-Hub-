@@ -274,9 +274,11 @@ const PLANS: Plan[] = [
 function EarlyAccessModal({ plan, color, onClose }: { plan: string; color: string; onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [consentChecked, setConsentChecked] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!consentChecked) return;
     setSubmitted(true);
   };
 
@@ -326,10 +328,50 @@ function EarlyAccessModal({ plan, color, onClose }: { plan: string; color: strin
                 className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none text-sm"
                 style={{ outlineColor: color }}
               />
+
+              {/* Refund policy consent — required before subscribing */}
+              <label className="flex items-start gap-3 cursor-pointer group mt-1 p-3 rounded-xl border border-white/6 hover:border-white/12 transition-colors bg-white/2">
+                <div className="relative mt-0.5 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={consentChecked}
+                    onChange={(e) => setConsentChecked(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div
+                    className="w-4 h-4 rounded flex items-center justify-center border transition-all"
+                    style={{
+                      background: consentChecked ? color : "transparent",
+                      borderColor: consentChecked ? color : "rgba(255,255,255,0.2)",
+                    }}
+                  >
+                    {consentChecked && <Check className="w-2.5 h-2.5 text-black" strokeWidth={3} />}
+                  </div>
+                </div>
+                <span className="text-xs text-white/45 leading-relaxed group-hover:text-white/60 transition-colors">
+                  I have read and agree to the{" "}
+                  <Link href="/refund-policy" target="_blank" className="underline hover:text-[#00E676]" style={{ color }}>
+                    Refund Policy
+                  </Link>
+                  {" "}and{" "}
+                  <Link href="/terms" target="_blank" className="underline hover:text-[#00E676]" style={{ color }}>
+                    Terms of Service
+                  </Link>
+                  . I understand that{" "}
+                  <strong className="text-white/70">video rendering is non-refundable once initiated</strong>
+                  , and that the subscription may be fully earned based on platform usage.
+                </span>
+              </label>
+
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl font-bold text-sm transition-colors"
-                style={{ background: color, color: "#040B14" }}
+                disabled={!consentChecked}
+                className="w-full py-3 rounded-xl font-bold text-sm transition-all"
+                style={{
+                  background: consentChecked ? color : "rgba(255,255,255,0.06)",
+                  color: consentChecked ? "#040B14" : "rgba(255,255,255,0.25)",
+                  cursor: consentChecked ? "pointer" : "not-allowed",
+                }}
               >
                 Notify Me at Launch
               </button>

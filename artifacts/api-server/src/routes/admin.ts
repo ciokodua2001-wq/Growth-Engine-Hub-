@@ -7,8 +7,14 @@ import {
   featureFlagsTable,
   announcementsTable,
   adminAuditLogsTable,
+  subscriptionUsageEventsTable,
+  adminAlertsTable,
 } from "@workspace/db";
-import { eq, desc, count, sql, and, ilike, or } from "drizzle-orm";
+import { eq, desc, count, sql, and, ilike, or, sum, max } from "drizzle-orm";
+import PDFDocument from "pdfkit";
+import nodemailer from "nodemailer";
+import { PassThrough } from "stream";
+import { computeRefundStatus, PLAN_MONTHLY_AI_CEILING, REFUND_INELIGIBILITY_THRESHOLD } from "../lib/usageCosts.js";
 
 const router: IRouter = Router();
 
@@ -147,13 +153,13 @@ router.get("/admin/users", requireAdmin, async (req, res): Promise<void> => {
 
 router.get("/admin/users/:id", requireAdmin, async (req, res): Promise<void> => {
   try {
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.params.id));
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.params.id as string));
     if (!user) { res.status(404).json({ error: "Not found" }); return; }
 
     const userProjects = await db
       .select()
       .from(projectsTable)
-      .where(eq(projectsTable.userId, req.params.id))
+      .where(eq(projectsTable.ownerId, req.params.id as string))
       .orderBy(desc(projectsTable.createdAt))
       .limit(10);
 
@@ -169,7 +175,7 @@ router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> =
     const auth = getAuth(req);
 
     // ── Owner protection ──────────────────────────────────────
-    const blocked = await guardOwner(req, res, req.params.id, "patch");
+    const blocked = await guardOwner(req, res, req.params.id as string, "patch");
     if (blocked) return;
 
     const { role, plan, subscriptionStatus, suspended } = req.body as {
@@ -185,10 +191,10 @@ router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> =
     if (subscriptionStatus !== undefined) update.subscriptionStatus = subscriptionStatus;
     if (suspended !== undefined) update.suspended = suspended;
 
-    const [user] = await db.update(usersTable).set(update).where(eq(usersTable.id, req.params.id)).returning();
+    const [user] = await db.update(usersTable).set(update).where(eq(usersTable.id, req.params.id as string)).returning();
     if (!user) { res.status(404).json({ error: "Not found" }); return; }
 
-    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "user_updated", "user", req.params.id, { changes: update });
+    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "user_updated", "user", req.params.id as string, { changes: update });
     res.json(user);
   } catch (err) {
     req.log.error({ err }, "Error updating user");
@@ -201,11 +207,11 @@ router.delete("/admin/users/:id", requireAdmin, async (req, res): Promise<void> 
     const auth = getAuth(req);
 
     // ── Owner protection ──────────────────────────────────────
-    const blocked = await guardOwner(req, res, req.params.id, "delete");
+    const blocked = await guardOwner(req, res, req.params.id as string, "delete");
     if (blocked) return;
 
-    await db.delete(usersTable).where(eq(usersTable.id, req.params.id));
-    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "user_deleted", "user", req.params.id);
+    await db.delete(usersTable).where(eq(usersTable.id, req.params.id as string));
+    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "user_deleted", "user", req.params.id as string);
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "Error deleting user");
@@ -248,8 +254,8 @@ router.get("/admin/projects", requireAdmin, async (req, res): Promise<void> => {
 router.delete("/admin/projects/:id", requireAdmin, async (req, res): Promise<void> => {
   try {
     const auth = getAuth(req);
-    await db.delete(projectsTable).where(eq(projectsTable.id, parseInt(req.params.id, 10)));
-    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "project_deleted", "project", req.params.id);
+    await db.delete(projectsTable).where(eq(projectsTable.id, parseInt(req.params.id as string, 10)));
+    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "project_deleted", "project", req.params.id as string);
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "Error deleting project");
@@ -277,11 +283,11 @@ router.patch("/admin/feature-flags/:id", requireAdmin, async (req, res): Promise
     const [flag] = await db
       .update(featureFlagsTable)
       .set({ enabled, updatedBy: auth.userId!, updatedAt: new Date() })
-      .where(eq(featureFlagsTable.id, parseInt(req.params.id, 10)))
+      .where(eq(featureFlagsTable.id, parseInt(req.params.id as string, 10)))
       .returning();
 
     if (!flag) { res.status(404).json({ error: "Not found" }); return; }
-    await auditLog(auth.userId!, auth.sessionClaims?.email as string, enabled ? "feature_enabled" : "feature_disabled", "feature_flag", req.params.id, { name: flag.name });
+    await auditLog(auth.userId!, auth.sessionClaims?.email as string, enabled ? "feature_enabled" : "feature_disabled", "feature_flag", req.params.id as string, { name: flag.name });
     res.json(flag);
   } catch (err) {
     req.log.error({ err }, "Error updating feature flag");
@@ -338,11 +344,11 @@ router.patch("/admin/announcements/:id", requireAdmin, async (req, res): Promise
     const [announcement] = await db
       .update(announcementsTable)
       .set(update)
-      .where(eq(announcementsTable.id, parseInt(req.params.id, 10)))
+      .where(eq(announcementsTable.id, parseInt(req.params.id as string, 10)))
       .returning();
 
     if (!announcement) { res.status(404).json({ error: "Not found" }); return; }
-    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "announcement_updated", "announcement", req.params.id);
+    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "announcement_updated", "announcement", req.params.id as string);
     res.json(announcement);
   } catch (err) {
     req.log.error({ err }, "Error updating announcement");
@@ -353,8 +359,8 @@ router.patch("/admin/announcements/:id", requireAdmin, async (req, res): Promise
 router.delete("/admin/announcements/:id", requireAdmin, async (req, res): Promise<void> => {
   try {
     const auth = getAuth(req);
-    await db.delete(announcementsTable).where(eq(announcementsTable.id, parseInt(req.params.id, 10)));
-    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "announcement_deleted", "announcement", req.params.id);
+    await db.delete(announcementsTable).where(eq(announcementsTable.id, parseInt(req.params.id as string, 10)));
+    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "announcement_deleted", "announcement", req.params.id as string);
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "Error deleting announcement");
@@ -410,6 +416,406 @@ router.post("/admin/feature-flags/seed", requireAdmin, async (req, res): Promise
     res.json(flags);
   } catch (err) {
     req.log.error({ err }, "Error seeding feature flags");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/* ─── Subscribers: usage monitor + refund eligibility ──────── */
+
+router.get("/admin/subscribers", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const users = await db
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+        plan: usersTable.plan,
+        subscriptionStatus: usersTable.subscriptionStatus,
+        createdAt: usersTable.createdAt,
+      })
+      .from(usersTable)
+      .orderBy(desc(usersTable.createdAt));
+
+    const results = await Promise.all(
+      users.map(async (user) => {
+        const billingPeriodStart = new Date(user.createdAt);
+        billingPeriodStart.setDate(1);
+        billingPeriodStart.setHours(0, 0, 0, 0);
+
+        const usageRows = await db
+          .select({
+            totalCost: sum(subscriptionUsageEventsTable.costUsd),
+            hasVideoRender: max(sql<number>`CASE WHEN ${subscriptionUsageEventsTable.isVideoRender} THEN 1 ELSE 0 END`),
+            eventCount: count(),
+          })
+          .from(subscriptionUsageEventsTable)
+          .where(
+            and(
+              eq(subscriptionUsageEventsTable.userId, user.id),
+              sql`${subscriptionUsageEventsTable.billingPeriodStart} >= ${billingPeriodStart}`,
+            ),
+          );
+
+        const consumedUsd = parseFloat(String(usageRows[0]?.totalCost ?? 0));
+        const hasVideoRender = Number(usageRows[0]?.hasVideoRender ?? 0) > 0;
+        const eventCount = Number(usageRows[0]?.eventCount ?? 0);
+        const status = computeRefundStatus(consumedUsd, user.plan, hasVideoRender, billingPeriodStart.getTime());
+
+        return {
+          ...user,
+          consumedUsd,
+          ceilingUsd: status.ceilingUsd,
+          consumedPct: status.consumedPct,
+          hasVideoRender,
+          eligibility: status.eligibility,
+          eligibilityReason: status.reason,
+          withinWindow: status.withinWindow,
+          eventCount,
+        };
+      }),
+    );
+
+    res.json({ subscribers: results, total: results.length });
+  } catch (err) {
+    req.log.error({ err }, "Error fetching subscribers");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/admin/subscribers/:userId/usage", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const userId = req.params["userId"] as string;
+
+    const [user] = await db
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+        plan: usersTable.plan,
+        subscriptionStatus: usersTable.subscriptionStatus,
+        createdAt: usersTable.createdAt,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId));
+
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+    const billingPeriodStart = new Date(user.createdAt);
+    billingPeriodStart.setDate(1);
+    billingPeriodStart.setHours(0, 0, 0, 0);
+
+    const events = await db
+      .select()
+      .from(subscriptionUsageEventsTable)
+      .where(eq(subscriptionUsageEventsTable.userId, userId))
+      .orderBy(desc(subscriptionUsageEventsTable.createdAt))
+      .limit(200);
+
+    const consumedUsd = events.reduce((acc, e) => acc + e.costUsd, 0);
+    const hasVideoRender = events.some((e) => e.isVideoRender);
+    const status = computeRefundStatus(consumedUsd, user.plan, hasVideoRender, billingPeriodStart.getTime());
+
+    res.json({
+      subscriber: {
+        ...user,
+        consumedUsd,
+        ceilingUsd: status.ceilingUsd,
+        consumedPct: status.consumedPct,
+        hasVideoRender,
+        eligibility: status.eligibility,
+        eligibilityReason: status.reason,
+        withinWindow: status.withinWindow,
+        eventCount: events.length,
+      },
+      events,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Error fetching subscriber usage");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/* ─── Rebuttal PDF ──────────────────────────────────────────── */
+
+async function buildRebuttalPdfBuffer(userId: string): Promise<{ buffer: Buffer; email: string | null; plan: string }> {
+  const [user] = await db
+    .select({ id: usersTable.id, email: usersTable.email, plan: usersTable.plan, subscriptionStatus: usersTable.subscriptionStatus, createdAt: usersTable.createdAt })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+
+  if (!user) throw new Error("User not found");
+
+  const billingPeriodStart = new Date(user.createdAt);
+  billingPeriodStart.setDate(1);
+  billingPeriodStart.setHours(0, 0, 0, 0);
+
+  const events = await db
+    .select()
+    .from(subscriptionUsageEventsTable)
+    .where(eq(subscriptionUsageEventsTable.userId, userId))
+    .orderBy(desc(subscriptionUsageEventsTable.createdAt))
+    .limit(200);
+
+  const consumedUsd = events.reduce((acc, e) => acc + e.costUsd, 0);
+  const hasVideoRender = events.some((e) => e.isVideoRender);
+  const ceiling = PLAN_MONTHLY_AI_CEILING[user.plan.toLowerCase()] ?? PLAN_MONTHLY_AI_CEILING["starter"];
+  const status = computeRefundStatus(consumedUsd, user.plan, hasVideoRender, billingPeriodStart.getTime());
+  const generatedAt = new Date().toUTCString();
+
+  const buffer = await new Promise<Buffer>((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 60, size: "A4" });
+    const chunks: Buffer[] = [];
+    const stream = new PassThrough();
+
+    stream.on("data", (c) => chunks.push(c as Buffer));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+    doc.pipe(stream);
+
+    const GREEN = "#00E676";
+    const DARK = "#040B14";
+    const GRAY = "#7a8fa6";
+    const RED = "#ef4444";
+    const W = 595 - 120; // usable width
+
+    // Header bar
+    doc.rect(0, 0, 595, 80).fill(DARK);
+    doc.font("Helvetica-Bold").fontSize(18).fillColor(GREEN).text("GrowthForge AI", 60, 24);
+    doc.font("Helvetica").fontSize(9).fillColor(GRAY).text("Strapli Technologies Inc. · billing@usegrowthforge.com", 60, 46);
+    doc.font("Helvetica-Bold").fontSize(11).fillColor("#ffffff").text("CHARGEBACK REBUTTAL REPORT", 60, 60);
+
+    let y = 100;
+
+    const row = (label: string, value: string, bold = false) => {
+      doc.font("Helvetica").fontSize(9).fillColor(GRAY).text(label, 60, y);
+      doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(9).fillColor("#ffffff").text(value, 240, y);
+      y += 18;
+    };
+
+    // Subscriber info
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(GREEN).text("SUBSCRIBER", 60, y);
+    y += 14;
+    doc.moveTo(60, y).lineTo(535, y).strokeColor(GREEN).lineWidth(0.5).stroke();
+    y += 8;
+    row("User ID", user.id);
+    row("Email", user.email ?? "(not available)");
+    row("Plan", `${user.plan.toUpperCase()} ($${user.plan === "starter" ? 39 : user.plan === "get-going" ? 99 : user.plan === "growth" ? 299 : 799}/mo)`);
+    row("Account created", new Date(user.createdAt).toUTCString());
+    row("Billing period start", billingPeriodStart.toUTCString());
+    row("Report generated", generatedAt);
+    y += 10;
+
+    // Refund eligibility summary
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(GREEN).text("REFUND ELIGIBILITY DETERMINATION", 60, y);
+    y += 14;
+    doc.moveTo(60, y).lineTo(535, y).strokeColor(GREEN).lineWidth(0.5).stroke();
+    y += 8;
+
+    const verdictColor = status.eligibility === "eligible" ? "#00E676" : "#ef4444";
+    const verdictText = status.eligibility === "non_refundable" ? "NON-REFUNDABLE" :
+                        status.eligibility === "borderline" ? "BORDERLINE — MANUAL REVIEW REQUIRED" : "ELIGIBLE";
+
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(verdictColor).text(`Verdict: ${verdictText}`, 60, y);
+    y += 20;
+
+    row("AI resources consumed (USD)", `$${consumedUsd.toFixed(4)}`);
+    row("Monthly AI ceiling for plan", `$${ceiling.toFixed(2)}`);
+    row("Consumption as % of ceiling", `${(status.consumedPct * 100).toFixed(2)}%`);
+    row("Ineligibility threshold", `${(REFUND_INELIGIBILITY_THRESHOLD * 100).toFixed(0)}% of ceiling (internal)`);
+    row("Video render initiated", hasVideoRender ? "YES — subscription fully earned" : "No");
+    row("Within 3-day refund window", status.withinWindow ? "Yes" : "No — window expired");
+    row("Ineligibility reason", status.reason.replace(/_/g, " "));
+    y += 10;
+
+    // Policy excerpt
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(GREEN).text("POLICY PROVISIONS", 60, y);
+    y += 14;
+    doc.moveTo(60, y).lineTo(535, y).strokeColor(GREEN).lineWidth(0.5).stroke();
+    y += 8;
+
+    const policyText = [
+      "Terms of Service §5 — Paid Subscriptions, Usage & Refund Terms (excerpt):",
+      "",
+      '"Video Rendering is Non-Refundable: The initiation of any video rendering job — regardless of',
+      "render time, output length, or quality tier — immediately renders the subscription payment for",
+      "that billing period fully earned and non-refundable. This applies even within the standard refund",
+      'window."',
+      "",
+      '"Usage-Based Refund Eligibility: Refund eligibility is determined by Strapli Technologies based',
+      "solely on internal platform usage records. Significant consumption of platform resources, as",
+      'determined at our sole discretion, forfeits refund eligibility."',
+      "",
+      '"Consent to Monitoring: You consent to Strapli Technologies monitoring and recording your',
+      "platform usage activity for the purposes of refund eligibility determination, fraud prevention,",
+      'and chargeback dispute resolution."',
+    ];
+
+    doc.font("Helvetica").fontSize(8).fillColor(GRAY);
+    policyText.forEach((line) => {
+      doc.text(line, 60, y, { width: W });
+      y += doc.heightOfString(line, { width: W }) + 2;
+    });
+    y += 8;
+
+    // Usage event log
+    if (events.length > 0) {
+      if (y > 650) { doc.addPage(); y = 60; }
+
+      doc.font("Helvetica-Bold").fontSize(10).fillColor(GREEN).text("USAGE EVENT LOG", 60, y);
+      y += 14;
+      doc.moveTo(60, y).lineTo(535, y).strokeColor(GREEN).lineWidth(0.5).stroke();
+      y += 8;
+
+      // Table header
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(GRAY);
+      doc.text("Timestamp (UTC)", 60, y);
+      doc.text("Feature", 220, y);
+      doc.text("Amount", 350, y);
+      doc.text("Cost (USD)", 420, y);
+      doc.text("Video?", 490, y);
+      y += 14;
+      doc.moveTo(60, y).lineTo(535, y).strokeColor(GRAY).lineWidth(0.3).stroke();
+      y += 5;
+
+      const maxEvents = Math.min(events.length, 40);
+      for (let i = 0; i < maxEvents; i++) {
+        const ev = events[i];
+        if (y > 750) { doc.addPage(); y = 60; }
+        doc.font("Helvetica").fontSize(7.5).fillColor("#ffffff");
+        doc.text(new Date(ev.createdAt).toUTCString().replace(" GMT", ""), 60, y, { width: 155 });
+        doc.text(ev.feature.replace(/_/g, " "), 220, y, { width: 125 });
+        doc.text(String(ev.amount), 350, y, { width: 65 });
+        doc.text(`$${ev.costUsd.toFixed(4)}`, 420, y, { width: 65 });
+        doc.text(ev.isVideoRender ? "YES" : "—", 490, y, { width: 45 });
+        y += 13;
+      }
+
+      if (events.length > maxEvents) {
+        doc.font("Helvetica").fontSize(7.5).fillColor(GRAY).text(`… and ${events.length - maxEvents} more events`, 60, y + 4);
+        y += 16;
+      }
+    }
+
+    y += 16;
+    // Certification
+    if (y > 700) { doc.addPage(); y = 60; }
+    doc.moveTo(60, y).lineTo(535, y).strokeColor(GRAY).lineWidth(0.3).stroke();
+    y += 10;
+    doc.font("Helvetica").fontSize(8).fillColor(GRAY).text(
+      "This report is generated automatically from platform usage logs maintained by Strapli Technologies Inc. " +
+      "All timestamps are in UTC. Usage data is stored server-side and has not been modified. " +
+      "This document may be submitted as evidence in payment dispute proceedings.",
+      60, y, { width: W },
+    );
+
+    doc.end();
+  });
+
+  return { buffer, email: user.email, plan: user.plan };
+}
+
+router.get("/admin/subscribers/:userId/rebuttal-report", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const auth = getAuth(req);
+    const userId = req.params["userId"] as string;
+
+    const { buffer, email } = await buildRebuttalPdfBuffer(userId);
+
+    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "rebuttal_report_downloaded", "user", userId, { targetEmail: email });
+
+    const safeId = userId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="rebuttal-${safeId}.pdf"`);
+    res.setHeader("Content-Length", String(buffer.length));
+    res.end(buffer);
+  } catch (err) {
+    req.log.error({ err }, "Error generating rebuttal report");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/admin/subscribers/:userId/flag-chargeback", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const auth = getAuth(req);
+    const userId = req.params["userId"] as string;
+
+    const { buffer, email, plan } = await buildRebuttalPdfBuffer(userId);
+
+    // Record admin alert
+    await db.insert(adminAlertsTable).values({
+      type: "chargeback_flagged",
+      userId,
+      userEmail: email,
+      planName: plan,
+      dismissed: false,
+    });
+
+    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "chargeback_flagged", "user", userId, { targetEmail: email });
+
+    // Email the PDF if SMTP is configured
+    const smtpHost = process.env.SMTP_HOST;
+    if (smtpHost) {
+      try {
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: parseInt(process.env.SMTP_PORT ?? "587", 10),
+          secure: false,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          },
+        });
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM ?? "noreply@usegrowthforge.com",
+          to: "billing@usegrowthforge.com",
+          subject: `Chargeback Rebuttal Report — ${email ?? userId}`,
+          text: `A chargeback has been flagged for subscriber ${email ?? userId} (plan: ${plan}). The automated rebuttal report is attached.`,
+          attachments: [
+            {
+              filename: `rebuttal-${userId.slice(0, 12)}.pdf`,
+              content: buffer,
+              contentType: "application/pdf",
+            },
+          ],
+        });
+      } catch (emailErr) {
+        req.log.warn({ err: emailErr }, "Email delivery failed — chargeback still flagged");
+      }
+    }
+
+    res.json({ success: true, emailSent: !!smtpHost, message: smtpHost ? "Chargeback flagged and rebuttal PDF emailed to billing@usegrowthforge.com" : "Chargeback flagged. Configure SMTP_HOST to enable automatic email delivery." });
+  } catch (err) {
+    req.log.error({ err }, "Error flagging chargeback");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/* ─── Admin Alerts ──────────────────────────────────────────── */
+
+router.get("/admin/alerts", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const alerts = await db
+      .select()
+      .from(adminAlertsTable)
+      .where(eq(adminAlertsTable.dismissed, false))
+      .orderBy(desc(adminAlertsTable.createdAt))
+      .limit(100);
+    res.json({ alerts });
+  } catch (err) {
+    req.log.error({ err }, "Error fetching alerts");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/admin/alerts/:id/dismiss", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const auth = getAuth(req);
+    await db
+      .update(adminAlertsTable)
+      .set({ dismissed: true })
+      .where(eq(adminAlertsTable.id, parseInt(req.params.id as string, 10)));
+    await auditLog(auth.userId!, auth.sessionClaims?.email as string, "alert_dismissed", "alert", req.params.id as string);
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Error dismissing alert");
     res.status(500).json({ error: "Internal server error" });
   }
 });
