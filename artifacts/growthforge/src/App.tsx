@@ -22,6 +22,7 @@ import AdminAnnouncements from "@/pages/admin/announcements";
 import AdminActivity from "@/pages/admin/activity";
 import AdminAudit from "@/pages/admin/audit";
 import AdminSettings from "@/pages/admin/settings";
+import AdminCredits from "@/pages/admin/credits";
 
 import LandingPage from "@/pages/landing";
 import DashboardPage from "@/pages/dashboard";
@@ -200,6 +201,7 @@ function AppRoutes() {
       <Route path="/admin/activity" component={AdminActivity} />
       <Route path="/admin/audit" component={AdminAudit} />
       <Route path="/admin/settings" component={AdminSettings} />
+      <Route path="/admin/credits" component={AdminCredits} />
 
       <Route path="/projects/:projectId/:path*">
         {(params) => (

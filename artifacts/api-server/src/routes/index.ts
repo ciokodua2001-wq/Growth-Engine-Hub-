@@ -12,6 +12,7 @@ import authRouter from "./auth.js";
 import onboardingRouter from "./onboarding.js";
 import trialRouter from "./trial.js";
 import adminRouter from "./admin.js";
+import adminCreditsRouter from "./admin-credits.js";
 import storageRouter from "./storage.js";
 
 const router: IRouter = Router();
@@ -29,6 +30,7 @@ router.use(renderRouter);
 router.use(imagesRouter);
 router.use(campaignsRouter);
 router.use(adminRouter);
+router.use(adminCreditsRouter);
 router.use(storageRouter);
 
 export default router;
