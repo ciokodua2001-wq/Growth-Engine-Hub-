@@ -162,9 +162,53 @@ const TESTIMONIALS = [
 ];
 
 const PRICING = [
-  { name: "Starter", price: 99, desc: "For solo founders & small teams", features: ["1 project", "Content Engine", "Competitor analysis", "Email campaigns", "10 videos/month", "Analytics dashboard"], highlight: false },
-  { name: "Growth", price: 299, desc: "For growing teams ready to scale", features: ["5 projects", "Everything in Starter", "30 videos/month", "Forge AI Agent", "Autonomous campaigns", "Priority support"], highlight: true },
-  { name: "Agency", price: 799, desc: "For agencies & enterprise teams", features: ["Unlimited projects", "Everything in Growth", "Unlimited videos", "White-label reports", "Team collaboration", "Dedicated success manager"], highlight: false },
+  {
+    name: "Starter", price: 39, color: "#00E676", highlight: false,
+    desc: "For solo founders and small businesses",
+    stats: [{ value: "1", label: "Project" }, { value: "4 min", label: "Video/mo" }, { value: "35", label: "Content/mo" }],
+    groups: [
+      { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["3 Website Re-analyses / month", "2 Competitor Reports / month", "1 Marketing Strategy / month", "3 AI Customer Personas / month"] },
+      { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["25 Social Posts / month", "5 Email Campaigns / month", "5 AI Ad Creatives / month"] },
+      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["Video Blueprints included", "4 min 1080p / month", "Up to 16 × 15-sec or 4 × 1-min"] },
+      { label: "Forge AI Agent", icon: <Bot className="w-3 h-3" />, isVideo: false, items: ["100 Forge AI Chats / month", "Full Analytics Dashboard"] },
+    ],
+  },
+  {
+    name: "Get-Going", price: 99, color: "#00D4FF", highlight: true, highlightLabel: "Most Popular",
+    desc: "For growing creators ready to scale",
+    stats: [{ value: "3", label: "Projects" }, { value: "8+1K min", label: "Video/mo" }, { value: "80", label: "Content/mo" }],
+    groups: [
+      { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["8 Website Re-analyses / month", "6 Competitor Reports / month", "3 Marketing Strategies / month", "10 AI Customer Personas / month"] },
+      { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["50 Social Posts / month", "15 Email Campaigns / month", "15 AI Ad Creatives / month"] },
+      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["Video Blueprints included", "8 min 1080p — up to 32 × 15-sec", "1 min 4K — up to 4 × 15-sec premium"] },
+      { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["1 AI Campaign Report / month", "AI Campaign Builder", "Social Scheduling"] },
+      { label: "Forge AI Agent", icon: <Bot className="w-3 h-3" />, isVideo: false, items: ["300 Forge AI Chats / month", "Priority Support"] },
+    ],
+  },
+  {
+    name: "Growth", price: 299, color: "#14F195", highlight: false,
+    desc: "For teams serious about growth",
+    stats: [{ value: "6", label: "Projects" }, { value: "25+4K min", label: "Video/mo" }, { value: "160", label: "Content/mo" }],
+    groups: [
+      { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["15 Website Re-analyses / month", "12 Competitor Reports / month", "6 Marketing Strategies / month", "20 AI Customer Personas / month", "Competitor Video Mining"] },
+      { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["100 Social Posts / month", "30 Email Campaigns / month", "30 AI Ad Creatives / month"] },
+      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["Video Blueprints included", "25 min 1080p — up to 100 × 15-sec", "4 min 4K — up to 16 × 15-sec premium"] },
+      { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["2 AI Campaign Reports / month", "White-Label Reports", "Dedicated Onboarding"] },
+      { label: "Forge AI Agent", icon: <Bot className="w-3 h-3" />, isVideo: false, items: ["500 Forge AI Chats / month"] },
+    ],
+  },
+  {
+    name: "Agency", price: 799, color: "#FF6B35", highlight: false, highlightLabel: "Best Value",
+    desc: "For agencies managing multiple clients",
+    stats: [{ value: "20", label: "Projects" }, { value: "60+10K min", label: "Video/mo" }, { value: "320", label: "Content/mo" }],
+    groups: [
+      { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["30 Website Re-analyses / month", "25 Competitor Reports / month", "15 Marketing Strategies / month", "50 AI Customer Personas / month"] },
+      { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["200 Social Posts / month", "60 Email Campaigns / month", "60 AI Ad Creatives / month"] },
+      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["Video Blueprints included", "60 min 1080p — up to 240 × 15-sec", "10 min 4K — up to 40 × 15-sec premium"] },
+      { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["4 AI Campaign Reports / month", "AI Managed Campaigns", "Autonomous Growth Mode"] },
+      { label: "Agency Tools", icon: <Users2 className="w-3 h-3" />, isVideo: false, items: ["2,000 Forge AI Chats / month", "Team Members", "Dedicated Success Manager"] },
+    ],
+  },
 ];
 
 const FAQ = [
@@ -1041,34 +1085,97 @@ export default function LandingPage() {
               <span className="text-amber-400 text-sm font-semibold">Paid plans launching soon — start free today</span>
             </div>
           </FadeIn>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {PRICING.map(({ name, price, desc, features: feats, highlight }, i) => (
-              <FadeIn key={name} delay={i * 0.1}>
-                <div className={`p-8 rounded-2xl border flex flex-col gap-6 h-full relative ${highlight ? "border-[#00E676]/40" : "border-white/8"}`}
-                  style={{ background: highlight ? "linear-gradient(135deg, rgba(0,230,118,0.06) 0%, rgba(4,11,20,1) 60%)" : "rgba(255,255,255,0.02)" }}>
-                  {highlight && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold text-black" style={{ background: "#00E676" }}>Most Popular</div>}
-                  <div>
-                    <div className="text-xl font-bold text-white mb-0.5">{name}</div>
-                    <div className="text-xs text-white/40 mb-3">{desc}</div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-black text-white">${price}</span>
-                      <span className="text-white/40">/month</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+            {PRICING.map((plan, i) => (
+              <FadeIn key={plan.name} delay={i * 0.08}>
+                <div
+                  className="relative flex flex-col rounded-2xl overflow-hidden h-full"
+                  style={{
+                    border: plan.highlight ? `1.5px solid ${plan.color}50` : "1.5px solid rgba(255,255,255,0.07)",
+                    background: plan.highlight ? `linear-gradient(160deg, ${plan.color}0d 0%, #080f1e 40%)` : "#080f1e",
+                    boxShadow: plan.highlight ? `0 0 40px ${plan.color}18` : "none",
+                  }}
+                >
+                  {/* Colored top bar */}
+                  <div className="h-1 w-full shrink-0" style={{ background: `linear-gradient(90deg, ${plan.color}, ${plan.color}44)` }} />
+
+                  {/* Badge */}
+                  {plan.highlightLabel && (
+                    <div
+                      className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[11px] font-bold"
+                      style={{ background: `${plan.color}22`, color: plan.color, border: `1px solid ${plan.color}44` }}
+                    >
+                      {plan.highlightLabel}
                     </div>
-                  </div>
-                  <ul className="flex flex-col gap-2.5 flex-1">
-                    {feats.map((f) => (
-                      <li key={f} className="flex items-center gap-2.5 text-sm text-white/60">
-                        <Check className={`h-4 w-4 shrink-0 ${highlight ? "text-[#00E676]" : "text-white/30"}`} />{f}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="flex flex-col gap-2">
-                    <button onClick={() => setEarlyAccessPlan(name)}
-                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all"
-                      style={highlight ? { background: "#00E676", color: "#040B14" } : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                      <Bell className="w-3.5 h-3.5" /> Join Early Access
-                    </button>
-                    <p className="text-center text-[10px] text-white/25">Billing coming soon · No charge now</p>
+                  )}
+
+                  <div className="flex flex-col flex-1 p-5 gap-4">
+                    {/* Header */}
+                    <div>
+                      <div className="text-lg font-bold text-white mb-0.5">{plan.name}</div>
+                      <div className="text-xs text-white/40 mb-3">{plan.desc}</div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-black text-white">${plan.price}</span>
+                        <span className="text-white/40 text-sm">/mo</span>
+                      </div>
+                      <div className="text-white/25 text-[11px] mt-0.5">Billed monthly · Cancel anytime</div>
+                    </div>
+
+                    {/* Hero stats */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {plan.stats.map((s: { value: string; label: string }) => (
+                        <div
+                          key={s.label}
+                          className="flex flex-col items-center justify-center rounded-xl py-2 px-1 text-center"
+                          style={{ background: `${plan.color}10`, border: `1px solid ${plan.color}22` }}
+                        >
+                          <span className="text-sm font-bold leading-tight" style={{ color: plan.color }}>{s.value}</span>
+                          <span className="text-[10px] text-white/40 leading-tight mt-0.5">{s.label}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Feature groups */}
+                    <div className="flex flex-col gap-3 flex-1">
+                      {plan.groups.map((g: { label: string; icon: React.ReactNode; isVideo: boolean; items: string[] }) => (
+                        <div key={g.label}>
+                          <div className="flex items-center gap-1.5 mb-1.5 pb-1.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                            <span style={{ color: g.isVideo ? plan.color : "rgba(255,255,255,0.3)" }}>{g.icon}</span>
+                            <span
+                              className="text-[10px] font-semibold tracking-wider uppercase"
+                              style={{ color: g.isVideo ? plan.color : "rgba(255,255,255,0.3)" }}
+                            >{g.label}</span>
+                          </div>
+                          <ul className="flex flex-col gap-1">
+                            {g.items.map((item: string, idx: number) => {
+                              const isSub = item.startsWith("Up to") || item.startsWith("up to");
+                              return (
+                                <li key={idx} className={`flex items-start gap-1.5 ${isSub ? "pl-4" : ""}`}>
+                                  {!isSub && <Check className="w-3 h-3 shrink-0 mt-0.5" style={{ color: g.isVideo ? plan.color : "rgba(255,255,255,0.3)" }} />}
+                                  {isSub && <span className="text-white/25 text-xs shrink-0">↳</span>}
+                                  <span className={`text-xs leading-relaxed ${isSub ? "text-white/30 italic" : "text-white/60"}`}>{item}</span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* CTA */}
+                    <div className="flex flex-col gap-1.5 pt-1">
+                      <button
+                        onClick={() => setEarlyAccessPlan(plan.name)}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-[1.02] active:scale-[0.99]"
+                        style={plan.highlight
+                          ? { background: plan.color, color: "#040B14", boxShadow: `0 4px 20px ${plan.color}44` }
+                          : { background: "transparent", color: plan.color, border: `1.5px solid ${plan.color}44` }
+                        }
+                      >
+                        <Bell className="w-3.5 h-3.5" /> Join Early Access
+                      </button>
+                      <p className="text-center text-[10px] text-white/20">Billing coming soon · No charge now</p>
+                    </div>
                   </div>
                 </div>
               </FadeIn>
