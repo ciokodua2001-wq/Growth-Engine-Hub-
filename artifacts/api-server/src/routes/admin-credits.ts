@@ -3,7 +3,7 @@ import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { usersTable, platformCreditBanksTable, platformCreditTransactionsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { seedDefaultBanks } from "../lib/platformCredits.js";
+import { seedManualBanks } from "../lib/platformCredits.js";
 
 const router: IRouter = Router();
 
@@ -21,7 +21,7 @@ async function requireAdmin(req: Request, res: Response, next: NextFunction): Pr
 
 router.get("/admin/credits", requireAdmin, async (req, res): Promise<void> => {
   try {
-    await seedDefaultBanks();
+    await seedManualBanks();
     const banks = await db
       .select()
       .from(platformCreditBanksTable)

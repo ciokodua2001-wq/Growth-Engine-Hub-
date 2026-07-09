@@ -2,6 +2,7 @@ import { db } from "@workspace/db";
 import { videosTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import pino from "pino";
+import { deductPlatformCredits } from "./platformCredits.js";
 
 const logger = pino({ name: "videoRenderPipeline" });
 
@@ -67,6 +68,8 @@ async function runRenderPipeline(
   // Step 1: ElevenLabs TTS
   const scriptText = video.voiceover ?? video.script ?? video.title;
   const voiceoverUrl = await generateElevenLabsVoiceover(scriptText ?? "");
+  const ttsChars = Math.min((scriptText ?? "").length, 800);
+  deductPlatformCredits("elevenlabs", ttsChars, `TTS voiceover — video #${videoId}`).catch(() => {});
 
   await db.update(videosTable).set({ voiceoverUrl }).where(eq(videosTable.id, videoId));
 
@@ -77,12 +80,14 @@ async function runRenderPipeline(
 
   if (mode === "footage" || mode === "combined") {
     footageUrl = await generateMiniMaxT2V(footagePrompt);
+    deductPlatformCredits("minimax", 1, `Text-to-video — video #${videoId}`).catch(() => {});
   }
 
   if (mode === "avatar" || mode === "combined") {
     const photoPath = avatarPhotoPath ?? video.avatarPhotoPath;
     if (!photoPath) throw new Error("Avatar mode requires an uploaded avatar photo");
     avatarClipUrl = await generateMiniMaxI2V(photoPath, footagePrompt);
+    deductPlatformCredits("minimax", 1, `Image-to-video — video #${videoId}`).catch(() => {});
   }
 
   // Step 3: Shotstack composition
@@ -94,6 +99,7 @@ async function runRenderPipeline(
     duration,
     resolution,
   });
+  deductPlatformCredits("shotstack", 1, `Render — video #${videoId}`).catch(() => {});
 
   // Update DB with completed render
   await db.update(videosTable).set({
