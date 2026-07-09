@@ -40,7 +40,7 @@ export default function AdminLayout({ children }: Props) {
   // /admin post-login, so bouncing here is enough to land them right back.
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
-      setLocation("/sign-in", { replace: true });
+      setLocation("/sign-in?redirect_url=/admin", { replace: true });
     }
   }, [isLoaded, isSignedIn, setLocation]);
 
