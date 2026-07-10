@@ -6,3 +6,9 @@ id = "rRwGP6tG-gbrwCW-uVISQ"
 uri = "file://GrowthForge_GoogleAds_Design.rtf"
 type = "unspecified"
 title = "GrowthForge Google Ads Design Documentation"
+
+[[outputs]]
+id = "SfDMq0XTJXvDHglk4yvOC"
+uri = "file://GrowthForge_GoogleAds_Design.pdf"
+type = "pdf"
+title = "GrowthForge Google Ads Design Documentation (PDF)"
