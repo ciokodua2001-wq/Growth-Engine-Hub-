@@ -78,16 +78,19 @@ async function runRenderPipeline(
   let footageUrl: string | null = null;
   let avatarClipUrl: string | null = null;
 
+  // MiniMax charges in USD per generation (~$0.14 per 6-second video — estimate; verify on dashboard)
+  const MINIMAX_EST_USD = 0.14;
+
   if (mode === "footage" || mode === "combined") {
     footageUrl = await generateMiniMaxT2V(footagePrompt);
-    deductPlatformCredits("minimax", 1, `Text-to-video — video #${videoId}`).catch(() => {});
+    deductPlatformCredits("minimax", MINIMAX_EST_USD, `Text-to-video — video #${videoId} (est.)`).catch(() => {});
   }
 
   if (mode === "avatar" || mode === "combined") {
     const photoPath = avatarPhotoPath ?? video.avatarPhotoPath;
     if (!photoPath) throw new Error("Avatar mode requires an uploaded avatar photo");
     avatarClipUrl = await generateMiniMaxI2V(photoPath, footagePrompt);
-    deductPlatformCredits("minimax", 1, `Image-to-video — video #${videoId}`).catch(() => {});
+    deductPlatformCredits("minimax", MINIMAX_EST_USD, `Image-to-video — video #${videoId} (est.)`).catch(() => {});
   }
 
   // Step 3: Shotstack composition

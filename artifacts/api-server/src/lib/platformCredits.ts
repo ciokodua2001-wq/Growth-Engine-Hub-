@@ -9,7 +9,7 @@ export type Provider = "anthropic" | "openai" | "minimax" | "elevenlabs" | "shot
 // Only MiniMax and Shotstack have manually-managed banks.
 // Anthropic/OpenAI/ElevenLabs are either Replit-managed or live-API-checked.
 const MANUAL_BANKS: Array<{ provider: Provider; displayName: string; unit: string }> = [
-  { provider: "minimax",   displayName: "MiniMax (Video)",    unit: "generations" },
+  { provider: "minimax",   displayName: "MiniMax (Video)",    unit: "USD" },
   { provider: "shotstack", displayName: "Shotstack (Render)", unit: "credits" },
 ];
 
@@ -18,7 +18,10 @@ export async function seedManualBanks(): Promise<void> {
     await db
       .insert(platformCreditBanksTable)
       .values({ ...bank, balance: 0, peakBalance: 0, totalAdded: 0 })
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: platformCreditBanksTable.provider,
+        set: { unit: bank.unit, displayName: bank.displayName },
+      });
   }
 }
 
