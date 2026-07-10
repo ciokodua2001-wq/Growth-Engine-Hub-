@@ -18,6 +18,8 @@ export const campaignsTable = pgTable("campaigns", {
   ctr: numeric("ctr", { precision: 10, scale: 4 }),
   cpc: numeric("cpc", { precision: 10, scale: 2 }),
   autonomousOptimization: boolean("autonomous_optimization").notNull().default(false),
+  source: text("source").notNull().default("manual"),   // 'manual' | 'google_ads' | 'meta' | 'linkedin'
+  externalId: text("external_id"),                       // campaign ID from the ad platform
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
