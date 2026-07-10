@@ -1,0 +1,68 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0\fswiss\fcharset0 Arial;}{\f1\fswiss\fcharset0 Arial Bold;}}
+{\colortbl;\red0\green0\blue0;\red66\green133\blue244;\red0\green230\blue118;}
+\f0\fs24
+
+\f1\fs32\b GrowthForge AI \endash Google Ads Integration Design\b0\f0\fs24\par
+\par
+\b Company:\b0 Strapli Technologies Inc.\par
+\b Product:\b0 GrowthForge AI (usegrowthforge.com)\par
+\b API Usage:\b0 Google Ads API (Read + Campaign Management)\par
+\par
+
+\f1\fs28\b 1. Tool Overview\b0\f0\fs24\par
+\par
+GrowthForge AI is a marketing automation SaaS platform that serves as a complete AI marketing department for small and medium-sized businesses. Users connect their Google Ads accounts to the platform via OAuth 2.0 to import real campaign performance data.\par
+\par
+
+\f1\fs28\b 2. Google Ads API Feature: Campaign Manager\b0\f0\fs24\par
+\par
+\b Feature Name:\b0 Campaign Manager \endash Google Ads Sync\par
+\b Location:\b0 Project Dashboard > Campaign Manager tab\par
+\par
+\b User Flow:\b0\par
+1. User navigates to Campaign Manager inside their GrowthForge project\par
+2. A \ldblquote Connect Google Ads\rdblquote  banner is displayed at the top of the page\par
+3. User clicks \ldblquote Connect Google Ads\rdblquote  \endash initiates OAuth 2.0 consent flow\par
+4. User grants permission on Google\rquote s OAuth consent screen (scope: adwords)\par
+5. Platform stores refresh token securely; user is redirected back to Campaign Manager\par
+6. User sees their connected account info (email, customer ID, last sync time)\par
+7. User clicks \ldblquote Sync Now\rdblquote  to pull latest campaign data\par
+8. Platform fetches campaign metrics via Google Ads API GAQL query (last 30 days)\par
+9. Campaigns appear in the dashboard with real metrics: impressions, clicks, conversions, spend, CTR, CPC, ROAS\par
+\par
+
+\f1\fs28\b 3. Data Accessed from Google Ads API\b0\f0\fs24\par
+\par
+\b Read-only data fetched:\b0\par
+\bullet  Campaign name, ID, status, channel type\par
+\bullet  Metrics (last 30 days): impressions, clicks, conversions, cost_micros, CTR, average CPC\par
+\par
+\b GAQL Query Used:\b0\par
+\i SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, metrics.impressions, metrics.clicks, metrics.conversions, metrics.cost_micros, metrics.ctr, metrics.average_cpc FROM campaign WHERE segments.date DURING LAST_30_DAYS AND campaign.status != 'REMOVED' ORDER BY metrics.impressions DESC LIMIT 50\i0\par
+\par
+
+\f1\fs28\b 4. OAuth Scope\b0\f0\fs24\par
+\par
+Scope requested: \b https://www.googleapis.com/auth/adwords\b0\par
+Auth type: OAuth 2.0 with offline access (refresh token stored server-side)\par
+Redirect URI: https://usegrowthforge.com/api/auth/google-ads/callback\par
+\par
+
+\f1\fs28\b 5. Data Storage & Security\b0\f0\fs24\par
+\par
+\bullet  OAuth tokens stored server-side in PostgreSQL database (never exposed to client)\par
+\bullet  Access tokens refreshed automatically on expiry using stored refresh token\par
+\bullet  Campaign data cached in platform database; synced on user request\par
+\bullet  Users can disconnect their Google Ads account at any time (tokens immediately deleted)\par
+\par
+
+\f1\fs28\b 6. Target Users\b0\f0\fs24\par
+\par
+\bullet  Small and medium-sized businesses running Google Ads campaigns\par
+\bullet  Marketing agencies managing Google Ads for multiple clients\par
+\bullet  Users access the tool through their GrowthForge account (authentication required)\par
+\par
+\b Access model:\b0 Each GrowthForge user connects their own Google Ads account. The platform never accesses accounts without explicit OAuth authorization from the account owner.\par
+\par
+}
