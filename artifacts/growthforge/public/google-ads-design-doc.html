@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>GrowthForge AI – Google Ads API Design Documentation</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:12pt;line-height:1.6;color:#111;padding:40px;max-width:800px;margin:auto}
+  h1{font-size:20pt;margin-bottom:4px}
+  h2{font-size:14pt;margin:24px 0 8px;border-bottom:1px solid #ccc;padding-bottom:4px}
+  p,li{margin-bottom:6px}
+  ul{padding-left:20px;margin-bottom:12px}
+  .meta{color:#555;font-size:10pt;margin-bottom:24px}
+  code{background:#f0f0f0;padding:2px 6px;border-radius:3px;font-size:10pt}
+  .print-btn{position:fixed;top:20px;right:20px;background:#4285F4;color:#fff;border:none;padding:10px 20px;border-radius:6px;font-size:12pt;cursor:pointer;font-weight:bold}
+  @media print{.print-btn{display:none}}
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">⬇ Save as PDF</button>
+
+<h1>GrowthForge AI – Google Ads API Design Documentation</h1>
+<p class="meta">
+  Company: Strapli Technologies Inc. &nbsp;|&nbsp;
+  Product: GrowthForge AI (usegrowthforge.com) &nbsp;|&nbsp;
+  Date: July 2026
+</p>
+
+<h2>1. Tool Overview</h2>
+<p>GrowthForge AI is an AI-powered marketing SaaS platform that serves as a complete AI marketing department for small and medium-sized businesses. Users connect their Google Ads account to the platform via OAuth 2.0 to import real campaign performance data, view AI-generated optimization recommendations, and monitor all campaigns in one unified dashboard.</p>
+
+<h2>2. Google Ads API Feature: Campaign Manager</h2>
+<p><strong>Feature name:</strong> Campaign Manager – Google Ads Sync</p>
+<p><strong>Location:</strong> Project Dashboard › Campaign Manager</p>
+<p><strong>User flow:</strong></p>
+<ul>
+  <li>User navigates to Campaign Manager inside their GrowthForge project.</li>
+  <li>A "Connect Google Ads" panel is displayed at the top of the page.</li>
+  <li>User clicks "Connect Google Ads" — initiates OAuth 2.0 consent flow with scope <code>adwords</code>.</li>
+  <li>User grants permission on Google's OAuth consent screen.</li>
+  <li>Platform stores the refresh token server-side; user is redirected back to Campaign Manager.</li>
+  <li>User sees their connected account info (email, customer ID, last sync time).</li>
+  <li>User clicks "Sync Now" — platform fetches the latest campaign data via Google Ads API GAQL query (last 30 days).</li>
+  <li>Campaigns appear in the dashboard with real metrics: impressions, clicks, conversions, spend, CTR, CPC, ROAS.</li>
+  <li>Synced campaigns are visually badged as "Google Ads" for clear attribution.</li>
+</ul>
+
+<h2>3. Campaign Types Supported</h2>
+<p>Search, Display, Video, Performance Max</p>
+<p>Campaign type is read from <code>campaign.advertising_channel_type</code> in the API response and displayed alongside each campaign row.</p>
+
+<h2>4. Capabilities Provided</h2>
+<ul>
+  <li><strong>Campaign Management:</strong> Users can view, monitor, and track all active Google Ads campaigns from within GrowthForge.</li>
+  <li><strong>Reporting:</strong> Platform surfaces 30-day performance summaries (impressions, clicks, conversions, spend, ROAS, CTR, CPC) and AI-generated recommendations based on real campaign data.</li>
+</ul>
+
+<h2>5. GAQL Query Used</h2>
+<code>SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, metrics.impressions, metrics.clicks, metrics.conversions, metrics.cost_micros, metrics.ctr, metrics.average_cpc FROM campaign WHERE segments.date DURING LAST_30_DAYS AND campaign.status != 'REMOVED' ORDER BY metrics.impressions DESC LIMIT 50</code>
+
+<h2>6. OAuth &amp; API Access Details</h2>
+<ul>
+  <li><strong>OAuth scope:</strong> <code>https://www.googleapis.com/auth/adwords</code></li>
+  <li><strong>Auth type:</strong> OAuth 2.0 with offline access (refresh token)</li>
+  <li><strong>Redirect URI:</strong> <code>https://usegrowthforge.com/api/auth/google-ads/callback</code></li>
+  <li><strong>API version:</strong> Google Ads API v18</li>
+  <li><strong>Login-customer-id:</strong> Manager account customer ID passed in header for agency flows</li>
+</ul>
+
+<h2>7. Data Storage &amp; Security</h2>
+<ul>
+  <li>OAuth tokens stored server-side in a PostgreSQL database — never exposed to the browser.</li>
+  <li>Access tokens refreshed automatically on expiry using the stored refresh token.</li>
+  <li>Campaign data cached in the platform database and refreshed on user request ("Sync Now").</li>
+  <li>Users can disconnect their Google Ads account at any time — tokens are immediately deleted and synced campaigns revert to manual entries.</li>
+  <li>All API communication happens server-to-server; the developer token is never sent to the client.</li>
+</ul>
+
+<h2>8. Who Has Access</h2>
+<p>External users — GrowthForge customers access this feature through their own authenticated GrowthForge account. Each user connects their own Google Ads account via OAuth. The platform never accesses any Google Ads account without explicit authorization from the account owner.</p>
+
+<h2>9. Target Audience</h2>
+<ul>
+  <li>Small and medium-sized businesses running Google Ads campaigns who want a unified AI marketing dashboard.</li>
+  <li>Marketing agencies managing Google Ads on behalf of multiple clients.</li>
+</ul>
+</body>
+</html>
