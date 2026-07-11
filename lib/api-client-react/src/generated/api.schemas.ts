@@ -271,6 +271,21 @@ export interface MetaConnection {
   connectedAt?: string | null;
 }
 
+export interface MetaPageOption {
+  id: string;
+  name: string;
+}
+
+export interface MetaPagesResult {
+  projectId: number;
+  pages: MetaPageOption[];
+}
+
+export interface MetaPageSelectInput {
+  token: string;
+  pageId: string;
+}
+
 export type PublishSocialInputPlatform = typeof PublishSocialInputPlatform[keyof typeof PublishSocialInputPlatform];
 
 
@@ -645,4 +660,8 @@ export interface AgentMessage {
   actionResult?: string | null;
   createdAt: string;
 }
+
+export type GetMetaPagesParams = {
+token: string;
+};
 

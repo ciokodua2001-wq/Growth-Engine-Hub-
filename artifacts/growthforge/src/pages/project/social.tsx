@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams, useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { useParams, useLocation, useSearch } from "wouter";
 import {
   useListSocialPosts,
   useGenerateSocialPosts,
@@ -8,12 +8,14 @@ import {
   useGetMetaConnection,
   useDisconnectMeta,
   usePublishSocialPost,
+  useGetMetaPages,
+  useSelectMetaPage,
   getListSocialPostsQueryKey,
   getGetMetaConnectionQueryKey,
 } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Share2, Zap, Calendar, Facebook, CheckCircle2, AlertCircle, Link2, Link2Off, Instagram } from "lucide-react";
+import { Loader2, Share2, Zap, Calendar, Facebook, CheckCircle2, AlertCircle, Link2, Link2Off, Instagram, RefreshCw, ChevronRight } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 
 const platforms = ["linkedin", "instagram", "tiktok", "x", "facebook"];
@@ -113,14 +115,133 @@ function PublishButtons({
   );
 }
 
+interface PagePickerModalProps {
+  token: string;
+  projectId: number;
+  onSuccess: (pageName: string) => void;
+  onCancel: () => void;
+}
+
+function PagePickerModal({ token, projectId, onSuccess, onCancel }: PagePickerModalProps) {
+  const { data, isLoading, error } = useGetMetaPages({ token }, { query: { retry: false } });
+  const selectPage = useSelectMetaPage();
+  const queryClient = useQueryClient();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const handleSelect = () => {
+    if (!selectedId) return;
+    selectPage.mutate(
+      { data: { token, pageId: selectedId } },
+      {
+        onSuccess: (result) => {
+          queryClient.invalidateQueries({ queryKey: getGetMetaConnectionQueryKey(projectId) });
+          onSuccess(result.pageName ?? selectedId);
+        },
+      }
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 8 }}
+        className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+      >
+        <div className="p-6 border-b border-border">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-8 h-8 rounded-lg bg-blue-600/20 flex items-center justify-center">
+              <Facebook className="h-4 w-4 text-blue-400" />
+            </div>
+            <h2 className="text-lg font-bold">Choose a Facebook Page</h2>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            You manage multiple Pages. Select the one you want to connect to this project.
+          </p>
+        </div>
+
+        <div className="p-4">
+          {isLoading && (
+            <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground text-sm">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading your Pages…
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center gap-2 text-red-400 text-sm py-4">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              This selection session expired. Please reconnect to choose your Page.
+            </div>
+          )}
+
+          {data && (
+            <div className="space-y-2">
+              {data.pages.map((page) => (
+                <button
+                  key={page.id}
+                  onClick={() => setSelectedId(page.id)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+                    selectedId === page.id
+                      ? "bg-blue-600/15 border-blue-500/40 text-foreground"
+                      : "bg-secondary/40 border-border hover:border-blue-500/20 text-foreground"
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    selectedId === page.id ? "bg-blue-600/30" : "bg-secondary"
+                  }`}>
+                    <Facebook className={`h-4 w-4 ${selectedId === page.id ? "text-blue-400" : "text-muted-foreground"}`} />
+                  </div>
+                  <span className="font-medium text-sm flex-1">{page.name}</span>
+                  {selectedId === page.id && <ChevronRight className="h-4 w-4 text-blue-400 shrink-0" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-border flex gap-3 justify-end">
+          <button
+            onClick={onCancel}
+            disabled={selectPage.isPending}
+            className="px-4 py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground border border-border hover:border-border/80 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSelect}
+            disabled={!selectedId || selectPage.isPending || !data}
+            className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {selectPage.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            Connect Page
+          </button>
+        </div>
+
+        {selectPage.isError && (
+          <div className="px-4 pb-4">
+            <p className="text-xs text-red-400 flex items-center gap-1.5">
+              <AlertCircle className="h-3 w-3 shrink-0" />
+              Failed to connect the selected page. Please try again.
+            </p>
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
 export default function ProjectSocial() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const [view, setView] = useState<"posts" | "calendar">("posts");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["linkedin", "instagram", "tiktok"]);
   const [modalOpen, setModalOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [pagePickerToken, setPagePickerToken] = useState<string | null>(null);
 
   const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: posts, isLoading } = useListSocialPosts(projectId, { query: { enabled: !!projectId } });
@@ -129,6 +250,21 @@ export default function ProjectSocial() {
   const disconnectMeta = useDisconnectMeta();
   const generatePosts = useGenerateSocialPosts();
   const queryClient = useQueryClient();
+
+  // Pick up the meta_pages token from the OAuth redirect URL and open the picker
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const token = params.get("meta_pages");
+    if (token) {
+      setPagePickerToken(token);
+      // Remove the param from the URL without a full navigation
+      const clean = new URLSearchParams(search);
+      clean.delete("meta_pages");
+      const newSearch = clean.toString();
+      const newPath = `/projects/${projectId}/social${newSearch ? `?${newSearch}` : ""}`;
+      history.replaceState(null, "", newPath);
+    }
+  }, [search, projectId]);
 
   const showToast = (type: Toast["type"], message: string) => {
     const id = Date.now();
@@ -166,6 +302,15 @@ export default function ProjectSocial() {
         onError: () => showToast("error", "Failed to disconnect. Try again."),
       }
     );
+  };
+
+  const handlePagePickerSuccess = (pageName: string) => {
+    setPagePickerToken(null);
+    showToast("success", `Connected to "${pageName}" successfully!`);
+  };
+
+  const handlePagePickerCancel = () => {
+    setPagePickerToken(null);
   };
 
   const filteredPosts = posts?.filter(p => selectedPlatforms.includes(p.platform.toLowerCase())) ?? [];
@@ -209,24 +354,36 @@ export default function ProjectSocial() {
               </>
             )}
           </div>
-          {isConnected ? (
-            <button
-              onClick={handleDisconnect}
-              disabled={disconnectMeta.isPending}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-red-400 border border-border hover:border-red-400/30 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-            >
-              {disconnectMeta.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2Off className="h-3 w-3" />}
-              Disconnect
-            </button>
-          ) : (
-            <a
-              href={`/api/auth/meta/start?projectId=${projectId}`}
-              className="flex items-center gap-1.5 text-xs font-bold bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 px-3 py-1.5 rounded-lg transition-colors"
-            >
-              <Link2 className="h-3 w-3" />
-              Connect Facebook / Instagram
-            </a>
-          )}
+          <div className="flex items-center gap-2">
+            {isConnected ? (
+              <>
+                <a
+                  href={`/api/auth/meta/start?projectId=${projectId}`}
+                  title="Switch to a different Facebook Page"
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-blue-300 border border-border hover:border-blue-500/30 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Switch Page
+                </a>
+                <button
+                  onClick={handleDisconnect}
+                  disabled={disconnectMeta.isPending}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-red-400 border border-border hover:border-red-400/30 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {disconnectMeta.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2Off className="h-3 w-3" />}
+                  Disconnect
+                </button>
+              </>
+            ) : (
+              <a
+                href={`/api/auth/meta/start?projectId=${projectId}`}
+                className="flex items-center gap-1.5 text-xs font-bold bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Link2 className="h-3 w-3" />
+                Connect Facebook / Instagram
+              </a>
+            )}
+          </div>
         </div>
       )}
 
@@ -350,6 +507,18 @@ export default function ProjectSocial() {
         onSubmit={handleSubmit}
         ctaLabel="Generate Posts"
       />
+
+      {/* Page picker modal (shown after OAuth redirect with multiple pages) */}
+      <AnimatePresence>
+        {pagePickerToken && (
+          <PagePickerModal
+            token={pagePickerToken}
+            projectId={projectId}
+            onSuccess={handlePagePickerSuccess}
+            onCancel={handlePagePickerCancel}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Toast notifications */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">

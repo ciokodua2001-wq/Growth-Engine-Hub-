@@ -622,6 +622,39 @@ export const DisconnectMetaResponse = zod.void()
 
 
 /**
+ * @summary Get available Facebook Pages for a pending picker session
+ */
+export const GetMetaPagesQueryParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const GetMetaPagesResponse = zod.object({
+  "projectId": zod.number(),
+  "pages": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string()
+}))
+})
+
+
+/**
+ * @summary Select a Facebook Page from the picker and commit the connection
+ */
+export const SelectMetaPageBody = zod.object({
+  "token": zod.string(),
+  "pageId": zod.string()
+})
+
+export const SelectMetaPageResponse = zod.object({
+  "connected": zod.boolean(),
+  "pageId": zod.string().nullish(),
+  "pageName": zod.string().nullish(),
+  "instagramAccountId": zod.string().nullish(),
+  "connectedAt": zod.string().nullish()
+})
+
+
+/**
  * @summary Publish a social post to Facebook or Instagram via the Graph API
  */
 export const PublishSocialPostParams = zod.object({

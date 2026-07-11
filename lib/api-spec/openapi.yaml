@@ -24,6 +24,7 @@ tags:
   - name: render
   - name: images
   - name: storage
+  - name: meta
 paths:
   /healthz:
     get:
@@ -529,6 +530,54 @@ paths:
       responses:
         "204":
           description: Disconnected successfully
+
+  /auth/meta/pages:
+    get:
+      operationId: getMetaPages
+      tags: [meta]
+      summary: Get available Facebook Pages for a pending picker session
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Available pages to choose from
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetaPagesResult"
+        "400":
+          description: Missing token
+        "404":
+          description: Token not found or expired
+
+  /auth/meta/select-page:
+    post:
+      operationId: selectMetaPage
+      tags: [meta]
+      summary: Select a Facebook Page from the picker and commit the connection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MetaPageSelectInput"
+      responses:
+        "200":
+          description: Page connected successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetaConnection"
+        "400":
+          description: Missing token or pageId
+        "404":
+          description: Token not found, expired, or page not in list
+        "500":
+          description: Failed to connect page
 
   /projects/{id}/social-posts/{postId}/publish:
     post:
@@ -1652,6 +1701,35 @@ components:
           type: ["string", "null"]
         connectedAt:
           type: ["string", "null"]
+
+    MetaPageOption:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+
+    MetaPagesResult:
+      type: object
+      required: [projectId, pages]
+      properties:
+        projectId:
+          type: integer
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetaPageOption"
+
+    MetaPageSelectInput:
+      type: object
+      required: [token, pageId]
+      properties:
+        token:
+          type: string
+        pageId:
+          type: string
 
     PublishSocialInput:
       type: object

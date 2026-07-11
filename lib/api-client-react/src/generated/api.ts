@@ -43,10 +43,13 @@ import type {
   EmailSendConfig,
   EmailSendInput,
   GeneratedImages,
+  GetMetaPagesParams,
   HealthStatus,
   ImageGenerateInput,
   MarketingStrategy,
   MetaConnection,
+  MetaPageSelectInput,
+  MetaPagesResult,
   Project,
   ProjectAnalytics,
   ProjectInput,
@@ -1988,6 +1991,160 @@ export const useDisconnectMeta = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDisconnectMetaMutationOptions(options));
+    }
+
+export const getGetMetaPagesUrl = (params: GetMetaPagesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/auth/meta/pages?${stringifiedParams}` : `/api/auth/meta/pages`
+}
+
+/**
+ * @summary Get available Facebook Pages for a pending picker session
+ */
+export const getMetaPages = async (params: GetMetaPagesParams, options?: RequestInit): Promise<MetaPagesResult> => {
+
+  return customFetch<MetaPagesResult>(getGetMetaPagesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMetaPagesQueryKey = (params?: GetMetaPagesParams,) => {
+    return [
+    `/api/auth/meta/pages`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMetaPagesQueryOptions = <TData = Awaited<ReturnType<typeof getMetaPages>>, TError = ErrorType<void>>(params: GetMetaPagesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMetaPages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMetaPagesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMetaPages>>> = ({ signal }) => getMetaPages(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMetaPages>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMetaPagesQueryResult = NonNullable<Awaited<ReturnType<typeof getMetaPages>>>
+export type GetMetaPagesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get available Facebook Pages for a pending picker session
+ */
+
+export function useGetMetaPages<TData = Awaited<ReturnType<typeof getMetaPages>>, TError = ErrorType<void>>(
+ params: GetMetaPagesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMetaPages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMetaPagesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSelectMetaPageUrl = () => {
+
+
+
+
+  return `/api/auth/meta/select-page`
+}
+
+/**
+ * @summary Select a Facebook Page from the picker and commit the connection
+ */
+export const selectMetaPage = async (metaPageSelectInput: MetaPageSelectInput, options?: RequestInit): Promise<MetaConnection> => {
+
+  return customFetch<MetaConnection>(getSelectMetaPageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(metaPageSelectInput)
+  }
+);}
+
+
+
+
+export const getSelectMetaPageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof selectMetaPage>>, TError,{data: BodyType<MetaPageSelectInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof selectMetaPage>>, TError,{data: BodyType<MetaPageSelectInput>}, TContext> => {
+
+const mutationKey = ['selectMetaPage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof selectMetaPage>>, {data: BodyType<MetaPageSelectInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  selectMetaPage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SelectMetaPageMutationResult = NonNullable<Awaited<ReturnType<typeof selectMetaPage>>>
+    export type SelectMetaPageMutationBody = BodyType<MetaPageSelectInput>
+    export type SelectMetaPageMutationError = ErrorType<void>
+
+    /**
+ * @summary Select a Facebook Page from the picker and commit the connection
+ */
+export const useSelectMetaPage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof selectMetaPage>>, TError,{data: BodyType<MetaPageSelectInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof selectMetaPage>>,
+        TError,
+        {data: BodyType<MetaPageSelectInput>},
+        TContext
+      > => {
+      return useMutation(getSelectMetaPageMutationOptions(options));
     }
 
 export const getPublishSocialPostUrl = (id: number,
