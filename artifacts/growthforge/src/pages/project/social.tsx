@@ -303,9 +303,18 @@ function PagePickerModal({ token, projectId, currentPageId, onSuccess, onCancel,
           )}
 
           {error && (
-            <div className="flex items-center gap-2 text-red-400 text-sm py-4">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              This selection session expired. Please reconnect to choose your Page.
+            <div className="flex flex-col gap-4 py-4">
+              <div className="flex items-start gap-2 text-red-400 text-sm">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>This selection session has expired. Please reconnect your Facebook account to choose a Page.</span>
+              </div>
+              <a
+                href={`/api/auth/meta/start?projectId=${projectId}`}
+                className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+              >
+                <Facebook className="h-4 w-4" />
+                Reconnect Facebook
+              </a>
             </div>
           )}
 
@@ -358,14 +367,16 @@ function PagePickerModal({ token, projectId, currentPageId, onSuccess, onCancel,
           >
             Cancel
           </button>
-          <button
-            onClick={handleSelect}
-            disabled={!selectedId || selectPage.isPending || !data}
-            className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {selectPage.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            Connect Page
-          </button>
+          {!error && (
+            <button
+              onClick={handleSelect}
+              disabled={!selectedId || selectPage.isPending || !data}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {selectPage.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              Connect Page
+            </button>
+          )}
         </div>
 
         {selectPage.isError && (
