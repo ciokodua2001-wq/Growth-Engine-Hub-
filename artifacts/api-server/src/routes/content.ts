@@ -34,6 +34,7 @@ import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/
 import { recordGeneratedBatch, recordGenerated, hashContent } from "../lib/contentIntegrity.js";
 import { Resend } from "resend";
 import { decryptToken, encryptToken, isEncryptedFormat } from "../lib/tokenCrypto.js";
+import { GraphApiError, MetaApiShapeError, parseMetaApiResponse } from "../lib/metaApiSchemas.js";
 
 const router: IRouter = Router();
 
@@ -564,8 +565,7 @@ router.get("/projects/:id/social-posts/:postId/stats", async (req, res): Promise
   });
 });
 
-// Used to distinguish known Graph API error messages from unexpected network failures
-class GraphApiError extends Error {}
+// GraphApiError and MetaApiShapeError are imported from lib/metaApiSchemas.ts
 
 // Publish social post to Meta (Facebook / Instagram)
 //
@@ -716,12 +716,8 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: content, access_token: pageToken }),
       });
-      const fbData = await fbRes.json() as { id?: string; error?: { message: string } };
-      if (!fbData.id) {
-        req.log.error({ fbData }, "Facebook publish failed");
-        throw new GraphApiError(fbData.error?.message ?? "Facebook publish failed");
-      }
-      externalPostId = fbData.id;
+      const fbBody: unknown = await fbRes.json();
+      externalPostId = parseMetaApiResponse("Facebook feed POST", fbBody);
     } else {
       // Instagram: two-step (create container → publish)
       const igAccountId = conn.instagramAccountId!;
@@ -732,30 +728,33 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ caption: content, media_type: "TEXT", access_token: pageToken }),
       });
-      const containerData = await containerRes.json() as { id?: string; error?: { message: string } };
-      if (!containerData.id) {
-        req.log.error({ containerData }, "Instagram container creation failed");
-        throw new GraphApiError(containerData.error?.message ?? "Instagram media container failed");
-      }
+      const containerBody: unknown = await containerRes.json();
+      const containerId = parseMetaApiResponse("Instagram container creation", containerBody);
 
       const publishUrl = `https://graph.facebook.com/v20.0/${igAccountId}/media_publish`;
       const publishRes = await fetch(publishUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ creation_id: containerData.id, access_token: pageToken }),
+        body: JSON.stringify({ creation_id: containerId, access_token: pageToken }),
       });
-      const publishData = await publishRes.json() as { id?: string; error?: { message: string } };
-      if (!publishData.id) {
-        req.log.error({ publishData }, "Instagram publish failed");
-        throw new GraphApiError(publishData.error?.message ?? "Instagram publish failed");
-      }
-      externalPostId = publishData.id;
+      const publishBody: unknown = await publishRes.json();
+      externalPostId = parseMetaApiResponse("Instagram media_publish", publishBody);
     }
   } catch (err) {
     if (err instanceof GraphApiError) {
       // Definitive rejection — Meta did not create the post. Safe to roll back.
       await rollbackToDraft();
       res.status(502).json({ error: err.message });
+    } else if (err instanceof MetaApiShapeError) {
+      // Meta returned JSON but the shape was unrecognized — likely an API version change.
+      // Outcome is unknown; do NOT roll back. The post stays "publishing" so the user
+      // must verify their page manually before retrying.
+      req.log.error({ err, postId, projectId }, "Meta API response shape validation failed — publish outcome unknown");
+      res.status(502).json({
+        error:
+          "The post could not be confirmed because Meta returned an unexpected response (the API may have changed). " +
+          "Check your Facebook/Instagram page — if the post appeared, refresh this page. If not, contact support.",
+      });
     } else {
       // Ambiguous transport failure. The post stays "publishing" so a blind retry cannot
       // issue a second publish call and create a duplicate. The user must verify their
