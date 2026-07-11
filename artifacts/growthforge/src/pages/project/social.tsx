@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useLocation, useSearch } from "wouter";
 import {
   useListSocialPosts,
@@ -117,19 +117,23 @@ function PublishButtons({
   );
 }
 
+const STATS_STALE_MS = 30 * 60 * 1000; // 30 minutes
+
 interface StatsPanelProps {
   post: SocialPost;
   projectId: number;
+  isAutoFetching: boolean;
   onError: (msg: string) => void;
 }
 
-function StatsPanel({ post, projectId, onError }: StatsPanelProps) {
+function StatsPanel({ post, projectId, isAutoFetching, onError }: StatsPanelProps) {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   if (post.status !== "published" || !post.externalPostId) return null;
 
   const hasStats = post.statsLikes != null || post.statsComments != null || post.statsReach != null;
+  const isBusy = isAutoFetching || isRefreshing;
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -170,27 +174,40 @@ function StatsPanel({ post, projectId, onError }: StatsPanelProps) {
           )}
           <button
             onClick={handleRefresh}
-            disabled={isRefreshing}
-            title="Refresh stats from Meta"
+            disabled={isBusy}
+            title={isAutoFetching ? "Refreshing stats…" : "Refresh stats from Meta"}
             className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
           >
-            <RefreshCw className={`h-3 w-3 ${isRefreshing ? "animate-spin" : ""}`} />
-            {post.statsUpdatedAt ? new Date(post.statsUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Refresh"}
+            <RefreshCw className={`h-3 w-3 ${isBusy ? "animate-spin" : ""}`} />
+            {isAutoFetching
+              ? "Updating…"
+              : post.statsUpdatedAt
+                ? new Date(post.statsUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                : "Refresh"}
           </button>
         </div>
       ) : (
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
-        >
-          {isRefreshing ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          {isAutoFetching ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Loading stats…</span>
+            </>
           ) : (
-            <RefreshCw className="h-3 w-3" />
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 hover:text-foreground disabled:opacity-50 transition-colors"
+            >
+              {isRefreshing ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3 w-3" />
+              )}
+              Refresh stats
+            </button>
           )}
-          Refresh stats
-        </button>
+        </div>
       )}
     </div>
   );
@@ -339,6 +356,9 @@ export default function ProjectSocial() {
   const [modalOpen, setModalOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [pagePickerToken, setPagePickerToken] = useState<string | null>(null);
+  const [autoFetchingIds, setAutoFetchingIds] = useState<Set<number>>(new Set());
+  // Track post IDs already auto-fetched this session to prevent loop after query invalidation
+  const fetchedThisSession = useRef<Set<number>>(new Set());
 
   const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: posts, isLoading } = useListSocialPosts(projectId, { query: { enabled: !!projectId } });
@@ -348,20 +368,29 @@ export default function ProjectSocial() {
   const generatePosts = useGenerateSocialPosts();
   const queryClient = useQueryClient();
 
-  // Auto-fetch stats on page load for published posts that have never had stats pulled
+  // Auto-fetch stats on page load for published posts that have never had stats pulled,
+  // and background-refresh posts whose stats are older than STATS_STALE_MS (30 min).
+  // fetchedThisSession prevents a re-trigger loop after query invalidation updates `posts`.
   useEffect(() => {
     if (!posts || !projectId) return;
-    const unpulled = posts.filter(
-      (p) => p.status === "published" && p.externalPostId && p.statsUpdatedAt == null
-    );
-    if (unpulled.length === 0) return;
+    const now = Date.now();
+    const toFetch = posts.filter((p) => {
+      if (p.status !== "published" || !p.externalPostId) return false;
+      if (fetchedThisSession.current.has(p.id)) return false;
+      if (p.statsUpdatedAt == null) return true;
+      return now - new Date(p.statsUpdatedAt).getTime() > STATS_STALE_MS;
+    });
+    if (toFetch.length === 0) return;
 
-    let didFetch = false;
+    const ids = toFetch.map((p) => p.id);
+    ids.forEach((id) => fetchedThisSession.current.add(id));
+    setAutoFetchingIds(new Set(ids));
+
     Promise.allSettled(
-      unpulled.map((p) => getSocialPostStats(projectId, p.id))
+      toFetch.map((p) => getSocialPostStats(projectId, p.id))
     ).then((results) => {
-      didFetch = results.some((r) => r.status === "fulfilled");
-      if (didFetch) {
+      setAutoFetchingIds(new Set());
+      if (results.some((r) => r.status === "fulfilled")) {
         queryClient.invalidateQueries({ queryKey: getListSocialPostsQueryKey(projectId) });
       }
     });
@@ -572,6 +601,7 @@ export default function ProjectSocial() {
                   <StatsPanel
                     post={post}
                     projectId={projectId}
+                    isAutoFetching={autoFetchingIds.has(post.id)}
                     onError={(msg) => showToast("error", msg)}
                   />
                 </motion.div>
