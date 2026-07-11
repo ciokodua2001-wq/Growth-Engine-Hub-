@@ -254,7 +254,33 @@ export interface SocialPost {
   scheduledAt?: string | null;
   /** @nullable */
   publishedAt?: string | null;
+  /** @nullable */
+  externalPostId?: string | null;
   createdAt: string;
+}
+
+export interface MetaConnection {
+  connected: boolean;
+  /** @nullable */
+  pageId?: string | null;
+  /** @nullable */
+  pageName?: string | null;
+  /** @nullable */
+  instagramAccountId?: string | null;
+  /** @nullable */
+  connectedAt?: string | null;
+}
+
+export type PublishSocialInputPlatform = typeof PublishSocialInputPlatform[keyof typeof PublishSocialInputPlatform];
+
+
+export const PublishSocialInputPlatform = {
+  facebook: 'facebook',
+  instagram: 'instagram',
+} as const;
+
+export interface PublishSocialInput {
+  platform: PublishSocialInputPlatform;
 }
 
 export interface CalendarEntry {

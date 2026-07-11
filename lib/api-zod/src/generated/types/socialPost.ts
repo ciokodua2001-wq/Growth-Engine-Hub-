@@ -22,5 +22,7 @@ export interface SocialPost {
   scheduledAt?: string | null;
   /** @nullable */
   publishedAt?: string | null;
+  /** @nullable */
+  externalPostId?: string | null;
   createdAt: string;
 }

@@ -1,15 +1,19 @@
 import { useState } from "react";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import {
   useListSocialPosts,
   useGenerateSocialPosts,
   useGetContentCalendar,
   useGetProject,
+  useGetMetaConnection,
+  useDisconnectMeta,
+  usePublishSocialPost,
   getListSocialPostsQueryKey,
+  getGetMetaConnectionQueryKey,
 } from "@workspace/api-client-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Share2, Zap, Calendar } from "lucide-react";
+import { Loader2, Share2, Zap, Calendar, Facebook, CheckCircle2, AlertCircle, Link2, Link2Off, Instagram } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 
 const platforms = ["linkedin", "instagram", "tiktok", "x", "facebook"];
@@ -30,18 +34,107 @@ const SOCIAL_STEPS = [
   "Scheduling content calendar...",
 ];
 
+interface Toast {
+  id: number;
+  type: "success" | "error";
+  message: string;
+}
+
+interface PublishButtonsProps {
+  postId: number;
+  projectId: number;
+  platform: string;
+  status: string;
+  publishedAt: string | null;
+  externalPostId: string | null | undefined;
+  hasMetaConnection: boolean;
+  hasInstagram: boolean;
+  onPublished: (platform: string) => void;
+  onError: (msg: string) => void;
+}
+
+function PublishButtons({
+  postId, projectId, platform, status, publishedAt, hasMetaConnection, hasInstagram, onPublished, onError,
+}: PublishButtonsProps) {
+  const publishPost = usePublishSocialPost();
+  const queryClient = useQueryClient();
+
+  const isMetaPlatform = platform === "facebook" || platform === "instagram";
+  const isPublished = status === "published";
+
+  if (!isMetaPlatform || !hasMetaConnection) return null;
+  if (platform === "instagram" && !hasInstagram) return null;
+
+  const handlePublish = (targetPlatform: "facebook" | "instagram") => {
+    publishPost.mutate(
+      { id: projectId, postId, data: { platform: targetPlatform } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListSocialPostsQueryKey(projectId) });
+          onPublished(targetPlatform);
+        },
+        onError: () => onError(`Failed to publish to ${targetPlatform}. Check your Meta connection.`),
+      }
+    );
+  };
+
+  if (isPublished) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
+        <CheckCircle2 className="h-3 w-3" />
+        Published {publishedAt ? new Date(publishedAt).toLocaleDateString() : ""}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {(platform === "facebook" || platform === "instagram") && (
+        <button
+          onClick={() => handlePublish("facebook")}
+          disabled={publishPost.isPending}
+          className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-blue-600/15 text-blue-300 border border-blue-600/20 hover:bg-blue-600/25 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {publishPost.isPending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Facebook className="h-2.5 w-2.5" />}
+          Facebook
+        </button>
+      )}
+      {platform === "instagram" && hasInstagram && (
+        <button
+          onClick={() => handlePublish("instagram")}
+          disabled={publishPost.isPending}
+          className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-pink-500/15 text-pink-400 border border-pink-500/20 hover:bg-pink-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {publishPost.isPending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Instagram className="h-2.5 w-2.5" />}
+          Instagram
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function ProjectSocial() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
+  const [, setLocation] = useLocation();
   const [view, setView] = useState<"posts" | "calendar">("posts");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["linkedin", "instagram", "tiktok"]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
   const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: posts, isLoading } = useListSocialPosts(projectId, { query: { enabled: !!projectId } });
   const { data: calendar } = useGetContentCalendar(projectId, { query: { enabled: !!projectId && view === "calendar" } });
+  const { data: metaConn, isLoading: metaLoading } = useGetMetaConnection(projectId, { query: { enabled: !!projectId } });
+  const disconnectMeta = useDisconnectMeta();
   const generatePosts = useGenerateSocialPosts();
   const queryClient = useQueryClient();
+
+  const showToast = (type: Toast["type"], message: string) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, type, message }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
+  };
 
   const togglePlatform = (p: string) => {
     setSelectedPlatforms(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
@@ -62,7 +155,22 @@ export default function ProjectSocial() {
     });
   };
 
+  const handleDisconnect = () => {
+    disconnectMeta.mutate(
+      { id: projectId },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetMetaConnectionQueryKey(projectId) });
+          showToast("success", "Meta account disconnected.");
+        },
+        onError: () => showToast("error", "Failed to disconnect. Try again."),
+      }
+    );
+  };
+
   const filteredPosts = posts?.filter(p => selectedPlatforms.includes(p.platform.toLowerCase())) ?? [];
+  const isConnected = metaConn?.connected === true;
+  const hasInstagram = isConnected && !!metaConn?.instagramAccountId;
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full">
@@ -80,6 +188,47 @@ export default function ProjectSocial() {
           Generate Posts
         </button>
       </div>
+
+      {/* Meta connection banner */}
+      {!metaLoading && (
+        <div className={`mb-6 rounded-xl border p-4 flex items-center gap-4 ${isConnected ? "bg-blue-600/10 border-blue-500/20" : "bg-secondary/50 border-border"}`}>
+          <div className="flex items-center gap-2 text-sm flex-1">
+            {isConnected ? (
+              <>
+                <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                <span className="font-medium text-foreground">{metaConn.pageName}</span>
+                <span className="text-muted-foreground text-xs">connected</span>
+                {hasInstagram && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-pink-500/15 text-pink-400 border border-pink-500/20">+ Instagram</span>
+                )}
+              </>
+            ) : (
+              <>
+                <Facebook className="h-4 w-4 text-blue-400 shrink-0" />
+                <span className="text-muted-foreground">Connect Facebook &amp; Instagram to publish posts directly</span>
+              </>
+            )}
+          </div>
+          {isConnected ? (
+            <button
+              onClick={handleDisconnect}
+              disabled={disconnectMeta.isPending}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-red-400 border border-border hover:border-red-400/30 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {disconnectMeta.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2Off className="h-3 w-3" />}
+              Disconnect
+            </button>
+          ) : (
+            <a
+              href={`/api/auth/meta/start?projectId=${projectId}`}
+              className="flex items-center gap-1.5 text-xs font-bold bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <Link2 className="h-3 w-3" />
+              Connect Facebook / Instagram
+            </a>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 mb-6">
         {platforms.map(p => {
@@ -132,8 +281,21 @@ export default function ProjectSocial() {
                     <span className="text-[10px] text-muted-foreground ml-auto capitalize">{post.status}</span>
                   </div>
                   <p className="text-sm text-foreground leading-relaxed mb-3">{post.caption}</p>
-                  {post.hashtags && <p className="text-xs text-primary/70">{post.hashtags}</p>}
-                  {post.cta && <p className="text-xs text-muted-foreground mt-2 italic">{post.cta}</p>}
+                  {post.hashtags && <p className="text-xs text-primary/70 mb-2">{post.hashtags}</p>}
+                  {post.cta && <p className="text-xs text-muted-foreground mb-3 italic">{post.cta}</p>}
+
+                  <PublishButtons
+                    postId={post.id}
+                    projectId={projectId}
+                    platform={post.platform.toLowerCase()}
+                    status={post.status}
+                    publishedAt={post.publishedAt ?? null}
+                    externalPostId={post.externalPostId}
+                    hasMetaConnection={isConnected}
+                    hasInstagram={hasInstagram}
+                    onPublished={(p) => showToast("success", `Published to ${p} successfully!`)}
+                    onError={(msg) => showToast("error", msg)}
+                  />
                 </motion.div>
               );
             })}
@@ -188,6 +350,28 @@ export default function ProjectSocial() {
         onSubmit={handleSubmit}
         ctaLabel="Generate Posts"
       />
+
+      {/* Toast notifications */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
+        <AnimatePresence>
+          {toasts.map(toast => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: 16, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium max-w-sm pointer-events-auto ${
+                toast.type === "success"
+                  ? "bg-emerald-950 border-emerald-500/30 text-emerald-300"
+                  : "bg-red-950 border-red-500/30 text-red-300"
+              }`}
+            >
+              {toast.type === "success" ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
+              {toast.message}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

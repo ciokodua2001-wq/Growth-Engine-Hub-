@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { contentTable, socialPostsTable, emailCampaignsTable, adCreativesTable, activityTable } from "@workspace/db";
+import { contentTable, socialPostsTable, emailCampaignsTable, adCreativesTable, activityTable, metaConnectionsTable } from "@workspace/db";
 import { consumeTrialQuota } from "../lib/trialLimits.js";
 import { getGroundingContext } from "../lib/projectContext.js";
 import { generateSocialPosts, generateEmailCampaign, type SocialPostResult, type EmailResult } from "../lib/contentGenerators.js";
@@ -23,6 +23,10 @@ import {
   ListAdsParams,
   GenerateAdsParams,
   GenerateAdsBody,
+  GetMetaConnectionParams,
+  DisconnectMetaParams,
+  PublishSocialPostParams,
+  PublishSocialPostBody,
 } from "@workspace/api-zod";
 import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGeneratedBatch, recordGenerated, hashContent } from "../lib/contentIntegrity.js";
@@ -375,6 +379,130 @@ router.post("/projects/:id/emails/:emailId/send", requireActiveSubscription, asy
     createdAt: updated!.createdAt.toISOString(),
     sentCount,
     failCount,
+  });
+});
+
+// Meta connection status
+router.get("/projects/:id/meta-connection", async (req, res): Promise<void> => {
+  const params = GetMetaConnectionParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const [conn] = await db.select().from(metaConnectionsTable).where(eq(metaConnectionsTable.projectId, params.data.id));
+  if (!conn) {
+    res.json({ connected: false, pageId: null, pageName: null, instagramAccountId: null, connectedAt: null });
+    return;
+  }
+  res.json({
+    connected: true,
+    pageId: conn.pageId,
+    pageName: conn.pageName,
+    instagramAccountId: conn.instagramAccountId,
+    connectedAt: conn.connectedAt.toISOString(),
+  });
+});
+
+router.delete("/projects/:id/meta-connection", async (req, res): Promise<void> => {
+  const params = DisconnectMetaParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  await db.delete(metaConnectionsTable).where(eq(metaConnectionsTable.projectId, params.data.id));
+  res.sendStatus(204);
+});
+
+// Publish social post to Meta (Facebook / Instagram)
+router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Promise<void> => {
+  const params = PublishSocialPostParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const body = PublishSocialPostBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+
+  const { id: projectId, postId } = params.data;
+  const { platform } = body.data;
+
+  const [post] = await db.select().from(socialPostsTable).where(eq(socialPostsTable.id, postId));
+  if (!post || post.projectId !== projectId) { res.status(404).json({ error: "Social post not found" }); return; }
+  if (post.status === "published") { res.status(400).json({ error: "Post already published" }); return; }
+
+  const [conn] = await db.select().from(metaConnectionsTable).where(eq(metaConnectionsTable.projectId, projectId));
+  if (!conn) { res.status(404).json({ error: "No Meta account connected. Connect Facebook first." }); return; }
+
+  if (platform === "instagram" && !conn.instagramAccountId) {
+    res.status(400).json({ error: "No Instagram Business Account linked to the connected Facebook Page." });
+    return;
+  }
+
+  const content = [post.caption, post.hashtags, post.cta].filter(Boolean).join("\n\n");
+
+  let externalPostId: string;
+  try {
+    if (platform === "facebook") {
+      const url = `https://graph.facebook.com/v20.0/${conn.pageId}/feed`;
+      const fbRes = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: content, access_token: conn.pageAccessToken }),
+      });
+      const fbData = await fbRes.json() as { id?: string; error?: { message: string } };
+      if (!fbData.id) {
+        req.log.error({ fbData }, "Facebook publish failed");
+        res.status(502).json({ error: fbData.error?.message ?? "Facebook publish failed" });
+        return;
+      }
+      externalPostId = fbData.id;
+    } else {
+      // Instagram: two-step (create container → publish)
+      const igAccountId = conn.instagramAccountId!;
+
+      const containerUrl = `https://graph.facebook.com/v20.0/${igAccountId}/media`;
+      const containerRes = await fetch(containerUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption: content, media_type: "TEXT", access_token: conn.pageAccessToken }),
+      });
+      const containerData = await containerRes.json() as { id?: string; error?: { message: string } };
+      if (!containerData.id) {
+        req.log.error({ containerData }, "Instagram container creation failed");
+        res.status(502).json({ error: containerData.error?.message ?? "Instagram media container failed" });
+        return;
+      }
+
+      const publishUrl = `https://graph.facebook.com/v20.0/${igAccountId}/media_publish`;
+      const publishRes = await fetch(publishUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ creation_id: containerData.id, access_token: conn.pageAccessToken }),
+      });
+      const publishData = await publishRes.json() as { id?: string; error?: { message: string } };
+      if (!publishData.id) {
+        req.log.error({ publishData }, "Instagram publish failed");
+        res.status(502).json({ error: publishData.error?.message ?? "Instagram publish failed" });
+        return;
+      }
+      externalPostId = publishData.id;
+    }
+  } catch (err) {
+    req.log.error({ err }, "Meta Graph API call failed");
+    res.status(502).json({ error: "Failed to reach Meta Graph API" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(socialPostsTable)
+    .set({ status: "published", publishedAt: new Date(), externalPostId })
+    .where(eq(socialPostsTable.id, postId))
+    .returning();
+
+  await db.insert(activityTable).values({
+    projectId,
+    type: "social",
+    description: `Published "${post.caption.slice(0, 60)}…" to ${platform}`,
+  });
+
+  res.json({
+    ...updated,
+    scheduledAt: updated.scheduledAt?.toISOString() ?? null,
+    publishedAt: updated.publishedAt?.toISOString() ?? null,
+    createdAt: updated.createdAt.toISOString(),
   });
 });
 

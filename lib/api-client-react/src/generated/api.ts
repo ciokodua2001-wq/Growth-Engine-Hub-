@@ -46,10 +46,12 @@ import type {
   HealthStatus,
   ImageGenerateInput,
   MarketingStrategy,
+  MetaConnection,
   Project,
   ProjectAnalytics,
   ProjectInput,
   ProjectUpdate,
+  PublishSocialInput,
   Report,
   ReportInput,
   SocialPost,
@@ -1839,6 +1841,226 @@ export const useGenerateSocialPosts = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getGenerateSocialPostsMutationOptions(options));
+    }
+
+export const getGetMetaConnectionUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/meta-connection`
+}
+
+/**
+ * @summary Get Meta (Facebook/Instagram) connection status for a project
+ */
+export const getMetaConnection = async (id: number, options?: RequestInit): Promise<MetaConnection> => {
+
+  return customFetch<MetaConnection>(getGetMetaConnectionUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMetaConnectionQueryKey = (id: number,) => {
+    return [
+    `/api/projects/${id}/meta-connection`
+    ] as const;
+    }
+
+
+export const getGetMetaConnectionQueryOptions = <TData = Awaited<ReturnType<typeof getMetaConnection>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMetaConnection>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMetaConnectionQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMetaConnection>>> = ({ signal }) => getMetaConnection(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMetaConnection>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMetaConnectionQueryResult = NonNullable<Awaited<ReturnType<typeof getMetaConnection>>>
+export type GetMetaConnectionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get Meta (Facebook/Instagram) connection status for a project
+ */
+
+export function useGetMetaConnection<TData = Awaited<ReturnType<typeof getMetaConnection>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMetaConnection>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMetaConnectionQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDisconnectMetaUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/meta-connection`
+}
+
+/**
+ * @summary Disconnect Meta account from project
+ */
+export const disconnectMeta = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDisconnectMetaUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDisconnectMetaMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectMeta>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectMeta>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['disconnectMeta'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectMeta>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  disconnectMeta(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectMetaMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectMeta>>>
+
+    export type DisconnectMetaMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Disconnect Meta account from project
+ */
+export const useDisconnectMeta = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectMeta>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectMeta>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDisconnectMetaMutationOptions(options));
+    }
+
+export const getPublishSocialPostUrl = (id: number,
+    postId: number,) => {
+
+
+
+
+  return `/api/projects/${id}/social-posts/${postId}/publish`
+}
+
+/**
+ * @summary Publish a social post to Facebook or Instagram via the Graph API
+ */
+export const publishSocialPost = async (id: number,
+    postId: number,
+    publishSocialInput: PublishSocialInput, options?: RequestInit): Promise<SocialPost> => {
+
+  return customFetch<SocialPost>(getPublishSocialPostUrl(id,postId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(publishSocialInput)
+  }
+);}
+
+
+
+
+export const getPublishSocialPostMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishSocialPost>>, TError,{id: number;postId: number;data: BodyType<PublishSocialInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishSocialPost>>, TError,{id: number;postId: number;data: BodyType<PublishSocialInput>}, TContext> => {
+
+const mutationKey = ['publishSocialPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishSocialPost>>, {id: number;postId: number;data: BodyType<PublishSocialInput>}> = (props) => {
+          const {id,postId,data} = props ?? {};
+
+          return  publishSocialPost(id,postId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishSocialPostMutationResult = NonNullable<Awaited<ReturnType<typeof publishSocialPost>>>
+    export type PublishSocialPostMutationBody = BodyType<PublishSocialInput>
+    export type PublishSocialPostMutationError = ErrorType<void>
+
+    /**
+ * @summary Publish a social post to Facebook or Instagram via the Graph API
+ */
+export const usePublishSocialPost = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishSocialPost>>, TError,{id: number;postId: number;data: BodyType<PublishSocialInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publishSocialPost>>,
+        TError,
+        {id: number;postId: number;data: BodyType<PublishSocialInput>},
+        TContext
+      > => {
+      return useMutation(getPublishSocialPostMutationOptions(options));
     }
 
 export const getGetContentCalendarUrl = (id: number,) => {

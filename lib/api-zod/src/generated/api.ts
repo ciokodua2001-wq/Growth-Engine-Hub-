@@ -559,6 +559,7 @@ export const ListSocialPostsResponseItem = zod.object({
   "status": zod.string(),
   "scheduledAt": zod.string().nullish(),
   "publishedAt": zod.string().nullish(),
+  "externalPostId": zod.string().nullish(),
   "createdAt": zod.string()
 })
 export const ListSocialPostsResponse = zod.array(ListSocialPostsResponseItem)
@@ -588,9 +589,64 @@ export const GenerateSocialPostsResponseItem = zod.object({
   "status": zod.string(),
   "scheduledAt": zod.string().nullish(),
   "publishedAt": zod.string().nullish(),
+  "externalPostId": zod.string().nullish(),
   "createdAt": zod.string()
 })
 export const GenerateSocialPostsResponse = zod.array(GenerateSocialPostsResponseItem)
+
+
+/**
+ * @summary Get Meta (Facebook/Instagram) connection status for a project
+ */
+export const GetMetaConnectionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMetaConnectionResponse = zod.object({
+  "connected": zod.boolean(),
+  "pageId": zod.string().nullish(),
+  "pageName": zod.string().nullish(),
+  "instagramAccountId": zod.string().nullish(),
+  "connectedAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Disconnect Meta account from project
+ */
+export const DisconnectMetaParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DisconnectMetaResponse = zod.void()
+
+
+/**
+ * @summary Publish a social post to Facebook or Instagram via the Graph API
+ */
+export const PublishSocialPostParams = zod.object({
+  "id": zod.coerce.number(),
+  "postId": zod.coerce.number()
+})
+
+export const PublishSocialPostBody = zod.object({
+  "platform": zod.enum(['facebook', 'instagram'])
+})
+
+export const PublishSocialPostResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "platform": zod.string(),
+  "caption": zod.string(),
+  "hashtags": zod.string().nullish(),
+  "cta": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "status": zod.string(),
+  "scheduledAt": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "externalPostId": zod.string().nullish(),
+  "createdAt": zod.string()
+})
 
 
 /**
@@ -613,6 +669,7 @@ export const GetContentCalendarResponseItem = zod.object({
   "status": zod.string(),
   "scheduledAt": zod.string().nullish(),
   "publishedAt": zod.string().nullish(),
+  "externalPostId": zod.string().nullish(),
   "createdAt": zod.string()
 }))
 })

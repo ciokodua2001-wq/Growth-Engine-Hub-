@@ -498,6 +498,76 @@ paths:
                 items:
                   $ref: "#/components/schemas/SocialPost"
 
+  /projects/{id}/meta-connection:
+    get:
+      operationId: getMetaConnection
+      tags: [social]
+      summary: Get Meta (Facebook/Instagram) connection status for a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Meta connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetaConnection"
+    delete:
+      operationId: disconnectMeta
+      tags: [social]
+      summary: Disconnect Meta account from project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Disconnected successfully
+
+  /projects/{id}/social-posts/{postId}/publish:
+    post:
+      operationId: publishSocialPost
+      tags: [social]
+      summary: Publish a social post to Facebook or Instagram via the Graph API
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublishSocialInput"
+      responses:
+        "200":
+          description: Published successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialPost"
+        "400":
+          description: Already published or invalid platform
+        "404":
+          description: Post or Meta connection not found
+        "409":
+          description: Business analysis not complete
+        "502":
+          description: Graph API error
+
   /projects/{id}/content-calendar:
     get:
       operationId: getContentCalendar
@@ -1563,8 +1633,33 @@ components:
           type: ["string", "null"]
         publishedAt:
           type: ["string", "null"]
+        externalPostId:
+          type: ["string", "null"]
         createdAt:
           type: string
+
+    MetaConnection:
+      type: object
+      required: [connected]
+      properties:
+        connected:
+          type: boolean
+        pageId:
+          type: ["string", "null"]
+        pageName:
+          type: ["string", "null"]
+        instagramAccountId:
+          type: ["string", "null"]
+        connectedAt:
+          type: ["string", "null"]
+
+    PublishSocialInput:
+      type: object
+      required: [platform]
+      properties:
+        platform:
+          type: string
+          enum: [facebook, instagram]
 
     CalendarEntry:
       type: object
