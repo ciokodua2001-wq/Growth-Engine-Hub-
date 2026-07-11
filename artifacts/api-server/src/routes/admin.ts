@@ -1062,6 +1062,48 @@ router.get("/admin/integrity/:userId/evidence-pdf", requireAdmin, async (req, re
   }
 });
 
+// ─── Admin: Meta token health check (dry-run) ────────────────────────────────
+// Reports how many stored Meta page-access tokens can be decrypted with the
+// current key.  Does NOT modify any rows.  Use this on the admin dashboard to
+// surface key-rotation failures before users start reporting publish errors.
+
+router.get("/admin/meta/token-health", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const rows = await db
+      .select({
+        id: metaConnectionsTable.id,
+        projectId: metaConnectionsTable.projectId,
+        pageAccessToken: metaConnectionsTable.pageAccessToken,
+      })
+      .from(metaConnectionsTable);
+
+    let healthy = 0;
+    let failed = 0;
+    const failedConnections: { id: number; projectId: number; reason: string }[] = [];
+
+    for (const row of rows) {
+      try {
+        if (isEncryptedFormat(row.pageAccessToken)) {
+          decryptToken(row.pageAccessToken);
+        }
+        healthy++;
+      } catch (err) {
+        failed++;
+        failedConnections.push({
+          id: row.id,
+          projectId: row.projectId,
+          reason: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    res.json({ total: rows.length, healthy, failed, failedConnections });
+  } catch (err) {
+    req.log.error({ err }, "Admin: Meta token health check failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ─── Admin: bulk re-encrypt Meta page tokens ──────────────────────────────────
 // Use after rotating TOKEN_ENCRYPTION_KEY (or SESSION_SECRET) to migrate all
 // stored page-access tokens to the current key.  Re-encrypts both legacy
@@ -1073,11 +1115,17 @@ router.get("/admin/integrity/:userId/evidence-pdf", requireAdmin, async (req, re
 
 router.post("/admin/meta/re-encrypt-tokens", requireAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
-    const rows = await db.select({ id: metaConnectionsTable.id, pageAccessToken: metaConnectionsTable.pageAccessToken }).from(metaConnectionsTable);
+    const rows = await db
+      .select({
+        id: metaConnectionsTable.id,
+        projectId: metaConnectionsTable.projectId,
+        pageAccessToken: metaConnectionsTable.pageAccessToken,
+      })
+      .from(metaConnectionsTable);
 
     let migrated = 0;
     let failed = 0;
-    const errors: { id: number; reason: string }[] = [];
+    const errors: { id: number; projectId: number; reason: string }[] = [];
 
     for (const row of rows) {
       try {
@@ -1096,8 +1144,8 @@ router.post("/admin/meta/re-encrypt-tokens", requireAdmin, async (req: Request, 
         migrated++;
       } catch (err) {
         failed++;
-        errors.push({ id: row.id, reason: err instanceof Error ? err.message : String(err) });
-        req.log.error({ err, connectionId: row.id }, "Failed to re-encrypt Meta page token");
+        errors.push({ id: row.id, projectId: row.projectId, reason: err instanceof Error ? err.message : String(err) });
+        req.log.error({ err, connectionId: row.id, projectId: row.projectId }, "Failed to re-encrypt Meta page token");
       }
     }
 
