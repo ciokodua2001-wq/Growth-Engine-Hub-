@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useLocation, useSearch } from "wouter";
 import {
   useListSocialPosts,
@@ -137,6 +137,11 @@ function PublishButtons({
 }
 
 const STATS_STALE_MS = 30 * 60 * 1000; // 30 minutes
+
+// Module-level set: persists across component unmount/remount (i.e. navigation away and back)
+// within the same browser session. Prevents re-fetching stats for posts whose stats were
+// already fetched this session and are still within the 30-minute stale window.
+const sessionFetchedPostIds = new Set<number>();
 
 interface StatsPanelProps {
   post: SocialPost;
@@ -403,8 +408,6 @@ export default function ProjectSocial() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [pagePickerToken, setPagePickerToken] = useState<string | null>(null);
   const [autoFetchingIds, setAutoFetchingIds] = useState<Set<number>>(new Set());
-  // Track post IDs already auto-fetched this session to prevent loop after query invalidation
-  const fetchedThisSession = useRef<Set<number>>(new Set());
 
   const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: posts, isLoading } = useListSocialPosts(projectId, { query: { enabled: !!projectId } });
@@ -419,7 +422,8 @@ export default function ProjectSocial() {
 
   // Auto-fetch stats on page load for published posts that have never had stats pulled,
   // and background-refresh posts whose stats are older than STATS_STALE_MS (30 min).
-  // fetchedThisSession prevents a re-trigger loop after query invalidation updates `posts`.
+  // sessionFetchedPostIds (module-level) prevents re-triggering both after query invalidation
+  // within a mount AND after the component remounts (navigate away + back) within the session.
   // Skip entirely when Meta is disconnected — the API would return an error for posts
   // with no cached stats and there's nothing to refresh without a live connection.
   useEffect(() => {
@@ -427,14 +431,14 @@ export default function ProjectSocial() {
     const now = Date.now();
     const toFetch = posts.filter((p) => {
       if (p.status !== "published" || !p.externalPostId) return false;
-      if (fetchedThisSession.current.has(p.id)) return false;
+      if (sessionFetchedPostIds.has(p.id)) return false;
       if (p.statsUpdatedAt == null) return true;
       return now - new Date(p.statsUpdatedAt).getTime() > STATS_STALE_MS;
     });
     if (toFetch.length === 0) return;
 
     const ids = toFetch.map((p) => p.id);
-    ids.forEach((id) => fetchedThisSession.current.add(id));
+    ids.forEach((id) => sessionFetchedPostIds.add(id));
     setAutoFetchingIds(new Set(ids));
 
     Promise.allSettled(
