@@ -1,6 +1,7 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { startArchivalJob } from "./lib/archivalJob.js";
+import { startStuckPublishRecovery } from "./lib/stuckPublishRecovery.js";
 import { checkEncryptionKey } from "./lib/tokenCrypto.js";
 
 // Startup key check — surface missing/invalid TOKEN_ENCRYPTION_KEY before any user
@@ -28,4 +29,5 @@ app.listen(port, (err) => {
   }
   logger.info({ port }, "Server listening");
   startArchivalJob();
+  startStuckPublishRecovery();
 });

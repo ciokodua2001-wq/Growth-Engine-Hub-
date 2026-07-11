@@ -593,7 +593,7 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
   // find no matching row and be rejected with 409 before reaching the Graph API.
   const [locked] = await db
     .update(socialPostsTable)
-    .set({ status: "publishing" })
+    .set({ status: "publishing", publishingAt: new Date() })
     .where(and(
       eq(socialPostsTable.id, postId),
       eq(socialPostsTable.status, "draft"),
