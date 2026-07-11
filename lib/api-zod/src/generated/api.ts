@@ -12,7 +12,8 @@ import * as zod from 'zod';
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
-  "status": zod.string()
+  "status": zod.string(),
+  "reason": zod.string().optional().describe('Human-readable explanation when status is not \"ok\"')
 })
 
 

@@ -9,6 +9,7 @@ import {
   adminAuditLogsTable,
   subscriptionUsageEventsTable,
   adminAlertsTable,
+  metaConnectionsTable,
 } from "@workspace/db";
 import { eq, desc, count, sql, and, ilike, or, sum, max, isNotNull } from "drizzle-orm";
 import PDFDocument from "pdfkit";
@@ -16,6 +17,7 @@ import nodemailer from "nodemailer";
 import { PassThrough } from "stream";
 import { computeRefundStatus, PLAN_MONTHLY_AI_CEILING, REFUND_INELIGIBILITY_THRESHOLD } from "../lib/usageCosts.js";
 import { contentIntegrityLogTable } from "@workspace/db";
+import { decryptToken, encryptToken, isEncryptedFormat } from "../lib/tokenCrypto.js";
 
 const router: IRouter = Router();
 
@@ -1056,6 +1058,53 @@ router.get("/admin/integrity/:userId/evidence-pdf", requireAdmin, async (req, re
     pass.pipe(res);
   } catch (err) {
     req.log.error({ err }, "Error generating integrity evidence PDF");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── Admin: bulk re-encrypt Meta page tokens ──────────────────────────────────
+// Use after rotating TOKEN_ENCRYPTION_KEY (or SESSION_SECRET) to migrate all
+// stored page-access tokens to the current key.  Re-encrypts both legacy
+// plaintext rows and rows already encrypted with the previous key.
+//
+// Prerequisites: the server must be able to decrypt existing tokens with the
+// currently-active key.  If the old key is gone, rows whose decryption fails
+// will be reported under "failed" — those users must reconnect manually.
+
+router.post("/admin/meta/re-encrypt-tokens", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const rows = await db.select({ id: metaConnectionsTable.id, pageAccessToken: metaConnectionsTable.pageAccessToken }).from(metaConnectionsTable);
+
+    let migrated = 0;
+    let failed = 0;
+    const errors: { id: number; reason: string }[] = [];
+
+    for (const row of rows) {
+      try {
+        // Resolve plaintext — handles both legacy plaintext rows and already-encrypted rows.
+        // Every row is re-encrypted with the current key regardless; AES-GCM produces a
+        // fresh random IV each call so we cannot detect "already using the current key" by
+        // comparing ciphertexts.  The update is cheap and ensures the key is always current.
+        const plaintext = isEncryptedFormat(row.pageAccessToken)
+          ? decryptToken(row.pageAccessToken)
+          : row.pageAccessToken;
+        const reEncrypted = encryptToken(plaintext);
+        await db
+          .update(metaConnectionsTable)
+          .set({ pageAccessToken: reEncrypted })
+          .where(eq(metaConnectionsTable.id, row.id));
+        migrated++;
+      } catch (err) {
+        failed++;
+        errors.push({ id: row.id, reason: err instanceof Error ? err.message : String(err) });
+        req.log.error({ err, connectionId: row.id }, "Failed to re-encrypt Meta page token");
+      }
+    }
+
+    req.log.info({ total: rows.length, migrated, failed }, "Admin: Meta token re-encryption complete");
+    res.json({ total: rows.length, migrated, failed, errors });
+  } catch (err) {
+    req.log.error({ err }, "Admin: Meta token re-encryption failed");
     res.status(500).json({ error: "Internal server error" });
   }
 });

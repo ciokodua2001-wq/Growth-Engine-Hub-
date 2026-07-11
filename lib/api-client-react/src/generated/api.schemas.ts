@@ -7,6 +7,8 @@
  */
 export interface HealthStatus {
   status: string;
+  /** Human-readable explanation when status is not "ok" */
+  reason?: string;
 }
 
 export interface Project {

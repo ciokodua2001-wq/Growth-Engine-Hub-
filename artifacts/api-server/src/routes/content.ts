@@ -437,7 +437,7 @@ router.get("/projects/:id/social-posts/:postId/stats", async (req, res): Promise
       pageToken = decryptToken(conn.pageAccessToken);
     } catch (err) {
       req.log.error({ err }, "Failed to decrypt Meta page access token");
-      res.status(500).json({ error: "Could not read Meta connection credentials" });
+      res.status(500).json({ error: "Your Facebook connection credentials could not be read. Please reconnect your Facebook account and try again." });
       return;
     }
   }
@@ -653,7 +653,7 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
     } catch (err) {
       await rollbackToDraft();
       req.log.error({ err }, "Failed to decrypt Meta page access token");
-      res.status(500).json({ error: "Could not read Meta connection credentials" });
+      res.status(500).json({ error: "Your Facebook connection credentials could not be read. Please reconnect your Facebook account and try again." });
       return;
     }
   }

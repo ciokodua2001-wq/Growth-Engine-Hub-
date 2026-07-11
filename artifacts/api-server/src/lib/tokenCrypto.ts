@@ -80,6 +80,36 @@ export function decryptToken(encrypted: string): string {
 }
 
 /**
+ * Checks whether TOKEN_ENCRYPTION_KEY is set and valid.
+ *
+ * Returns `{ ok: true }` only when the dedicated key is present and well-formed.
+ * Returns `{ ok: false, reason }` when it is absent or malformed — even if a
+ * SESSION_SECRET fallback could encrypt tokens, because the fallback is unsafe
+ * after a SESSION_SECRET rotation (stored tokens become permanently unreadable).
+ *
+ * Use this for startup checks and /healthz so ops know when the preferred key
+ * is missing before any user's publish call fails with a confusing 500 error.
+ */
+export function checkEncryptionKey(): { ok: boolean; reason?: string } {
+  const dedicated = process.env.TOKEN_ENCRYPTION_KEY;
+  if (!dedicated) {
+    return {
+      ok: false,
+      reason:
+        "TOKEN_ENCRYPTION_KEY is not set — Meta page tokens cannot be safely decrypted after a key rotation. Set TOKEN_ENCRYPTION_KEY in your environment.",
+    };
+  }
+  if (dedicated.length !== 64 || !/^[0-9a-f]+$/i.test(dedicated)) {
+    return {
+      ok: false,
+      reason:
+        "TOKEN_ENCRYPTION_KEY is set but invalid — it must be a 64-character lowercase hex string (32 bytes).",
+    };
+  }
+  return { ok: true };
+}
+
+/**
  * Signs a string payload with HMAC-SHA256 using the SESSION_SECRET.
  * Returns `payload.signature` (hex). Used to create tamper-evident OAuth state.
  */

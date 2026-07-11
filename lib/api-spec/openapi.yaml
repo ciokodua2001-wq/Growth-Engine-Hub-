@@ -38,6 +38,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+        "503":
+          description: Unhealthy — a required server dependency is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
 
   # ── Projects ──────────────────────────────────────────────────────────────
   /projects:
@@ -1345,6 +1351,9 @@ components:
       properties:
         status:
           type: string
+        reason:
+          type: string
+          description: Human-readable explanation when status is not "ok"
 
     # ── Project ──────────────────────────────────────────────────────────────
     Project:
