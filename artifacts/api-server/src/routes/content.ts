@@ -282,6 +282,13 @@ router.post("/projects/:id/emails", requireActiveSubscription, async (req, res):
   res.json({ ...email!, openRate: email!.openRate ? Number(email!.openRate) : null, clickRate: email!.clickRate ? Number(email!.clickRate) : null, createdAt: email!.createdAt.toISOString() });
 });
 
+router.get("/projects/:id/emails/send-config", async (req, res): Promise<void> => {
+  res.json({
+    configured: !!process.env.RESEND_API_KEY,
+    fromAddress: "marketing@usegrowthforge.com",
+  });
+});
+
 router.post("/projects/:id/emails/:emailId/send", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = SendEmailParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }

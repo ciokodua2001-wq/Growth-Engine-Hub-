@@ -40,6 +40,7 @@ import type {
   DashboardSummary,
   EmailCampaign,
   EmailCampaignInput,
+  EmailSendConfig,
   EmailSendInput,
   GeneratedImages,
   HealthStatus,
@@ -2064,6 +2065,83 @@ export const useGenerateEmails = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getGenerateEmailsMutationOptions(options));
     }
+
+export const getGetEmailSendConfigUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/emails/send-config`
+}
+
+/**
+ * @summary Check whether email sending is configured (RESEND_API_KEY present)
+ */
+export const getEmailSendConfig = async (id: number, options?: RequestInit): Promise<EmailSendConfig> => {
+
+  return customFetch<EmailSendConfig>(getGetEmailSendConfigUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEmailSendConfigQueryKey = (id: number,) => {
+    return [
+    `/api/projects/${id}/emails/send-config`
+    ] as const;
+    }
+
+
+export const getGetEmailSendConfigQueryOptions = <TData = Awaited<ReturnType<typeof getEmailSendConfig>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmailSendConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEmailSendConfigQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmailSendConfig>>> = ({ signal }) => getEmailSendConfig(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEmailSendConfig>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEmailSendConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getEmailSendConfig>>>
+export type GetEmailSendConfigQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Check whether email sending is configured (RESEND_API_KEY present)
+ */
+
+export function useGetEmailSendConfig<TData = Awaited<ReturnType<typeof getEmailSendConfig>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmailSendConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEmailSendConfigQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getSendEmailUrl = (id: number,
     emailId: number,) => {

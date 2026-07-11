@@ -5,6 +5,7 @@ import {
   useGenerateEmails,
   useSendEmail,
   useGetProject,
+  useGetEmailSendConfig,
   getListEmailsQueryKey,
 } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -50,6 +51,7 @@ function SendModal({ emailId, projectId, subject, onClose, onSent, onSendError }
   const [csvError, setCsvError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const sendEmail = useSendEmail();
+  const { data: sendConfig, isLoading: configLoading } = useGetEmailSendConfig(projectId);
 
   const recipients = parseRecipients(raw);
 
@@ -105,62 +107,96 @@ function SendModal({ emailId, projectId, subject, onClose, onSent, onSendError }
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="text-sm font-semibold mb-2 block">Recipients</label>
-            <textarea
-              value={raw}
-              onChange={e => setRaw(e.target.value)}
-              placeholder="Paste email addresses separated by commas, semicolons, or newlines&#10;&#10;john@example.com&#10;jane@company.com"
-              rows={6}
-              className="w-full bg-secondary border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none font-mono"
-            />
+        {configLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground border border-border hover:border-primary/50 rounded-lg px-3 py-2 transition-colors"
-            >
-              <Upload className="h-3.5 w-3.5" />
-              Upload CSV / TXT
-            </button>
-            <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFile} className="hidden" />
-            {csvError && <p className="text-xs text-red-400">{csvError}</p>}
-          </div>
-
-          {recipients.length > 0 && (
-            <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
-              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-              <span>{recipients.length} valid recipient{recipients.length !== 1 ? "s" : ""} ready to send</span>
+        ) : !sendConfig?.configured ? (
+          /* Setup-required screen — shown when RESEND_API_KEY is not configured */
+          <div className="p-6 space-y-4">
+            <div className="flex items-start gap-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
+              <AlertTriangle className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-yellow-300 mb-1">Email sending not configured</p>
+                <p className="text-xs text-muted-foreground">
+                  A <span className="font-mono text-foreground">RESEND_API_KEY</span> secret is required to send campaigns.
+                  Add it in the Replit Secrets panel, then refresh this page.
+                </p>
+              </div>
             </div>
-          )}
-
-          {sendEmail.isError && (
-            <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              <span>Send failed. Check that marketing@usegrowthforge.com is verified in your Resend dashboard.</span>
+            <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
+              <li>Create a free account at <span className="text-foreground font-medium">resend.com</span></li>
+              <li>Generate an API key and copy it</li>
+              <li>Open Replit Secrets and add <span className="font-mono text-foreground">RESEND_API_KEY</span></li>
+              <li>Verify <span className="font-mono text-foreground">marketing@usegrowthforge.com</span> in Resend</li>
+              <li>Refresh and try again</li>
+            </ol>
+            <div className="flex justify-end pt-2">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Close
+              </button>
             </div>
-          )}
-
-          <div className="text-xs text-muted-foreground bg-secondary/50 rounded-lg px-3 py-2">
-            Sends from <span className="text-foreground font-mono">marketing@usegrowthforge.com</span>. Make sure this address is verified in your Resend dashboard before sending.
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-sm font-semibold mb-2 block">Recipients</label>
+                <textarea
+                  value={raw}
+                  onChange={e => setRaw(e.target.value)}
+                  placeholder="Paste email addresses separated by commas, semicolons, or newlines&#10;&#10;john@example.com&#10;jane@company.com"
+                  rows={6}
+                  className="w-full bg-secondary border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none font-mono"
+                />
+              </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 pb-6">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            Cancel
-          </button>
-          <button
-            onClick={handleSend}
-            disabled={recipients.length === 0 || sendEmail.isPending}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-primary-foreground font-bold px-5 py-2 rounded-xl text-sm transition-colors"
-          >
-            {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {sendEmail.isPending ? "Sending..." : `Send to ${recipients.length || "?"} recipient${recipients.length !== 1 ? "s" : ""}`}
-          </button>
-        </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground border border-border hover:border-primary/50 rounded-lg px-3 py-2 transition-colors"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  Upload CSV / TXT
+                </button>
+                <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFile} className="hidden" />
+                {csvError && <p className="text-xs text-red-400">{csvError}</p>}
+              </div>
+
+              {recipients.length > 0 && (
+                <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span>{recipients.length} valid recipient{recipients.length !== 1 ? "s" : ""} ready to send</span>
+                </div>
+              )}
+
+              {sendEmail.isError && (
+                <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>Send failed. Check that {sendConfig.fromAddress} is verified in your Resend dashboard.</span>
+                </div>
+              )}
+
+              <div className="text-xs text-muted-foreground bg-secondary/50 rounded-lg px-3 py-2">
+                Sends from <span className="text-foreground font-mono">{sendConfig.fromAddress}</span>. Make sure this address is verified in your Resend dashboard before sending.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-6 pb-6">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={handleSend}
+                disabled={recipients.length === 0 || sendEmail.isPending}
+                className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-primary-foreground font-bold px-5 py-2 rounded-xl text-sm transition-colors"
+              >
+                {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {sendEmail.isPending ? "Sending..." : `Send to ${recipients.length || "?"} recipient${recipients.length !== 1 ? "s" : ""}`}
+              </button>
+            </div>
+          </>
+        )}
       </motion.div>
     </div>
   );
@@ -302,7 +338,15 @@ export default function ProjectEmail() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {email.status !== "sent" && (
+                  {email.status === "sent" ? (
+                    <button
+                      disabled
+                      className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold px-3 py-1.5 rounded-lg text-xs opacity-70 cursor-not-allowed"
+                    >
+                      <CheckCircle2 className="h-3 w-3" />
+                      Sent ✓
+                    </button>
+                  ) : (
                     <button
                       onClick={() => setSendingEmail({ id: email.id, subject: email.subject })}
                       className="flex items-center gap-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors"

@@ -293,6 +293,11 @@ export interface EmailCampaign {
   createdAt: string;
 }
 
+export interface EmailSendConfig {
+  configured: boolean;
+  fromAddress: string;
+}
+
 export interface EmailSendInput {
   /**
      * @minItems 1

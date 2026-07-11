@@ -677,6 +677,19 @@ export const GenerateEmailsResponse = zod.object({
 
 
 /**
+ * @summary Check whether email sending is configured (RESEND_API_KEY present)
+ */
+export const GetEmailSendConfigParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEmailSendConfigResponse = zod.object({
+  "configured": zod.boolean(),
+  "fromAddress": zod.string()
+})
+
+
+/**
  * @summary Send an email campaign to a list of recipients
  */
 export const SendEmailParams = zod.object({

@@ -564,6 +564,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/EmailCampaign"
 
+  /projects/{id}/emails/send-config:
+    get:
+      operationId: getEmailSendConfig
+      tags: [email]
+      summary: Check whether email sending is configured (RESEND_API_KEY present)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Email send configuration status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailSendConfig"
+
   /projects/{id}/emails/{emailId}/send:
     post:
       operationId: sendEmail
@@ -1601,6 +1620,15 @@ components:
         failCount:
           type: ["integer", "null"]
         createdAt:
+          type: string
+
+    EmailSendConfig:
+      type: object
+      required: [configured, fromAddress]
+      properties:
+        configured:
+          type: boolean
+        fromAddress:
           type: string
 
     EmailSendInput:
