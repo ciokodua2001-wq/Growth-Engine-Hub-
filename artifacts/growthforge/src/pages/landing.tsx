@@ -495,12 +495,6 @@ export default function LandingPage() {
                 ))}
               </div>
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() => signOut(() => setLocation("/"))}
-                  className="text-sm text-white/50 hover:text-white transition-colors hidden md:block"
-                >
-                  Sign Out
-                </button>
                 <UserButton appearance={{ variables: { colorPrimary: "#00E676" } }}>
                   {isAdmin && (
                     <UserButton.MenuItems>
