@@ -498,7 +498,7 @@ export default function LandingPage() {
                 <UserButton appearance={{
                   variables: { colorPrimary: "#00E676", colorText: "#ffffff" },
                   elements: {
-                    userButtonPopoverActionButtonText: { color: "#FFD600" },
+                    userButtonPopoverActionButtonText: { color: "#FF1493" },
                     userButtonPopoverActionButtonIcon: { color: "#FFD600" },
                   },
                 }}>
