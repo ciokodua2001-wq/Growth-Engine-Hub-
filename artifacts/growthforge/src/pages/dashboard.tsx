@@ -181,7 +181,13 @@ export default function DashboardPage() {
               <Link href="/dashboard" className="hover:text-foreground transition-colors">Projects</Link>
             </nav>
             <UserButton
-              appearance={{ variables: { colorPrimary: "#00E676" } }}
+              appearance={{
+                variables: { colorPrimary: "#00E676", colorText: "#ffffff" },
+                elements: {
+                  userButtonPopoverActionButtonText: { color: "#ffffff" },
+                  userButtonPopoverActionButtonIcon: { color: "#ffffff" },
+                },
+              }}
             />
           </div>
         </div>

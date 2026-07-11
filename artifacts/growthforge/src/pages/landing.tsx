@@ -495,7 +495,13 @@ export default function LandingPage() {
                 ))}
               </div>
               <div className="flex items-center gap-3">
-                <UserButton appearance={{ variables: { colorPrimary: "#00E676" } }}>
+                <UserButton appearance={{
+                  variables: { colorPrimary: "#00E676", colorText: "#ffffff" },
+                  elements: {
+                    userButtonPopoverActionButtonText: { color: "#ffffff" },
+                    userButtonPopoverActionButtonIcon: { color: "#ffffff" },
+                  },
+                }}>
                   {isAdmin && (
                     <UserButton.MenuItems>
                       <UserButton.Link
