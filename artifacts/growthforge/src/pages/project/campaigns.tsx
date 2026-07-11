@@ -221,6 +221,179 @@ function GoogleAdsIcon() {
   );
 }
 
+// ── Meta Ads connection panel ─────────────────────────────────────────────────
+
+interface MetaStatus {
+  connected: boolean;
+  oauthConfigured: boolean;
+  tokenExpiresSoon: boolean;
+  account: { customerId: string | null; accountName: string | null; accountEmail: string | null; lastSyncAt: string | null } | null;
+}
+
+function MetaIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z" fill="#1877F2"/>
+    </svg>
+  );
+}
+
+function MetaAdsPanel({ projectId }: { projectId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const search = useSearch();
+
+  const statusQuery = useQuery<MetaStatus>({
+    queryKey: ["meta-status", projectId],
+    queryFn: async () => {
+      const r = await fetch(`/api/projects/${projectId}/meta/status`, { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load status");
+      return r.json();
+    },
+    refetchOnWindowFocus: false,
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    if (params.get("meta") === "connected") {
+      toast({ title: "Meta connected!", description: "You can now sync your Facebook/Instagram campaigns." });
+      statusQuery.refetch();
+    } else if (params.get("meta") === "error") {
+      toast({ title: "Meta connection failed", description: "Could not connect Meta Ads. Please try again.", variant: "destructive" });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`/api/projects/${projectId}/meta/sync`, { method: "POST", credentials: "include" });
+      if (!r.ok) { const d = await r.json() as { error: string }; throw new Error(d.error); }
+      return r.json() as Promise<{ synced: number; message: string }>;
+    },
+    onSuccess: (data) => {
+      toast({ title: "Synced!", description: data.message });
+      statusQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) });
+    },
+    onError: (err) => toast({ title: "Sync failed", description: String(err), variant: "destructive" }),
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`/api/projects/${projectId}/meta/disconnect`, { method: "DELETE", credentials: "include" });
+      if (!r.ok) throw new Error("Disconnect failed");
+    },
+    onSuccess: () => {
+      toast({ title: "Disconnected from Meta Ads" });
+      statusQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) });
+    },
+  });
+
+  const connectMutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`/api/projects/${projectId}/meta/auth-url`, { credentials: "include" });
+      if (!r.ok) throw new Error("Could not get auth URL");
+      const { url } = await r.json() as { url: string };
+      window.location.href = url;
+    },
+    onError: (err) => toast({ title: "Error", description: String(err), variant: "destructive" }),
+  });
+
+  const status = statusQuery.data;
+  if (statusQuery.isLoading) return null;
+
+  if (!status?.oauthConfigured) {
+    return (
+      <div className="mb-3 p-5 rounded-xl border border-border bg-card/50">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="p-2 rounded-lg bg-[#1877F2]/10"><MetaIcon /></div>
+          <div>
+            <p className="font-semibold text-sm">Connect Meta Ads</p>
+            <p className="text-xs text-muted-foreground">Import Facebook & Instagram campaign data</p>
+          </div>
+          <span className="ml-auto flex items-center gap-1.5 text-xs text-yellow-400 font-medium">
+            <Clock className="h-3.5 w-3.5" /> Setup pending
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Add <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">META_APP_ID</code> and <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">META_APP_SECRET</code> to Replit Secrets to enable Meta sync.
+        </p>
+      </div>
+    );
+  }
+
+  if (status.connected && status.account) {
+    const lastSync = status.account.lastSyncAt ? new Date(status.account.lastSyncAt).toLocaleString() : "Never";
+    return (
+      <div className="mb-3 p-5 rounded-xl border border-[#1877F2]/20 bg-[#1877F2]/5">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="p-2 rounded-lg bg-[#1877F2]/10"><MetaIcon /></div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="font-semibold text-sm">Meta Ads</p>
+              <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                <CheckCircle2 className="h-3 w-3" /> Connected
+              </span>
+              {status.tokenExpiresSoon && (
+                <span className="flex items-center gap-1 text-[10px] text-yellow-400 font-medium">
+                  <AlertCircle className="h-3 w-3" /> Token expiring soon
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {status.account.accountEmail ?? status.account.accountName ?? `Account: ${status.account.customerId}`}
+              {" · "}Last sync: {lastSync}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1877F2]/10 hover:bg-[#1877F2]/20 border border-[#1877F2]/20 text-[#1877F2] text-xs font-bold transition-colors disabled:opacity-40"
+            >
+              {syncMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Sync Now
+            </button>
+            <button
+              onClick={() => disconnectMutation.mutate()}
+              disabled={disconnectMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-red-500/10 border border-border hover:border-red-500/20 text-muted-foreground hover:text-red-400 text-xs font-medium transition-colors"
+            >
+              <Unlink className="h-3.5 w-3.5" /> Disconnect
+            </button>
+          </div>
+        </div>
+        {status.tokenExpiresSoon && (
+          <p className="mt-3 text-xs text-yellow-400/80">
+            Your Meta access token is expiring soon. Click Disconnect then reconnect to refresh it.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-3 p-5 rounded-xl border border-border bg-card/50">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="p-2 rounded-lg bg-[#1877F2]/10"><MetaIcon /></div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm">Connect Meta Ads</p>
+          <p className="text-xs text-muted-foreground">Import Facebook & Instagram campaigns, spend & conversions</p>
+        </div>
+        <button
+          onClick={() => connectMutation.mutate()}
+          disabled={connectMutation.isPending}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1877F2] hover:bg-[#1877F2]/90 text-white text-sm font-bold transition-colors disabled:opacity-50"
+        >
+          {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+          Connect Meta Ads
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── New Campaign Modal ─────────────────────────────────────────────────────────
 
 function NewCampaignModal({ projectId, onClose }: { projectId: number; onClose: () => void }) {
@@ -302,6 +475,7 @@ export default function ProjectCampaigns() {
       </div>
 
       <GoogleAdsPanel projectId={projectId} />
+      <MetaAdsPanel projectId={projectId} />
 
       {isLoading ? (
         <div className="flex items-center justify-center py-32"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>

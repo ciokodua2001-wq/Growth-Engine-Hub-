@@ -16,6 +16,7 @@ import adminCreditsRouter from "./admin-credits.js";
 import adminCreditStatusRouter from "./admin-credit-status.js";
 import storageRouter from "./storage.js";
 import googleAdsRouter from "./google-ads.js";
+import metaAdsRouter from "./meta-ads.js";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(adminCreditsRouter);
 router.use(adminCreditStatusRouter);
 router.use(storageRouter);
 router.use(googleAdsRouter);
+router.use(metaAdsRouter);
 
 export default router;
