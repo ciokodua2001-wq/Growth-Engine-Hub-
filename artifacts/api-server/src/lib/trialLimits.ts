@@ -7,12 +7,14 @@ import { projectsTable, trialUsageTable } from "@workspace/db";
 // note / replit.md). Every limit below participates in that budget — do not add a
 // new AI-costing feature without a matching entry here and a re-check of the total.
 //
-// Worst-case budget at max trial utilization (~$0.370 total, under $0.45 cap):
+// Worst-case budget at max trial utilization (~$0.440 total, under $0.45 cap):
 //   analysis $0.030, 2×competitors $0.040, personas $0.020, strategy $0.020,
-//   competitor_report $0.040, 5×social_posts $0.025, email_campaigns $0.020,
+//   competitor_report $0.040, 10×social_posts $0.050, 2×email_campaigns $0.040,
 //   video_blueprints $0.030, 5×ads $0.025, 10×agent_messages $0.120,
-//   5×image_generation $0.025 → total ~$0.395
+//   5×image_generation $0.025 → total ~$0.440
 //
+// social_posts doubled 5→10 (+$0.025), email_campaigns doubled 1→2 (+$0.020).
+// agent_messages kept at 10 — doubling to 20 would add $0.120 and breach the cap.
 // Video renders are NOT available on trial — they are exclusively a paid feature.
 // Any new AI-costing feature must get its own TRIAL_LIMITS entry and be re-checked
 // against the $0.45 budget before shipping.
@@ -22,8 +24,8 @@ export const TRIAL_LIMITS = {
   personas: 1,
   strategy: 1,
   competitor_report: 1,
-  social_posts: 5,
-  email_campaigns: 1,
+  social_posts: 10,
+  email_campaigns: 2,
   video_blueprints: 1,
   ads: 5,
   agent_messages: 10,

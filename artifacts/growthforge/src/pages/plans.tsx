@@ -14,9 +14,9 @@ const TRIAL_FEATURES = [
   "1 Competitor Report",
   "1 Marketing Strategy",
   "3 AI Customer Personas",
-  "5 Social Posts",
-  "1 Email Campaign",
-  "5 Video Blueprints (scripts — no rendering)",
+  "10 Social Posts",
+  "2 Email Campaigns",
+  "6 Video Blueprints (scripts — no rendering)",
   "10 Forge AI Chats",
   "Full Dashboard Access",
 ];
@@ -46,8 +46,8 @@ const PLANS: Plan[] = [
     description: "For solo founders and small businesses",
     stats: [
       { value: "1", label: "Project" },
-      { value: "4 min", label: "Video / mo" },
-      { value: "35", label: "Content / mo" },
+      { value: "8 min", label: "Video / mo" },
+      { value: "70", label: "Content / mo" },
     ],
     groups: [
       {
@@ -64,9 +64,9 @@ const PLANS: Plan[] = [
         icon: <PenTool className="w-3.5 h-3.5" />,
         label: "Content Studio",
         items: [
-          "25 Social Posts / month",
-          "5 Email Campaigns / month",
-          "5 AI Ad Creatives / month",
+          "50 Social Posts / month",
+          "10 Email Campaigns / month",
+          "10 AI Ad Creatives / month",
         ],
       },
       {
@@ -75,15 +75,15 @@ const PLANS: Plan[] = [
         highlight: true,
         items: [
           "Video Blueprints included",
-          "4 min 1080p / month",
-          "Up to 16 × 15-sec or 4 × 1-min",
+          "8 min 1080p / month",
+          "Up to 32 × 15-sec or 8 × 1-min",
         ],
       },
       {
         icon: <Bot className="w-3.5 h-3.5" />,
         label: "Forge AI Agent",
         items: [
-          "100 Forge AI Chats / month",
+          "200 Forge AI Chats / month",
           "Full Analytics Dashboard",
         ],
       },
@@ -97,8 +97,8 @@ const PLANS: Plan[] = [
     description: "For growing creators ready to scale",
     stats: [
       { value: "3", label: "Projects" },
-      { value: "8+1 min", label: "1080p+4K/mo" },
-      { value: "80", label: "Content / mo" },
+      { value: "16+2 min", label: "1080p+4K/mo" },
+      { value: "160", label: "Content / mo" },
     ],
     groups: [
       {
@@ -109,66 +109,6 @@ const PLANS: Plan[] = [
           "6 Competitor Reports / month",
           "3 Marketing Strategies / month",
           "10 AI Customer Personas / month",
-        ],
-      },
-      {
-        icon: <PenTool className="w-3.5 h-3.5" />,
-        label: "Content Studio",
-        items: [
-          "50 Social Posts / month",
-          "15 Email Campaigns / month",
-          "15 AI Ad Creatives / month",
-        ],
-      },
-      {
-        icon: <Film className="w-3.5 h-3.5" />,
-        label: "Video Studio",
-        highlight: true,
-        items: [
-          "Video Blueprints included",
-          "8 min 1080p — up to 32 × 15-sec",
-          "1 min 4K — up to 4 × 15-sec premium",
-        ],
-      },
-      {
-        icon: <Megaphone className="w-3.5 h-3.5" />,
-        label: "Campaign Performance",
-        items: [
-          "1 AI Performance Report / month",
-          "AI Campaign Builder",
-          "Social Scheduling",
-        ],
-      },
-      {
-        icon: <Bot className="w-3.5 h-3.5" />,
-        label: "Forge AI Agent",
-        items: [
-          "300 Forge AI Chats / month",
-          "Priority Support",
-        ],
-      },
-    ],
-  },
-  {
-    name: "Growth",
-    price: 199,
-    color: "#14F195",
-    description: "For teams serious about growth",
-    stats: [
-      { value: "6", label: "Projects" },
-      { value: "25+4 min", label: "1080p+4K/mo" },
-      { value: "160", label: "Content / mo" },
-    ],
-    groups: [
-      {
-        icon: <BarChart3 className="w-3.5 h-3.5" />,
-        label: "Analytics & Intelligence",
-        items: [
-          "15 Website Re-analyses / month",
-          "12 Competitor Reports / month",
-          "6 Marketing Strategies / month",
-          "20 AI Customer Personas / month",
-          "Competitor Video Mining",
         ],
       },
       {
@@ -186,37 +126,37 @@ const PLANS: Plan[] = [
         highlight: true,
         items: [
           "Video Blueprints included",
-          "25 min 1080p — up to 100 × 15-sec",
-          "4 min 4K — up to 16 × 15-sec premium",
+          "16 min 1080p — up to 64 × 15-sec",
+          "2 min 4K — up to 8 × 15-sec premium",
         ],
       },
       {
         icon: <Megaphone className="w-3.5 h-3.5" />,
         label: "Campaign Performance",
         items: [
-          "2 AI Performance Reports / month",
-          "White-Label Reports",
-          "Dedicated Onboarding",
+          "1 AI Performance Report / month",
+          "AI Campaign Builder",
+          "Social Scheduling",
         ],
       },
       {
         icon: <Bot className="w-3.5 h-3.5" />,
         label: "Forge AI Agent",
         items: [
-          "500 Forge AI Chats / month",
+          "600 Forge AI Chats / month",
+          "Priority Support",
         ],
       },
     ],
   },
   {
-    name: "Agency",
-    price: 599,
-    color: "#FF6B35",
-    highlight: "Best Value",
-    description: "For agencies managing multiple clients",
+    name: "Growth",
+    price: 199,
+    color: "#14F195",
+    description: "For teams serious about growth",
     stats: [
-      { value: "20", label: "Projects" },
-      { value: "60+10 min", label: "1080p+4K/mo" },
+      { value: "6", label: "Projects" },
+      { value: "50+8 min", label: "1080p+4K/mo" },
       { value: "320", label: "Content / mo" },
     ],
     groups: [
@@ -224,10 +164,11 @@ const PLANS: Plan[] = [
         icon: <BarChart3 className="w-3.5 h-3.5" />,
         label: "Analytics & Intelligence",
         items: [
-          "30 Website Re-analyses / month",
-          "25 Competitor Reports / month",
-          "15 Marketing Strategies / month",
-          "50 AI Customer Personas / month",
+          "15 Website Re-analyses / month",
+          "12 Competitor Reports / month",
+          "6 Marketing Strategies / month",
+          "20 AI Customer Personas / month",
+          "Competitor Video Mining",
         ],
       },
       {
@@ -245,8 +186,67 @@ const PLANS: Plan[] = [
         highlight: true,
         items: [
           "Video Blueprints included",
-          "60 min 1080p — up to 240 × 15-sec",
-          "10 min 4K — up to 40 × 15-sec premium",
+          "50 min 1080p — up to 200 × 15-sec",
+          "8 min 4K — up to 32 × 15-sec premium",
+        ],
+      },
+      {
+        icon: <Megaphone className="w-3.5 h-3.5" />,
+        label: "Campaign Performance",
+        items: [
+          "2 AI Performance Reports / month",
+          "White-Label Reports",
+          "Dedicated Onboarding",
+        ],
+      },
+      {
+        icon: <Bot className="w-3.5 h-3.5" />,
+        label: "Forge AI Agent",
+        items: [
+          "1,000 Forge AI Chats / month",
+        ],
+      },
+    ],
+  },
+  {
+    name: "Agency",
+    price: 599,
+    color: "#FF6B35",
+    highlight: "Best Value",
+    description: "For agencies managing multiple clients",
+    stats: [
+      { value: "20", label: "Projects" },
+      { value: "120+20 min", label: "1080p+4K/mo" },
+      { value: "640", label: "Content / mo" },
+    ],
+    groups: [
+      {
+        icon: <BarChart3 className="w-3.5 h-3.5" />,
+        label: "Analytics & Intelligence",
+        items: [
+          "30 Website Re-analyses / month",
+          "25 Competitor Reports / month",
+          "15 Marketing Strategies / month",
+          "50 AI Customer Personas / month",
+        ],
+      },
+      {
+        icon: <PenTool className="w-3.5 h-3.5" />,
+        label: "Content Studio",
+        items: [
+          "400 Social Posts / month",
+          "120 Email Campaigns / month",
+          "120 AI Ad Creatives / month",
+        ],
+      },
+      {
+        icon: <Film className="w-3.5 h-3.5" />,
+        label: "Video Studio",
+        highlight: true,
+        items: [
+          "Video Blueprints included",
+          "120 min 1080p — up to 480 × 15-sec",
+          "20 min 4K — up to 80 × 15-sec premium",
         ],
       },
       {
@@ -262,7 +262,7 @@ const PLANS: Plan[] = [
         icon: <Users className="w-3.5 h-3.5" />,
         label: "Agency Tools",
         items: [
-          "2,000 Forge AI Chats / month",
+          "4,000 Forge AI Chats / month",
           "Team Members",
           "Dedicated Success Manager",
         ],
