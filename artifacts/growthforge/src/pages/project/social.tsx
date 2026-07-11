@@ -321,7 +321,9 @@ function PagePickerModal({ token, projectId, currentPageId, onSuccess, onCancel,
                     className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
                       isSelected
                         ? "bg-blue-600/15 border-blue-500/40 text-foreground"
-                        : "bg-secondary/40 border-border hover:border-blue-500/20 text-foreground"
+                        : isCurrent
+                          ? "bg-secondary/20 border-border/50 text-foreground opacity-60 hover:opacity-80 hover:border-blue-500/20"
+                          : "bg-secondary/40 border-border hover:border-blue-500/20 text-foreground"
                     }`}
                   >
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
@@ -329,7 +331,12 @@ function PagePickerModal({ token, projectId, currentPageId, onSuccess, onCancel,
                     }`}>
                       <Facebook className={`h-4 w-4 ${isSelected ? "text-blue-400" : "text-muted-foreground"}`} />
                     </div>
-                    <span className="font-medium text-sm flex-1">{page.name}</span>
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <span className="font-medium text-sm">{page.name}</span>
+                      {isCurrent && !isSelected && (
+                        <span className="text-[11px] text-muted-foreground/70 mt-0.5">Currently connected</span>
+                      )}
+                    </div>
                     {isCurrent && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shrink-0">
                         Current
