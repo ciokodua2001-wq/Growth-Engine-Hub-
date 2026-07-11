@@ -170,6 +170,7 @@ const PRICING = [
       { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["3 Website Re-analyses / month", "2 Competitor Reports / month", "1 Marketing Strategy / month", "3 AI Customer Personas / month"] },
       { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["50 Social Posts / month", "10 Email Campaigns / month", "10 AI Ad Creatives / month"] },
       { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["Video Blueprints included", "8 min 1080p / month", "Up to 32 × 15-sec or 8 × 1-min"] },
+      { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["1 AI Campaign Report / month"] },
       { label: "Forge AI Agent", icon: <Bot className="w-3 h-3" />, isVideo: false, items: ["200 Forge AI Chats / month", "Full Analytics Dashboard"] },
     ],
   },

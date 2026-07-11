@@ -80,6 +80,13 @@ const PLANS: Plan[] = [
         ],
       },
       {
+        icon: <Megaphone className="w-3.5 h-3.5" />,
+        label: "Campaign Performance",
+        items: [
+          "1 AI Performance Report / month",
+        ],
+      },
+      {
         icon: <Bot className="w-3.5 h-3.5" />,
         label: "Forge AI Agent",
         items: [
