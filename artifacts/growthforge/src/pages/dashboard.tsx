@@ -167,7 +167,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-background/80 backdrop-blur sticky top-0 z-10">
+      <header className="border-b border-border bg-background/95 sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">

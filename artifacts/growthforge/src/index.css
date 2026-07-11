@@ -169,13 +169,9 @@
   }
 }
 
-@layer clerk {
-  .cl-userButtonPopoverActionButtonText,
-  .cl-userButtonPopoverActionButton span {
-    color: #FFD600 !important;
-  }
-  .cl-userButtonPopoverActionButtonIcon,
-  .cl-userButtonPopoverActionButtonIcon svg {
-    color: #FFD600 !important;
-  }
-}
+/* Clerk UserButton popover — force bright yellow on action items */
+.cl-userButtonPopoverActionButton { color: #FFD600 !important; }
+.cl-userButtonPopoverActionButtonText { color: #FFD600 !important; }
+.cl-userButtonPopoverActionButtonIcon { color: #FFD600 !important; }
+.cl-userButtonPopoverActionButton span { color: #FFD600 !important; }
+.cl-userButtonPopoverActionButton svg { color: #FFD600 !important; }
