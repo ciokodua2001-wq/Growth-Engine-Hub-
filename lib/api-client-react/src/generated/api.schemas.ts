@@ -269,6 +269,11 @@ export interface SocialPost {
   createdAt: string;
 }
 
+export interface MetaStatus {
+  connected: boolean;
+  decryptable: boolean;
+}
+
 export interface MetaConnection {
   connected: boolean;
   /** @nullable */

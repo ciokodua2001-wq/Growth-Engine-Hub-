@@ -24,6 +24,7 @@ import {
   ListAdsParams,
   GenerateAdsParams,
   GenerateAdsBody,
+  GetMetaStatusParams,
   GetMetaConnectionParams,
   DisconnectMetaParams,
   PublishSocialPostParams,
@@ -386,6 +387,31 @@ router.post("/projects/:id/emails/:emailId/send", requireActiveSubscription, asy
 });
 
 // Meta connection status
+router.get("/projects/:id/meta/status", async (req, res): Promise<void> => {
+  const params = GetMetaStatusParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const [conn] = await db.select().from(metaConnectionsTable).where(eq(metaConnectionsTable.projectId, params.data.id)).limit(1);
+  if (!conn) {
+    res.json({ connected: false, decryptable: false });
+    return;
+  }
+
+  let decryptable = false;
+  try {
+    if (!isEncryptedFormat(conn.pageAccessToken)) {
+      decryptable = true;
+    } else {
+      decryptToken(conn.pageAccessToken);
+      decryptable = true;
+    }
+  } catch {
+    decryptable = false;
+  }
+
+  res.json({ connected: true, decryptable });
+});
+
 router.get("/projects/:id/meta-connection", async (req, res): Promise<void> => {
   const params = GetMetaConnectionParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }

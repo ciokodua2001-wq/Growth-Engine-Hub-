@@ -1,14 +1,15 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useUser, UserButton } from "@clerk/react";
 import {
   useListProjects,
   useCreateProject,
   getListProjectsQueryKey,
+  useGetMetaStatus,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Globe, Zap, ArrowRight, Loader2, X, Brain, ChevronRight, Crown, Target, Share2, Bot, BarChart2 } from "lucide-react";
+import { Plus, Globe, Zap, ArrowRight, Loader2, X, Brain, ChevronRight, Crown, Target, Share2, Bot, BarChart2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
@@ -41,6 +42,49 @@ const WORKFLOW_LABELS = [
   "Videos",
   "Campaign",
 ];
+
+/**
+ * Renders a dismissible yellow banner for a single project when its stored
+ * Meta token is present but can no longer be decrypted (e.g. after a key
+ * rotation or server migration). Clicking the banner starts a fresh OAuth
+ * flow so the user can reconnect without leaving the dashboard.
+ */
+function MetaStatusBanner({ projectId, projectName }: { projectId: number; projectName: string }) {
+  const [dismissed, setDismissed] = useState(false);
+  const { data } = useGetMetaStatus(projectId);
+
+  if (dismissed || !data || !data.connected || data.decryptable) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        key={`meta-banner-${projectId}`}
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        className="flex items-center gap-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3 text-sm"
+      >
+        <AlertTriangle className="h-4 w-4 text-yellow-400 shrink-0" />
+        <span className="text-yellow-200 flex-1">
+          <span className="font-semibold">{projectName}:</span> Your Facebook connection needs to be refreshed.
+        </span>
+        <a
+          href={`/api/auth/meta/start?projectId=${projectId}`}
+          className="font-semibold text-yellow-400 hover:text-yellow-300 underline underline-offset-2 transition-colors shrink-0"
+        >
+          Reconnect Facebook
+        </a>
+        <button
+          onClick={() => setDismissed(true)}
+          className="p-1 rounded hover:bg-yellow-500/10 text-yellow-400/60 hover:text-yellow-400 transition-colors shrink-0"
+          aria-label="Dismiss"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
 
 function NewProjectModal({ onClose }: { onClose: () => void }) {
   const [url, setUrl] = useState("");
@@ -223,6 +267,15 @@ export default function DashboardPage() {
             New Project
           </motion.button>
         </div>
+
+        {/* Meta reconnect banners — one per project with a broken/undecryptable token */}
+        {projects && projects.length > 0 && (
+          <div className="flex flex-col gap-2 mb-6 empty:hidden">
+            {projects.map(p => (
+              <MetaStatusBanner key={p.id} projectId={p.id} projectName={p.name} />
+            ))}
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex items-center justify-center py-32">

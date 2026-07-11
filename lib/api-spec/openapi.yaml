@@ -505,6 +505,25 @@ paths:
                 items:
                   $ref: "#/components/schemas/SocialPost"
 
+  /projects/{id}/meta/status:
+    get:
+      operationId: getMetaStatus
+      tags: [social]
+      summary: Check whether the stored Meta token is present and decryptable (no live API call)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Meta token status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetaStatus"
+
   /projects/{id}/meta-connection:
     get:
       operationId: getMetaConnection
@@ -1733,6 +1752,15 @@ components:
           type: ["string", "null"]
         createdAt:
           type: string
+
+    MetaStatus:
+      type: object
+      required: [connected, decryptable]
+      properties:
+        connected:
+          type: boolean
+        decryptable:
+          type: boolean
 
     MetaConnection:
       type: object

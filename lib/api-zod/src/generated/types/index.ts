@@ -43,6 +43,7 @@ export * from './metaConnection';
 export * from './metaPageOption';
 export * from './metaPageSelectInput';
 export * from './metaPagesResult';
+export * from './metaStatus';
 export * from './metricItem';
 export * from './project';
 export * from './projectAnalytics';

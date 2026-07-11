@@ -50,6 +50,7 @@ import type {
   MetaConnection,
   MetaPageSelectInput,
   MetaPagesResult,
+  MetaStatus,
   Project,
   ProjectAnalytics,
   ProjectInput,
@@ -1846,6 +1847,83 @@ export const useGenerateSocialPosts = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getGenerateSocialPostsMutationOptions(options));
     }
+
+export const getGetMetaStatusUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/meta/status`
+}
+
+/**
+ * @summary Check whether the stored Meta token is present and decryptable (no live API call)
+ */
+export const getMetaStatus = async (id: number, options?: RequestInit): Promise<MetaStatus> => {
+
+  return customFetch<MetaStatus>(getGetMetaStatusUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMetaStatusQueryKey = (id: number,) => {
+    return [
+    `/api/projects/${id}/meta/status`
+    ] as const;
+    }
+
+
+export const getGetMetaStatusQueryOptions = <TData = Awaited<ReturnType<typeof getMetaStatus>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMetaStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMetaStatusQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMetaStatus>>> = ({ signal }) => getMetaStatus(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMetaStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMetaStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getMetaStatus>>>
+export type GetMetaStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Check whether the stored Meta token is present and decryptable (no live API call)
+ */
+
+export function useGetMetaStatus<TData = Awaited<ReturnType<typeof getMetaStatus>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMetaStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMetaStatusQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetMetaConnectionUrl = (id: number,) => {
 

@@ -605,6 +605,19 @@ export const GenerateSocialPostsResponse = zod.array(GenerateSocialPostsResponse
 
 
 /**
+ * @summary Check whether the stored Meta token is present and decryptable (no live API call)
+ */
+export const GetMetaStatusParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMetaStatusResponse = zod.object({
+  "connected": zod.boolean(),
+  "decryptable": zod.boolean()
+})
+
+
+/**
  * @summary Get Meta (Facebook/Instagram) connection status for a project
  */
 export const GetMetaConnectionParams = zod.object({
