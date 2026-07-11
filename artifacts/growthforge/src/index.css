@@ -168,3 +168,14 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer clerk {
+  .cl-userButtonPopoverActionButtonText,
+  .cl-userButtonPopoverActionButton span {
+    color: #FFD600 !important;
+  }
+  .cl-userButtonPopoverActionButtonIcon,
+  .cl-userButtonPopoverActionButtonIcon svg {
+    color: #FFD600 !important;
+  }
+}
