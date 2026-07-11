@@ -295,6 +295,13 @@ router.post("/projects/:id/emails/:emailId/send", requireActiveSubscription, asy
   if (!email || email.projectId !== projectId) { res.status(404).json({ error: "Email campaign not found" }); return; }
   if (email.status === "sent") { res.status(400).json({ error: "This campaign has already been sent" }); return; }
 
+  // Require completed business analysis before sending (same gate as generation)
+  const ctx = await getGroundingContext(projectId);
+  if (!ctx) {
+    res.status(409).json({ error: "Run business analysis before sending email campaigns" });
+    return;
+  }
+
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) { res.status(503).json({ error: "Email sending is not configured (missing RESEND_API_KEY)" }); return; }
 
@@ -328,16 +335,30 @@ router.post("/projects/:id/emails/:emailId/send", requireActiveSubscription, asy
   }
 
   const sentCount = validEmails.length - failCount;
-  const [updated] = await db.update(emailCampaignsTable)
-    .set({ status: "sent", sentAt: new Date(), recipientCount: sentCount })
-    .where(eq(emailCampaignsTable.id, emailId))
-    .returning();
 
-  await db.insert(activityTable).values({
-    projectId,
-    type: "email",
-    description: `Sent "${email.subject}" to ${sentCount} recipient${sentCount !== 1 ? "s" : ""}${failCount > 0 ? ` (${failCount} failed)` : ""}`,
-  });
+  // Only mark as sent if at least one recipient succeeded — preserves retry ability on full failure
+  let updated: typeof email | undefined;
+  if (sentCount > 0) {
+    const [row] = await db.update(emailCampaignsTable)
+      .set({ status: "sent", sentAt: new Date(), recipientCount: sentCount })
+      .where(eq(emailCampaignsTable.id, emailId))
+      .returning();
+    updated = row;
+
+    await db.insert(activityTable).values({
+      projectId,
+      type: "email",
+      description: `Sent "${email.subject}" to ${sentCount} recipient${sentCount !== 1 ? "s" : ""}${failCount > 0 ? ` (${failCount} failed)` : ""}`,
+    });
+  } else {
+    // Full failure — don't mark sent, surface the error so user can retry
+    res.status(502).json({
+      error: "All sends failed. Check that marketing@usegrowthforge.com is verified in your Resend dashboard.",
+      sentCount: 0,
+      failCount,
+    });
+    return;
+  }
 
   res.json({
     ...updated!,
@@ -345,6 +366,8 @@ router.post("/projects/:id/emails/:emailId/send", requireActiveSubscription, asy
     clickRate: updated!.clickRate ? Number(updated!.clickRate) : null,
     sentAt: updated!.sentAt?.toISOString() ?? null,
     createdAt: updated!.createdAt.toISOString(),
+    sentCount,
+    failCount,
   });
 });
 

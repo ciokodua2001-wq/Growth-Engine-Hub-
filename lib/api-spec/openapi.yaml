@@ -597,6 +597,10 @@ paths:
           description: Already sent or invalid recipients
         "404":
           description: Email campaign not found
+        "409":
+          description: Business analysis not complete
+        "502":
+          description: All sends failed (Resend error)
 
   # ── Ads ────────────────────────────────────────────────────────────────────
   /projects/{id}/ads:

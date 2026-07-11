@@ -9,7 +9,7 @@ import {
 } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Mail, Zap, ChevronDown, ChevronUp, Send, X, Upload, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, Mail, Zap, ChevronDown, ChevronUp, Send, X, Upload, CheckCircle2, AlertCircle, AlertTriangle } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 
 const emailTypes = ["welcome", "sales", "nurture", "reactivation"];
@@ -41,7 +41,7 @@ interface SendModalProps {
   projectId: number;
   subject: string;
   onClose: () => void;
-  onSent: () => void;
+  onSent: (sentCount: number, failCount: number) => void;
 }
 
 function SendModal({ emailId, projectId, subject, onClose, onSent }: SendModalProps) {
@@ -73,7 +73,13 @@ function SendModal({ emailId, projectId, subject, onClose, onSent }: SendModalPr
     if (recipients.length === 0) return;
     sendEmail.mutate(
       { id: projectId, emailId, data: { recipients } },
-      { onSuccess: () => { onSent(); onClose(); } }
+      {
+        onSuccess: (data) => {
+          const result = data as typeof data & { sentCount?: number; failCount?: number };
+          onSent(result.sentCount ?? recipients.length, result.failCount ?? 0);
+          onClose();
+        }
+      }
     );
   };
 
@@ -156,6 +162,12 @@ function SendModal({ emailId, projectId, subject, onClose, onSent }: SendModalPr
   );
 }
 
+interface Toast {
+  id: number;
+  type: "success" | "warning" | "error";
+  message: string;
+}
+
 export default function ProjectEmail() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
@@ -163,11 +175,18 @@ export default function ProjectEmail() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [sendingEmail, setSendingEmail] = useState<{ id: number; subject: string } | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
   const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: emails, isLoading } = useListEmails(projectId, { query: { enabled: !!projectId } });
   const generateEmails = useGenerateEmails();
   const queryClient = useQueryClient();
+
+  const showToast = (type: Toast["type"], message: string) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, type, message }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
+  };
 
   const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -184,8 +203,13 @@ export default function ProjectEmail() {
     });
   };
 
-  const handleSent = () => {
+  const handleSent = (sentCount: number, failCount: number) => {
     queryClient.invalidateQueries({ queryKey: getListEmailsQueryKey(projectId) });
+    if (failCount === 0) {
+      showToast("success", `Campaign sent to ${sentCount} recipient${sentCount !== 1 ? "s" : ""} successfully.`);
+    } else {
+      showToast("warning", `Sent to ${sentCount} recipient${sentCount !== 1 ? "s" : ""}. ${failCount} failed — check your Resend dashboard.`);
+    }
   };
 
   return (
@@ -333,6 +357,32 @@ export default function ProjectEmail() {
           />
         )}
       </AnimatePresence>
+
+      {/* Toast notifications */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
+        <AnimatePresence>
+          {toasts.map(toast => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: 16, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium max-w-sm pointer-events-auto ${
+                toast.type === "success"
+                  ? "bg-emerald-950 border-emerald-500/30 text-emerald-300"
+                  : toast.type === "warning"
+                  ? "bg-yellow-950 border-yellow-500/30 text-yellow-300"
+                  : "bg-red-950 border-red-500/30 text-red-300"
+              }`}
+            >
+              {toast.type === "success" && <CheckCircle2 className="h-4 w-4 shrink-0" />}
+              {toast.type === "warning" && <AlertTriangle className="h-4 w-4 shrink-0" />}
+              {toast.type === "error" && <AlertCircle className="h-4 w-4 shrink-0" />}
+              {toast.message}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
