@@ -8,9 +8,16 @@ import {
   getListProjectsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Globe, Zap, ArrowRight, Loader2, X, Brain, ChevronRight, Crown } from "lucide-react";
+import { Plus, Globe, Zap, ArrowRight, Loader2, X, Brain, ChevronRight, Crown, Target, Share2, Bot, BarChart2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
+
+const PROJECT_SHORTCUTS = [
+  { label: "Campaigns", path: "campaigns", icon: Target, color: "text-emerald-400" },
+  { label: "Social", path: "social", icon: Share2, color: "text-blue-400" },
+  { label: "AI Agent", path: "agent", icon: Bot, color: "text-purple-400" },
+  { label: "Analytics", path: "analytics", icon: BarChart2, color: "text-orange-400" },
+];
 
 const statusColor: Record<string, string> = {
   pending: "bg-yellow-400",
@@ -230,8 +237,9 @@ export default function DashboardPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.07 }}
               >
-                <Link href={`/projects/${project.id}/overview`}>
-                  <div className="group p-6 rounded-2xl bg-card border border-border hover:border-primary/40 transition-all cursor-pointer hover:shadow-lg hover:shadow-primary/5">
+                <div
+                  className="group p-6 rounded-2xl bg-card border border-border hover:border-primary/40 transition-all cursor-pointer hover:shadow-lg hover:shadow-primary/5"
+                  onClick={() => setLocation(`/projects/${project.id}/overview`)}>
                     {/* Card header */}
                     <div className="flex items-start justify-between mb-4">
                       <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -274,6 +282,21 @@ export default function DashboardPage() {
                       </p>
                     </div>
 
+                    {/* Quick shortcuts */}
+                    <div className="flex items-center gap-1 mb-4 -mx-1">
+                      {PROJECT_SHORTCUTS.map(({ label, path, icon: Icon, color }) => (
+                        <Link
+                          key={path}
+                          href={`/projects/${project.id}/${path}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex-1 flex flex-col items-center gap-1 py-2 rounded-lg hover:bg-white/5 transition-colors group/shortcut"
+                        >
+                          <Icon className={`h-3.5 w-3.5 ${color} opacity-60 group-hover/shortcut:opacity-100 transition-opacity`} />
+                          <span className="text-[9px] text-muted-foreground/60 group-hover/shortcut:text-muted-foreground transition-colors">{label}</span>
+                        </Link>
+                      ))}
+                    </div>
+
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-primary bg-primary/10 px-2 py-1 rounded">
                         {project.plan ?? "STARTER"}
@@ -284,7 +307,6 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </div>
-                </Link>
               </motion.div>
             ))}
 
