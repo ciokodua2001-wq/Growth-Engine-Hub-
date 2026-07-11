@@ -1,11 +1,11 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
-import { metaConnectionsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { metaConnectionsTable, metaPageSessionsTable } from "@workspace/db";
+import { eq, lt, and } from "drizzle-orm";
 import crypto from "node:crypto";
 import { requireUserId, loadOwnedProject } from "../lib/authz.js";
-import { encryptToken, signState, verifyState } from "../lib/tokenCrypto.js";
+import { encryptToken, decryptToken, signState, verifyState } from "../lib/tokenCrypto.js";
 
 const router: IRouter = Router();
 
@@ -19,43 +19,82 @@ const SCOPES = [
   "instagram_content_publish",
 ].join(",");
 
+const SESSION_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 interface PendingPage {
   id: string;
   name: string;
   access_token: string;
 }
 
-interface PendingEntry {
-  projectId: number;
-  userId: string;
-  pages: PendingPage[];
-  expiresAt: number;
-}
+/**
+ * Persists a multi-page picker session to the database.
+ * Access tokens within the pages list are encrypted before storage.
+ * Expired rows are purged on every write (cheap because the index on
+ * expires_at keeps the scan fast).
+ * Returns the opaque session token.
+ */
+async function storePendingPages(
+  projectId: number,
+  userId: string,
+  pages: PendingPage[],
+): Promise<string> {
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
-/** Short-lived in-memory store for multi-page OAuth results (max 5 min TTL). */
-const pendingPagesStore = new Map<string, PendingEntry>();
+  // Purge stale rows so the table stays small
+  await db
+    .delete(metaPageSessionsTable)
+    .where(lt(metaPageSessionsTable.expiresAt, new Date()));
 
-function cleanExpiredPending(): void {
-  const now = Date.now();
-  for (const [key, entry] of pendingPagesStore.entries()) {
-    if (entry.expiresAt < now) pendingPagesStore.delete(key);
-  }
+  const token = crypto.randomBytes(24).toString("hex");
+  const pagesEncrypted = encryptToken(JSON.stringify(pages));
+
+  await db.insert(metaPageSessionsTable).values({
+    token,
+    projectId,
+    userId,
+    pagesEncrypted,
+    expiresAt,
+  });
+
+  return token;
 }
 
 /**
- * Saves pages and returns a short-lived opaque token the frontend can use
- * to retrieve them and submit a selection. TTL: 5 minutes.
+ * Loads and validates a pending session from the database.
+ * Returns null (and deletes the row) if it doesn't exist, is expired, or
+ * belongs to a different user.
  */
-function storePendingPages(projectId: number, userId: string, pages: PendingPage[]): string {
-  cleanExpiredPending();
-  const token = crypto.randomBytes(24).toString("hex");
-  pendingPagesStore.set(token, {
-    projectId,
-    userId,
-    pages,
-    expiresAt: Date.now() + 5 * 60 * 1000,
-  });
-  return token;
+async function loadPendingSession(
+  token: string,
+  userId: string,
+): Promise<{ projectId: number; pages: PendingPage[] } | null> {
+  const [row] = await db
+    .select()
+    .from(metaPageSessionsTable)
+    .where(eq(metaPageSessionsTable.token, token))
+    .limit(1);
+
+  if (!row) return null;
+
+  // Expired — clean up and reject
+  if (row.expiresAt < new Date()) {
+    await db.delete(metaPageSessionsTable).where(eq(metaPageSessionsTable.token, token));
+    return null;
+  }
+
+  // Wrong user — reject without revealing the session exists
+  if (row.userId !== userId) return null;
+
+  let pages: PendingPage[];
+  try {
+    pages = JSON.parse(decryptToken(row.pagesEncrypted)) as PendingPage[];
+  } catch {
+    await db.delete(metaPageSessionsTable).where(eq(metaPageSessionsTable.token, token));
+    return null;
+  }
+
+  return { projectId: row.projectId, pages };
 }
 
 /**
@@ -106,9 +145,9 @@ router.get("/auth/meta/start", async (req, res): Promise<void> => {
  * If the user has exactly one Page: immediately saves the connection and
  * redirects to the dashboard with meta_connected=1.
  *
- * If the user has multiple Pages: stores the pages list in the short-lived
- * in-memory store and redirects to the social hub with a meta_pages token
- * so the user can pick which page to connect.
+ * If the user has multiple Pages: persists the pages list to the DB with a
+ * 5-minute TTL and redirects to the social hub with a meta_pages token so
+ * the user can pick which page to connect. The session survives server restarts.
  */
 router.get("/auth/meta/callback", async (req, res): Promise<void> => {
   const { code, state, error: oauthError } = req.query as Record<string, string>;
@@ -183,7 +222,7 @@ router.get("/auth/meta/callback", async (req, res): Promise<void> => {
     const llData = await llRes.json() as { access_token?: string };
     const longLivedToken = llData.access_token ?? userToken;
 
-    // Get Pages
+    // Get Pages (id, name, and their never-expiring Page access tokens)
     const pagesUrl = new URL("https://graph.facebook.com/v20.0/me/accounts");
     pagesUrl.searchParams.set("access_token", longLivedToken);
     pagesUrl.searchParams.set("fields", "id,name,access_token");
@@ -200,7 +239,7 @@ router.get("/auth/meta/callback", async (req, res): Promise<void> => {
       return;
     }
 
-    // If the user has exactly one page, skip the picker and connect immediately.
+    // Single page — skip the picker, connect immediately
     if (pages.length === 1) {
       await connectPage(projectId, pages[0]);
       req.log.info({ projectId, pageId: pages[0].id }, "Meta account connected (single page)");
@@ -208,8 +247,8 @@ router.get("/auth/meta/callback", async (req, res): Promise<void> => {
       return;
     }
 
-    // Multiple pages — store them and redirect to the picker in the social hub.
-    const token = storePendingPages(projectId, callbackUserId, pages);
+    // Multiple pages — persist to DB and redirect to the picker
+    const token = await storePendingPages(projectId, callbackUserId, pages);
     req.log.info({ projectId, pageCount: pages.length }, "Multiple Meta pages — showing picker");
     res.redirect(`/projects/${projectId}/social?meta_pages=${token}`);
   } catch (err) {
@@ -222,6 +261,7 @@ router.get("/auth/meta/callback", async (req, res): Promise<void> => {
  * GET /auth/meta/pages?token=<token>
  * Returns the list of available Facebook Pages for a pending picker session.
  * Only returns page id + name (never access tokens).
+ * Session is read from the database so it survives server restarts.
  */
 router.get("/auth/meta/pages", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
@@ -233,28 +273,24 @@ router.get("/auth/meta/pages", async (req, res): Promise<void> => {
     return;
   }
 
-  const entry = pendingPagesStore.get(token);
-  if (!entry || entry.expiresAt < Date.now()) {
-    pendingPagesStore.delete(token);
-    res.status(404).json({ error: "Page selection session not found or expired. Please reconnect." });
-    return;
-  }
-
-  if (entry.userId !== userId) {
-    res.status(404).json({ error: "Not found" });
+  const session = await loadPendingSession(token, userId);
+  if (!session) {
+    res.status(404).json({
+      error: "Page selection session not found or expired. Please reconnect your Facebook account.",
+    });
     return;
   }
 
   res.json({
-    projectId: entry.projectId,
-    pages: entry.pages.map(p => ({ id: p.id, name: p.name })),
+    projectId: session.projectId,
+    pages: session.pages.map(p => ({ id: p.id, name: p.name })),
   });
 });
 
 /**
  * POST /auth/meta/select-page
  * Selects a Facebook Page from a pending picker session and commits the
- * connection. Deletes the pending entry after successful selection.
+ * connection. Deletes the session row after successful selection.
  */
 router.post("/auth/meta/select-page", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
@@ -266,36 +302,34 @@ router.post("/auth/meta/select-page", async (req, res): Promise<void> => {
     return;
   }
 
-  const entry = pendingPagesStore.get(token);
-  if (!entry || entry.expiresAt < Date.now()) {
-    pendingPagesStore.delete(token);
-    res.status(404).json({ error: "Page selection session not found or expired. Please reconnect." });
+  const session = await loadPendingSession(token, userId);
+  if (!session) {
+    res.status(404).json({
+      error: "Page selection session not found or expired. Please reconnect your Facebook account.",
+    });
     return;
   }
 
-  if (entry.userId !== userId) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-
-  const page = entry.pages.find(p => p.id === pageId);
+  const page = session.pages.find(p => p.id === pageId);
   if (!page) {
     res.status(404).json({ error: "Selected page not in list" });
     return;
   }
 
-  // Re-verify project ownership
-  const project = await loadOwnedProject(userId, entry.projectId);
+  // Re-verify project ownership before committing
+  const project = await loadOwnedProject(userId, session.projectId);
   if (!project) {
     res.status(404).json({ error: "Project not found" });
     return;
   }
 
   try {
-    await connectPage(entry.projectId, page);
-    pendingPagesStore.delete(token);
+    await connectPage(session.projectId, page);
 
-    req.log.info({ projectId: entry.projectId, pageId: page.id }, "Meta account connected via picker");
+    // Delete the session — it's single-use
+    await db.delete(metaPageSessionsTable).where(eq(metaPageSessionsTable.token, token));
+
+    req.log.info({ projectId: session.projectId, pageId: page.id }, "Meta account connected via picker");
 
     res.json({
       connected: true,
