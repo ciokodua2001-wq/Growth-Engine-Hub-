@@ -348,6 +348,35 @@ describe("GET /api/projects/:id/social-posts/:postId/stats — Instagram", () =>
     const [url] = mockFetch.mock.calls[0] as [string];
     expect(url).toContain(`access_token=${plaintext}`);
   });
+
+  it("(b) plaintext token — passes through directly to the Instagram Graph API", async () => {
+    const plaintextToken = "EAAInstagramPlaintext_legacy";
+    // Store raw plaintext in DB (non-encrypted format — !isEncryptedFormat branch)
+    const conn = { ...BASE_CONN, pageAccessToken: plaintextToken };
+
+    mockDbSelect
+      .mockReturnValueOnce(selectChain([BASE_IG_POST]))
+      .mockReturnValueOnce(selectChain([conn]));
+
+    mockDbUpdate.mockReturnValue(updateChain([]));
+
+    mockFetch.mockResolvedValueOnce({
+      json: () => Promise.resolve({ like_count: 20, comments_count: 4 }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const res = await request(app).get("/api/projects/1/social-posts/1/stats");
+
+    expect(res.status).toBe(200);
+    expect(res.body.likes).toBe(20);
+    expect(res.body.comments).toBe(4);
+    expect(res.body.reach).toBeNull();
+
+    // The raw plaintext token must reach the Graph API unchanged
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url] = mockFetch.mock.calls[0] as [string];
+    expect(url).toContain(`access_token=${plaintextToken}`);
+  });
 });
 
 describe("GET /api/projects/:id/social-posts/:postId/stats — Facebook", () => {
@@ -372,8 +401,10 @@ describe("GET /api/projects/:id/social-posts/:postId/stats — Facebook", () => 
     vi.restoreAllMocks();
   });
 
-  it("returns likes, comments, and reach for a published Facebook post", async () => {
-    const conn = { ...BASE_CONN, pageAccessToken: encryptToken(BASE_CONN.pageAccessToken) };
+  it("(a) encrypted token — decrypts and fetches Facebook stats successfully", async () => {
+    const plaintextToken = "EAAFacebookReal_encryptedToken";
+    const encryptedToken = encryptToken(plaintextToken);
+    const conn = { ...BASE_CONN, pageAccessToken: encryptedToken };
 
     mockDbSelect
       .mockReturnValueOnce(selectChain([BASE_FB_POST]))
@@ -412,6 +443,10 @@ describe("GET /api/projects/:id/social-posts/:postId/stats — Facebook", () => 
     expect(engUrl).toContain("likes.summary(true)");
     expect(insightsUrl).toContain("/insights");
     expect(insightsUrl).toContain("post_impressions_unique");
+
+    // Both Graph API calls must use the decrypted plaintext token (not the ciphertext)
+    expect(engUrl).toContain(`access_token=${plaintextToken}`);
+    expect(insightsUrl).toContain(`access_token=${plaintextToken}`);
   });
 
   it("returns reach: null when the Facebook insights endpoint does not include data", async () => {
@@ -467,6 +502,49 @@ describe("GET /api/projects/:id/social-posts/:postId/stats — Facebook", () => 
 
     expect(res.status).toBe(502);
     expect(res.body.error).toMatch(/Page not found/i);
+  });
+
+  it("(b) plaintext token — passes through directly to the Facebook Graph API", async () => {
+    const plaintextToken = "EAAFacebookPlaintext_legacy";
+    // Store raw plaintext in DB (non-encrypted format — !isEncryptedFormat branch)
+    const conn = { ...BASE_CONN, pageAccessToken: plaintextToken };
+
+    mockDbSelect
+      .mockReturnValueOnce(selectChain([BASE_FB_POST]))
+      .mockReturnValueOnce(selectChain([conn]));
+
+    mockDbUpdate.mockReturnValue(updateChain([]));
+
+    // Engagement call
+    mockFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve({
+          likes: { summary: { total_count: 77 } },
+          comments: { summary: { total_count: 5 } },
+        }),
+    });
+    // Insights call
+    mockFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve({
+          data: [{ values: [{ value: 800 }] }],
+        }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const res = await request(app).get("/api/projects/1/social-posts/1/stats");
+
+    expect(res.status).toBe(200);
+    expect(res.body.likes).toBe(77);
+    expect(res.body.comments).toBe(5);
+    expect(res.body.reach).toBe(800);
+
+    // Both Graph API calls must carry the raw plaintext token unchanged
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const [engUrl] = mockFetch.mock.calls[0] as [string];
+    const [insightsUrl] = mockFetch.mock.calls[1] as [string];
+    expect(engUrl).toContain(`access_token=${plaintextToken}`);
+    expect(insightsUrl).toContain(`access_token=${plaintextToken}`);
   });
 });
 
