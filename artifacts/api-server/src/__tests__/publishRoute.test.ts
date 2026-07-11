@@ -420,6 +420,110 @@ describe("POST /api/projects/:id/social-posts/:postId/publish", () => {
     });
   });
 
+  describe("publishingAt lifecycle", () => {
+    it("sets publishingAt: new Date() on lock and clears it to null on success", async () => {
+      const plaintextToken = "EAABsbCS4iXoBO_lifecycleToken";
+      const encryptedToken = encryptToken(plaintextToken);
+
+      const mockConn = {
+        projectId: 1,
+        pageId: "page_lifecycle",
+        pageAccessToken: encryptedToken,
+        pageName: "Lifecycle Page",
+        instagramAccountId: null,
+      };
+
+      mockDbSelect
+        .mockReturnValueOnce(selectChain([BASE_POST]))
+        .mockReturnValueOnce(selectChain([mockConn]));
+
+      // Spy on .set() so we can assert what data was passed on lock vs. success
+      const lockSetFn = vi.fn((_data: unknown) => ({
+        where: () => makeDbResult([{ ...BASE_POST, status: "publishing" }]),
+      }));
+      const successSetFn = vi.fn((_data: unknown) => ({
+        where: () => makeDbResult([BASE_PUBLISHED_POST]),
+      }));
+
+      mockDbUpdate
+        .mockReturnValueOnce({ set: lockSetFn })
+        .mockReturnValueOnce({ set: successSetFn });
+
+      mockFetch.mockResolvedValue({
+        json: () => Promise.resolve({ id: "fb_lifecycle_1" }),
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      const res = await request(app)
+        .post("/api/projects/1/social-posts/1/publish")
+        .send({ platform: "facebook" });
+
+      expect(res.status).toBe(200);
+
+      // Lock: publishingAt must be set to a Date instance
+      expect(lockSetFn).toHaveBeenCalledWith(
+        expect.objectContaining({ publishingAt: expect.any(Date) }),
+      );
+
+      // Success: publishingAt must be cleared to null
+      expect(successSetFn).toHaveBeenCalledWith(
+        expect.objectContaining({ publishingAt: null }),
+      );
+    });
+
+    it("sets publishingAt on lock and clears it to null on rollback (bad token)", async () => {
+      // Encrypt with a different key so decryption with TEST_KEY fails
+      const otherKey = "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210";
+      const prev = process.env.TOKEN_ENCRYPTION_KEY;
+      process.env.TOKEN_ENCRYPTION_KEY = otherKey;
+      const encryptedWithOtherKey = encryptToken("some-token");
+      process.env.TOKEN_ENCRYPTION_KEY = TEST_KEY;
+      restoreEnv = () => {
+        if (prev === undefined) delete process.env.TOKEN_ENCRYPTION_KEY;
+        else process.env.TOKEN_ENCRYPTION_KEY = prev;
+      };
+
+      const mockConn = {
+        projectId: 1,
+        pageId: "page_rb",
+        pageAccessToken: encryptedWithOtherKey,
+        pageName: "Rollback Page",
+        instagramAccountId: null,
+      };
+
+      mockDbSelect
+        .mockReturnValueOnce(selectChain([BASE_POST]))
+        .mockReturnValueOnce(selectChain([mockConn]));
+
+      const lockSetFn = vi.fn((_data: unknown) => ({
+        where: () => makeDbResult([{ ...BASE_POST, status: "publishing" }]),
+      }));
+      const rollbackSetFn = vi.fn((_data: unknown) => ({
+        where: () => makeDbResult([BASE_POST]),
+      }));
+
+      mockDbUpdate
+        .mockReturnValueOnce({ set: lockSetFn })
+        .mockReturnValueOnce({ set: rollbackSetFn });
+
+      const res = await request(app)
+        .post("/api/projects/1/social-posts/1/publish")
+        .send({ platform: "facebook" });
+
+      expect(res.status).toBe(500);
+
+      // Lock: publishingAt must be set to a Date
+      expect(lockSetFn).toHaveBeenCalledWith(
+        expect.objectContaining({ publishingAt: expect.any(Date) }),
+      );
+
+      // Rollback: publishingAt must be cleared to null
+      expect(rollbackSetFn).toHaveBeenCalledWith(
+        expect.objectContaining({ publishingAt: null }),
+      );
+    });
+  });
+
   describe("Instagram publish", () => {
     it("publishes with an encrypted token via the two-step Instagram flow", async () => {
       const plaintextToken = "EAAInstagramToken_encrypted";
