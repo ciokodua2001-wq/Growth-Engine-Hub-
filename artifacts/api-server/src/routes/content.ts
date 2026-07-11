@@ -427,7 +427,23 @@ router.get("/projects/:id/social-posts/:postId/stats", async (req, res): Promise
   }
 
   const [conn] = await db.select().from(metaConnectionsTable).where(eq(metaConnectionsTable.projectId, projectId));
-  if (!conn) { res.status(404).json({ error: "No Meta account connected" }); return; }
+  if (!conn) {
+    const hasCached = post.statsLikes != null || post.statsComments != null || post.statsReach != null;
+    if (hasCached) {
+      res.json({
+        postId: post.id,
+        externalPostId: post.externalPostId,
+        likes: post.statsLikes ?? null,
+        comments: post.statsComments ?? null,
+        reach: post.statsReach ?? null,
+        statsUpdatedAt: post.statsUpdatedAt?.toISOString() ?? null,
+        cached: true,
+      });
+      return;
+    }
+    res.status(404).json({ error: "No Meta account connected" });
+    return;
+  }
 
   let pageToken: string;
   if (!isEncryptedFormat(conn.pageAccessToken)) {

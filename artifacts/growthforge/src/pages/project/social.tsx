@@ -123,10 +123,11 @@ interface StatsPanelProps {
   post: SocialPost;
   projectId: number;
   isAutoFetching: boolean;
+  hasMetaConnection: boolean;
   onError: (msg: string) => void;
 }
 
-function StatsPanel({ post, projectId, isAutoFetching, onError }: StatsPanelProps) {
+function StatsPanel({ post, projectId, isAutoFetching, hasMetaConnection, onError }: StatsPanelProps) {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -134,8 +135,15 @@ function StatsPanel({ post, projectId, isAutoFetching, onError }: StatsPanelProp
 
   const hasStats = post.statsLikes != null || post.statsComments != null || post.statsReach != null;
   const isBusy = isAutoFetching || isRefreshing;
+  const refreshDisabled = isBusy || !hasMetaConnection;
+  const refreshTitle = !hasMetaConnection
+    ? "Reconnect Facebook to refresh stats"
+    : isAutoFetching
+      ? "Refreshing stats…"
+      : "Refresh stats from Meta";
 
   const handleRefresh = async () => {
+    if (!hasMetaConnection) return;
     setIsRefreshing(true);
     try {
       await getSocialPostStats(projectId, post.id);
@@ -174,9 +182,9 @@ function StatsPanel({ post, projectId, isAutoFetching, onError }: StatsPanelProp
           )}
           <button
             onClick={handleRefresh}
-            disabled={isBusy}
-            title={isAutoFetching ? "Refreshing stats…" : "Refresh stats from Meta"}
-            className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+            disabled={refreshDisabled}
+            title={refreshTitle}
+            className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <RefreshCw className={`h-3 w-3 ${isBusy ? "animate-spin" : ""}`} />
             {isAutoFetching
@@ -196,8 +204,9 @@ function StatsPanel({ post, projectId, isAutoFetching, onError }: StatsPanelProp
           ) : (
             <button
               onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="flex items-center gap-1.5 hover:text-foreground disabled:opacity-50 transition-colors"
+              disabled={refreshDisabled}
+              title={refreshTitle}
+              className="flex items-center gap-1.5 hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isRefreshing ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -368,11 +377,16 @@ export default function ProjectSocial() {
   const generatePosts = useGenerateSocialPosts();
   const queryClient = useQueryClient();
 
+  const isConnected = metaConn?.connected === true;
+  const hasInstagram = isConnected && !!metaConn?.instagramAccountId;
+
   // Auto-fetch stats on page load for published posts that have never had stats pulled,
   // and background-refresh posts whose stats are older than STATS_STALE_MS (30 min).
   // fetchedThisSession prevents a re-trigger loop after query invalidation updates `posts`.
+  // Skip entirely when Meta is disconnected — the API would return an error for posts
+  // with no cached stats and there's nothing to refresh without a live connection.
   useEffect(() => {
-    if (!posts || !projectId) return;
+    if (!posts || !projectId || !isConnected) return;
     const now = Date.now();
     const toFetch = posts.filter((p) => {
       if (p.status !== "published" || !p.externalPostId) return false;
@@ -394,7 +408,7 @@ export default function ProjectSocial() {
         queryClient.invalidateQueries({ queryKey: getListSocialPostsQueryKey(projectId) });
       }
     });
-  }, [posts, projectId, queryClient]);
+  }, [posts, projectId, queryClient, isConnected]);
 
   // Pick up the meta_pages token from the OAuth redirect URL and open the picker
   useEffect(() => {
@@ -459,8 +473,6 @@ export default function ProjectSocial() {
   };
 
   const filteredPosts = posts?.filter(p => selectedPlatforms.includes(p.platform.toLowerCase())) ?? [];
-  const isConnected = metaConn?.connected === true;
-  const hasInstagram = isConnected && !!metaConn?.instagramAccountId;
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full">
@@ -602,6 +614,7 @@ export default function ProjectSocial() {
                     post={post}
                     projectId={projectId}
                     isAutoFetching={autoFetchingIds.has(post.id)}
+                    hasMetaConnection={isConnected}
                     onError={(msg) => showToast("error", msg)}
                   />
                 </motion.div>
