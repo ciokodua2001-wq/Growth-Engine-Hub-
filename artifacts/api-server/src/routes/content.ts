@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, isNull } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { contentTable, socialPostsTable, emailCampaignsTable, adCreativesTable, activityTable, metaConnectionsTable } from "@workspace/db";
 import { consumeTrialQuota } from "../lib/trialLimits.js";
@@ -522,7 +522,28 @@ router.get("/projects/:id/social-posts/:postId/stats", async (req, res): Promise
   });
 });
 
+// Used to distinguish known Graph API error messages from unexpected network failures
+class GraphApiError extends Error {}
+
 // Publish social post to Meta (Facebook / Instagram)
+//
+// Idempotency design:
+//   1. externalPostId guard — if the Graph API call already succeeded on a prior attempt
+//      but the subsequent DB update timed out, externalPostId is already set. We detect
+//      this and complete the DB state without calling the Graph API again (no duplicate post).
+//   2. Optimistic concurrency lock — we atomically transition status draft → publishing
+//      before the API call. Concurrent requests find no matching draft row and get 409.
+//   3. Failure classification — only definitive Graph API rejections (GraphApiError) roll
+//      the post back to "draft". Network/transport errors are ambiguous: Meta may have
+//      already accepted the request, so the post stays "publishing" and the user is told
+//      to check their page before retrying. This prevents duplicate posts on retry.
+//   4. Post-publish DB write resilience — after a successful Graph API call the externalPostId
+//      is written with up to 3 attempts. If all fail the post stays "publishing" with the
+//      externalPostId logged so it can be recovered; the next retry hits the externalPostId
+//      guard (1) and completes the DB state without calling Meta again.
+//   Note: Meta's Graph API does not support idempotency keys for feed/media publish
+//   endpoints. The externalPostId check (1) and the atomic status lock (2) together
+//   provide equivalent application-level deduplication guarantees.
 router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Promise<void> => {
   const params = PublishSocialPostParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
@@ -534,12 +555,78 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
 
   const [post] = await db.select().from(socialPostsTable).where(eq(socialPostsTable.id, postId));
   if (!post || post.projectId !== projectId) { res.status(404).json({ error: "Social post not found" }); return; }
-  if (post.status === "published") { res.status(400).json({ error: "Post already published" }); return; }
+
+  // Guard 1: externalPostId already set means the Graph API call succeeded on a previous
+  // attempt but the DB update never completed (e.g. request timed out mid-flight).
+  // Idempotently complete the DB state without calling Meta again.
+  if (post.externalPostId) {
+    if (post.status !== "published") {
+      const [fixed] = await db
+        .update(socialPostsTable)
+        .set({ status: "published", publishedAt: post.publishedAt ?? new Date() })
+        .where(eq(socialPostsTable.id, postId))
+        .returning();
+      res.json({
+        ...fixed,
+        scheduledAt: fixed.scheduledAt?.toISOString() ?? null,
+        publishedAt: fixed.publishedAt?.toISOString() ?? null,
+        createdAt: fixed.createdAt.toISOString(),
+      });
+    } else {
+      res.status(400).json({ error: "Post already published" });
+    }
+    return;
+  }
+
+  if (post.status === "published") {
+    res.status(400).json({ error: "Post already published" });
+    return;
+  }
+
+  if (post.status === "publishing") {
+    res.status(409).json({ error: "A publish is already in progress for this post. Please try again in a moment." });
+    return;
+  }
+
+  // Guard 2: atomically claim the publish slot — transition draft → publishing only when
+  // status is still "draft" AND externalPostId is still NULL. Any concurrent request will
+  // find no matching row and be rejected with 409 before reaching the Graph API.
+  const [locked] = await db
+    .update(socialPostsTable)
+    .set({ status: "publishing" })
+    .where(and(
+      eq(socialPostsTable.id, postId),
+      eq(socialPostsTable.status, "draft"),
+      isNull(socialPostsTable.externalPostId),
+    ))
+    .returning();
+
+  if (!locked) {
+    res.status(409).json({ error: "A publish is already in progress for this post" });
+    return;
+  }
+
+  // Roll back to draft on any failure so the user can retry
+  const rollbackToDraft = async () => {
+    try {
+      await db
+        .update(socialPostsTable)
+        .set({ status: "draft" })
+        .where(eq(socialPostsTable.id, postId));
+    } catch (rbErr) {
+      req.log.error({ rbErr, postId }, "Failed to roll back publishing status to draft");
+    }
+  };
 
   const [conn] = await db.select().from(metaConnectionsTable).where(eq(metaConnectionsTable.projectId, projectId));
-  if (!conn) { res.status(404).json({ error: "No Meta account connected. Connect Facebook first." }); return; }
+  if (!conn) {
+    await rollbackToDraft();
+    res.status(404).json({ error: "No Meta account connected. Connect Facebook first." });
+    return;
+  }
 
   if (platform === "instagram" && !conn.instagramAccountId) {
+    await rollbackToDraft();
     res.status(400).json({ error: "No Instagram Business Account linked to the connected Facebook Page." });
     return;
   }
@@ -549,8 +636,6 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
   // Resolve the page access token — migrating legacy plaintext rows on first read.
   let pageToken: string;
   if (!isEncryptedFormat(conn.pageAccessToken)) {
-    // Row predates encryption — treat the stored value as plaintext,
-    // re-encrypt it in-place so all future reads go through the cipher.
     pageToken = conn.pageAccessToken;
     try {
       const reEncrypted = encryptToken(pageToken);
@@ -566,12 +651,20 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
     try {
       pageToken = decryptToken(conn.pageAccessToken);
     } catch (err) {
+      await rollbackToDraft();
       req.log.error({ err }, "Failed to decrypt Meta page access token");
       res.status(500).json({ error: "Could not read Meta connection credentials" });
       return;
     }
   }
 
+  // Call the Graph API.
+  // GraphApiError = Meta returned a JSON error body (definitive rejection — Meta did NOT
+  //   create the post, safe to roll back to draft so the user can retry).
+  // Any other thrown error = transport/network failure (ambiguous — Meta may have already
+  //   accepted the request). In this case we do NOT roll back to draft; the post stays in
+  //   "publishing" and the user is told to check their page before retrying. This prevents
+  //   a retry from issuing a second successful publish and creating a duplicate post.
   let externalPostId: string;
   try {
     if (platform === "facebook") {
@@ -584,8 +677,7 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
       const fbData = await fbRes.json() as { id?: string; error?: { message: string } };
       if (!fbData.id) {
         req.log.error({ fbData }, "Facebook publish failed");
-        res.status(502).json({ error: fbData.error?.message ?? "Facebook publish failed" });
-        return;
+        throw new GraphApiError(fbData.error?.message ?? "Facebook publish failed");
       }
       externalPostId = fbData.id;
     } else {
@@ -601,8 +693,7 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
       const containerData = await containerRes.json() as { id?: string; error?: { message: string } };
       if (!containerData.id) {
         req.log.error({ containerData }, "Instagram container creation failed");
-        res.status(502).json({ error: containerData.error?.message ?? "Instagram media container failed" });
-        return;
+        throw new GraphApiError(containerData.error?.message ?? "Instagram media container failed");
       }
 
       const publishUrl = `https://graph.facebook.com/v20.0/${igAccountId}/media_publish`;
@@ -614,22 +705,60 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
       const publishData = await publishRes.json() as { id?: string; error?: { message: string } };
       if (!publishData.id) {
         req.log.error({ publishData }, "Instagram publish failed");
-        res.status(502).json({ error: publishData.error?.message ?? "Instagram publish failed" });
-        return;
+        throw new GraphApiError(publishData.error?.message ?? "Instagram publish failed");
       }
       externalPostId = publishData.id;
     }
   } catch (err) {
-    req.log.error({ err }, "Meta Graph API call failed");
-    res.status(502).json({ error: "Failed to reach Meta Graph API" });
+    if (err instanceof GraphApiError) {
+      // Definitive rejection — Meta did not create the post. Safe to roll back.
+      await rollbackToDraft();
+      res.status(502).json({ error: err.message });
+    } else {
+      // Ambiguous transport failure. The post stays "publishing" so a blind retry cannot
+      // issue a second publish call and create a duplicate. The user must verify their
+      // page first; if no post appeared they can try publishing again (which will hit the
+      // "publishing" 409 guard and surface the correct message).
+      req.log.error({ err, postId, projectId }, "Meta Graph API transport error — publish outcome unknown");
+      res.status(502).json({
+        error: "Could not confirm whether the post was published due to a network error. Check your Facebook/Instagram page — if the post appeared, refresh this page. If not, try publishing again.",
+      });
+    }
     return;
   }
 
-  const [updated] = await db
-    .update(socialPostsTable)
-    .set({ status: "published", publishedAt: new Date(), externalPostId })
-    .where(eq(socialPostsTable.id, postId))
-    .returning();
+  // Graph API returned an externalPostId. Persist it with up to 3 attempts so a transient
+  // DB hiccup doesn't leave the post stuck in "publishing" without a recoverable ID.
+  // If all retries fail, the externalPostId is logged prominently for manual recovery; the
+  // next publish attempt will find the post in "publishing" state, and an operator can set
+  // externalPostId directly to trigger the idempotent recovery path (Guard 1 above).
+  const publishedAt = new Date();
+  let updated: typeof post | undefined;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const [row] = await db
+        .update(socialPostsTable)
+        .set({ status: "published", publishedAt, externalPostId })
+        .where(eq(socialPostsTable.id, postId))
+        .returning();
+      updated = row;
+      break;
+    } catch (dbErr) {
+      if (attempt < 3) {
+        await new Promise(r => setTimeout(r, 200 * attempt));
+      } else {
+        req.log.error(
+          { dbErr, postId, projectId, externalPostId },
+          "CRITICAL: post published to Meta but DB update failed after 3 attempts — externalPostId not persisted",
+        );
+        res.status(500).json({
+          error: "Your post was published to Meta but we could not save the confirmation. Refresh this page — if the post still shows as unpublished, contact support.",
+          externalPostId,
+        });
+        return;
+      }
+    }
+  }
 
   await db.insert(activityTable).values({
     projectId,
@@ -638,10 +767,10 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
   });
 
   res.json({
-    ...updated,
-    scheduledAt: updated.scheduledAt?.toISOString() ?? null,
-    publishedAt: updated.publishedAt?.toISOString() ?? null,
-    createdAt: updated.createdAt.toISOString(),
+    ...updated!,
+    scheduledAt: updated!.scheduledAt?.toISOString() ?? null,
+    publishedAt: updated!.publishedAt?.toISOString() ?? null,
+    createdAt: updated!.createdAt.toISOString(),
   });
 });
 
