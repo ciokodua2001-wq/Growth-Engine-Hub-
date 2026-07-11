@@ -91,6 +91,25 @@ function PublishButtons({
     );
   }
 
+  if (status === "publishing") {
+    const retryPlatform = (platform === "instagram" ? "instagram" : "facebook") as "facebook" | "instagram";
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 text-xs text-amber-400">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span>Publish in progress — if this persists,</span>
+        </div>
+        <button
+          onClick={() => handlePublish(retryPlatform)}
+          disabled={publishPost.isPending}
+          className="text-xs font-bold text-amber-300 underline underline-offset-2 hover:text-amber-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {publishPost.isPending ? "Retrying…" : "click to retry"}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       {(platform === "facebook" || platform === "instagram") && (
