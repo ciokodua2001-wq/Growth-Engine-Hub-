@@ -42,9 +42,10 @@ interface SendModalProps {
   subject: string;
   onClose: () => void;
   onSent: (sentCount: number, failCount: number) => void;
+  onSendError: (failCount: number) => void;
 }
 
-function SendModal({ emailId, projectId, subject, onClose, onSent }: SendModalProps) {
+function SendModal({ emailId, projectId, subject, onClose, onSent, onSendError }: SendModalProps) {
   const [raw, setRaw] = useState("");
   const [csvError, setCsvError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -75,10 +76,13 @@ function SendModal({ emailId, projectId, subject, onClose, onSent }: SendModalPr
       { id: projectId, emailId, data: { recipients } },
       {
         onSuccess: (data) => {
-          const result = data as typeof data & { sentCount?: number; failCount?: number };
-          onSent(result.sentCount ?? recipients.length, result.failCount ?? 0);
+          onSent(data.sentCount ?? recipients.length, data.failCount ?? 0);
           onClose();
-        }
+        },
+        onError: () => {
+          // Modal stays open showing the inline error banner; parent shows error toast
+          onSendError(recipients.length);
+        },
       }
     );
   };
@@ -210,6 +214,10 @@ export default function ProjectEmail() {
     } else {
       showToast("warning", `Sent to ${sentCount} recipient${sentCount !== 1 ? "s" : ""}. ${failCount} failed — check your Resend dashboard.`);
     }
+  };
+
+  const handleSendError = (failCount: number) => {
+    showToast("error", `Send failed — all ${failCount} recipient${failCount !== 1 ? "s" : ""} could not be reached. Verify marketing@usegrowthforge.com is verified in Resend.`);
   };
 
   return (
@@ -354,6 +362,7 @@ export default function ProjectEmail() {
             subject={sendingEmail.subject}
             onClose={() => setSendingEmail(null)}
             onSent={handleSent}
+            onSendError={handleSendError}
           />
         )}
       </AnimatePresence>

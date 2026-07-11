@@ -638,6 +638,8 @@ export const ListEmailsResponseItem = zod.object({
   "clickRate": zod.number().nullish(),
   "sentAt": zod.string().nullish(),
   "recipientCount": zod.number().nullish(),
+  "sentCount": zod.number().nullish(),
+  "failCount": zod.number().nullish(),
   "createdAt": zod.string()
 })
 export const ListEmailsResponse = zod.array(ListEmailsResponseItem)
@@ -668,6 +670,8 @@ export const GenerateEmailsResponse = zod.object({
   "clickRate": zod.number().nullish(),
   "sentAt": zod.string().nullish(),
   "recipientCount": zod.number().nullish(),
+  "sentCount": zod.number().nullish(),
+  "failCount": zod.number().nullish(),
   "createdAt": zod.string()
 })
 
@@ -700,6 +704,8 @@ export const SendEmailResponse = zod.object({
   "clickRate": zod.number().nullish(),
   "sentAt": zod.string().nullish(),
   "recipientCount": zod.number().nullish(),
+  "sentCount": zod.number().nullish(),
+  "failCount": zod.number().nullish(),
   "createdAt": zod.string()
 })
 

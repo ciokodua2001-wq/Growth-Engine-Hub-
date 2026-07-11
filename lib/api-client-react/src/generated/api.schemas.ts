@@ -286,6 +286,10 @@ export interface EmailCampaign {
   sentAt?: string | null;
   /** @nullable */
   recipientCount?: number | null;
+  /** @nullable */
+  sentCount?: number | null;
+  /** @nullable */
+  failCount?: number | null;
   createdAt: string;
 }
 

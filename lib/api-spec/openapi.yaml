@@ -1596,6 +1596,10 @@ components:
           type: ["string", "null"]
         recipientCount:
           type: ["integer", "null"]
+        sentCount:
+          type: ["integer", "null"]
+        failCount:
+          type: ["integer", "null"]
         createdAt:
           type: string
 
