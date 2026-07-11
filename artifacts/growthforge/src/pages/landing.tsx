@@ -498,8 +498,8 @@ export default function LandingPage() {
                 <UserButton appearance={{
                   variables: { colorPrimary: "#00E676", colorText: "#ffffff" },
                   elements: {
-                    userButtonPopoverActionButtonText: { color: "#ffffff" },
-                    userButtonPopoverActionButtonIcon: { color: "#ffffff" },
+                    userButtonPopoverActionButtonText: { color: "#FFD600" },
+                    userButtonPopoverActionButtonIcon: { color: "#FFD600" },
                   },
                 }}>
                   {isAdmin && (
