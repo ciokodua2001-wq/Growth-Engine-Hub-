@@ -199,18 +199,25 @@ function StatsPanel({ post, projectId, onError }: StatsPanelProps) {
 interface PagePickerModalProps {
   token: string;
   projectId: number;
+  currentPageId?: string;
   onSuccess: (pageName: string) => void;
   onCancel: () => void;
+  onAlreadyConnected: () => void;
 }
 
-function PagePickerModal({ token, projectId, onSuccess, onCancel }: PagePickerModalProps) {
+function PagePickerModal({ token, projectId, currentPageId, onSuccess, onCancel, onAlreadyConnected }: PagePickerModalProps) {
   const { data, isLoading, error } = useGetMetaPages({ token }, { query: { retry: false } });
   const selectPage = useSelectMetaPage();
   const queryClient = useQueryClient();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(currentPageId ?? null);
 
   const handleSelect = () => {
     if (!selectedId) return;
+    if (selectedId === currentPageId) {
+      onCancel();
+      onAlreadyConnected();
+      return;
+    }
     selectPage.mutate(
       { data: { token, pageId: selectedId } },
       {
@@ -259,25 +266,34 @@ function PagePickerModal({ token, projectId, onSuccess, onCancel }: PagePickerMo
 
           {data && (
             <div className="space-y-2">
-              {data.pages.map((page) => (
-                <button
-                  key={page.id}
-                  onClick={() => setSelectedId(page.id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
-                    selectedId === page.id
-                      ? "bg-blue-600/15 border-blue-500/40 text-foreground"
-                      : "bg-secondary/40 border-border hover:border-blue-500/20 text-foreground"
-                  }`}
-                >
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                    selectedId === page.id ? "bg-blue-600/30" : "bg-secondary"
-                  }`}>
-                    <Facebook className={`h-4 w-4 ${selectedId === page.id ? "text-blue-400" : "text-muted-foreground"}`} />
-                  </div>
-                  <span className="font-medium text-sm flex-1">{page.name}</span>
-                  {selectedId === page.id && <ChevronRight className="h-4 w-4 text-blue-400 shrink-0" />}
-                </button>
-              ))}
+              {data.pages.map((page) => {
+                const isCurrent = page.id === currentPageId;
+                const isSelected = selectedId === page.id;
+                return (
+                  <button
+                    key={page.id}
+                    onClick={() => setSelectedId(page.id)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+                      isSelected
+                        ? "bg-blue-600/15 border-blue-500/40 text-foreground"
+                        : "bg-secondary/40 border-border hover:border-blue-500/20 text-foreground"
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                      isSelected ? "bg-blue-600/30" : "bg-secondary"
+                    }`}>
+                      <Facebook className={`h-4 w-4 ${isSelected ? "text-blue-400" : "text-muted-foreground"}`} />
+                    </div>
+                    <span className="font-medium text-sm flex-1">{page.name}</span>
+                    {isCurrent && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shrink-0">
+                        Current
+                      </span>
+                    )}
+                    {isSelected && <ChevronRight className="h-4 w-4 text-blue-400 shrink-0" />}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -619,8 +635,10 @@ export default function ProjectSocial() {
           <PagePickerModal
             token={pagePickerToken}
             projectId={projectId}
+            currentPageId={metaConn?.pageId ?? undefined}
             onSuccess={handlePagePickerSuccess}
             onCancel={handlePagePickerCancel}
+            onAlreadyConnected={() => showToast("success", "Already connected to this page.")}
           />
         )}
       </AnimatePresence>
