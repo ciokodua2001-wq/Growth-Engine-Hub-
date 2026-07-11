@@ -29,6 +29,7 @@ export * from './customerPersona';
 export * from './dashboardSummary';
 export * from './emailCampaign';
 export * from './emailCampaignInput';
+export * from './emailSendInput';
 export * from './errorEnvelope';
 export * from './generatedImages';
 export * from './healthStatus';

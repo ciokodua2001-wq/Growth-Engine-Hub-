@@ -564,6 +564,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/EmailCampaign"
 
+  /projects/{id}/emails/{emailId}/send:
+    post:
+      operationId: sendEmail
+      tags: [email]
+      summary: Send an email campaign to a list of recipients
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: emailId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailSendInput"
+      responses:
+        "200":
+          description: Campaign sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailCampaign"
+        "400":
+          description: Already sent or invalid recipients
+        "404":
+          description: Email campaign not found
+
   # ── Ads ────────────────────────────────────────────────────────────────────
   /projects/{id}/ads:
     get:
@@ -1554,8 +1588,23 @@ components:
           type: ["number", "null"]
         clickRate:
           type: ["number", "null"]
+        sentAt:
+          type: ["string", "null"]
+        recipientCount:
+          type: ["integer", "null"]
         createdAt:
           type: string
+
+    EmailSendInput:
+      type: object
+      required: [recipients]
+      properties:
+        recipients:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          maxItems: 50
 
     # ── Ads ──────────────────────────────────────────────────────────────────
     AdInput:

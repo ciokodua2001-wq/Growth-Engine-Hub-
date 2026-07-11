@@ -282,7 +282,19 @@ export interface EmailCampaign {
   openRate?: number | null;
   /** @nullable */
   clickRate?: number | null;
+  /** @nullable */
+  sentAt?: string | null;
+  /** @nullable */
+  recipientCount?: number | null;
   createdAt: string;
+}
+
+export interface EmailSendInput {
+  /**
+     * @minItems 1
+     * @maxItems 50
+     */
+  recipients: string[];
 }
 
 export interface AdInput {

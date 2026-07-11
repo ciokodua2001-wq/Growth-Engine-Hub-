@@ -40,6 +40,7 @@ import type {
   DashboardSummary,
   EmailCampaign,
   EmailCampaignInput,
+  EmailSendInput,
   GeneratedImages,
   HealthStatus,
   ImageGenerateInput,
@@ -2062,6 +2063,79 @@ export const useGenerateEmails = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getGenerateEmailsMutationOptions(options));
+    }
+
+export const getSendEmailUrl = (id: number,
+    emailId: number,) => {
+
+
+
+
+  return `/api/projects/${id}/emails/${emailId}/send`
+}
+
+/**
+ * @summary Send an email campaign to a list of recipients
+ */
+export const sendEmail = async (id: number,
+    emailId: number,
+    emailSendInput: EmailSendInput, options?: RequestInit): Promise<EmailCampaign> => {
+
+  return customFetch<EmailCampaign>(getSendEmailUrl(id,emailId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(emailSendInput)
+  }
+);}
+
+
+
+
+export const getSendEmailMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendEmail>>, TError,{id: number;emailId: number;data: BodyType<EmailSendInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendEmail>>, TError,{id: number;emailId: number;data: BodyType<EmailSendInput>}, TContext> => {
+
+const mutationKey = ['sendEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendEmail>>, {id: number;emailId: number;data: BodyType<EmailSendInput>}> = (props) => {
+          const {id,emailId,data} = props ?? {};
+
+          return  sendEmail(id,emailId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendEmailMutationResult = NonNullable<Awaited<ReturnType<typeof sendEmail>>>
+    export type SendEmailMutationBody = BodyType<EmailSendInput>
+    export type SendEmailMutationError = ErrorType<void>
+
+    /**
+ * @summary Send an email campaign to a list of recipients
+ */
+export const useSendEmail = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendEmail>>, TError,{id: number;emailId: number;data: BodyType<EmailSendInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendEmail>>,
+        TError,
+        {id: number;emailId: number;data: BodyType<EmailSendInput>},
+        TContext
+      > => {
+      return useMutation(getSendEmailMutationOptions(options));
     }
 
 export const getListAdsUrl = (id: number,) => {

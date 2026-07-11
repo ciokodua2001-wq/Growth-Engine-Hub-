@@ -636,6 +636,8 @@ export const ListEmailsResponseItem = zod.object({
   "status": zod.string(),
   "openRate": zod.number().nullish(),
   "clickRate": zod.number().nullish(),
+  "sentAt": zod.string().nullish(),
+  "recipientCount": zod.number().nullish(),
   "createdAt": zod.string()
 })
 export const ListEmailsResponse = zod.array(ListEmailsResponseItem)
@@ -664,6 +666,40 @@ export const GenerateEmailsResponse = zod.object({
   "status": zod.string(),
   "openRate": zod.number().nullish(),
   "clickRate": zod.number().nullish(),
+  "sentAt": zod.string().nullish(),
+  "recipientCount": zod.number().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Send an email campaign to a list of recipients
+ */
+export const SendEmailParams = zod.object({
+  "id": zod.coerce.number(),
+  "emailId": zod.coerce.number()
+})
+
+export const sendEmailBodyRecipientsMax = 50;
+
+
+
+export const SendEmailBody = zod.object({
+  "recipients": zod.array(zod.string()).min(1).max(sendEmailBodyRecipientsMax)
+})
+
+export const SendEmailResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "type": zod.string(),
+  "subject": zod.string(),
+  "body": zod.string().nullish(),
+  "previewText": zod.string().nullish(),
+  "status": zod.string(),
+  "openRate": zod.number().nullish(),
+  "clickRate": zod.number().nullish(),
+  "sentAt": zod.string().nullish(),
+  "recipientCount": zod.number().nullish(),
   "createdAt": zod.string()
 })
 

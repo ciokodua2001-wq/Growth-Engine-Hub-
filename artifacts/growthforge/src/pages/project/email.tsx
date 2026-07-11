@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useParams } from "wouter";
 import {
   useListEmails,
   useGenerateEmails,
+  useSendEmail,
   useGetProject,
   getListEmailsQueryKey,
 } from "@workspace/api-client-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Mail, Zap, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Mail, Zap, ChevronDown, ChevronUp, Send, X, Upload, CheckCircle2, AlertCircle } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 
 const emailTypes = ["welcome", "sales", "nurture", "reactivation"];
@@ -28,12 +29,140 @@ const EMAIL_STEPS = [
   "Optimizing for deliverability...",
 ];
 
+function parseRecipients(raw: string): string[] {
+  return raw
+    .split(/[\n,;]+/)
+    .map(e => e.trim())
+    .filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+}
+
+interface SendModalProps {
+  emailId: number;
+  projectId: number;
+  subject: string;
+  onClose: () => void;
+  onSent: () => void;
+}
+
+function SendModal({ emailId, projectId, subject, onClose, onSent }: SendModalProps) {
+  const [raw, setRaw] = useState("");
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const sendEmail = useSendEmail();
+
+  const recipients = parseRecipients(raw);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCsvError(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.endsWith(".csv") && !file.name.endsWith(".txt")) {
+      setCsvError("Please upload a .csv or .txt file");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      setRaw(prev => prev ? prev + "\n" + text : text);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const handleSend = () => {
+    if (recipients.length === 0) return;
+    sendEmail.mutate(
+      { id: projectId, emailId, data: { recipients } },
+      { onSuccess: () => { onSent(); onClose(); } }
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl"
+      >
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <div>
+            <h2 className="text-lg font-bold">Send Campaign</h2>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">"{subject}"</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-sm font-semibold mb-2 block">Recipients</label>
+            <textarea
+              value={raw}
+              onChange={e => setRaw(e.target.value)}
+              placeholder="Paste email addresses separated by commas, semicolons, or newlines&#10;&#10;john@example.com&#10;jane@company.com"
+              rows={6}
+              className="w-full bg-secondary border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none font-mono"
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground border border-border hover:border-primary/50 rounded-lg px-3 py-2 transition-colors"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              Upload CSV / TXT
+            </button>
+            <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFile} className="hidden" />
+            {csvError && <p className="text-xs text-red-400">{csvError}</p>}
+          </div>
+
+          {recipients.length > 0 && (
+            <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              <span>{recipients.length} valid recipient{recipients.length !== 1 ? "s" : ""} ready to send</span>
+            </div>
+          )}
+
+          {sendEmail.isError && (
+            <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              <span>Send failed. Check that marketing@usegrowthforge.com is verified in your Resend dashboard.</span>
+            </div>
+          )}
+
+          <div className="text-xs text-muted-foreground bg-secondary/50 rounded-lg px-3 py-2">
+            Sends from <span className="text-foreground font-mono">marketing@usegrowthforge.com</span>. Make sure this address is verified in your Resend dashboard before sending.
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 px-6 pb-6">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={recipients.length === 0 || sendEmail.isPending}
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-primary-foreground font-bold px-5 py-2 rounded-xl text-sm transition-colors"
+          >
+            {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {sendEmail.isPending ? "Sending..." : `Send to ${recipients.length || "?"} recipient${recipients.length !== 1 ? "s" : ""}`}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 export default function ProjectEmail() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
   const [selectedType, setSelectedType] = useState("welcome");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState<{ id: number; subject: string } | null>(null);
 
   const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: emails, isLoading } = useListEmails(projectId, { query: { enabled: !!projectId } });
@@ -53,6 +182,10 @@ export default function ProjectEmail() {
         }
       );
     });
+  };
+
+  const handleSent = () => {
+    queryClient.invalidateQueries({ queryKey: getListEmailsQueryKey(projectId) });
   };
 
   return (
@@ -97,14 +230,20 @@ export default function ProjectEmail() {
                   <Mail className="h-4 w-4 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <h3 className="font-bold text-sm">{email.subject}</h3>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${typeColors[email.type] ?? "bg-secondary text-muted-foreground border-border"}`}>
                       {email.type}
                     </span>
+                    {email.status === "sent" && (
+                      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border bg-emerald-500/15 text-emerald-400 border-emerald-500/20">
+                        <CheckCircle2 className="h-2.5 w-2.5" />
+                        Sent
+                      </span>
+                    )}
                   </div>
                   {email.previewText && <p className="text-xs text-muted-foreground mb-3">{email.previewText}</p>}
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-6 flex-wrap">
                     {email.openRate != null && (
                       <div className="text-xs">
                         <span className="text-muted-foreground">Open Rate: </span>
@@ -117,14 +256,36 @@ export default function ProjectEmail() {
                         <span className="text-cyan-400 font-bold">{email.clickRate}%</span>
                       </div>
                     )}
+                    {email.status === "sent" && email.recipientCount != null && (
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">Recipients: </span>
+                        <span className="text-foreground font-bold">{email.recipientCount.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {email.status === "sent" && email.sentAt && (
+                      <div className="text-xs text-muted-foreground">
+                        Sent {new Date(email.sentAt).toLocaleDateString()}
+                      </div>
+                    )}
                   </div>
                 </div>
-                <button
-                  onClick={() => setExpandedId(expandedId === email.id ? null : email.id)}
-                  className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-                >
-                  {expandedId === email.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {email.status !== "sent" && (
+                    <button
+                      onClick={() => setSendingEmail({ id: email.id, subject: email.subject })}
+                      className="flex items-center gap-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors"
+                    >
+                      <Send className="h-3 w-3" />
+                      Send
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setExpandedId(expandedId === email.id ? null : email.id)}
+                    className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+                  >
+                    {expandedId === email.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               {expandedId === email.id && email.body && (
                 <motion.div
@@ -160,6 +321,18 @@ export default function ProjectEmail() {
         onSubmit={handleSubmit}
         ctaLabel="Generate Campaign"
       />
+
+      <AnimatePresence>
+        {sendingEmail && (
+          <SendModal
+            emailId={sendingEmail.id}
+            projectId={projectId}
+            subject={sendingEmail.subject}
+            onClose={() => setSendingEmail(null)}
+            onSent={handleSent}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

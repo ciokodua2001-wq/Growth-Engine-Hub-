@@ -18,12 +18,15 @@ import {
   ListEmailsParams,
   GenerateEmailsParams,
   GenerateEmailsBody,
+  SendEmailParams,
+  SendEmailBody,
   ListAdsParams,
   GenerateAdsParams,
   GenerateAdsBody,
 } from "@workspace/api-zod";
 import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGeneratedBatch, recordGenerated, hashContent } from "../lib/contentIntegrity.js";
+import { Resend } from "resend";
 
 const router: IRouter = Router();
 
@@ -217,7 +220,7 @@ router.get("/projects/:id/emails", async (req, res): Promise<void> => {
   const params = ListEmailsParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const emails = await db.select().from(emailCampaignsTable).where(eq(emailCampaignsTable.projectId, params.data.id)).orderBy(desc(emailCampaignsTable.createdAt));
-  res.json(emails.map(e => ({ ...e, openRate: e.openRate ? Number(e.openRate) : null, clickRate: e.clickRate ? Number(e.clickRate) : null, createdAt: e.createdAt.toISOString() })));
+  res.json(emails.map(e => ({ ...e, openRate: e.openRate ? Number(e.openRate) : null, clickRate: e.clickRate ? Number(e.clickRate) : null, sentAt: e.sentAt?.toISOString() ?? null, createdAt: e.createdAt.toISOString() })));
 });
 
 router.post("/projects/:id/emails", requireActiveSubscription, async (req, res): Promise<void> => {
@@ -277,6 +280,72 @@ router.post("/projects/:id/emails", requireActiveSubscription, async (req, res):
   });
 
   res.json({ ...email!, openRate: email!.openRate ? Number(email!.openRate) : null, clickRate: email!.clickRate ? Number(email!.clickRate) : null, createdAt: email!.createdAt.toISOString() });
+});
+
+router.post("/projects/:id/emails/:emailId/send", requireActiveSubscription, async (req, res): Promise<void> => {
+  const params = SendEmailParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const parsed = SendEmailBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const { id: projectId, emailId } = params.data;
+  const { recipients } = parsed.data;
+
+  const [email] = await db.select().from(emailCampaignsTable).where(eq(emailCampaignsTable.id, emailId));
+  if (!email || email.projectId !== projectId) { res.status(404).json({ error: "Email campaign not found" }); return; }
+  if (email.status === "sent") { res.status(400).json({ error: "This campaign has already been sent" }); return; }
+
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) { res.status(503).json({ error: "Email sending is not configured (missing RESEND_API_KEY)" }); return; }
+
+  const resend = new Resend(apiKey);
+
+  const validEmails = recipients.filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+  if (validEmails.length === 0) { res.status(400).json({ error: "No valid email addresses provided" }); return; }
+
+  let failCount = 0;
+  const batches: string[][] = [];
+  for (let i = 0; i < validEmails.length; i += 50) {
+    batches.push(validEmails.slice(i, i + 50));
+  }
+
+  for (const batch of batches) {
+    const headers: Record<string, string> = { "X-Entity-Ref-ID": String(email.id) };
+    if (email.previewText) headers["X-Preview-Text"] = email.previewText;
+    const { error } = await resend.batch.send(
+      batch.map(to => ({
+        from: "GrowthForge AI <marketing@usegrowthforge.com>",
+        to,
+        subject: email.subject,
+        text: email.body ?? email.subject,
+        headers,
+      }))
+    );
+    if (error) {
+      req.log.error({ error, emailId }, "Resend batch send failed");
+      failCount += batch.length;
+    }
+  }
+
+  const sentCount = validEmails.length - failCount;
+  const [updated] = await db.update(emailCampaignsTable)
+    .set({ status: "sent", sentAt: new Date(), recipientCount: sentCount })
+    .where(eq(emailCampaignsTable.id, emailId))
+    .returning();
+
+  await db.insert(activityTable).values({
+    projectId,
+    type: "email",
+    description: `Sent "${email.subject}" to ${sentCount} recipient${sentCount !== 1 ? "s" : ""}${failCount > 0 ? ` (${failCount} failed)` : ""}`,
+  });
+
+  res.json({
+    ...updated!,
+    openRate: updated!.openRate ? Number(updated!.openRate) : null,
+    clickRate: updated!.clickRate ? Number(updated!.clickRate) : null,
+    sentAt: updated!.sentAt?.toISOString() ?? null,
+    createdAt: updated!.createdAt.toISOString(),
+  });
 });
 
 // Ads
