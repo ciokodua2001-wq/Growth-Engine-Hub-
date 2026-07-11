@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { and, eq, lt, isNotNull } from "drizzle-orm";
+import { and, or, eq, lt, isNull } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { socialPostsTable } from "@workspace/db";
 import { logger } from "./logger.js";
@@ -17,14 +17,21 @@ const STUCK_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
  */
 export async function recoverStuckPublishingPosts(cutoffMs = STUCK_THRESHOLD_MS): Promise<number> {
   const cutoff = new Date(Date.now() - cutoffMs);
+  // Recover posts that are stuck because:
+  //   (a) publishingAt is set and older than the threshold (normal case going forward), OR
+  //   (b) publishingAt IS NULL — legacy rows stuck before this column was added; on startup
+  //       these are always safe to reset (no requests in flight), and for cron runs a null
+  //       publishingAt means we have no age info, so we conservatively treat them as stuck.
   const recovered = await db
     .update(socialPostsTable)
     .set({ status: "draft", publishingAt: null })
     .where(
       and(
         eq(socialPostsTable.status, "publishing"),
-        isNotNull(socialPostsTable.publishingAt),
-        lt(socialPostsTable.publishingAt, cutoff),
+        or(
+          lt(socialPostsTable.publishingAt, cutoff),
+          isNull(socialPostsTable.publishingAt),
+        ),
       ),
     )
     .returning({ id: socialPostsTable.id });

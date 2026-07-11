@@ -611,7 +611,7 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
     try {
       await db
         .update(socialPostsTable)
-        .set({ status: "draft" })
+        .set({ status: "draft", publishingAt: null })
         .where(eq(socialPostsTable.id, postId));
     } catch (rbErr) {
       req.log.error({ rbErr, postId }, "Failed to roll back publishing status to draft");
@@ -738,7 +738,7 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
     try {
       const [row] = await db
         .update(socialPostsTable)
-        .set({ status: "published", publishedAt, externalPostId })
+        .set({ status: "published", publishedAt, externalPostId, publishingAt: null })
         .where(eq(socialPostsTable.id, postId))
         .returning();
       updated = row;
