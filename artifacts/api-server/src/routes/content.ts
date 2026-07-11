@@ -31,6 +31,7 @@ import {
 import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGeneratedBatch, recordGenerated, hashContent } from "../lib/contentIntegrity.js";
 import { Resend } from "resend";
+import { decryptToken } from "../lib/tokenCrypto.js";
 
 const router: IRouter = Router();
 
@@ -433,6 +434,16 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
 
   const content = [post.caption, post.hashtags, post.cta].filter(Boolean).join("\n\n");
 
+  // Decrypt the stored token before using it with the Graph API
+  let pageToken: string;
+  try {
+    pageToken = decryptToken(conn.pageAccessToken);
+  } catch (err) {
+    req.log.error({ err }, "Failed to decrypt Meta page access token");
+    res.status(500).json({ error: "Could not read Meta connection credentials" });
+    return;
+  }
+
   let externalPostId: string;
   try {
     if (platform === "facebook") {
@@ -440,7 +451,7 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
       const fbRes = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content, access_token: conn.pageAccessToken }),
+        body: JSON.stringify({ message: content, access_token: pageToken }),
       });
       const fbData = await fbRes.json() as { id?: string; error?: { message: string } };
       if (!fbData.id) {
@@ -457,7 +468,7 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
       const containerRes = await fetch(containerUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caption: content, media_type: "TEXT", access_token: conn.pageAccessToken }),
+        body: JSON.stringify({ caption: content, media_type: "TEXT", access_token: pageToken }),
       });
       const containerData = await containerRes.json() as { id?: string; error?: { message: string } };
       if (!containerData.id) {
@@ -470,7 +481,7 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
       const publishRes = await fetch(publishUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ creation_id: containerData.id, access_token: conn.pageAccessToken }),
+        body: JSON.stringify({ creation_id: containerData.id, access_token: pageToken }),
       });
       const publishData = await publishRes.json() as { id?: string; error?: { message: string } };
       if (!publishData.id) {

@@ -3,6 +3,8 @@ import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { metaConnectionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { requireUserId, loadOwnedProject } from "../lib/authz.js";
+import { encryptToken, signState, verifyState } from "../lib/tokenCrypto.js";
 
 const router: IRouter = Router();
 
@@ -18,19 +20,25 @@ const SCOPES = [
 
 /**
  * GET /auth/meta/start?projectId=<id>
- * Initiates Facebook OAuth. The projectId is encoded in the `state` param
- * so the callback can associate the token with the correct project.
+ * Initiates Facebook OAuth. Verifies the caller owns the project before
+ * redirecting. The projectId and userId are encoded in a HMAC-signed state
+ * param so the callback can verify ownership without trusting client input.
  */
-router.get("/auth/meta/start", (req, res): void => {
-  const userId = getAuth(req)?.userId;
-  if (!userId) {
-    res.status(401).json({ error: "Unauthorized" });
+router.get("/auth/meta/start", async (req, res): Promise<void> => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  const rawId = req.query.projectId as string;
+  const projectId = parseInt(rawId, 10);
+  if (isNaN(projectId)) {
+    res.status(400).json({ error: "projectId must be an integer" });
     return;
   }
 
-  const projectId = req.query.projectId as string;
-  if (!projectId || isNaN(parseInt(projectId, 10))) {
-    res.status(400).json({ error: "projectId is required" });
+  // Verify ownership before starting the flow
+  const project = await loadOwnedProject(userId, projectId);
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
     return;
   }
 
@@ -39,7 +47,9 @@ router.get("/auth/meta/start", (req, res): void => {
     return;
   }
 
-  const state = Buffer.from(JSON.stringify({ projectId, userId })).toString("base64url");
+  // Sign the state so the callback can verify it hasn't been tampered with
+  const payload = JSON.stringify({ projectId, userId, exp: Date.now() + 10 * 60 * 1000 });
+  const state = signState(Buffer.from(payload).toString("base64url"));
 
   const url = new URL("https://www.facebook.com/v20.0/dialog/oauth");
   url.searchParams.set("client_id", META_APP_ID);
@@ -54,8 +64,11 @@ router.get("/auth/meta/start", (req, res): void => {
 /**
  * GET /auth/meta/callback
  * Exchanges the authorization code for a long-lived Page access token,
- * fetches the linked Page and Instagram Business Account, then stores
- * the connection in `meta_connections` and redirects back to the dashboard.
+ * fetches the linked Page and Instagram Business Account, encrypts the
+ * token, and stores the connection in `meta_connections`.
+ *
+ * Security: verifies HMAC state signature and that the authenticated
+ * Clerk user matches the userId embedded in the state.
  */
 router.get("/auth/meta/callback", async (req, res): Promise<void> => {
   const { code, state, error: oauthError } = req.query as Record<string, string>;
@@ -71,18 +84,40 @@ router.get("/auth/meta/callback", async (req, res): Promise<void> => {
     return;
   }
 
+  // 1. Verify the signed state (prevents CSRF and tampered projectId/userId)
   let projectId: number;
+  let stateUserId: string;
   try {
-    const decoded = JSON.parse(Buffer.from(state, "base64url").toString("utf-8"));
+    const payload = verifyState(state);
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf-8"));
     projectId = parseInt(decoded.projectId, 10);
-    if (isNaN(projectId)) throw new Error("invalid projectId");
-  } catch {
+    stateUserId = decoded.userId as string;
+    if (isNaN(projectId) || !stateUserId) throw new Error("invalid state fields");
+    if (decoded.exp < Date.now()) throw new Error("state expired");
+  } catch (err) {
+    req.log.warn({ err }, "Meta OAuth state invalid");
     res.redirect("/dashboard?meta_error=invalid_state");
     return;
   }
 
+  // 2. Verify the currently-authenticated user matches the state's userId
+  const callbackUserId = getAuth(req)?.userId;
+  if (!callbackUserId || callbackUserId !== stateUserId) {
+    req.log.warn({ callbackUserId, stateUserId }, "Meta OAuth user mismatch");
+    res.redirect("/dashboard?meta_error=user_mismatch");
+    return;
+  }
+
+  // 3. Re-verify project ownership (the state was signed, but double-check)
+  const project = await loadOwnedProject(callbackUserId, projectId);
+  if (!project) {
+    req.log.warn({ callbackUserId, projectId }, "Meta OAuth project not owned");
+    res.redirect("/dashboard?meta_error=not_authorized");
+    return;
+  }
+
   try {
-    // 1. Exchange code for short-lived user access token
+    // 4. Exchange code for short-lived user access token
     const tokenUrl = new URL("https://graph.facebook.com/v20.0/oauth/access_token");
     tokenUrl.searchParams.set("client_id", META_APP_ID);
     tokenUrl.searchParams.set("client_secret", META_APP_SECRET);
@@ -100,7 +135,7 @@ router.get("/auth/meta/callback", async (req, res): Promise<void> => {
 
     const userToken = tokenData.access_token;
 
-    // 2. Exchange for long-lived user access token
+    // 5. Exchange for long-lived user access token (60 days)
     const llUrl = new URL("https://graph.facebook.com/v20.0/oauth/access_token");
     llUrl.searchParams.set("grant_type", "fb_exchange_token");
     llUrl.searchParams.set("client_id", META_APP_ID);
@@ -111,7 +146,7 @@ router.get("/auth/meta/callback", async (req, res): Promise<void> => {
     const llData = await llRes.json() as { access_token?: string };
     const longLivedToken = llData.access_token ?? userToken;
 
-    // 3. Get the user's Pages and their permanent Page access tokens
+    // 6. Get Pages — each has its own never-expiring Page access token
     const pagesUrl = new URL("https://graph.facebook.com/v20.0/me/accounts");
     pagesUrl.searchParams.set("access_token", longLivedToken);
     pagesUrl.searchParams.set("fields", "id,name,access_token");
@@ -128,10 +163,10 @@ router.get("/auth/meta/callback", async (req, res): Promise<void> => {
       return;
     }
 
-    // Use the first page (users can disconnect and reconnect to choose a different page)
+    // Use the first page (page-picker follow-up tracked as task #6)
     const page = pages[0];
 
-    // 4. Look for a linked Instagram Business Account
+    // 7. Look for a linked Instagram Business Account
     const igUrl = new URL(`https://graph.facebook.com/v20.0/${page.id}`);
     igUrl.searchParams.set("fields", "instagram_business_account");
     igUrl.searchParams.set("access_token", page.access_token);
@@ -143,14 +178,17 @@ router.get("/auth/meta/callback", async (req, res): Promise<void> => {
 
     const instagramAccountId = igData.instagram_business_account?.id ?? null;
 
-    // 5. Upsert the connection row
+    // 8. Encrypt the page access token before storing
+    const encryptedToken = encryptToken(page.access_token);
+
+    // 9. Upsert the connection row
     await db
       .insert(metaConnectionsTable)
       .values({
         projectId,
         pageId: page.id,
         pageName: page.name,
-        pageAccessToken: page.access_token,
+        pageAccessToken: encryptedToken,
         instagramAccountId,
         connectedAt: new Date(),
       })
@@ -159,7 +197,7 @@ router.get("/auth/meta/callback", async (req, res): Promise<void> => {
         set: {
           pageId: page.id,
           pageName: page.name,
-          pageAccessToken: page.access_token,
+          pageAccessToken: encryptedToken,
           instagramAccountId,
           connectedAt: new Date(),
         },
