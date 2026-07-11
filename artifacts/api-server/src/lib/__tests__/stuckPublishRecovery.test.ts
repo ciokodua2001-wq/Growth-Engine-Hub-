@@ -167,4 +167,50 @@ describe("recoverStuckPublishingPosts", () => {
     const post = await getPostStatus(id);
     expect(post?.publishingAt).toBeNull();
   });
+
+  // externalPostId guard — posts that have an externalPostId already have been
+  // successfully published to Meta. Resetting them to "draft" would erase the ID
+  // and cause a duplicate post on retry.
+  it("does NOT reset a publishing post that already has an externalPostId (old publishingAt)", async () => {
+    const id = await insertPost({
+      status: "publishing",
+      publishingAt: OLD,
+      externalPostId: "fb_post_12345",
+    });
+
+    const count = await recoverStuckPublishingPosts(THRESHOLD_MS);
+
+    expect(count).toBe(0);
+    const post = await getPostStatus(id);
+    expect(post?.status).toBe("publishing"); // stays put — Guard 1 will handle it on retry
+  });
+
+  it("does NOT reset a publishing post with externalPostId and NULL publishingAt (legacy)", async () => {
+    const id = await insertPost({
+      status: "publishing",
+      publishingAt: null,
+      externalPostId: "fb_post_67890",
+    });
+
+    const count = await recoverStuckPublishingPosts(THRESHOLD_MS);
+
+    expect(count).toBe(0);
+    const post = await getPostStatus(id);
+    expect(post?.status).toBe("publishing");
+  });
+
+  it("resets publishing posts without externalPostId but skips those with one", async () => {
+    const stuckId = await insertPost({ status: "publishing", publishingAt: OLD, externalPostId: null });
+    const publishedToMetaId = await insertPost({
+      status: "publishing",
+      publishingAt: OLD,
+      externalPostId: "fb_post_abc",
+    });
+
+    const count = await recoverStuckPublishingPosts(THRESHOLD_MS);
+
+    expect(count).toBe(1); // only the one without externalPostId
+    expect((await getPostStatus(stuckId))?.status).toBe("draft");
+    expect((await getPostStatus(publishedToMetaId))?.status).toBe("publishing");
+  });
 });

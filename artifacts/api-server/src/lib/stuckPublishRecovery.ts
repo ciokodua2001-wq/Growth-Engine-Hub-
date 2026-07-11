@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { and, or, eq, lt, isNull } from "drizzle-orm";
+import { and, or, eq, lt, isNull, isNotNull } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { socialPostsTable } from "@workspace/db";
 import { logger } from "./logger.js";
@@ -22,12 +22,20 @@ export async function recoverStuckPublishingPosts(cutoffMs = STUCK_THRESHOLD_MS)
   //   (b) publishingAt IS NULL — legacy rows stuck before this column was added; on startup
   //       these are always safe to reset (no requests in flight), and for cron runs a null
   //       publishingAt means we have no age info, so we conservatively treat them as stuck.
+  //
+  // IMPORTANT: posts with externalPostId set are intentionally excluded. A non-null
+  // externalPostId means the Meta API call succeeded but the subsequent DB status update
+  // failed. Resetting such a post to "draft" would erase the externalPostId and allow a
+  // retry to publish to Meta again — creating a duplicate post. These rows should stay in
+  // "publishing" so the idempotent Guard 1 in the publish route can complete the DB state
+  // on the next user retry without calling Meta again.
   const recovered = await db
     .update(socialPostsTable)
     .set({ status: "draft", publishingAt: null })
     .where(
       and(
         eq(socialPostsTable.status, "publishing"),
+        isNull(socialPostsTable.externalPostId),
         or(
           lt(socialPostsTable.publishingAt, cutoff),
           isNull(socialPostsTable.publishingAt),
