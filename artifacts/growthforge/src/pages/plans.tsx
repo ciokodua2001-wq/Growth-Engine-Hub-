@@ -134,7 +134,7 @@ const PLANS: Plan[] = [
         icon: <Megaphone className="w-3.5 h-3.5" />,
         label: "Campaign Performance",
         items: [
-          "1 AI Performance Report / month",
+          "2 AI Performance Reports / month",
           "AI Campaign Builder",
           "Social Scheduling",
         ],
@@ -194,7 +194,7 @@ const PLANS: Plan[] = [
         icon: <Megaphone className="w-3.5 h-3.5" />,
         label: "Campaign Performance",
         items: [
-          "2 AI Performance Reports / month",
+          "5 AI Performance Reports / month",
           "White-Label Reports",
           "Dedicated Onboarding",
         ],
@@ -253,7 +253,7 @@ const PLANS: Plan[] = [
         icon: <Megaphone className="w-3.5 h-3.5" />,
         label: "Campaign Performance",
         items: [
-          "4 AI Performance Reports / month",
+          "10 AI Performance Reports / month",
           "AI Managed Campaigns",
           "Autonomous Growth Mode",
         ],
