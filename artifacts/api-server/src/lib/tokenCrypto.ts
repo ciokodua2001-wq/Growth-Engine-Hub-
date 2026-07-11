@@ -1,14 +1,51 @@
 import crypto from "node:crypto";
 
 /**
- * Derives a 32-byte AES key from the SESSION_SECRET using SHA-256.
- * The same secret that protects sessions is used to protect stored tokens —
- * changing SESSION_SECRET will make any previously-encrypted tokens unreadable.
+ * Returns the AES-256 key buffer.
+ *
+ * Priority:
+ *   1. TOKEN_ENCRYPTION_KEY — a 64-hex-char (32-byte) secret dedicated to
+ *      token encryption.  This is the preferred key and should always be set
+ *      in production.
+ *   2. SESSION_SECRET (legacy fallback) — derived via SHA-256.  Kept so that
+ *      existing deployments don't lose access to already-encrypted tokens.
+ *      Rotate by encrypting all tokens with the new key and removing the fallback.
+ *
+ * Changing the active key without migrating stored tokens will make them
+ * unreadable — always use `isEncryptedFormat` + a migration step first.
  */
 function getKey(): Buffer {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("SESSION_SECRET is not set — cannot encrypt/decrypt tokens");
-  return crypto.createHash("sha256").update(secret).digest();
+  const dedicated = process.env.TOKEN_ENCRYPTION_KEY;
+  if (dedicated) {
+    if (dedicated.length !== 64 || !/^[0-9a-f]+$/i.test(dedicated)) {
+      throw new Error(
+        "TOKEN_ENCRYPTION_KEY must be a 64-character lowercase hex string (32 bytes)"
+      );
+    }
+    return Buffer.from(dedicated, "hex");
+  }
+
+  const session = process.env.SESSION_SECRET;
+  if (session) {
+    return crypto.createHash("sha256").update(session).digest();
+  }
+
+  throw new Error(
+    "Neither TOKEN_ENCRYPTION_KEY nor SESSION_SECRET is set — cannot encrypt/decrypt tokens"
+  );
+}
+
+/**
+ * Returns true if `token` matches the `iv:authTag:ciphertext` hex format
+ * produced by `encryptToken`.  Use this to detect legacy plaintext rows
+ * before attempting decryption.
+ */
+export function isEncryptedFormat(token: string): boolean {
+  const parts = token.split(":");
+  return (
+    parts.length === 3 &&
+    parts.every((p) => p.length > 0 && /^[0-9a-f]+$/i.test(p))
+  );
 }
 
 /**
@@ -27,6 +64,7 @@ export function encryptToken(plaintext: string): string {
 /**
  * Decrypts a token produced by `encryptToken`.
  * Throws if the token is malformed or authentication fails (tampering detected).
+ * Call `isEncryptedFormat` first to check for legacy plaintext rows.
  */
 export function decryptToken(encrypted: string): string {
   const parts = encrypted.split(":");

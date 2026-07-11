@@ -31,7 +31,7 @@ import {
 import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGeneratedBatch, recordGenerated, hashContent } from "../lib/contentIntegrity.js";
 import { Resend } from "resend";
-import { decryptToken } from "../lib/tokenCrypto.js";
+import { decryptToken, encryptToken, isEncryptedFormat } from "../lib/tokenCrypto.js";
 
 const router: IRouter = Router();
 
@@ -434,14 +434,30 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
 
   const content = [post.caption, post.hashtags, post.cta].filter(Boolean).join("\n\n");
 
-  // Decrypt the stored token before using it with the Graph API
+  // Resolve the page access token — migrating legacy plaintext rows on first read.
   let pageToken: string;
-  try {
-    pageToken = decryptToken(conn.pageAccessToken);
-  } catch (err) {
-    req.log.error({ err }, "Failed to decrypt Meta page access token");
-    res.status(500).json({ error: "Could not read Meta connection credentials" });
-    return;
+  if (!isEncryptedFormat(conn.pageAccessToken)) {
+    // Row predates encryption — treat the stored value as plaintext,
+    // re-encrypt it in-place so all future reads go through the cipher.
+    pageToken = conn.pageAccessToken;
+    try {
+      const reEncrypted = encryptToken(pageToken);
+      await db
+        .update(metaConnectionsTable)
+        .set({ pageAccessToken: reEncrypted })
+        .where(eq(metaConnectionsTable.projectId, projectId));
+      req.log.info({ projectId }, "Migrated plaintext Meta page token to encrypted form");
+    } catch (encErr) {
+      req.log.warn({ encErr }, "Could not re-encrypt legacy Meta token — will use plaintext for this request");
+    }
+  } else {
+    try {
+      pageToken = decryptToken(conn.pageAccessToken);
+    } catch (err) {
+      req.log.error({ err }, "Failed to decrypt Meta page access token");
+      res.status(500).json({ error: "Could not read Meta connection credentials" });
+      return;
+    }
   }
 
   let externalPostId: string;
