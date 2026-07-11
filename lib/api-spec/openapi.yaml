@@ -579,6 +579,36 @@ paths:
         "500":
           description: Failed to connect page
 
+  /projects/{id}/social-posts/{postId}/stats:
+    get:
+      operationId: getSocialPostStats
+      tags: [social]
+      summary: Fetch engagement stats (likes, comments, reach) for a published post from Meta
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Engagement stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialPostStats"
+        "400":
+          description: Post not published or no externalPostId
+        "404":
+          description: Post or Meta connection not found
+        "502":
+          description: Graph API error
+
   /projects/{id}/social-posts/{postId}/publish:
     post:
       operationId: publishSocialPost
@@ -1684,6 +1714,14 @@ components:
           type: ["string", "null"]
         externalPostId:
           type: ["string", "null"]
+        statsLikes:
+          type: ["integer", "null"]
+        statsComments:
+          type: ["integer", "null"]
+        statsReach:
+          type: ["integer", "null"]
+        statsUpdatedAt:
+          type: ["string", "null"]
         createdAt:
           type: string
 
@@ -1730,6 +1768,23 @@ components:
           type: string
         pageId:
           type: string
+
+    SocialPostStats:
+      type: object
+      required: [postId, externalPostId]
+      properties:
+        postId:
+          type: integer
+        externalPostId:
+          type: string
+        likes:
+          type: ["integer", "null"]
+        comments:
+          type: ["integer", "null"]
+        reach:
+          type: ["integer", "null"]
+        statsUpdatedAt:
+          type: ["string", "null"]
 
     PublishSocialInput:
       type: object

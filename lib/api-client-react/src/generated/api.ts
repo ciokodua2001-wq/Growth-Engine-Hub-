@@ -59,6 +59,7 @@ import type {
   ReportInput,
   SocialPost,
   SocialPostInput,
+  SocialPostStats,
   UploadUrlRequest,
   UploadUrlResponse,
   Video,
@@ -2146,6 +2147,88 @@ export const useSelectMetaPage = <TError = ErrorType<void>,
       > => {
       return useMutation(getSelectMetaPageMutationOptions(options));
     }
+
+export const getGetSocialPostStatsUrl = (id: number,
+    postId: number,) => {
+
+
+
+
+  return `/api/projects/${id}/social-posts/${postId}/stats`
+}
+
+/**
+ * @summary Fetch engagement stats (likes, comments, reach) for a published post from Meta
+ */
+export const getSocialPostStats = async (id: number,
+    postId: number, options?: RequestInit): Promise<SocialPostStats> => {
+
+  return customFetch<SocialPostStats>(getGetSocialPostStatsUrl(id,postId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSocialPostStatsQueryKey = (id: number,
+    postId: number,) => {
+    return [
+    `/api/projects/${id}/social-posts/${postId}/stats`
+    ] as const;
+    }
+
+
+export const getGetSocialPostStatsQueryOptions = <TData = Awaited<ReturnType<typeof getSocialPostStats>>, TError = ErrorType<void>>(id: number,
+    postId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialPostStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSocialPostStatsQueryKey(id,postId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSocialPostStats>>> = ({ signal }) => getSocialPostStats(id,postId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && postId !== null && postId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSocialPostStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSocialPostStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getSocialPostStats>>>
+export type GetSocialPostStatsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Fetch engagement stats (likes, comments, reach) for a published post from Meta
+ */
+
+export function useGetSocialPostStats<TData = Awaited<ReturnType<typeof getSocialPostStats>>, TError = ErrorType<void>>(
+ id: number,
+    postId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSocialPostStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSocialPostStatsQueryOptions(id,postId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getPublishSocialPostUrl = (id: number,
     postId: number,) => {

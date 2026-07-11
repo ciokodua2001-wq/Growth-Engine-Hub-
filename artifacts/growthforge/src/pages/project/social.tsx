@@ -10,12 +10,14 @@ import {
   usePublishSocialPost,
   useGetMetaPages,
   useSelectMetaPage,
+  getSocialPostStats,
   getListSocialPostsQueryKey,
   getGetMetaConnectionQueryKey,
 } from "@workspace/api-client-react";
+import type { SocialPost } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Share2, Zap, Calendar, Facebook, CheckCircle2, AlertCircle, Link2, Link2Off, Instagram, RefreshCw, ChevronRight } from "lucide-react";
+import { Loader2, Share2, Zap, Calendar, Facebook, CheckCircle2, AlertCircle, Link2, Link2Off, Instagram, RefreshCw, ChevronRight, Heart, MessageCircle, Eye } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 
 const platforms = ["linkedin", "instagram", "tiktok", "x", "facebook"];
@@ -109,6 +111,85 @@ function PublishButtons({
         >
           {publishPost.isPending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Instagram className="h-2.5 w-2.5" />}
           Instagram
+        </button>
+      )}
+    </div>
+  );
+}
+
+interface StatsPanelProps {
+  post: SocialPost;
+  projectId: number;
+  onError: (msg: string) => void;
+}
+
+function StatsPanel({ post, projectId, onError }: StatsPanelProps) {
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  if (post.status !== "published" || !post.externalPostId) return null;
+
+  const hasStats = post.statsLikes != null || post.statsComments != null || post.statsReach != null;
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await getSocialPostStats(projectId, post.id);
+      await queryClient.invalidateQueries({ queryKey: getListSocialPostsQueryKey(projectId) });
+    } catch {
+      onError("Could not refresh stats. Check your Meta connection.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border/50">
+      {hasStats ? (
+        <div className="flex items-center gap-4 flex-wrap">
+          {post.statsLikes != null && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Heart className="h-3 w-3 text-rose-400" />
+              <span className="font-medium text-foreground">{post.statsLikes.toLocaleString()}</span>
+              <span>likes</span>
+            </div>
+          )}
+          {post.statsComments != null && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <MessageCircle className="h-3 w-3 text-blue-400" />
+              <span className="font-medium text-foreground">{post.statsComments.toLocaleString()}</span>
+              <span>comments</span>
+            </div>
+          )}
+          {post.statsReach != null && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Eye className="h-3 w-3 text-primary" />
+              <span className="font-medium text-foreground">{post.statsReach.toLocaleString()}</span>
+              <span>reach</span>
+            </div>
+          )}
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh stats from Meta"
+            className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+          >
+            <RefreshCw className={`h-3 w-3 ${isRefreshing ? "animate-spin" : ""}`} />
+            {post.statsUpdatedAt ? new Date(post.statsUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Refresh"}
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+        >
+          {isRefreshing ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3 w-3" />
+          )}
+          Refresh stats
         </button>
       )}
     </div>
@@ -250,6 +331,25 @@ export default function ProjectSocial() {
   const disconnectMeta = useDisconnectMeta();
   const generatePosts = useGenerateSocialPosts();
   const queryClient = useQueryClient();
+
+  // Auto-fetch stats on page load for published posts that have never had stats pulled
+  useEffect(() => {
+    if (!posts || !projectId) return;
+    const unpulled = posts.filter(
+      (p) => p.status === "published" && p.externalPostId && p.statsUpdatedAt == null
+    );
+    if (unpulled.length === 0) return;
+
+    let didFetch = false;
+    Promise.allSettled(
+      unpulled.map((p) => getSocialPostStats(projectId, p.id))
+    ).then((results) => {
+      didFetch = results.some((r) => r.status === "fulfilled");
+      if (didFetch) {
+        queryClient.invalidateQueries({ queryKey: getListSocialPostsQueryKey(projectId) });
+      }
+    });
+  }, [posts, projectId, queryClient]);
 
   // Pick up the meta_pages token from the OAuth redirect URL and open the picker
   useEffect(() => {
@@ -451,6 +551,11 @@ export default function ProjectSocial() {
                     hasMetaConnection={isConnected}
                     hasInstagram={hasInstagram}
                     onPublished={(p) => showToast("success", `Published to ${p} successfully!`)}
+                    onError={(msg) => showToast("error", msg)}
+                  />
+                  <StatsPanel
+                    post={post}
+                    projectId={projectId}
                     onError={(msg) => showToast("error", msg)}
                   />
                 </motion.div>

@@ -560,6 +560,10 @@ export const ListSocialPostsResponseItem = zod.object({
   "scheduledAt": zod.string().nullish(),
   "publishedAt": zod.string().nullish(),
   "externalPostId": zod.string().nullish(),
+  "statsLikes": zod.number().nullish(),
+  "statsComments": zod.number().nullish(),
+  "statsReach": zod.number().nullish(),
+  "statsUpdatedAt": zod.string().nullish(),
   "createdAt": zod.string()
 })
 export const ListSocialPostsResponse = zod.array(ListSocialPostsResponseItem)
@@ -590,6 +594,10 @@ export const GenerateSocialPostsResponseItem = zod.object({
   "scheduledAt": zod.string().nullish(),
   "publishedAt": zod.string().nullish(),
   "externalPostId": zod.string().nullish(),
+  "statsLikes": zod.number().nullish(),
+  "statsComments": zod.number().nullish(),
+  "statsReach": zod.number().nullish(),
+  "statsUpdatedAt": zod.string().nullish(),
   "createdAt": zod.string()
 })
 export const GenerateSocialPostsResponse = zod.array(GenerateSocialPostsResponseItem)
@@ -655,6 +663,24 @@ export const SelectMetaPageResponse = zod.object({
 
 
 /**
+ * @summary Fetch engagement stats (likes, comments, reach) for a published post from Meta
+ */
+export const GetSocialPostStatsParams = zod.object({
+  "id": zod.coerce.number(),
+  "postId": zod.coerce.number()
+})
+
+export const GetSocialPostStatsResponse = zod.object({
+  "postId": zod.number(),
+  "externalPostId": zod.string(),
+  "likes": zod.number().nullish(),
+  "comments": zod.number().nullish(),
+  "reach": zod.number().nullish(),
+  "statsUpdatedAt": zod.string().nullish()
+})
+
+
+/**
  * @summary Publish a social post to Facebook or Instagram via the Graph API
  */
 export const PublishSocialPostParams = zod.object({
@@ -678,6 +704,10 @@ export const PublishSocialPostResponse = zod.object({
   "scheduledAt": zod.string().nullish(),
   "publishedAt": zod.string().nullish(),
   "externalPostId": zod.string().nullish(),
+  "statsLikes": zod.number().nullish(),
+  "statsComments": zod.number().nullish(),
+  "statsReach": zod.number().nullish(),
+  "statsUpdatedAt": zod.string().nullish(),
   "createdAt": zod.string()
 })
 
@@ -703,6 +733,10 @@ export const GetContentCalendarResponseItem = zod.object({
   "scheduledAt": zod.string().nullish(),
   "publishedAt": zod.string().nullish(),
   "externalPostId": zod.string().nullish(),
+  "statsLikes": zod.number().nullish(),
+  "statsComments": zod.number().nullish(),
+  "statsReach": zod.number().nullish(),
+  "statsUpdatedAt": zod.string().nullish(),
   "createdAt": zod.string()
 }))
 })

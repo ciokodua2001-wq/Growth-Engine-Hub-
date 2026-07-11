@@ -15,6 +15,7 @@ import {
   GenerateSocialPostsParams,
   GenerateSocialPostsBody,
   GetContentCalendarParams,
+  GetSocialPostStatsParams,
   ListEmailsParams,
   GenerateEmailsParams,
   GenerateEmailsBody,
@@ -120,6 +121,7 @@ router.get("/projects/:id/social-posts", async (req, res): Promise<void> => {
     ...p,
     scheduledAt: p.scheduledAt?.toISOString() ?? null,
     publishedAt: p.publishedAt?.toISOString() ?? null,
+    statsUpdatedAt: p.statsUpdatedAt?.toISOString() ?? null,
     createdAt: p.createdAt.toISOString(),
   })));
 });
@@ -408,6 +410,116 @@ router.delete("/projects/:id/meta-connection", async (req, res): Promise<void> =
 
   await db.delete(metaConnectionsTable).where(eq(metaConnectionsTable.projectId, params.data.id));
   res.sendStatus(204);
+});
+
+// Fetch engagement stats for a published social post from Meta Graph API
+router.get("/projects/:id/social-posts/:postId/stats", async (req, res): Promise<void> => {
+  const params = GetSocialPostStatsParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const { id: projectId, postId } = params.data;
+
+  const [post] = await db.select().from(socialPostsTable).where(eq(socialPostsTable.id, postId));
+  if (!post || post.projectId !== projectId) { res.status(404).json({ error: "Social post not found" }); return; }
+  if (post.status !== "published" || !post.externalPostId) {
+    res.status(400).json({ error: "Post is not published or has no external ID" });
+    return;
+  }
+
+  const [conn] = await db.select().from(metaConnectionsTable).where(eq(metaConnectionsTable.projectId, projectId));
+  if (!conn) { res.status(404).json({ error: "No Meta account connected" }); return; }
+
+  let pageToken: string;
+  if (!isEncryptedFormat(conn.pageAccessToken)) {
+    pageToken = conn.pageAccessToken;
+  } else {
+    try {
+      pageToken = decryptToken(conn.pageAccessToken);
+    } catch (err) {
+      req.log.error({ err }, "Failed to decrypt Meta page access token");
+      res.status(500).json({ error: "Could not read Meta connection credentials" });
+      return;
+    }
+  }
+
+  // Fetch insights from Graph API — platform-specific field shapes
+  let likes: number | null = null;
+  let comments: number | null = null;
+  let reach: number | null = null;
+
+  try {
+    if (post.platform === "instagram") {
+      // Instagram Media API uses flat fields: like_count, comments_count
+      const igUrl = `https://graph.facebook.com/v20.0/${post.externalPostId}?fields=like_count,comments_count&access_token=${pageToken}`;
+      const igRes = await fetch(igUrl);
+      const igData = await igRes.json() as {
+        like_count?: number;
+        comments_count?: number;
+        error?: { message: string };
+      };
+
+      if (igData.error) {
+        req.log.error({ igData, postId }, "Graph API returned error for Instagram post stats");
+        res.status(502).json({ error: igData.error.message ?? "Graph API returned an error" });
+        return;
+      }
+
+      likes = igData.like_count ?? null;
+      comments = igData.comments_count ?? null;
+      // Instagram reach is not available via this endpoint without Business Discovery API
+    } else {
+      // Facebook Page post: use edge summary for likes/comments + insights for reach
+      const fields = "likes.summary(true),comments.summary(true)";
+      const fbUrl = `https://graph.facebook.com/v20.0/${post.externalPostId}?fields=${fields}&access_token=${pageToken}`;
+      const fbRes = await fetch(fbUrl);
+      const fbData = await fbRes.json() as {
+        likes?: { summary?: { total_count?: number } };
+        comments?: { summary?: { total_count?: number } };
+        error?: { message: string };
+      };
+
+      if (fbData.error) {
+        req.log.error({ fbData, postId }, "Graph API returned error for Facebook post stats");
+        res.status(502).json({ error: fbData.error.message ?? "Graph API returned an error" });
+        return;
+      }
+
+      likes = fbData.likes?.summary?.total_count ?? null;
+      comments = fbData.comments?.summary?.total_count ?? null;
+
+      // Reach: post_impressions_unique from the insights endpoint
+      const insightsUrl = `https://graph.facebook.com/v20.0/${post.externalPostId}/insights?metric=post_impressions_unique&access_token=${pageToken}`;
+      const insightsRes = await fetch(insightsUrl);
+      const insightsData = await insightsRes.json() as {
+        data?: Array<{ values?: Array<{ value?: number }> }>;
+        error?: { message: string };
+      };
+
+      if (!insightsData.error && insightsData.data?.[0]?.values?.[0]?.value !== undefined) {
+        reach = insightsData.data[0].values[0].value;
+      }
+    }
+  } catch (err) {
+    req.log.error({ err }, "Meta Graph API stats call failed");
+    res.status(502).json({ error: "Failed to reach Meta Graph API" });
+    return;
+  }
+
+  // Cache the fetched stats on the post row
+  const now = new Date();
+  await db
+    .update(socialPostsTable)
+    .set({ statsLikes: likes, statsComments: comments, statsReach: reach, statsUpdatedAt: now })
+    .where(eq(socialPostsTable.id, postId));
+
+  res.json({
+    postId: post.id,
+    externalPostId: post.externalPostId,
+    likes,
+    comments,
+    reach,
+    statsUpdatedAt: now.toISOString(),
+  });
 });
 
 // Publish social post to Meta (Facebook / Instagram)

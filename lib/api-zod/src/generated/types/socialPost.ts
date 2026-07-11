@@ -24,5 +24,13 @@ export interface SocialPost {
   publishedAt?: string | null;
   /** @nullable */
   externalPostId?: string | null;
+  /** @nullable */
+  statsLikes?: number | null;
+  /** @nullable */
+  statsComments?: number | null;
+  /** @nullable */
+  statsReach?: number | null;
+  /** @nullable */
+  statsUpdatedAt?: string | null;
   createdAt: string;
 }

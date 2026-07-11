@@ -256,6 +256,14 @@ export interface SocialPost {
   publishedAt?: string | null;
   /** @nullable */
   externalPostId?: string | null;
+  /** @nullable */
+  statsLikes?: number | null;
+  /** @nullable */
+  statsComments?: number | null;
+  /** @nullable */
+  statsReach?: number | null;
+  /** @nullable */
+  statsUpdatedAt?: string | null;
   createdAt: string;
 }
 
@@ -284,6 +292,19 @@ export interface MetaPagesResult {
 export interface MetaPageSelectInput {
   token: string;
   pageId: string;
+}
+
+export interface SocialPostStats {
+  postId: number;
+  externalPostId: string;
+  /** @nullable */
+  likes?: number | null;
+  /** @nullable */
+  comments?: number | null;
+  /** @nullable */
+  reach?: number | null;
+  /** @nullable */
+  statsUpdatedAt?: string | null;
 }
 
 export type PublishSocialInputPlatform = typeof PublishSocialInputPlatform[keyof typeof PublishSocialInputPlatform];

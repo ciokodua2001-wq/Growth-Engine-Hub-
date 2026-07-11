@@ -35,6 +35,10 @@ export const socialPostsTable = pgTable("social_posts", {
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   publishedAt: timestamp("published_at", { withTimezone: true }),
   externalPostId: text("external_post_id"),
+  statsLikes: integer("stats_likes"),
+  statsComments: integer("stats_comments"),
+  statsReach: integer("stats_reach"),
+  statsUpdatedAt: timestamp("stats_updated_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

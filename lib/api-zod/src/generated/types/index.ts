@@ -54,6 +54,7 @@ export * from './report';
 export * from './reportInput';
 export * from './socialPost';
 export * from './socialPostInput';
+export * from './socialPostStats';
 export * from './uploadUrlRequest';
 export * from './uploadUrlResponse';
 export * from './video';
