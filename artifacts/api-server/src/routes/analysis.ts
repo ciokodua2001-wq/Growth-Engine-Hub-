@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
+import PDFDocument from "pdfkit";
+import { PassThrough } from "stream";
 import {
   businessAnalysisTable,
   personasTable,
@@ -350,6 +352,95 @@ router.get("/projects/:id/strategy", async (req, res): Promise<void> => {
     createdAt: strategy.createdAt.toISOString(),
     updatedAt: strategy.updatedAt.toISOString(),
   });
+});
+
+/* ── shared PDF helpers ─────────────────────────────────────── */
+
+const PDF_GREEN = "#00E676";
+const PDF_CYAN = "#00D4FF";
+const PDF_DARK = "#040B14";
+const PDF_GRAY = "#7a8fa6";
+const PDF_WHITE = "#ffffff";
+const PDF_W = 595 - 120; // usable width at 60px margins
+
+function pdfHeader(doc: InstanceType<typeof PDFDocument>, title: string, subtitle: string) {
+  doc.rect(0, 0, 595, 72).fill(PDF_DARK);
+  doc.font("Helvetica-Bold").fontSize(16).fillColor(PDF_GREEN).text("GrowthForge AI", 60, 18);
+  doc.font("Helvetica").fontSize(8).fillColor(PDF_GRAY).text("Strapli Technologies Inc. · UseGrowthForge.com", 60, 38);
+  doc.font("Helvetica-Bold").fontSize(11).fillColor(PDF_WHITE).text(title.toUpperCase(), 60, 54);
+  doc.moveDown(0);
+  let y = 88;
+  doc.font("Helvetica").fontSize(9).fillColor(PDF_GRAY).text(subtitle, 60, y);
+  return y + 20;
+}
+
+function pdfSection(doc: InstanceType<typeof PDFDocument>, label: string, y: number): number {
+  doc.font("Helvetica-Bold").fontSize(10).fillColor(PDF_GREEN).text(label, 60, y);
+  y += 14;
+  doc.moveTo(60, y).lineTo(535, y).strokeColor(PDF_GREEN).lineWidth(0.4).stroke();
+  return y + 8;
+}
+
+function pdfBody(doc: InstanceType<typeof PDFDocument>, text: string, y: number): number {
+  doc.font("Helvetica").fontSize(9).fillColor(PDF_WHITE).text(text, 60, y, { width: PDF_W });
+  return doc.y + 12;
+}
+
+function buildPdfBuffer(builder: (doc: InstanceType<typeof PDFDocument>) => void): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 60, size: "A4" });
+    const chunks: Buffer[] = [];
+    const stream = new PassThrough();
+    stream.on("data", (c) => chunks.push(c as Buffer));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+    doc.pipe(stream);
+    builder(doc);
+    doc.end();
+  });
+}
+
+/* ── Strategy PDF ──────────────────────────────────────────── */
+
+router.get("/projects/:id/strategy/pdf", async (req, res): Promise<void> => {
+  const params = GetMarketingStrategyParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const [strategy] = await db.select().from(marketingStrategyTable)
+    .where(eq(marketingStrategyTable.projectId, params.data.id))
+    .orderBy(desc(marketingStrategyTable.createdAt));
+  if (!strategy) { res.status(404).json({ error: "No strategy found" }); return; }
+
+  const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, params.data.id));
+
+  const buffer = await buildPdfBuffer((doc) => {
+    const generated = new Date().toUTCString();
+    let y = pdfHeader(doc, "Marketing Strategy", `${project?.name ?? "Project"} · Generated ${generated}`);
+
+    const sections: [string, string | null][] = [
+      ["POSITIONING STATEMENT", strategy.positioningStatement],
+      ["MESSAGING FRAMEWORK", strategy.messagingFramework],
+      ["BRAND VOICE GUIDE", strategy.brandVoiceGuide],
+      ["SEO STRATEGY", strategy.seoStrategy],
+      ["CAMPAIGN STRATEGY", strategy.campaignStrategy],
+      ["LEAD GENERATION STRATEGY", strategy.leadGenerationStrategy],
+      ["FUNNEL RECOMMENDATIONS", strategy.funnelRecommendations],
+    ];
+
+    for (const [label, content] of sections) {
+      if (!content) continue;
+      if (y > 700) { doc.addPage(); y = 60; }
+      y = pdfSection(doc, label, y);
+      y = pdfBody(doc, content, y);
+    }
+
+    doc.font("Helvetica").fontSize(7).fillColor(PDF_GRAY)
+      .text(`GrowthForge AI · Confidential · ${generated}`, 60, 820, { width: PDF_W, align: "center" });
+  });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="strategy-${params.data.id}.pdf"`);
+  res.send(buffer);
 });
 
 interface StrategyResult {

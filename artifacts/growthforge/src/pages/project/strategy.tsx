@@ -8,7 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Megaphone, Zap, Target, MessageCircle, Globe, TrendingUp, Filter } from "lucide-react";
+import { Loader2, Megaphone, Zap, Target, MessageCircle, Globe, TrendingUp, Filter, Download } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 
 const STRATEGY_STEPS = [
@@ -64,13 +64,25 @@ export default function ProjectStrategy() {
           <h1 className="text-3xl font-black tracking-tight">Marketing Strategy</h1>
           <p className="text-muted-foreground mt-1">AI-generated positioning, messaging, and growth strategy</p>
         </div>
-        <button
-          onClick={() => setModalOpen(true)}
-          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
-        >
-          <Zap className="h-4 w-4" />
-          {strategy ? "Re-Generate Strategy" : "Generate Strategy"}
-        </button>
+        <div className="flex gap-3 flex-wrap">
+          {strategy && (
+            <a
+              href={`/api/projects/${projectId}/strategy/pdf`}
+              download
+              className="flex items-center gap-2 bg-secondary hover:bg-secondary/80 border border-border text-foreground font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Export PDF
+            </a>
+          )}
+          <button
+            onClick={() => setModalOpen(true)}
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
+          >
+            <Zap className="h-4 w-4" />
+            {strategy ? "Re-Generate Strategy" : "Generate Strategy"}
+          </button>
+        </div>
       </div>
 
       {isLoading ? (

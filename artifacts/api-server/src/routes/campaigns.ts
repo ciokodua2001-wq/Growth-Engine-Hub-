@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
+import PDFDocument from "pdfkit";
+import { PassThrough } from "stream";
 import { campaignsTable, assetsTable, reportsTable, agentMessagesTable, activityTable, competitorsTable, socialPostsTable, emailCampaignsTable, adCreativesTable, videosTable } from "@workspace/db";
 import { consumeQuota, meetsMinPlan, type PlanFeature } from "../lib/planLimits.js";
 import { TRIAL_MAX_VIDEO_BATCH } from "../lib/trialLimits.js";
@@ -200,6 +202,127 @@ router.get("/projects/:id/reports", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const reports = await db.select().from(reportsTable).where(eq(reportsTable.projectId, params.data.id)).orderBy(desc(reportsTable.createdAt));
   res.json(reports.map(r => ({ ...r, createdAt: r.createdAt.toISOString() })));
+});
+
+/* ── Campaign Report PDF ───────────────────────────────────── */
+
+const PDF_GREEN_C = "#00E676";
+const PDF_CYAN_C = "#00D4FF";
+const PDF_DARK_C = "#040B14";
+const PDF_GRAY_C = "#7a8fa6";
+const PDF_WHITE_C = "#ffffff";
+const PDF_W_C = 595 - 120;
+
+function buildPdfBufferC(builder: (doc: InstanceType<typeof PDFDocument>) => void): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 60, size: "A4" });
+    const chunks: Buffer[] = [];
+    const stream = new PassThrough();
+    stream.on("data", (c) => chunks.push(c as Buffer));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+    doc.pipe(stream);
+    builder(doc);
+    doc.end();
+  });
+}
+
+router.get("/projects/:id/reports/:reportId/pdf", async (req, res): Promise<void> => {
+  const projectId = parseInt(req.params.id as string, 10);
+  const reportId = parseInt(req.params.reportId as string, 10);
+  if (isNaN(projectId) || isNaN(reportId)) {
+    res.status(400).json({ error: "Invalid project or report ID" });
+    return;
+  }
+
+  const [report] = await db.select().from(reportsTable)
+    .where(eq(reportsTable.id, reportId));
+  if (!report || report.projectId !== projectId) {
+    res.status(404).json({ error: "Report not found" });
+    return;
+  }
+
+  const buffer = await buildPdfBufferC((doc) => {
+    const generated = new Date().toUTCString();
+    const reportTitle = `${(report.type ?? "Campaign").charAt(0).toUpperCase() + (report.type ?? "Campaign").slice(1)} Performance Report`;
+    const periodLabel = report.period ?? "Monthly";
+
+    // Header
+    doc.rect(0, 0, 595, 72).fill(PDF_DARK_C);
+    doc.font("Helvetica-Bold").fontSize(16).fillColor(PDF_GREEN_C).text("GrowthForge AI", 60, 18);
+    doc.font("Helvetica").fontSize(8).fillColor(PDF_GRAY_C).text("Strapli Technologies Inc. · UseGrowthForge.com", 60, 38);
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(PDF_WHITE_C).text(reportTitle.toUpperCase(), 60, 54);
+
+    let y = 88;
+    doc.font("Helvetica").fontSize(9).fillColor(PDF_GRAY_C)
+      .text(`Period: ${periodLabel} · Generated ${generated}`, 60, y);
+    y += 20;
+
+    const section = (label: string) => {
+      if (y > 700) { doc.addPage(); y = 60; }
+      doc.font("Helvetica-Bold").fontSize(10).fillColor(PDF_GREEN_C).text(label, 60, y);
+      y += 14;
+      doc.moveTo(60, y).lineTo(535, y).strokeColor(PDF_GREEN_C).lineWidth(0.4).stroke();
+      y += 8;
+    };
+
+    // KPI Trends table
+    const kpiTrends = report.kpiTrends as Array<{ metric: string; value: number; change: number; trend: string }> | null;
+    if (kpiTrends && kpiTrends.length > 0) {
+      section("KEY PERFORMANCE INDICATORS");
+      const colX = [60, 220, 340, 435];
+      const headers = ["Metric", "Value", "Change", "Trend"];
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(PDF_GRAY_C);
+      headers.forEach((h, i) => doc.text(h, colX[i]!, y, { width: (colX[i + 1] ?? 535) - colX[i]! - 4, continued: i < headers.length - 1 }));
+      y = doc.y + 6;
+      doc.moveTo(60, y).lineTo(535, y).strokeColor(PDF_GRAY_C).lineWidth(0.2).stroke();
+      y += 6;
+
+      kpiTrends.forEach(kpi => {
+        if (y > 720) { doc.addPage(); y = 60; }
+        const cols = [
+          kpi.metric,
+          String(kpi.value),
+          `${kpi.change >= 0 ? "+" : ""}${kpi.change}%`,
+          kpi.trend === "up" ? "↑ Up" : "↓ Down",
+        ];
+        const trendColor = kpi.trend === "up" ? PDF_GREEN_C : "#ef4444";
+        cols.forEach((v, i) => {
+          const color = i === 3 ? trendColor : PDF_WHITE_C;
+          doc.font(i === 0 ? "Helvetica" : "Helvetica").fontSize(8.5).fillColor(color)
+            .text(v, colX[i]!, y, { width: (colX[i + 1] ?? 535) - colX[i]! - 4, continued: i < cols.length - 1, lineBreak: false });
+        });
+        y += 16;
+      });
+      y += 8;
+    }
+
+    // Summary
+    if (report.summary) {
+      section("PERFORMANCE SUMMARY");
+      doc.font("Helvetica").fontSize(9).fillColor(PDF_WHITE_C).text(report.summary, 60, y, { width: PDF_W_C });
+      y = doc.y + 12;
+    }
+
+    // Recommendations
+    if (report.recommendations) {
+      section("RECOMMENDATIONS");
+      const recs = report.recommendations.split(/\n|\d+\.\s+/).map(r => r.trim()).filter(Boolean);
+      recs.forEach((rec, i) => {
+        if (y > 700) { doc.addPage(); y = 60; }
+        doc.font("Helvetica").fontSize(9).fillColor(PDF_WHITE_C)
+          .text(`${i + 1}. ${rec}`, 60, y, { width: PDF_W_C });
+        y = doc.y + 6;
+      });
+    }
+
+    doc.font("Helvetica").fontSize(7).fillColor(PDF_GRAY_C)
+      .text(`GrowthForge AI · Confidential · ${generated}`, 60, 820, { width: PDF_W_C, align: "center" });
+  });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="campaign-report-${reportId}.pdf"`);
+  res.send(buffer);
 });
 
 router.post("/projects/:id/reports", requireActiveSubscription, async (req, res): Promise<void> => {

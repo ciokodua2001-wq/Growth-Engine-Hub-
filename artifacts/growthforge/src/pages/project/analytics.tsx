@@ -7,7 +7,7 @@ import {
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, BarChart2, TrendingUp, Zap, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, BarChart2, TrendingUp, Zap, FileText, ChevronDown, ChevronUp, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -143,12 +143,22 @@ export default function ProjectAnalytics() {
                     <div className="text-xs text-muted-foreground mt-0.5">{new Date(report.createdAt).toLocaleDateString()}</div>
                     {report.summary && <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{report.summary}</p>}
                   </div>
-                  <button
-                    onClick={() => setExpandedReport(expandedReport === report.id ? null : report.id)}
-                    className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {expandedReport === report.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <a
+                      href={`/api/projects/${projectId}/reports/${report.id}/pdf`}
+                      download
+                      className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                      title="Export as PDF"
+                    >
+                      <Download className="h-4 w-4" />
+                    </a>
+                    <button
+                      onClick={() => setExpandedReport(expandedReport === report.id ? null : report.id)}
+                      className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {expandedReport === report.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 {expandedReport === report.id && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="border-t border-border px-5 py-4 space-y-3">

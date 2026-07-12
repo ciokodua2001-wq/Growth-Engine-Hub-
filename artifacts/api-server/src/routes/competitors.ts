@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
+import PDFDocument from "pdfkit";
+import { PassThrough } from "stream";
 import { competitorsTable, businessAnalysisTable, projectsTable, activityTable, competitorReportTable } from "@workspace/db";
 import {
   ListCompetitorsParams,
@@ -229,6 +231,137 @@ router.get("/projects/:id/competitor-report", async (req, res): Promise<void> =>
   const [report] = await db.select().from(competitorReportTable).where(eq(competitorReportTable.projectId, projectId));
 
   res.json(serializeReport(projectId, competitors, report ?? null));
+});
+
+/* ── Competitor Report PDF ─────────────────────────────────── */
+
+const PDF_GREEN = "#00E676";
+const PDF_DARK = "#040B14";
+const PDF_GRAY = "#7a8fa6";
+const PDF_WHITE = "#ffffff";
+const PDF_W = 595 - 120;
+
+function buildPdfBuffer(builder: (doc: InstanceType<typeof PDFDocument>) => void): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 60, size: "A4" });
+    const chunks: Buffer[] = [];
+    const stream = new PassThrough();
+    stream.on("data", (c) => chunks.push(c as Buffer));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+    doc.pipe(stream);
+    builder(doc);
+    doc.end();
+  });
+}
+
+router.get("/projects/:id/competitor-report/pdf", async (req, res): Promise<void> => {
+  const params = GetCompetitorReportParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const projectId = params.data.id;
+  const competitors = await db.select().from(competitorsTable)
+    .where(eq(competitorsTable.projectId, projectId))
+    .orderBy(desc(competitorsTable.createdAt));
+  const [report] = await db.select().from(competitorReportTable)
+    .where(eq(competitorReportTable.projectId, projectId));
+  const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId));
+
+  if (competitors.length === 0) {
+    res.status(404).json({ error: "No competitor data found" });
+    return;
+  }
+
+  const buffer = await buildPdfBuffer((doc) => {
+    const generated = new Date().toUTCString();
+
+    // Header
+    doc.rect(0, 0, 595, 72).fill(PDF_DARK);
+    doc.font("Helvetica-Bold").fontSize(16).fillColor(PDF_GREEN).text("GrowthForge AI", 60, 18);
+    doc.font("Helvetica").fontSize(8).fillColor(PDF_GRAY).text("Strapli Technologies Inc. · UseGrowthForge.com", 60, 38);
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(PDF_WHITE).text("COMPETITIVE INTELLIGENCE REPORT", 60, 54);
+
+    let y = 88;
+    doc.font("Helvetica").fontSize(9).fillColor(PDF_GRAY)
+      .text(`${project?.name ?? "Project"} · Generated ${generated}`, 60, y);
+    y += 20;
+
+    const section = (label: string) => {
+      if (y > 700) { doc.addPage(); y = 60; }
+      doc.font("Helvetica-Bold").fontSize(10).fillColor(PDF_GREEN).text(label, 60, y);
+      y += 14;
+      doc.moveTo(60, y).lineTo(535, y).strokeColor(PDF_GREEN).lineWidth(0.4).stroke();
+      y += 8;
+    };
+
+    const field = (label: string, value: string | null | undefined) => {
+      if (!value) return;
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(PDF_GRAY).text(label, 60, y);
+      y += 12;
+      doc.font("Helvetica").fontSize(8.5).fillColor(PDF_WHITE).text(value, 60, y, { width: PDF_W });
+      y = doc.y + 8;
+    };
+
+    // Report-level insights
+    if (report) {
+      if (report.marketGaps) {
+        section("MARKET GAPS");
+        doc.font("Helvetica").fontSize(9).fillColor(PDF_WHITE).text(report.marketGaps, 60, y, { width: PDF_W });
+        y = doc.y + 12;
+      }
+      if (report.positioningOpportunities) {
+        section("POSITIONING OPPORTUNITIES");
+        doc.font("Helvetica").fontSize(9).fillColor(PDF_WHITE).text(report.positioningOpportunities, 60, y, { width: PDF_W });
+        y = doc.y + 12;
+      }
+      if (report.winningHooks) {
+        section("WINNING HOOKS");
+        const hooks = report.winningHooks.split("|").map(h => h.trim()).filter(Boolean);
+        hooks.forEach(hook => {
+          if (y > 700) { doc.addPage(); y = 60; }
+          doc.font("Helvetica").fontSize(9).fillColor(PDF_WHITE).text(`• ${hook}`, 68, y, { width: PDF_W - 8 });
+          y = doc.y + 4;
+        });
+        y += 8;
+      }
+    }
+
+    // Per-competitor sections
+    competitors.forEach((c, i) => {
+      if (y > 660) { doc.addPage(); y = 60; }
+      section(`COMPETITOR ${i + 1}: ${c.name.toUpperCase()}`);
+
+      // Score bar
+      const scores: [string, number | null][] = [
+        ["Hook Strength", c.hookStrength],
+        ["Conversion", c.conversionPotential],
+        ["Differentiation Gap", c.differentiationScore],
+      ];
+      scores.forEach(([label, val]) => {
+        if (val == null) return;
+        doc.font("Helvetica").fontSize(8).fillColor(PDF_GRAY).text(`${label}: `, 60, y, { continued: true });
+        doc.font("Helvetica-Bold").fillColor(PDF_GREEN).text(`${val}/100`);
+        y = doc.y + 2;
+      });
+      y += 4;
+
+      field("Website", c.websiteUrl);
+      field("Description", c.description);
+      field("Strengths", c.strengths);
+      field("Weaknesses", c.weaknesses);
+      field("Market Gaps", c.marketGaps);
+      field("Pricing Insights", c.pricingInsights);
+      field("Messaging Insights", c.messagingInsights);
+      y += 4;
+    });
+
+    doc.font("Helvetica").fontSize(7).fillColor(PDF_GRAY)
+      .text(`GrowthForge AI · Confidential · ${generated}`, 60, 820, { width: PDF_W, align: "center" });
+  });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="competitor-report-${projectId}.pdf"`);
+  res.send(buffer);
 });
 
 router.post("/projects/:id/competitor-report", requireActiveSubscription, async (req, res): Promise<void> => {

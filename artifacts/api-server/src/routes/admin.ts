@@ -10,6 +10,7 @@ import {
   subscriptionUsageEventsTable,
   adminAlertsTable,
   metaConnectionsTable,
+  trialUsageTable,
 } from "@workspace/db";
 import { eq, desc, count, sql, and, ilike, or, sum, max, isNotNull } from "drizzle-orm";
 import PDFDocument from "pdfkit";
@@ -88,6 +89,13 @@ async function guardOwner(
 
 /* ─── Stats ─────────────────────────────────────────────────── */
 
+const PLAN_MONTHLY_PRICE: Record<string, number> = {
+  starter: 39,
+  "get-going": 99,
+  growth: 299,
+  scale: 799,
+};
+
 router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
   try {
     const [
@@ -96,13 +104,34 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
       paidUsers,
       cancelledUsers,
       totalProjects,
+      planBreakdown,
+      trialUsageTotals,
+      aiCostRow,
     ] = await Promise.all([
       db.select({ count: count() }).from(usersTable),
       db.select({ count: count() }).from(usersTable).where(eq(usersTable.subscriptionStatus, "trial")),
       db.select({ count: count() }).from(usersTable).where(sql`${usersTable.subscriptionStatus} IN ('active', 'paid')`),
       db.select({ count: count() }).from(usersTable).where(eq(usersTable.subscriptionStatus, "cancelled")),
       db.select({ count: count() }).from(projectsTable),
+      // Users grouped by plan (paid only)
+      db.select({ plan: usersTable.plan, count: count() })
+        .from(usersTable)
+        .where(sql`${usersTable.subscriptionStatus} IN ('active', 'paid') AND ${usersTable.plan} != 'trial'`)
+        .groupBy(usersTable.plan),
+      // Trial usage rollup: feature → total consumed across all projects
+      db.select({ feature: trialUsageTable.feature, total: sum(trialUsageTable.count) })
+        .from(trialUsageTable)
+        .groupBy(trialUsageTable.feature),
+      // Estimated AI cost from subscription usage events
+      db.select({ totalCost: sum(subscriptionUsageEventsTable.costUsd), totalRequests: count() })
+        .from(subscriptionUsageEventsTable),
     ]);
+
+    // Compute MRR from plan distribution
+    const mrr = planBreakdown.reduce((acc, row) => {
+      const price = PLAN_MONTHLY_PRICE[row.plan ?? ""] ?? 0;
+      return acc + price * Number(row.count);
+    }, 0);
 
     res.json({
       totalUsers: totalUsers[0].count,
@@ -111,10 +140,12 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
       cancelledUsers: cancelledUsers[0].count,
       activeUsers: paidUsers[0].count,
       totalProjects: totalProjects[0].count,
-      monthlyRevenue: 0,
-      annualRevenue: 0,
-      totalAiRequests: 0,
-      estimatedAiCost: 0,
+      monthlyRevenue: mrr,
+      annualRevenue: mrr * 12,
+      totalAiRequests: Number(aiCostRow[0]?.totalRequests ?? 0),
+      estimatedAiCost: parseFloat((aiCostRow[0]?.totalCost ?? "0").toString()),
+      planBreakdown: planBreakdown.map(r => ({ plan: r.plan ?? "unknown", count: Number(r.count) })),
+      trialUsageRollup: trialUsageTotals.map(r => ({ feature: r.feature, total: Number(r.total ?? 0) })),
     });
   } catch (err) {
     req.log.error({ err }, "Error fetching admin stats");

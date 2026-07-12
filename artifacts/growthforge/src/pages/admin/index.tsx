@@ -8,6 +8,8 @@ interface Stats {
   totalUsers: number; trialUsers: number; paidUsers: number; cancelledUsers: number;
   activeUsers: number; totalProjects: number; monthlyRevenue: number;
   annualRevenue: number; totalAiRequests: number; estimatedAiCost: number;
+  planBreakdown: Array<{ plan: string; count: number }>;
+  trialUsageRollup: Array<{ feature: string; total: number }>;
 }
 
 interface TokenHealth {
@@ -280,6 +282,69 @@ export default function AdminDashboard() {
               icon={<Brain className="w-5 h-5" />} color="#a78bfa" />
           </div>
         </div>
+
+        {/* Plan Breakdown + Trial Usage */}
+        {stats && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Plan distribution */}
+            <div>
+              <h2 className="text-xs text-white/30 font-semibold uppercase tracking-widest mb-4">Plan Distribution</h2>
+              <div className="rounded-2xl border border-white/8 overflow-hidden">
+                <div className="px-5 py-3 border-b border-white/6 grid grid-cols-3 gap-2 text-[11px] font-semibold text-white/30 uppercase tracking-wider">
+                  <span>Plan</span><span>Users</span><span>MRR</span>
+                </div>
+                <div className="divide-y divide-white/4">
+                  {(stats.planBreakdown ?? []).length === 0 ? (
+                    <div className="px-5 py-4 text-white/30 text-sm">No paid users yet</div>
+                  ) : (
+                    (stats.planBreakdown ?? [])
+                      .sort((a, b) => b.count - a.count)
+                      .map(({ plan, count }) => {
+                        const prices: Record<string, number> = { starter: 39, "get-going": 99, growth: 299, scale: 799 };
+                        const mrr = (prices[plan] ?? 0) * count;
+                        return (
+                          <div key={plan} className="px-5 py-3 grid grid-cols-3 gap-2 text-sm items-center">
+                            <span className="font-semibold capitalize text-white/80">{plan}</span>
+                            <span className="text-white/60">{count}</span>
+                            <span className="font-mono text-emerald-400">{fmtCurrency(mrr)}</span>
+                          </div>
+                        );
+                      })
+                  )}
+                  <div className="px-5 py-3 grid grid-cols-3 gap-2 text-sm border-t border-white/10">
+                    <span className="font-bold text-white/40 uppercase text-xs tracking-wider">Total MRR</span>
+                    <span className="text-white/40">{stats.paidUsers} paid</span>
+                    <span className="font-bold font-mono text-emerald-400">{fmtCurrency(stats.monthlyRevenue)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Trial usage rollup */}
+            <div>
+              <h2 className="text-xs text-white/30 font-semibold uppercase tracking-widest mb-4">Trial AI Usage (All Projects)</h2>
+              <div className="rounded-2xl border border-white/8 overflow-hidden">
+                <div className="px-5 py-3 border-b border-white/6 grid grid-cols-2 gap-2 text-[11px] font-semibold text-white/30 uppercase tracking-wider">
+                  <span>Feature</span><span>Total Used</span>
+                </div>
+                <div className="divide-y divide-white/4 max-h-56 overflow-y-auto">
+                  {(stats.trialUsageRollup ?? []).length === 0 ? (
+                    <div className="px-5 py-4 text-white/30 text-sm">No trial usage yet</div>
+                  ) : (
+                    (stats.trialUsageRollup ?? [])
+                      .sort((a, b) => b.total - a.total)
+                      .map(({ feature, total }) => (
+                        <div key={feature} className="px-5 py-3 grid grid-cols-2 gap-2 text-sm items-center">
+                          <span className="text-white/70 capitalize">{feature.replace(/_/g, " ")}</span>
+                          <span className="font-mono text-cyan-400">{total.toLocaleString()}</span>
+                        </div>
+                      ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Quick actions */}
         <div>

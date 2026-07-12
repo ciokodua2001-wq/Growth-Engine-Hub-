@@ -11,7 +11,7 @@ import {
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Users2, TrendingUp, Globe, FileText, Zap } from "lucide-react";
+import { Loader2, Users2, TrendingUp, Globe, FileText, Zap, Download } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 
 const DISCOVER_STEPS = [
@@ -97,6 +97,16 @@ export default function ProjectCompetitors() {
           <p className="text-muted-foreground mt-1">AI-analyzed competitors with strategic insights and positioning opportunities</p>
         </div>
         <div className="flex gap-3 flex-wrap">
+          {(report as { marketGaps?: string } | undefined)?.marketGaps && (
+            <a
+              href={`/api/projects/${projectId}/competitor-report/pdf`}
+              download
+              className="flex items-center gap-2 bg-secondary hover:bg-secondary/80 border border-border text-foreground font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Export PDF
+            </a>
+          )}
           <button
             onClick={() => setReportModalOpen(true)}
             className="flex items-center gap-2 bg-secondary hover:bg-secondary/80 border border-border text-foreground font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
