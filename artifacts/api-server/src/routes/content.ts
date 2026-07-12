@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, and, isNull } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { contentTable, socialPostsTable, emailCampaignsTable, adCreativesTable, activityTable, metaConnectionsTable } from "@workspace/db";
-import { consumeTrialQuota } from "../lib/trialLimits.js";
+import { consumeQuota } from "../lib/planLimits.js";
 import { getGroundingContext } from "../lib/projectContext.js";
 import { generateSocialPosts, generateEmailCampaign, type SocialPostResult, type EmailResult } from "../lib/contentGenerators.js";
 import {
@@ -145,7 +145,7 @@ router.post("/projects/:id/social-posts", requireActiveSubscription, async (req,
   }
 
   const requestedTotal = platforms.length * perPlatform;
-  const quota = await consumeTrialQuota(projectId, "social_posts", requestedTotal);
+  const quota = await consumeQuota(projectId, "social_posts", requestedTotal);
   if (!quota.allowed) {
     res.status(403).json({ error: quota.message });
     return;
@@ -247,7 +247,7 @@ router.post("/projects/:id/emails", requireActiveSubscription, async (req, res):
     return;
   }
 
-  const quota = await consumeTrialQuota(projectId, "email_campaigns", 1);
+  const quota = await consumeQuota(projectId, "email_campaigns", 1);
   if (!quota.allowed) {
     res.status(403).json({ error: quota.message });
     return;
@@ -836,7 +836,7 @@ router.post("/projects/:id/ads", requireActiveSubscription, async (req, res): Pr
   // These are still hardcoded templates today (no AI cost), but capped anyway so this
   // endpoint stays within the trial spend budget if it's ever wired to real AI generation
   // (matching how the agent-chat "ads" intent already calls generateAdCreatives).
-  const quota = await consumeTrialQuota(projectId, "ads", count);
+  const quota = await consumeQuota(projectId, "ads", count);
   if (!quota.allowed) {
     res.status(403).json({ error: quota.message });
     return;

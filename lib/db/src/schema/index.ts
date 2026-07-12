@@ -7,6 +7,7 @@ export * from "./campaigns";
 export * from "./users";
 export * from "./admin";
 export * from "./trialUsage";
+export * from "./planUsage";
 export * from "./billing";
 export * from "./integrity";
 export * from "./credits";

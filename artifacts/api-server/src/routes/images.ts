@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { requireUserId, loadOwnedProject } from "../lib/authz.js";
 import { requireProjectOwnershipParam } from "../lib/authz.js";
-import { consumeTrialQuota } from "../lib/trialLimits.js";
+import { consumeQuota } from "../lib/planLimits.js";
 import { getGroundingContext } from "../lib/projectContext.js";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
 import { Storage } from "@google-cloud/storage";
@@ -37,7 +37,7 @@ router.post("/projects/:id/images/generate", async (req, res) => {
   const safeCount = Math.min(Math.max(1, count ?? 1), 4);
 
   // Enforce trial quota
-  const quotaResult = await consumeTrialQuota(projectId, "image_generation", safeCount);
+  const quotaResult = await consumeQuota(projectId, "image_generation", safeCount);
   if (!quotaResult.allowed) {
     res.status(403).json({ error: quotaResult.message });
     return;

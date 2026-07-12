@@ -2,7 +2,8 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { videosTable, activityTable } from "@workspace/db";
-import { consumeTrialQuota, getProjectPlan, TRIAL_MAX_VIDEO_BATCH } from "../lib/trialLimits.js";
+import { consumeQuota } from "../lib/planLimits.js";
+import { TRIAL_MAX_VIDEO_BATCH } from "../lib/trialLimits.js";
 import { getGroundingContext } from "../lib/projectContext.js";
 import { generateVideoBlueprints, type VideoBlueprintResult } from "../lib/contentGenerators.js";
 import {
@@ -46,15 +47,14 @@ router.post("/projects/:id/videos", requireActiveSubscription, async (req, res):
 
   // Trial-plan batches are capped smaller than the platform's normal batch size to
   // keep a single generation event's AI cost bounded (part of the overall trial spend cap).
-  const plan = await getProjectPlan(projectId);
-  if (plan === "trial") {
+  if (req.project!.plan === "trial") {
     count = Math.min(count, TRIAL_MAX_VIDEO_BATCH);
   }
 
-  // Call-based quota: one trial unit per generation event, regardless of how many
+  // Call-based quota: one unit per generation event, regardless of how many
   // videos the batch produces (matches the pricing card's "1 Video Blueprint" wording
   // and avoids blocking the platform's own 9-video auto-batch on the first use).
-  const quota = await consumeTrialQuota(projectId, "video_blueprints", 1);
+  const quota = await consumeQuota(projectId, "video_blueprints", 1);
   if (!quota.allowed) {
     res.status(403).json({ error: quota.message });
     return;

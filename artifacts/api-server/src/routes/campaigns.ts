@@ -2,7 +2,8 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { campaignsTable, assetsTable, reportsTable, agentMessagesTable, activityTable, competitorsTable, socialPostsTable, emailCampaignsTable, adCreativesTable, videosTable } from "@workspace/db";
-import { consumeTrialQuota, TRIAL_MAX_VIDEO_BATCH, type TrialFeature } from "../lib/trialLimits.js";
+import { consumeQuota, type PlanFeature } from "../lib/planLimits.js";
+import { TRIAL_MAX_VIDEO_BATCH } from "../lib/trialLimits.js";
 import { generateJson } from "../lib/aiJson.js";
 import { getGroundingContext, renderGroundingBlock, type GroundingContext } from "../lib/projectContext.js";
 import {
@@ -274,7 +275,7 @@ Return JSON:
 type AgentActionIntent = "competitors" | "social_posts" | "emails" | "videos" | "ads";
 type AgentIntent = "chat" | AgentActionIntent;
 
-const ACTION_FEATURES: Record<AgentActionIntent, TrialFeature> = {
+const ACTION_FEATURES: Record<AgentActionIntent, PlanFeature> = {
   competitors: "competitors",
   social_posts: "social_posts",
   emails: "email_campaigns",
@@ -421,7 +422,7 @@ router.post("/projects/:id/agent/chat", requireActiveSubscription, async (req, r
   const projectId = params.data.id;
   const userMessage = parsed.data.message;
 
-  const quota = await consumeTrialQuota(projectId, "agent_messages", 1);
+  const quota = await consumeQuota(projectId, "agent_messages", 1);
   if (!quota.allowed) {
     res.status(403).json({ error: quota.message });
     return;
@@ -451,7 +452,7 @@ router.post("/projects/:id/agent/chat", requireActiveSubscription, async (req, r
     // Every action intent consumes its own feature quota on top of the flat agent_messages
     // cap, closing off unlimited generation via chat once the message cap alone is spent.
     const feature = ACTION_FEATURES[classification.intent];
-    const actionQuota = await consumeTrialQuota(projectId, feature, classification.quotaAmount);
+    const actionQuota = await consumeQuota(projectId, feature, classification.quotaAmount);
     if (!actionQuota.allowed) {
       responseContent = `I can do that, but ${actionQuota.message}`;
     } else {

@@ -10,7 +10,7 @@ import {
   GenerateCompetitorReportParams,
 } from "@workspace/api-zod";
 import { generateJson } from "../lib/aiJson.js";
-import { consumeTrialQuota } from "../lib/trialLimits.js";
+import { consumeQuota } from "../lib/planLimits.js";
 import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGeneratedBatch, recordGenerated, hashContent } from "../lib/contentIntegrity.js";
 
@@ -63,7 +63,7 @@ router.post("/projects/:id/competitors", requireActiveSubscription, async (req, 
     return;
   }
 
-  const quota = await consumeTrialQuota(projectId, "competitors");
+  const quota = await consumeQuota(projectId, "competitors");
   if (!quota.allowed) {
     res.status(403).json({ error: quota.message });
     return;
@@ -245,7 +245,7 @@ router.post("/projects/:id/competitor-report", requireActiveSubscription, async 
     return;
   }
 
-  const quota = await consumeTrialQuota(projectId, "competitor_report");
+  const quota = await consumeQuota(projectId, "competitor_report");
   if (!quota.allowed) {
     res.status(403).json({ error: quota.message });
     return;

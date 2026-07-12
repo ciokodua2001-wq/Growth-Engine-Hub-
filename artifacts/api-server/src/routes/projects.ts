@@ -23,6 +23,7 @@ import {
   GetProjectDashboardParams,
 } from "@workspace/api-zod";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
+import { PLAN_PROJECT_LIMITS } from "../lib/planLimits.js";
 
 const router: IRouter = Router();
 
@@ -41,6 +42,9 @@ router.get("/projects", async (req, res): Promise<void> => {
   res.json(projects);
 });
 
+// Plan tier ordering — higher index = higher tier
+const PLAN_TIER_ORDER = ["trial", "starter", "get-going", "growth", "agency"];
+
 router.post("/projects", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
@@ -50,6 +54,31 @@ router.post("/projects", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+  // Determine the user's effective plan: the highest tier across all their
+  // non-deleted projects. This is a best-effort heuristic until Stripe is
+  // integrated and plan lives on the user record instead of per-project.
+  const existing = await db
+    .select({ plan: projectsTable.plan })
+    .from(projectsTable)
+    .where(and(eq(projectsTable.ownerId, userId), isNull(projectsTable.deletedAt)));
+
+  const bestPlan = existing.reduce<string>((best, p) => {
+    const bestIdx = PLAN_TIER_ORDER.indexOf(best);
+    const thisIdx = PLAN_TIER_ORDER.indexOf(p.plan);
+    return thisIdx > bestIdx ? p.plan : best;
+  }, "trial");
+
+  const projectLimit = PLAN_PROJECT_LIMITS[bestPlan] ?? 1;
+  if (existing.length >= projectLimit) {
+    const planLabel = bestPlan.charAt(0).toUpperCase() + bestPlan.slice(1);
+    res.status(403).json({
+      error: "project_limit_reached",
+      message: `Your ${planLabel} plan allows up to ${projectLimit} project${projectLimit === 1 ? "" : "s"}. Upgrade your plan to create more.`,
+    });
+    return;
+  }
+
   // `plan` is always forced to "trial" here (never taken from the client) so every
   // project-creation path is subject to the trial AI-spend cap, matching onboarding.
   const [project] = await db
