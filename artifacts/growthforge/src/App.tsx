@@ -51,6 +51,7 @@ import ProjectVideos from "@/pages/project/videos";
 import ProjectCampaigns from "@/pages/project/campaigns";
 import ProjectAssets from "@/pages/project/assets";
 import ProjectAnalytics from "@/pages/project/analytics";
+import ProjectCalendar from "@/pages/project/calendar";
 import ProjectAgent from "@/pages/project/agent";
 import ProjectSettings from "@/pages/project/settings";
 
@@ -251,6 +252,10 @@ function AppRoutes() {
               <Route
                 path="/projects/:projectId/analytics"
                 component={ProjectAnalytics}
+              />
+              <Route
+                path="/projects/:projectId/calendar"
+                component={ProjectCalendar}
               />
               <Route
                 path="/projects/:projectId/agent"

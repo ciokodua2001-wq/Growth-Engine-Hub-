@@ -7,7 +7,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import {
   LayoutDashboard, Brain, Users2, Megaphone, FileText, Share2,
   Mail, Rss, Video, Target, FolderOpen, BarChart2, Bot, Settings,
-  ChevronLeft, ChevronRight, Zap, ArrowLeft, Menu, X,
+  ChevronLeft, ChevronRight, Zap, ArrowLeft, Menu, X, CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +41,7 @@ const navGroups = [
     group: "Growth",
     items: [
       { label: "Campaigns", path: "campaigns", icon: Target },
+      { label: "Calendar", path: "calendar", icon: CalendarDays },
       { label: "Assets", path: "assets", icon: FolderOpen },
       { label: "Analytics", path: "analytics", icon: BarChart2 },
     ],

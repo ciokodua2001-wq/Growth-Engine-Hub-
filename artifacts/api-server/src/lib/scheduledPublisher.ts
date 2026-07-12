@@ -1,10 +1,11 @@
 import cron from "node-cron";
 import { and, isNotNull, isNull, lte, or, eq } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { socialPostsTable, metaConnectionsTable, activityTable } from "@workspace/db";
+import { socialPostsTable, metaConnectionsTable, activityTable, emailCampaignsTable } from "@workspace/db";
 import { logger } from "./logger.js";
 import { decryptToken, encryptToken, isEncryptedFormat } from "./tokenCrypto.js";
 import { publishPostToMeta } from "./metaPublisher.js";
+import { notifyPostAutoPublished, notifyScheduledEmailReady, getOwnerEmailForProject } from "./emailNotifier.js";
 
 async function publishScheduledPosts(): Promise<void> {
   const now = new Date();
@@ -128,18 +129,69 @@ async function publishScheduledPosts(): Promise<void> {
       } catch (actErr) {
         logger.warn({ actErr }, "Scheduled publisher: failed to insert activity log (non-fatal)");
       }
+      notifyPostAutoPublished({ projectId, platform, caption }).catch(err =>
+        logger.warn({ err }, "Scheduled publisher: failed to send post-published notification (non-fatal)")
+      );
     }
   }
 }
 
 /**
- * Starts a cron job that auto-publishes scheduled social posts once per minute.
- * Only processes Facebook and Instagram posts that have a Meta account connected.
+ * Checks for email campaigns whose scheduled send reminder time has arrived.
+ * Sends the owner a notification email, then clears scheduledAt so it doesn't repeat.
+ */
+async function sendScheduledEmailReminders(): Promise<void> {
+  const now = new Date();
+
+  const dueEmails = await db
+    .select({
+      id: emailCampaignsTable.id,
+      projectId: emailCampaignsTable.projectId,
+      subject: emailCampaignsTable.subject,
+    })
+    .from(emailCampaignsTable)
+    .where(
+      and(
+        eq(emailCampaignsTable.status, "draft"),
+        isNotNull(emailCampaignsTable.scheduledAt),
+        lte(emailCampaignsTable.scheduledAt, now),
+      )
+    );
+
+  if (dueEmails.length === 0) return;
+
+  logger.info({ count: dueEmails.length }, "Scheduled publisher: found due email reminders");
+
+  for (const row of dueEmails) {
+    // Clear scheduledAt first to prevent double-notification on next tick
+    await db
+      .update(emailCampaignsTable)
+      .set({ scheduledAt: null })
+      .where(and(eq(emailCampaignsTable.id, row.id), isNotNull(emailCampaignsTable.scheduledAt)));
+
+    const toEmail = await getOwnerEmailForProject(row.projectId);
+    if (!toEmail) {
+      logger.warn({ emailId: row.id, projectId: row.projectId }, "Scheduled publisher: could not look up owner email for reminder (non-fatal)");
+      continue;
+    }
+
+    notifyScheduledEmailReady({ toEmail, subject: row.subject, projectId: row.projectId }).catch(err =>
+      logger.warn({ err, emailId: row.id }, "Scheduled publisher: failed to send email reminder (non-fatal)")
+    );
+  }
+}
+
+/**
+ * Starts a cron job that auto-publishes scheduled social posts once per minute
+ * and fires email-send reminder notifications for due email campaigns.
+ * Only Meta (Facebook/Instagram) posts are auto-published; other platforms keep
+ * scheduledAt as a visual reminder only.
  */
 export function startScheduledPublisher(): void {
   cron.schedule("* * * * *", async () => {
     try {
       await publishScheduledPosts();
+      await sendScheduledEmailReminders();
     } catch (err) {
       logger.error({ err }, "Scheduled publisher: unexpected top-level error");
     }

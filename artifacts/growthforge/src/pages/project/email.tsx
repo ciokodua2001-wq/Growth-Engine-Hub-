@@ -10,10 +10,127 @@ import {
 } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Mail, Zap, ChevronDown, ChevronUp, Send, X, Upload, CheckCircle2, AlertCircle, AlertTriangle } from "lucide-react";
+import { Loader2, Mail, Zap, ChevronDown, ChevronUp, Send, X, Upload, CheckCircle2, AlertCircle, AlertTriangle, Clock } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 
 const emailTypes = ["welcome", "sales", "nurture", "reactivation"];
+
+interface EmailScheduleControlsProps {
+  emailId: number;
+  projectId: number;
+  status: string;
+  scheduledAt: string | null | undefined;
+  canSchedule: boolean;
+  onScheduleChange: () => void;
+  onError: (msg: string) => void;
+}
+
+function EmailScheduleControls({ emailId, projectId, status, scheduledAt, canSchedule, onScheduleChange, onError }: EmailScheduleControlsProps) {
+  const [showPicker, setShowPicker] = useState(false);
+  const [selectedDateTime, setSelectedDateTime] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
+
+  if (status === "sent" || !canSchedule) return null;
+
+  const handleSchedule = async () => {
+    if (!selectedDateTime) return;
+    setIsLoading(true);
+    try {
+      const r = await fetch(`/api/projects/${projectId}/emails/${emailId}/schedule`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ scheduledAt: new Date(selectedDateTime).toISOString() }),
+      });
+      if (!r.ok) {
+        const d = await r.json() as { error?: string };
+        onError(d.error ?? "Failed to schedule email");
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: getListEmailsQueryKey(projectId) });
+      setShowPicker(false);
+      onScheduleChange();
+    } catch {
+      onError("Failed to schedule email. Try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUnschedule = async () => {
+    setIsLoading(true);
+    try {
+      const r = await fetch(`/api/projects/${projectId}/emails/${emailId}/schedule`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) {
+        const d = await r.json() as { error?: string };
+        onError(d.error ?? "Failed to unschedule email");
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: getListEmailsQueryKey(projectId) });
+      onScheduleChange();
+    } catch {
+      onError("Failed to unschedule. Try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (scheduledAt) {
+    return (
+      <div className="flex items-center gap-2 flex-wrap px-5 pb-3 pt-1 border-t border-border/50 bg-cyan-500/5">
+        <div className="flex items-center gap-1.5 text-xs text-cyan-400">
+          <Clock className="h-3 w-3" />
+          <span>Send reminder at {new Date(scheduledAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</span>
+        </div>
+        <button
+          onClick={handleUnschedule}
+          disabled={isLoading}
+          className="text-[10px] text-muted-foreground hover:text-red-400 underline underline-offset-2 transition-colors disabled:opacity-50 ml-auto"
+        >
+          {isLoading ? "Removing…" : "Remove"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-5 pb-3 pt-2 border-t border-border/40">
+      {showPicker ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="datetime-local"
+            value={selectedDateTime}
+            onChange={e => setSelectedDateTime(e.target.value)}
+            min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+            className="text-xs bg-secondary border border-border rounded-lg px-2 py-1 text-foreground [color-scheme:dark] focus:outline-none focus:border-primary/40"
+          />
+          <button
+            onClick={handleSchedule}
+            disabled={!selectedDateTime || isLoading}
+            className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-lg bg-cyan-500/15 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/25 disabled:opacity-50 transition-colors"
+          >
+            {isLoading ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Clock className="h-2.5 w-2.5" />}
+            Set Reminder
+          </button>
+          <button onClick={() => setShowPicker(false)} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => { setSelectedDateTime(""); setShowPicker(true); }}
+          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-cyan-400 border border-border/50 hover:border-cyan-500/20 px-2.5 py-1 rounded-lg transition-colors"
+        >
+          <Clock className="h-2.5 w-2.5" /> Schedule send reminder
+        </button>
+      )}
+    </div>
+  );
+}
 
 const typeColors: Record<string, string> = {
   welcome: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
@@ -219,6 +336,7 @@ export default function ProjectEmail() {
 
   const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
   const { data: emails, isLoading } = useListEmails(projectId, { query: { enabled: !!projectId } });
+  const canScheduleFeature = ["get-going", "growth", "agency"].includes(project?.plan ?? "");
   const generateEmails = useGenerateEmails();
   const queryClient = useQueryClient();
 
@@ -309,6 +427,12 @@ export default function ProjectEmail() {
                         Sent
                       </span>
                     )}
+                    {(email as { scheduledAt?: string | null }).scheduledAt && email.status !== "sent" && (
+                      <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded border bg-cyan-500/10 text-cyan-400 border-cyan-500/20">
+                        <Clock className="h-2.5 w-2.5" />
+                        Scheduled
+                      </span>
+                    )}
                   </div>
                   {email.previewText && <p className="text-xs text-muted-foreground mb-3">{email.previewText}</p>}
                   <div className="flex items-center gap-6 flex-wrap">
@@ -363,6 +487,15 @@ export default function ProjectEmail() {
                   </button>
                 </div>
               </div>
+              <EmailScheduleControls
+                emailId={email.id}
+                projectId={projectId}
+                status={email.status}
+                scheduledAt={(email as { scheduledAt?: string | null }).scheduledAt}
+                canSchedule={canScheduleFeature}
+                onScheduleChange={() => showToast("success", "Send reminder scheduled!")}
+                onError={(msg) => showToast("error", msg)}
+              />
               {expandedId === email.id && email.body && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}

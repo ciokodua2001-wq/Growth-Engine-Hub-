@@ -819,6 +819,73 @@ router.delete("/projects/:id/social-posts/:postId/schedule", requireActiveSubscr
   });
 });
 
+// Email scheduling (Get-Going+ only) — sets/clears scheduledAt on an email campaign.
+// The scheduled publisher cron picks these up and notifies the owner when it's time to send.
+router.patch("/projects/:id/emails/:emailId/schedule", requireActiveSubscription, async (req, res): Promise<void> => {
+  const params = SendEmailParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  if (!meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
+    res.status(403).json({ error: "Email Scheduling is available on the Get-Going plan and higher. Upgrade to unlock this feature." });
+    return;
+  }
+
+  const { id: projectId, emailId } = params.data;
+  const { scheduledAt: scheduledAtRaw } = req.body as { scheduledAt?: unknown };
+  if (typeof scheduledAtRaw !== "string" || !scheduledAtRaw) {
+    res.status(400).json({ error: "scheduledAt is required" }); return;
+  }
+
+  const scheduledAt = new Date(scheduledAtRaw);
+  if (isNaN(scheduledAt.getTime()) || scheduledAt <= new Date()) {
+    res.status(400).json({ error: "scheduledAt must be a valid future datetime" }); return;
+  }
+
+  const [email] = await db.select().from(emailCampaignsTable).where(
+    and(eq(emailCampaignsTable.id, emailId), eq(emailCampaignsTable.projectId, projectId))
+  );
+  if (!email) { res.status(404).json({ error: "Email campaign not found" }); return; }
+  if (email.status === "sent") { res.status(400).json({ error: "Cannot schedule a sent email campaign" }); return; }
+
+  const [updated] = await db
+    .update(emailCampaignsTable)
+    .set({ scheduledAt })
+    .where(eq(emailCampaignsTable.id, emailId))
+    .returning();
+
+  res.json({
+    ...updated,
+    scheduledAt: updated.scheduledAt?.toISOString() ?? null,
+    sentAt: updated.sentAt?.toISOString() ?? null,
+    createdAt: updated.createdAt.toISOString(),
+  });
+});
+
+router.delete("/projects/:id/emails/:emailId/schedule", requireActiveSubscription, async (req, res): Promise<void> => {
+  const params = SendEmailParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const { id: projectId, emailId } = params.data;
+  const [email] = await db.select().from(emailCampaignsTable).where(
+    and(eq(emailCampaignsTable.id, emailId), eq(emailCampaignsTable.projectId, projectId))
+  );
+  if (!email) { res.status(404).json({ error: "Email campaign not found" }); return; }
+  if (email.status === "sent") { res.status(400).json({ error: "Cannot unschedule a sent email campaign" }); return; }
+
+  const [updated] = await db
+    .update(emailCampaignsTable)
+    .set({ scheduledAt: null })
+    .where(eq(emailCampaignsTable.id, emailId))
+    .returning();
+
+  res.json({
+    ...updated,
+    scheduledAt: null,
+    sentAt: updated.sentAt?.toISOString() ?? null,
+    createdAt: updated.createdAt.toISOString(),
+  });
+});
+
 // Ads
 router.get("/projects/:id/ads", async (req, res): Promise<void> => {
   const params = ListAdsParams.safeParse(req.params);

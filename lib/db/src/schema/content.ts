@@ -59,6 +59,7 @@ export const emailCampaignsTable = pgTable("email_campaigns", {
   clickRate: text("click_rate"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   recipientCount: integer("recipient_count"),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -23,6 +23,7 @@ import { generateJson } from "../lib/aiJson.js";
 import { consumeQuota } from "../lib/planLimits.js";
 import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGenerated, recordGeneratedBatch, hashContent } from "../lib/contentIntegrity.js";
+import { notifyAnalysisComplete } from "../lib/emailNotifier.js";
 
 const router: IRouter = Router();
 
@@ -188,6 +189,10 @@ router.post("/projects/:id/analyze", requireActiveSubscription, async (req, res)
     type: "analysis",
     description: `Business intelligence analysis completed for ${websiteUrl}`,
   });
+
+  notifyAnalysisComplete({ projectId, websiteUrl }).catch(err =>
+    req.log.warn({ err }, "Failed to send analysis-complete notification (non-fatal)")
+  );
 
   res.json({
     ...analysis,
