@@ -89,6 +89,21 @@ const FEATURE_LABELS: Record<PlanFeature, string> = {
   image_generation: "AI image generation",
 };
 
+const PLAN_TIER_ORDER = ["trial", "starter", "get-going", "growth", "agency"] as const;
+
+/**
+ * Returns true if `projectPlan` is at or above `minPlan` in the tier hierarchy.
+ * Unknown/custom plans fail-open (return true) so admin-set plans aren't blocked.
+ */
+export function meetsMinPlan(projectPlan: string, minPlan: string): boolean {
+  const tiers = PLAN_TIER_ORDER as readonly string[];
+  const projectIdx = tiers.indexOf(projectPlan);
+  const minIdx = tiers.indexOf(minPlan);
+  if (minIdx === -1) return true;
+  if (projectIdx === -1) return true;
+  return projectIdx >= minIdx;
+}
+
 /** Returns the first instant of the current UTC calendar month. */
 export function currentPeriodStart(): Date {
   const now = new Date();

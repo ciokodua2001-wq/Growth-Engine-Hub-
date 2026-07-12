@@ -34,7 +34,8 @@ import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/
 import { recordGeneratedBatch, recordGenerated, hashContent } from "../lib/contentIntegrity.js";
 import { Resend } from "resend";
 import { decryptToken, encryptToken, isEncryptedFormat } from "../lib/tokenCrypto.js";
-import { GraphApiError, MetaApiShapeError, parseMetaApiResponse } from "../lib/metaApiSchemas.js";
+import { publishPostToMeta } from "../lib/metaPublisher.js";
+import { meetsMinPlan } from "../lib/planLimits.js";
 
 const router: IRouter = Router();
 
@@ -700,105 +701,26 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
     }
   }
 
-  // Call the Graph API.
-  // GraphApiError = Meta returned a JSON error body (definitive rejection — Meta did NOT
-  //   create the post, safe to roll back to draft so the user can retry).
-  // Any other thrown error = transport/network failure (ambiguous — Meta may have already
-  //   accepted the request). In this case we do NOT roll back to draft; the post stays in
-  //   "publishing" and the user is told to check their page before retrying. This prevents
-  //   a retry from issuing a second successful publish and creating a duplicate post.
-  let externalPostId: string;
-  try {
-    if (platform === "facebook") {
-      const url = `https://graph.facebook.com/v20.0/${conn.pageId}/feed`;
-      const fbRes = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content, access_token: pageToken }),
-      });
-      const fbBody: unknown = await fbRes.json();
-      externalPostId = parseMetaApiResponse("Facebook feed POST", fbBody);
-    } else {
-      // Instagram: two-step (create container → publish)
-      const igAccountId = conn.instagramAccountId!;
+  const result = await publishPostToMeta(
+    {
+      postId,
+      platform: platform as "facebook" | "instagram",
+      content,
+      pageToken,
+      pageId: conn.pageId,
+      instagramAccountId: conn.instagramAccountId ?? null,
+    },
+    req.log,
+  );
 
-      const containerUrl = `https://graph.facebook.com/v20.0/${igAccountId}/media`;
-      const containerRes = await fetch(containerUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caption: content, media_type: "TEXT", access_token: pageToken }),
-      });
-      const containerBody: unknown = await containerRes.json();
-      const containerId = parseMetaApiResponse("Instagram container creation", containerBody);
-
-      const publishUrl = `https://graph.facebook.com/v20.0/${igAccountId}/media_publish`;
-      const publishRes = await fetch(publishUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ creation_id: containerId, access_token: pageToken }),
-      });
-      const publishBody: unknown = await publishRes.json();
-      externalPostId = parseMetaApiResponse("Instagram media_publish", publishBody);
-    }
-  } catch (err) {
-    if (err instanceof GraphApiError) {
-      // Definitive rejection — Meta did not create the post. Safe to roll back.
-      await rollbackToDraft();
-      res.status(502).json({ error: err.message });
-    } else if (err instanceof MetaApiShapeError) {
-      // Meta returned JSON but the shape was unrecognized — likely an API version change.
-      // Outcome is unknown; do NOT roll back. The post stays "publishing" so the user
-      // must verify their page manually before retrying.
-      req.log.error({ err, postId, projectId }, "Meta API response shape validation failed — publish outcome unknown");
-      res.status(502).json({
-        error:
-          "The post could not be confirmed because Meta returned an unexpected response (the API may have changed). " +
-          "Check your Facebook/Instagram page — if the post appeared, refresh this page. If not, contact support.",
-      });
-    } else {
-      // Ambiguous transport failure. The post stays "publishing" so a blind retry cannot
-      // issue a second publish call and create a duplicate. The user must verify their
-      // page first; if no post appeared they can try publishing again (which will hit the
-      // "publishing" 409 guard and surface the correct message).
-      req.log.error({ err, postId, projectId }, "Meta Graph API transport error — publish outcome unknown");
-      res.status(502).json({
-        error: "Could not confirm whether the post was published due to a network error. Check your Facebook/Instagram page — if the post appeared, refresh this page. If not, try publishing again.",
-      });
-    }
+  if (!result.ok) {
+    if (result.rollback) await rollbackToDraft();
+    const statusCode = result.externalPostId ? 500 : 502;
+    res.status(statusCode).json({
+      error: result.message,
+      ...(result.externalPostId ? { externalPostId: result.externalPostId } : {}),
+    });
     return;
-  }
-
-  // Graph API returned an externalPostId. Persist it with up to 3 attempts so a transient
-  // DB hiccup doesn't leave the post stuck in "publishing" without a recoverable ID.
-  // If all retries fail, the externalPostId is logged prominently for manual recovery; the
-  // next publish attempt will find the post in "publishing" state, and an operator can set
-  // externalPostId directly to trigger the idempotent recovery path (Guard 1 above).
-  const publishedAt = new Date();
-  let updated: typeof post | undefined;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const [row] = await db
-        .update(socialPostsTable)
-        .set({ status: "published", publishedAt, externalPostId, publishingAt: null })
-        .where(eq(socialPostsTable.id, postId))
-        .returning();
-      updated = row;
-      break;
-    } catch (dbErr) {
-      if (attempt < 3) {
-        await new Promise(r => setTimeout(r, 200 * attempt));
-      } else {
-        req.log.error(
-          { dbErr, postId, projectId, externalPostId },
-          "CRITICAL: post published to Meta but DB update failed after 3 attempts — externalPostId not persisted",
-        );
-        res.status(500).json({
-          error: "Your post was published to Meta but we could not save the confirmation. Refresh this page — if the post still shows as unpublished, contact support.",
-          externalPostId,
-        });
-        return;
-      }
-    }
   }
 
   await db.insert(activityTable).values({
@@ -807,11 +729,93 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
     description: `Published "${post.caption.slice(0, 60)}…" to ${platform}`,
   });
 
+  const [finalPost] = await db.select().from(socialPostsTable).where(eq(socialPostsTable.id, postId));
   res.json({
-    ...updated!,
-    scheduledAt: updated!.scheduledAt?.toISOString() ?? null,
-    publishedAt: updated!.publishedAt?.toISOString() ?? null,
-    createdAt: updated!.createdAt.toISOString(),
+    ...finalPost,
+    scheduledAt: finalPost.scheduledAt?.toISOString() ?? null,
+    publishedAt: finalPost.publishedAt?.toISOString() ?? null,
+    createdAt: finalPost.createdAt.toISOString(),
+  });
+});
+
+// Schedule a social post for future auto-publishing (Get-Going+ only)
+// The scheduled publisher (lib/scheduledPublisher.ts) picks these up every minute and
+// publishes them to Meta automatically. Non-Meta platforms (LinkedIn, TikTok, X) keep
+// the scheduledAt as a reminder but are not auto-published.
+router.patch("/projects/:id/social-posts/:postId/schedule", requireActiveSubscription, async (req, res): Promise<void> => {
+  const params = PublishSocialPostParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  if (!meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
+    res.status(403).json({ error: "Social Scheduling is available on the Get-Going plan and higher. Upgrade to unlock this feature." });
+    return;
+  }
+
+  const { id: projectId, postId } = params.data;
+  const { scheduledAt: scheduledAtRaw } = req.body as { scheduledAt?: unknown };
+  if (typeof scheduledAtRaw !== "string" || !scheduledAtRaw) {
+    res.status(400).json({ error: "scheduledAt is required" });
+    return;
+  }
+  const scheduledAt = new Date(scheduledAtRaw);
+  if (isNaN(scheduledAt.getTime())) {
+    res.status(400).json({ error: "scheduledAt must be a valid date" });
+    return;
+  }
+  if (scheduledAt <= new Date()) {
+    res.status(400).json({ error: "Scheduled time must be in the future" });
+    return;
+  }
+
+  const [post] = await db.select().from(socialPostsTable).where(
+    and(eq(socialPostsTable.id, postId), eq(socialPostsTable.projectId, projectId))
+  );
+  if (!post) { res.status(404).json({ error: "Social post not found" }); return; }
+  if (post.status !== "draft") { res.status(400).json({ error: "Only draft posts can be scheduled" }); return; }
+
+  const [updated] = await db
+    .update(socialPostsTable)
+    .set({ scheduledAt })
+    .where(eq(socialPostsTable.id, postId))
+    .returning();
+
+  res.json({
+    ...updated,
+    scheduledAt: updated.scheduledAt?.toISOString() ?? null,
+    publishedAt: updated.publishedAt?.toISOString() ?? null,
+    createdAt: updated.createdAt.toISOString(),
+  });
+});
+
+// Remove the scheduled time from a social post (Get-Going+ only)
+router.delete("/projects/:id/social-posts/:postId/schedule", requireActiveSubscription, async (req, res): Promise<void> => {
+  const params = PublishSocialPostParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  if (!meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
+    res.status(403).json({ error: "Social Scheduling is available on the Get-Going plan and higher." });
+    return;
+  }
+
+  const { id: projectId, postId } = params.data;
+
+  const [post] = await db.select().from(socialPostsTable).where(
+    and(eq(socialPostsTable.id, postId), eq(socialPostsTable.projectId, projectId))
+  );
+  if (!post) { res.status(404).json({ error: "Social post not found" }); return; }
+  if (post.status !== "draft") { res.status(400).json({ error: "Only draft posts can be unscheduled" }); return; }
+
+  const [updated] = await db
+    .update(socialPostsTable)
+    .set({ scheduledAt: null })
+    .where(eq(socialPostsTable.id, postId))
+    .returning();
+
+  res.json({
+    ...updated,
+    scheduledAt: null,
+    publishedAt: updated.publishedAt?.toISOString() ?? null,
+    createdAt: updated.createdAt.toISOString(),
   });
 });
 

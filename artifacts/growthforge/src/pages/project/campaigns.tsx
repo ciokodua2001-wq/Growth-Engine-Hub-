@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import {
   Loader2, Target, Plus, X, RefreshCw, Link2, Unlink,
-  CheckCircle2, AlertCircle, Clock,
+  CheckCircle2, AlertCircle, Clock, Wand2, ChevronRight, ChevronLeft,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
@@ -451,12 +451,196 @@ function NewCampaignModal({ projectId, onClose }: { projectId: number; onClose: 
   );
 }
 
+// ── AI Campaign Builder Modal ──────────────────────────────────────────────────
+
+interface CampaignBuilderResult {
+  campaign: { id: number; name: string; platform: string; status: string; createdAt: string };
+  socialPosts: Array<{ id: number; platform: string; caption: string }>;
+  emails: Array<{ id: number; subject: string }>;
+  ads: Array<{ id: number; headline: string }>;
+}
+
+const CAMPAIGN_GOALS = ["Product Launch", "Brand Awareness", "Seasonal Campaign", "Lead Generation", "Customer Retention"];
+const CAMPAIGN_CHANNELS = [
+  { id: "social", label: "Social Posts", desc: "Facebook & Instagram posts (4 total)" },
+  { id: "email", label: "Email Campaign", desc: "Targeted sales email blast" },
+  { id: "ads", label: "Ad Creatives", desc: "Meta ad copy & creatives (3 ads)" },
+];
+
+function AICampaignBuilderModal({ projectId, onClose, onBuilt }: { projectId: number; onClose: () => void; onBuilt: () => void }) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [goal, setGoal] = useState("Product Launch");
+  const [theme, setTheme] = useState("");
+  const [channels, setChannels] = useState<string[]>(["social", "email", "ads"]);
+  const [isBuilding, setIsBuilding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<CampaignBuilderResult | null>(null);
+
+  const toggleChannel = (c: string) => setChannels(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
+
+  const handleBuild = async () => {
+    if (!theme.trim() || channels.length === 0) return;
+    setIsBuilding(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/projects/${projectId}/campaigns/build`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ goal, theme, channels }),
+      });
+      const d = await r.json() as CampaignBuilderResult & { error?: string };
+      if (!r.ok) { setError(d.error ?? "Failed to build campaign"); return; }
+      setResult(d);
+      setStep(3);
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setIsBuilding(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 16 }}
+        className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
+      >
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/20 flex items-center justify-center">
+              <Wand2 className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black">AI Campaign Builder</h2>
+              <p className="text-xs text-muted-foreground">
+                {step === 1 ? "Define your campaign goal & theme" : step === 2 ? "Choose your channels" : "Campaign generated!"}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors"><X className="h-5 w-5" /></button>
+        </div>
+
+        <div className="p-6">
+          {step === 1 && (
+            <div className="space-y-5">
+              <div>
+                <label className="text-sm font-bold mb-2 block">Campaign Goal</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {CAMPAIGN_GOALS.map(g => (
+                    <button key={g} onClick={() => setGoal(g)}
+                      className={`text-xs font-medium px-3 py-2 rounded-xl border transition-all text-left ${goal === g ? "bg-primary/15 border-primary/30 text-primary" : "bg-secondary/50 border-border text-muted-foreground hover:text-foreground"}`}>
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-bold mb-2 block">Campaign Theme <span className="text-primary">*</span></label>
+                <input type="text" value={theme} onChange={e => setTheme(e.target.value)}
+                  placeholder='e.g. "Spring Sale — 30% off everything"'
+                  className="w-full bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm placeholder-muted-foreground focus:outline-none focus:border-primary/40 transition-colors" />
+                <p className="text-xs text-muted-foreground mt-1.5">The central message that unifies all your campaign content</p>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground mb-1">AI will generate coordinated, on-brand content across all selected channels in one shot.</p>
+              {CAMPAIGN_CHANNELS.map(ch => (
+                <button key={ch.id} onClick={() => toggleChannel(ch.id)}
+                  className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all text-left ${channels.includes(ch.id) ? "bg-primary/10 border-primary/30" : "bg-secondary/50 border-border hover:border-border/80"}`}>
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${channels.includes(ch.id) ? "bg-primary border-primary" : "border-muted-foreground/40"}`}>
+                    {channels.includes(ch.id) && <CheckCircle2 className="h-3 w-3 text-primary-foreground" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">{ch.label}</p>
+                    <p className="text-xs text-muted-foreground">{ch.desc}</p>
+                  </div>
+                </button>
+              ))}
+              {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
+            </div>
+          )}
+
+          {step === 3 && result && (
+            <div className="space-y-3">
+              <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  <span className="text-sm font-bold text-emerald-400">Campaign Created!</span>
+                </div>
+                <p className="text-xs text-muted-foreground">"{result.campaign.name}" — content is ready across your selected channels.</p>
+              </div>
+              {result.socialPosts.length > 0 && (
+                <div className="p-3 rounded-xl bg-secondary/50 border border-border">
+                  <p className="text-xs font-bold mb-1">{result.socialPosts.length} Social Posts →  Social Media Hub</p>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{result.socialPosts[0]?.caption}</p>
+                </div>
+              )}
+              {result.emails.length > 0 && (
+                <div className="p-3 rounded-xl bg-secondary/50 border border-border">
+                  <p className="text-xs font-bold mb-1">Email Campaign → Email Marketing</p>
+                  <p className="text-xs text-muted-foreground">{result.emails[0]?.subject}</p>
+                </div>
+              )}
+              {result.ads.length > 0 && (
+                <div className="p-3 rounded-xl bg-secondary/50 border border-border">
+                  <p className="text-xs font-bold mb-1">{result.ads.length} Ad Creatives → Ad Studio</p>
+                  <p className="text-xs text-muted-foreground">{result.ads[0]?.headline}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between p-6 border-t border-border">
+          {step === 1 && (
+            <>
+              <div />
+              <button onClick={() => setStep(2)} disabled={!theme.trim()}
+                className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors">
+                Next <ChevronRight className="h-4 w-4" />
+              </button>
+            </>
+          )}
+          {step === 2 && (
+            <>
+              <button onClick={() => setStep(1)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <ChevronLeft className="h-4 w-4" /> Back
+              </button>
+              <button onClick={handleBuild} disabled={channels.length === 0 || isBuilding}
+                className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors">
+                {isBuilding ? <><Loader2 className="h-4 w-4 animate-spin" /> Building…</> : <><Wand2 className="h-4 w-4" /> Build Campaign</>}
+              </button>
+            </>
+          )}
+          {step === 3 && (
+            <>
+              <div />
+              <button onClick={() => { onBuilt(); onClose(); }}
+                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors">
+                Done <ChevronRight className="h-4 w-4" />
+              </button>
+            </>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function ProjectCampaigns() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
   const [showModal, setShowModal] = useState(false);
+  const [showBuilder, setShowBuilder] = useState(false);
+  const queryClient = useQueryClient();
   const { data: campaigns, isLoading } = useListCampaigns(projectId, { query: { enabled: !!projectId } });
 
   return (
@@ -466,12 +650,20 @@ export default function ProjectCampaigns() {
           <h1 className="text-3xl font-black tracking-tight">Campaign Manager</h1>
           <p className="text-muted-foreground mt-1">AI-managed campaigns with autonomous optimization</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
-        >
-          <Plus className="h-4 w-4" /> Create Campaign
-        </button>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <button
+            onClick={() => setShowBuilder(true)}
+            className="flex items-center gap-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/20 font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
+          >
+            <Wand2 className="h-4 w-4" /> AI Builder
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
+          >
+            <Plus className="h-4 w-4" /> Create Campaign
+          </button>
+        </div>
       </div>
 
       <GoogleAdsPanel projectId={projectId} />
@@ -560,6 +752,18 @@ export default function ProjectCampaigns() {
       )}
 
       {showModal && <NewCampaignModal projectId={projectId} onClose={() => setShowModal(false)} />}
+      <AnimatePresence>
+        {showBuilder && (
+          <AICampaignBuilderModal
+            projectId={projectId}
+            onClose={() => setShowBuilder(false)}
+            onBuilt={() => {
+              void queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) });
+              setShowBuilder(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

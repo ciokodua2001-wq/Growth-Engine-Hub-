@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { campaignsTable, assetsTable, reportsTable, agentMessagesTable, activityTable, competitorsTable, socialPostsTable, emailCampaignsTable, adCreativesTable, videosTable } from "@workspace/db";
-import { consumeQuota, type PlanFeature } from "../lib/planLimits.js";
+import { consumeQuota, meetsMinPlan, type PlanFeature } from "../lib/planLimits.js";
 import { TRIAL_MAX_VIDEO_BATCH } from "../lib/trialLimits.js";
 import { generateJson } from "../lib/aiJson.js";
 import { getGroundingContext, renderGroundingBlock, type GroundingContext } from "../lib/projectContext.js";
@@ -492,6 +492,115 @@ router.get("/projects/:id/agent/history", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const messages = await db.select().from(agentMessagesTable).where(eq(agentMessagesTable.projectId, params.data.id)).orderBy(agentMessagesTable.createdAt);
   res.json(messages.map(m => ({ ...m, createdAt: m.createdAt.toISOString() })));
+});
+
+// AI Campaign Builder — generates coordinated multi-channel content from a single goal + theme
+// Plan gate: Get-Going+ only. Quota: counts against social_posts, email_campaigns, and ads.
+router.post("/projects/:id/campaigns/build", requireActiveSubscription, async (req, res): Promise<void> => {
+  const params = ListCampaignsParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const projectId = params.data.id;
+
+  if (!meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
+    res.status(403).json({ error: "AI Campaign Builder is available on the Get-Going plan and higher. Upgrade to unlock this feature." });
+    return;
+  }
+
+  const { goal, theme, channels } = req.body as { goal?: unknown; theme?: unknown; channels?: unknown };
+  if (typeof goal !== "string" || !goal.trim()) { res.status(400).json({ error: "goal is required" }); return; }
+  if (typeof theme !== "string" || !theme.trim()) { res.status(400).json({ error: "theme is required" }); return; }
+  if (!Array.isArray(channels) || channels.length === 0) { res.status(400).json({ error: "at least one channel is required" }); return; }
+
+  const validChannels = ["social", "email", "ads"] as const;
+  const requestedChannels = (channels as unknown[]).filter(
+    (c): c is (typeof validChannels)[number] => validChannels.includes(c as (typeof validChannels)[number]),
+  );
+  if (requestedChannels.length === 0) { res.status(400).json({ error: "channels must include 'social', 'email', or 'ads'" }); return; }
+
+  const ctx = await getGroundingContext(projectId);
+  if (!ctx) {
+    res.status(409).json({ error: "Complete your business analysis before building a campaign." });
+    return;
+  }
+
+  const campaignPrompt = `Campaign goal: ${goal.trim()}. Campaign theme: "${theme.trim()}". Generate content that is part of this coordinated campaign — all pieces should feel unified with a consistent message and brand voice.`;
+
+  const SOCIAL_COUNT = 4;
+  const EMAIL_COUNT = 1;
+  const ADS_COUNT = 3;
+
+  if (requestedChannels.includes("social")) {
+    const q = await consumeQuota(projectId, "social_posts", SOCIAL_COUNT);
+    if (!q.allowed) { res.status(403).json({ error: q.message }); return; }
+  }
+  if (requestedChannels.includes("email")) {
+    const q = await consumeQuota(projectId, "email_campaigns", EMAIL_COUNT);
+    if (!q.allowed) { res.status(403).json({ error: q.message }); return; }
+  }
+  if (requestedChannels.includes("ads")) {
+    const q = await consumeQuota(projectId, "ads", ADS_COUNT);
+    if (!q.allowed) { res.status(403).json({ error: q.message }); return; }
+  }
+
+  // Create the campaign record first so we have an ID to reference
+  const [campaign] = await db.insert(campaignsTable).values({
+    projectId,
+    name: theme.trim(),
+    platform: "multi",
+    status: "draft",
+    source: "ai_builder",
+    autonomousOptimization: false,
+  }).returning();
+
+  // Generate all channel content in parallel
+  const [socialResults, emailResult, adsResult] = await Promise.all([
+    requestedChannels.includes("social")
+      ? generateSocialPosts(ctx, { platforms: ["facebook", "instagram"], perPlatform: 2, prompt: campaignPrompt })
+      : Promise.resolve(null),
+    requestedChannels.includes("email")
+      ? generateEmailCampaign(ctx, { type: "sales", prompt: campaignPrompt })
+      : Promise.resolve(null),
+    requestedChannels.includes("ads")
+      ? generateAdCreatives(ctx, { platform: "meta", count: ADS_COUNT, prompt: campaignPrompt })
+      : Promise.resolve(null),
+  ]);
+
+  const socialPosts = socialResults
+    ? await db.insert(socialPostsTable).values(
+        socialResults.map(p => ({ projectId, platform: p.platform, caption: p.caption, hashtags: p.hashtags, cta: p.cta, status: "draft" })),
+      ).returning()
+    : [];
+
+  const emails = emailResult
+    ? await db.insert(emailCampaignsTable).values({
+        projectId,
+        type: "sales",
+        subject: emailResult.subject,
+        body: emailResult.body,
+        previewText: emailResult.previewText,
+        status: "draft",
+      }).returning()
+    : [];
+
+  const ads = adsResult
+    ? await db.insert(adCreativesTable).values(
+        adsResult.map(a => ({ projectId, platform: "meta", headline: a.headline, description: a.description, cta: a.cta, type: a.type, hookStrength: a.hookStrength, conversionPotential: a.conversionPotential, status: "draft" })),
+      ).returning()
+    : [];
+
+  await db.insert(activityTable).values({
+    projectId,
+    type: "campaign",
+    description: `Built AI campaign: "${theme.trim().slice(0, 60)}"`,
+  });
+
+  res.json({
+    campaign: { ...campaign, createdAt: campaign.createdAt.toISOString(), updatedAt: campaign.updatedAt.toISOString() },
+    socialPosts: socialPosts.map(p => ({ ...p, scheduledAt: p.scheduledAt?.toISOString() ?? null, publishedAt: p.publishedAt?.toISOString() ?? null, createdAt: p.createdAt.toISOString() })),
+    emails: emails.map(e => ({ ...e, sentAt: e.sentAt?.toISOString() ?? null, createdAt: e.createdAt.toISOString() })),
+    ads: ads.map(a => ({ ...a, createdAt: a.createdAt.toISOString() })),
+  });
 });
 
 export default router;

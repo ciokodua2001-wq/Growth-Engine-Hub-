@@ -17,7 +17,7 @@ import {
 import type { SocialPost } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Share2, Zap, Calendar, Facebook, CheckCircle2, AlertCircle, Link2, Link2Off, Instagram, RefreshCw, ChevronRight, Heart, MessageCircle, Eye } from "lucide-react";
+import { Loader2, Share2, Zap, Calendar, Facebook, CheckCircle2, AlertCircle, Link2, Link2Off, Instagram, RefreshCw, ChevronRight, Heart, MessageCircle, Eye, Clock } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 
 const platforms = ["linkedin", "instagram", "tiktok", "x", "facebook"];
@@ -246,6 +246,129 @@ function StatsPanel({ post, projectId, isAutoFetching, hasMetaConnection, onErro
   );
 }
 
+interface ScheduleControlsProps {
+  postId: number;
+  projectId: number;
+  platform: string;
+  status: string;
+  scheduledAt: string | null | undefined;
+  canSchedule: boolean;
+  onScheduleChange: () => void;
+  onError: (msg: string) => void;
+}
+
+function ScheduleControls({ postId, projectId, platform, status, scheduledAt, canSchedule, onScheduleChange, onError }: ScheduleControlsProps) {
+  const [showPicker, setShowPicker] = useState(false);
+  const [selectedDateTime, setSelectedDateTime] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
+  const isMetaPlatform = platform === "facebook" || platform === "instagram";
+
+  if (status !== "draft" || !canSchedule) return null;
+
+  const handleSchedule = async () => {
+    if (!selectedDateTime) return;
+    setIsLoading(true);
+    try {
+      const r = await fetch(`/api/projects/${projectId}/social-posts/${postId}/schedule`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ scheduledAt: new Date(selectedDateTime).toISOString() }),
+      });
+      if (!r.ok) {
+        const d = await r.json() as { error?: string };
+        onError(d.error ?? "Failed to schedule post");
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: getListSocialPostsQueryKey(projectId) });
+      setShowPicker(false);
+      onScheduleChange();
+    } catch {
+      onError("Failed to schedule post. Try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUnschedule = async () => {
+    setIsLoading(true);
+    try {
+      const r = await fetch(`/api/projects/${projectId}/social-posts/${postId}/schedule`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) {
+        const d = await r.json() as { error?: string };
+        onError(d.error ?? "Failed to unschedule post");
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: getListSocialPostsQueryKey(projectId) });
+      onScheduleChange();
+    } catch {
+      onError("Failed to unschedule. Try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (scheduledAt) {
+    return (
+      <div className="flex items-center gap-2 flex-wrap mt-2 pt-2 border-t border-border/50">
+        <div className="flex items-center gap-1.5 text-xs text-primary/80">
+          <Clock className="h-3 w-3" />
+          <span>{new Date(scheduledAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</span>
+          {isMetaPlatform && <span className="text-muted-foreground">(will auto-publish)</span>}
+        </div>
+        <button
+          onClick={handleUnschedule}
+          disabled={isLoading}
+          className="text-[10px] text-muted-foreground hover:text-red-400 underline underline-offset-2 transition-colors disabled:opacity-50 ml-auto"
+        >
+          {isLoading ? "Removing…" : "Remove"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 pt-2 border-t border-border/50">
+      {showPicker ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="datetime-local"
+            value={selectedDateTime}
+            onChange={e => setSelectedDateTime(e.target.value)}
+            min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+            className="text-xs bg-secondary border border-border rounded-lg px-2 py-1 text-foreground [color-scheme:dark] focus:outline-none focus:border-primary/40"
+          />
+          <button
+            onClick={handleSchedule}
+            disabled={!selectedDateTime || isLoading}
+            className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-lg bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25 disabled:opacity-50 transition-colors"
+          >
+            {isLoading ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Clock className="h-2.5 w-2.5" />}
+            Schedule
+          </button>
+          <button
+            onClick={() => setShowPicker(false)}
+            className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => { setSelectedDateTime(""); setShowPicker(true); }}
+          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary border border-border/50 hover:border-primary/20 px-2.5 py-1 rounded-lg transition-colors"
+        >
+          <Clock className="h-2.5 w-2.5" /> Schedule for later
+        </button>
+      )}
+    </div>
+  );
+}
+
 interface PagePickerModalProps {
   token: string;
   projectId: number;
@@ -419,6 +542,7 @@ export default function ProjectSocial() {
 
   const isConnected = metaConn?.connected === true;
   const hasInstagram = isConnected && !!metaConn?.instagramAccountId;
+  const canScheduleFeature = ["get-going", "growth", "agency"].includes(project?.plan ?? "");
 
   // Auto-fetch stats on page load for published posts that have never had stats pulled,
   // and background-refresh posts whose stats are older than STATS_STALE_MS (30 min).
@@ -633,7 +757,13 @@ export default function ProjectSocial() {
                     <span className={`text-[10px] font-bold px-2 py-1 rounded border capitalize ${colors.bg} ${colors.text} ${colors.border}`}>
                       {post.platform}
                     </span>
-                    <span className="text-[10px] text-muted-foreground ml-auto capitalize">{post.status}</span>
+                    {(post as { scheduledAt?: string | null }).scheduledAt && post.status === "draft" ? (
+                      <span className="flex items-center gap-1 text-[10px] font-medium text-primary/80 ml-auto">
+                        <Clock className="h-2.5 w-2.5" /> Scheduled
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground ml-auto capitalize">{post.status}</span>
+                    )}
                   </div>
                   <p className="text-sm text-foreground leading-relaxed mb-3">{post.caption}</p>
                   {post.hashtags && <p className="text-xs text-primary/70 mb-2">{post.hashtags}</p>}
@@ -649,6 +779,16 @@ export default function ProjectSocial() {
                     hasMetaConnection={isConnected}
                     hasInstagram={hasInstagram}
                     onPublished={(p) => showToast("success", `Published to ${p} successfully!`)}
+                    onError={(msg) => showToast("error", msg)}
+                  />
+                  <ScheduleControls
+                    postId={post.id}
+                    projectId={projectId}
+                    platform={post.platform.toLowerCase()}
+                    status={post.status}
+                    scheduledAt={(post as { scheduledAt?: string | null }).scheduledAt ?? null}
+                    canSchedule={canScheduleFeature}
+                    onScheduleChange={() => showToast("success", "Post scheduled for publishing!")}
                     onError={(msg) => showToast("error", msg)}
                   />
                   <StatsPanel
