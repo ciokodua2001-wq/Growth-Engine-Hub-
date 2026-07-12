@@ -1,5 +1,7 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
+import { runMigrations } from "stripe-replit-sync";
+import { getStripeSync } from "./stripeClient.js";
 import { startArchivalJob } from "./lib/archivalJob.js";
 import { startStuckPublishRecovery } from "./lib/stuckPublishRecovery.js";
 import { startScheduledPublisher } from "./lib/scheduledPublisher.js";
@@ -71,6 +73,36 @@ if (!rawPort) throw new Error("PORT environment variable is required but was not
 const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) throw new Error(`Invalid PORT value: "${rawPort}"`);
 
+async function initStripe(): Promise<void> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    logger.warn("DATABASE_URL not set — Stripe init skipped");
+    return;
+  }
+  try {
+    await runMigrations({ databaseUrl });
+    logger.info("Stripe schema ready");
+
+    const stripeSync = await getStripeSync();
+
+    const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
+    if (domain) {
+      await stripeSync.findOrCreateManagedWebhook(`https://${domain}/api/stripe/webhook`);
+      logger.info("Stripe managed webhook configured");
+    }
+
+    // Backfill runs in the background — don't block startup
+    stripeSync.syncBackfill().then(() => {
+      logger.info("Stripe data backfill complete");
+    }).catch((err) => {
+      logger.warn({ err }, "Stripe backfill failed (non-fatal)");
+    });
+  } catch (err) {
+    // Log but don't crash — server still works for non-payment routes
+    logger.warn({ err }, "Stripe init failed (non-fatal — connect Stripe integration to enable payments)");
+  }
+}
+
 app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -81,4 +113,5 @@ app.listen(port, (err) => {
   startStuckPublishRecovery();
   startScheduledPublisher();
   void runMetaTokenHealthCheck();
+  void initStripe();
 });

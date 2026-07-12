@@ -10,6 +10,7 @@ import {
 } from "./middlewares/clerkProxyMiddleware.js";
 import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
+import { WebhookHandlers } from "./webhookHandlers.js";
 
 const app: Express = express();
 
@@ -41,7 +42,29 @@ app.use(
 // 1. Clerk FAPI proxy (production only, no-op in dev)
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-// 2. Body parsers
+// 2a. Stripe webhook — must be registered BEFORE express.json() parses the body.
+//     The webhook handler needs the raw Buffer to verify the Stripe signature.
+app.post(
+  "/api/stripe/webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+    if (!sig) {
+      res.status(400).json({ error: "Missing stripe-signature header" });
+      return;
+    }
+    const signature = Array.isArray(sig) ? sig[0] : sig;
+    try {
+      await WebhookHandlers.processWebhook(req.body as Buffer, signature);
+      res.status(200).json({ received: true });
+    } catch (err: unknown) {
+      logger.error({ err }, "Stripe webhook processing failed");
+      res.status(400).json({ error: "Webhook processing error" });
+    }
+  },
+);
+
+// 2b. Body parsers (after webhook so json() doesn't intercept the raw buffer)
 app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

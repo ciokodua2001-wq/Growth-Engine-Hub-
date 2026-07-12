@@ -18,6 +18,7 @@ import storageRouter from "./storage.js";
 import googleAdsRouter from "./google-ads.js";
 import metaAdsRouter from "./meta-ads.js";
 import authMetaRouter from "./auth-meta.js";
+import stripeRouter from "./stripe.js";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(storageRouter);
 router.use(googleAdsRouter);
 router.use(metaAdsRouter);
 router.use(authMetaRouter);
+router.use(stripeRouter);
 
 export default router;

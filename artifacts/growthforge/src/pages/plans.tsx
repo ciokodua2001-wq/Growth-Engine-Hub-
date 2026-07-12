@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useUser } from "@clerk/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Check, Zap, Loader2, Star, Clock, Bell, X,
+  Check, Zap, Loader2, Star, X,
   BarChart3, PenTool, Film, Bot, Megaphone, Users,
+  CreditCard, ExternalLink, CheckCircle,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -29,6 +30,7 @@ type FeatureGroup = {
   highlight?: boolean;
 };
 type Plan = {
+  slug: string;
   name: string;
   price: number;
   color: string;
@@ -40,14 +42,15 @@ type Plan = {
 
 const PLANS: Plan[] = [
   {
+    slug: "starter",
     name: "Starter",
-    price: 29,
+    price: 39,
     color: "#00E676",
     description: "For solo founders and small businesses",
     stats: [
       { value: "1", label: "Project" },
-      { value: "8 min", label: "Video / mo" },
-      { value: "70", label: "Content / mo" },
+      { value: "10", label: "Videos / mo" },
+      { value: "50", label: "Posts / mo" },
     ],
     groups: [
       {
@@ -73,39 +76,26 @@ const PLANS: Plan[] = [
         icon: <Film className="w-3.5 h-3.5" />,
         label: "Video Studio",
         highlight: true,
-        items: [
-          "Video Blueprints included",
-          "8 min 1080p / month",
-          "Up to 32 × 15-sec or 8 × 1-min",
-        ],
-      },
-      {
-        icon: <Megaphone className="w-3.5 h-3.5" />,
-        label: "Campaign Performance",
-        items: [
-          "1 AI Performance Report / month",
-        ],
+        items: ["10 Video Blueprints / month"],
       },
       {
         icon: <Bot className="w-3.5 h-3.5" />,
         label: "Forge AI Agent",
-        items: [
-          "200 Forge AI Chats / month",
-          "Full Analytics Dashboard",
-        ],
+        items: ["200 Forge AI Chats / month", "Full Analytics Dashboard"],
       },
     ],
   },
   {
+    slug: "get-going",
     name: "Get-Going",
-    price: 79,
+    price: 99,
     color: "#00D4FF",
     highlight: "Most Popular",
     description: "For growing creators ready to scale",
     stats: [
       { value: "3", label: "Projects" },
-      { value: "16+2 min", label: "1080p+4K/mo" },
-      { value: "160", label: "Content / mo" },
+      { value: "30", label: "Videos / mo" },
+      { value: "100", label: "Posts / mo" },
     ],
     groups: [
       {
@@ -131,40 +121,25 @@ const PLANS: Plan[] = [
         icon: <Film className="w-3.5 h-3.5" />,
         label: "Video Studio",
         highlight: true,
-        items: [
-          "Video Blueprints included",
-          "16 min 1080p — up to 64 × 15-sec",
-          "2 min 4K — up to 8 × 15-sec premium",
-        ],
-      },
-      {
-        icon: <Megaphone className="w-3.5 h-3.5" />,
-        label: "Campaign Performance",
-        items: [
-          "2 AI Performance Reports / month",
-          "AI Campaign Builder",
-          "Social Scheduling",
-        ],
+        items: ["30 Video Blueprints / month"],
       },
       {
         icon: <Bot className="w-3.5 h-3.5" />,
         label: "Forge AI Agent",
-        items: [
-          "600 Forge AI Chats / month",
-          "Priority Support",
-        ],
+        items: ["600 Forge AI Chats / month", "Priority Support"],
       },
     ],
   },
   {
+    slug: "growth",
     name: "Growth",
-    price: 199,
+    price: 299,
     color: "#14F195",
     description: "For teams serious about growth",
     stats: [
       { value: "6", label: "Projects" },
-      { value: "50+8 min", label: "1080p+4K/mo" },
-      { value: "320", label: "Content / mo" },
+      { value: "60", label: "Videos / mo" },
+      { value: "200", label: "Posts / mo" },
     ],
     groups: [
       {
@@ -175,7 +150,6 @@ const PLANS: Plan[] = [
           "12 Competitor Reports / month",
           "6 Marketing Strategies / month",
           "20 AI Customer Personas / month",
-          "Competitor Video Mining",
         ],
       },
       {
@@ -191,31 +165,17 @@ const PLANS: Plan[] = [
         icon: <Film className="w-3.5 h-3.5" />,
         label: "Video Studio",
         highlight: true,
-        items: [
-          "Video Blueprints included",
-          "50 min 1080p — up to 200 × 15-sec",
-          "8 min 4K — up to 32 × 15-sec premium",
-        ],
-      },
-      {
-        icon: <Megaphone className="w-3.5 h-3.5" />,
-        label: "Campaign Performance",
-        items: [
-          "5 AI Performance Reports / month",
-          "White-Label Reports",
-          "Dedicated Onboarding",
-        ],
+        items: ["60 Video Blueprints / month"],
       },
       {
         icon: <Bot className="w-3.5 h-3.5" />,
         label: "Forge AI Agent",
-        items: [
-          "1,000 Forge AI Chats / month",
-        ],
+        items: ["1,000 Forge AI Chats / month"],
       },
     ],
   },
   {
+    slug: "agency",
     name: "Agency",
     price: 599,
     color: "#FF6B35",
@@ -223,8 +183,8 @@ const PLANS: Plan[] = [
     description: "For agencies managing multiple clients",
     stats: [
       { value: "20", label: "Projects" },
-      { value: "120+20 min", label: "1080p+4K/mo" },
-      { value: "640", label: "Content / mo" },
+      { value: "120", label: "Videos / mo" },
+      { value: "400", label: "Posts / mo" },
     ],
     groups: [
       {
@@ -250,20 +210,7 @@ const PLANS: Plan[] = [
         icon: <Film className="w-3.5 h-3.5" />,
         label: "Video Studio",
         highlight: true,
-        items: [
-          "Video Blueprints included",
-          "120 min 1080p — up to 480 × 15-sec",
-          "20 min 4K — up to 80 × 15-sec premium",
-        ],
-      },
-      {
-        icon: <Megaphone className="w-3.5 h-3.5" />,
-        label: "Campaign Performance",
-        items: [
-          "10 AI Performance Reports / month",
-          "AI Managed Campaigns",
-          "Autonomous Growth Mode",
-        ],
+        items: ["120 Video Blueprints / month"],
       },
       {
         icon: <Users className="w-3.5 h-3.5" />,
@@ -278,143 +225,21 @@ const PLANS: Plan[] = [
   },
 ];
 
-function EarlyAccessModal({ plan, color, onClose }: { plan: string; color: string; onClose: () => void }) {
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [consentChecked, setConsentChecked] = useState(false);
+type StripePriceMap = Record<string, string>; // plan slug → price ID
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!consentChecked) return;
-    setSubmitted(true);
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.92, y: 16 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.92, y: 16 }}
-        transition={{ type: "spring", damping: 22, stiffness: 320 }}
-        className="w-full max-w-md rounded-2xl border border-white/10 p-8 relative"
-        style={{ background: "#080f1e" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 transition-colors"
-        >
-          <X className="w-4 h-4" />
-        </button>
-
-        {!submitted ? (
-          <>
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
-              style={{ background: `${color}18`, border: `1px solid ${color}33` }}
-            >
-              <Bell className="w-6 h-6" style={{ color }} />
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-1">Join the {plan} waitlist</h2>
-            <p className="text-white/50 text-sm mb-6">
-              Paid plans are launching very soon. Enter your email and we'll notify you the moment {plan} is available — with an exclusive early-access discount.
-            </p>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none text-sm"
-                style={{ outlineColor: color }}
-              />
-
-              {/* Refund policy consent — required before subscribing */}
-              <label className="flex items-start gap-3 cursor-pointer group mt-1 p-3 rounded-xl border border-white/6 hover:border-white/12 transition-colors bg-white/2">
-                <div className="relative mt-0.5 shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={consentChecked}
-                    onChange={(e) => setConsentChecked(e.target.checked)}
-                    className="sr-only"
-                  />
-                  <div
-                    className="w-4 h-4 rounded flex items-center justify-center border transition-all"
-                    style={{
-                      background: consentChecked ? color : "transparent",
-                      borderColor: consentChecked ? color : "rgba(255,255,255,0.2)",
-                    }}
-                  >
-                    {consentChecked && <Check className="w-2.5 h-2.5 text-black" strokeWidth={3} />}
-                  </div>
-                </div>
-                <span className="text-xs text-white/45 leading-relaxed group-hover:text-white/60 transition-colors">
-                  I have read and agree to the{" "}
-                  <Link href="/refund-policy" target="_blank" className="underline hover:text-[#00E676]" style={{ color }}>
-                    Refund Policy
-                  </Link>
-                  {" "}and{" "}
-                  <Link href="/terms" target="_blank" className="underline hover:text-[#00E676]" style={{ color }}>
-                    Terms of Service
-                  </Link>
-                  . I understand that{" "}
-                  <strong className="text-white/70">video rendering is non-refundable once initiated</strong>
-                  , and that the subscription may be fully earned based on platform usage.
-                </span>
-              </label>
-
-              <button
-                type="submit"
-                disabled={!consentChecked}
-                className="w-full py-3 rounded-xl font-bold text-sm transition-all"
-                style={{
-                  background: consentChecked ? color : "rgba(255,255,255,0.06)",
-                  color: consentChecked ? "#040B14" : "rgba(255,255,255,0.25)",
-                  cursor: consentChecked ? "pointer" : "not-allowed",
-                }}
-              >
-                Notify Me at Launch
-              </button>
-            </form>
-            <p className="text-white/25 text-xs text-center mt-3">No spam. Unsubscribe anytime.</p>
-          </>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-center py-4"
-          >
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
-              style={{ background: `${color}22`, border: `1px solid ${color}44` }}
-            >
-              <Check className="w-8 h-8" style={{ color }} />
-            </div>
-            <h3 className="text-xl font-bold text-white mb-2">You're on the list!</h3>
-            <p className="text-white/50 text-sm mb-6">
-              We'll email you at <strong className="text-white">{email}</strong> the moment {plan} launches — with an exclusive early-access offer.
-            </p>
-            <button
-              onClick={onClose}
-              className="px-6 py-2.5 rounded-full bg-white/8 text-white/70 text-sm hover:bg-white/15 transition-colors"
-            >
-              Back to plans
-            </button>
-          </motion.div>
-        )}
-      </motion.div>
-    </motion.div>
-  );
-}
-
-function PlanCard({ plan, index, onSelect }: { plan: Plan; index: number; onSelect: () => void }) {
+function PlanCard({
+  plan,
+  index,
+  priceId,
+  loading,
+  onCheckout,
+}: {
+  plan: Plan;
+  index: number;
+  priceId?: string;
+  loading: boolean;
+  onCheckout: (priceId: string, planName: string) => void;
+}) {
   const isHighlighted = !!plan.highlight;
 
   return (
@@ -431,10 +256,8 @@ function PlanCard({ plan, index, onSelect }: { plan: Plan; index: number; onSele
         boxShadow: isHighlighted ? `0 0 40px ${plan.color}18` : "none",
       }}
     >
-      {/* Colored top bar */}
       <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${plan.color}, ${plan.color}55)` }} />
 
-      {/* Highlight badge */}
       {plan.highlight && (
         <div
           className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[11px] font-bold"
@@ -445,7 +268,6 @@ function PlanCard({ plan, index, onSelect }: { plan: Plan; index: number; onSele
       )}
 
       <div className="flex flex-col flex-1 p-6 gap-5">
-        {/* Header */}
         <div>
           <h3 className="text-xl font-bold text-white mb-0.5">{plan.name}</h3>
           <p className="text-white/40 text-xs mb-4">{plan.description}</p>
@@ -456,7 +278,6 @@ function PlanCard({ plan, index, onSelect }: { plan: Plan; index: number; onSele
           <p className="text-white/25 text-[11px] mt-0.5">Billed monthly · Cancel anytime</p>
         </div>
 
-        {/* Hero stats */}
         <div className="grid grid-cols-3 gap-2">
           {plan.stats.map((stat) => (
             <div
@@ -472,14 +293,12 @@ function PlanCard({ plan, index, onSelect }: { plan: Plan; index: number; onSele
           ))}
         </div>
 
-        {/* Feature groups */}
         <div className="flex flex-col gap-4 flex-1">
           {plan.groups.map((group) => (
             <div key={group.label}>
-              {/* Group header */}
               <div
                 className="flex items-center gap-1.5 mb-2 pb-1.5"
-                style={{ borderBottom: `1px solid rgba(255,255,255,0.05)` }}
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
               >
                 <span style={{ color: group.highlight ? plan.color : "rgba(255,255,255,0.3)" }}>
                   {group.icon}
@@ -491,61 +310,44 @@ function PlanCard({ plan, index, onSelect }: { plan: Plan; index: number; onSele
                   {group.label}
                 </span>
               </div>
-
-              {/* Group items */}
               <ul className="flex flex-col gap-1.5">
-                {group.items.map((item, idx) => {
-                  const isSubNote = item.startsWith("Up to") || item.startsWith("up to");
-                  return (
-                    <li
-                      key={idx}
-                      className={`flex items-start gap-2 ${isSubNote ? "pl-5" : ""}`}
-                    >
-                      {!isSubNote && (
-                        <Check
-                          className="w-3.5 h-3.5 shrink-0 mt-0.5"
-                          style={{ color: group.highlight ? plan.color : "rgba(255,255,255,0.35)" }}
-                        />
-                      )}
-                      {isSubNote && (
-                        <span className="text-white/25 text-xs shrink-0">↳</span>
-                      )}
-                      <span
-                        className={`text-xs leading-relaxed ${
-                          isSubNote ? "text-white/30 italic" : "text-white/65"
-                        }`}
-                      >
-                        {item}
-                      </span>
-                    </li>
-                  );
-                })}
+                {group.items.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <Check
+                      className="w-3.5 h-3.5 shrink-0 mt-0.5"
+                      style={{ color: group.highlight ? plan.color : "rgba(255,255,255,0.35)" }}
+                    />
+                    <span className="text-xs leading-relaxed text-white/65">{item}</span>
+                  </li>
+                ))}
               </ul>
             </div>
           ))}
         </div>
 
-        {/* CTA */}
         <div className="flex flex-col gap-2 pt-1">
           <button
-            onClick={onSelect}
-            className="w-full py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.99]"
+            onClick={() => priceId && onCheckout(priceId, plan.name)}
+            disabled={loading || !priceId}
+            className="w-full py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             style={
               isHighlighted
                 ? { background: plan.color, color: "#040B14", boxShadow: `0 4px 24px ${plan.color}44` }
-                : {
-                    background: "transparent",
-                    color: plan.color,
-                    border: `1.5px solid ${plan.color}55`,
-                  }
+                : { background: "transparent", color: plan.color, border: `1.5px solid ${plan.color}55` }
             }
           >
-            <Bell className="w-3.5 h-3.5" />
-            Join Early Access
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <CreditCard className="w-3.5 h-3.5" />
+                Get Started
+              </>
+            )}
           </button>
-          <p className="text-center text-[10px] text-white/20">
-            Billing coming soon · Get notified at launch
-          </p>
+          {!priceId && (
+            <p className="text-center text-[10px] text-white/20">Loading pricing…</p>
+          )}
         </div>
       </div>
     </motion.div>
@@ -554,14 +356,47 @@ function PlanCard({ plan, index, onSelect }: { plan: Plan; index: number; onSele
 
 export default function PlansPage() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const { user, isLoaded } = useUser();
   const [startingTrial, setStartingTrial] = useState(false);
-  const [earlyAccessPlan, setEarlyAccessPlan] = useState<Plan | null>(null);
+  const [priceMap, setPriceMap] = useState<StripePriceMap>({});
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [userPlan, setUserPlan] = useState<string | null>(null);
+
+  const checkoutStatus = new URLSearchParams(search).get("checkout");
 
   useEffect(() => {
     if (!isLoaded) return;
     if (!user) { setLocation("/sign-in"); return; }
     fetch("/api/auth/provision", { method: "POST" }).catch(() => {});
+  }, [isLoaded, user]);
+
+  // Load Stripe products to get price IDs
+  useEffect(() => {
+    fetch("/api/stripe/products")
+      .then((r) => r.json())
+      .then((data: { products?: Array<{ plan: string; prices: Array<{ id: string }> }> }) => {
+        const map: StripePriceMap = {};
+        for (const product of data.products ?? []) {
+          if (product.plan && product.prices[0]?.id) {
+            map[product.plan] = product.prices[0].id;
+          }
+        }
+        setPriceMap(map);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Load current user subscription
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+    fetch("/api/stripe/subscription")
+      .then((r) => r.json())
+      .then((data: { plan?: string }) => {
+        setUserPlan(data.plan ?? null);
+      })
+      .catch(() => {});
   }, [isLoaded, user]);
 
   async function handleStartTrial() {
@@ -574,6 +409,41 @@ export default function PlansPage() {
     setLocation("/onboarding");
   }
 
+  async function handleCheckout(priceId: string, planName: string) {
+    setCheckoutLoading(planName);
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priceId }),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error ?? "Failed to start checkout. Please try again.");
+      }
+    } catch {
+      alert("Network error. Please try again.");
+    }
+    setCheckoutLoading(null);
+  }
+
+  async function handleManageSubscription() {
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/stripe/portal", { method: "POST" });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (data.url) window.location.href = data.url;
+      else alert(data.error ?? "Could not open billing portal.");
+    } catch {
+      alert("Network error. Please try again.");
+    }
+    setPortalLoading(false);
+  }
+
+  const isPaidUser = userPlan && userPlan !== "trial";
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#040B14" }}>
       {/* Header */}
@@ -584,25 +454,76 @@ export default function PlansPage() {
           </svg>
           <span className="text-lg font-bold text-white">GrowthForge</span>
         </Link>
-        <div className="flex items-center gap-2 text-sm text-white/50">
-          <div className="w-5 h-5 rounded-full bg-[#00E676]/20 flex items-center justify-center">
-            <Check className="w-3 h-3 text-[#00E676]" />
+        <div className="flex items-center gap-3">
+          {isPaidUser && (
+            <button
+              onClick={handleManageSubscription}
+              disabled={portalLoading}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 text-white/60 hover:text-white hover:border-white/20 text-sm transition-colors"
+            >
+              {portalLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <ExternalLink className="w-3.5 h-3.5" />
+              )}
+              Manage Subscription
+            </button>
+          )}
+          <div className="flex items-center gap-2 text-sm text-white/50">
+            <div className="w-5 h-5 rounded-full bg-[#00E676]/20 flex items-center justify-center">
+              <Check className="w-3 h-3 text-[#00E676]" />
+            </div>
+            Account created
+            <div className="w-4 h-px bg-white/20 mx-1" />
+            <div className="w-5 h-5 rounded-full bg-[#00E676] flex items-center justify-center">
+              <span className="text-[10px] font-bold text-black">2</span>
+            </div>
+            <span className="text-white">Choose plan</span>
+            <div className="w-4 h-px bg-white/20 mx-1" />
+            <div className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center">
+              <span className="text-[10px] text-white/40">3</span>
+            </div>
+            <span className="text-white/40">Set up workspace</span>
           </div>
-          Account created
-          <div className="w-4 h-px bg-white/20 mx-1" />
-          <div className="w-5 h-5 rounded-full bg-[#00E676] flex items-center justify-center">
-            <span className="text-[10px] font-bold text-black">2</span>
-          </div>
-          <span className="text-white">Choose plan</span>
-          <div className="w-4 h-px bg-white/20 mx-1" />
-          <div className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center">
-            <span className="text-[10px] text-white/40">3</span>
-          </div>
-          <span className="text-white/40">Set up workspace</span>
         </div>
       </header>
 
       <main className="flex-1 flex flex-col items-center py-14 px-4">
+        {/* Checkout status banners */}
+        <AnimatePresence>
+          {checkoutStatus === "success" && (
+            <motion.div
+              initial={{ opacity: 0, y: -16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -16 }}
+              className="w-full max-w-6xl mb-6 flex items-center gap-3 px-5 py-4 rounded-2xl border border-[#00E676]/30 bg-[#00E676]/10"
+            >
+              <CheckCircle className="w-5 h-5 text-[#00E676] shrink-0" />
+              <div>
+                <p className="text-[#00E676] font-semibold text-sm">Subscription activated!</p>
+                <p className="text-white/50 text-xs mt-0.5">
+                  Welcome to GrowthForge. Your plan is now active —{" "}
+                  <Link href="/dashboard" className="underline hover:text-white">
+                    go to your dashboard
+                  </Link>
+                  .
+                </p>
+              </div>
+            </motion.div>
+          )}
+          {checkoutStatus === "cancelled" && (
+            <motion.div
+              initial={{ opacity: 0, y: -16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -16 }}
+              className="w-full max-w-6xl mb-6 flex items-center gap-3 px-5 py-4 rounded-2xl border border-white/10 bg-white/5"
+            >
+              <X className="w-5 h-5 text-white/40 shrink-0" />
+              <p className="text-white/50 text-sm">Checkout cancelled — you can try again anytime.</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Page heading */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#00E676]/30 bg-[#00E676]/10 text-[#00E676] text-xs font-semibold mb-4">
@@ -611,7 +532,7 @@ export default function PlansPage() {
           <h1 className="text-4xl font-bold text-white mb-3">
             Start growing with <span className="text-[#00E676]">AI</span>
           </h1>
-          <p className="text-white/50 text-lg">Try free for 14 days. Paid plans launching soon.</p>
+          <p className="text-white/50 text-lg">Try free for 14 days, then upgrade to keep going.</p>
         </motion.div>
 
         {/* Free Trial Hero Card */}
@@ -624,89 +545,80 @@ export default function PlansPage() {
           <div
             className="relative rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center gap-6"
             style={{
-              border: "1.5px solid rgba(0,230,118,0.4)",
-              background: "linear-gradient(120deg, #061811 0%, #040B14 60%)",
+              background: "linear-gradient(135deg, #00E67608 0%, #040B14 60%)",
+              border: "1.5px solid rgba(0,230,118,0.18)",
             }}
           >
-            <div className="absolute -top-3.5 left-6 px-3 py-1 rounded-full bg-[#00E676] text-black text-xs font-bold flex items-center gap-1.5">
-              <Star className="w-3 h-3" /> Start Here — Free
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
+              style={{ background: "#00E67615", border: "1px solid #00E67630" }}
+            >
+              <Star className="w-7 h-7 text-[#00E676]" />
             </div>
             <div className="flex-1">
-              <div className="flex items-baseline gap-3 mb-1">
-                <h3 className="text-2xl font-bold text-white">Free Trial</h3>
-                <span className="text-[#00E676] font-semibold text-sm border border-[#00E676]/40 rounded-full px-2 py-0.5">
-                  14 days · $0
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="text-xl font-bold text-white">Free Trial</h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#00E676]/15 text-[#00E676] border border-[#00E676]/30">
+                  14 days
                 </span>
               </div>
-              <p className="text-white/50 text-sm mb-4">
-                No credit card · No commitment · Access to all trial features
+              <p className="text-white/50 text-sm mb-3">
+                No credit card required. Explore the full platform with trial limits.
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-2">
+              <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-1">
                 {TRIAL_FEATURES.map((f) => (
-                  <div key={f} className="flex items-center gap-1.5 text-sm text-white/65">
-                    <Check className="w-3.5 h-3.5 shrink-0 text-[#00E676]" />
+                  <li key={f} className="flex items-center gap-1.5 text-xs text-white/55">
+                    <Check className="w-3 h-3 text-[#00E676] shrink-0" />
                     {f}
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
-            <button
-              onClick={handleStartTrial}
-              disabled={startingTrial}
-              className="shrink-0 px-8 py-3.5 rounded-xl font-bold text-sm bg-[#00E676] text-black hover:bg-[#14F195] transition-all disabled:opacity-60 flex items-center gap-2 hover:scale-[1.02]"
-              style={{ boxShadow: "0 4px 24px rgba(0,230,118,0.3)" }}
-            >
-              {startingTrial
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Starting…</>
-                : <><Zap className="w-4 h-4" /> Start Free Trial</>
-              }
-            </button>
+            <div className="shrink-0">
+              <button
+                onClick={handleStartTrial}
+                disabled={startingTrial}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#00E676] text-black font-bold text-sm hover:bg-[#14F195] transition-all disabled:opacity-60"
+              >
+                {startingTrial ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                Start Free Trial
+              </button>
+            </div>
           </div>
         </motion.div>
 
-        {/* Paid plans section */}
-        <div className="w-full max-w-6xl">
-          <div className="flex items-center gap-3 mb-6 justify-center">
-            <div className="h-px flex-1 bg-white/8" />
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
-              <Clock className="w-3 h-3 text-amber-400" />
-              <span className="text-amber-400 text-xs font-semibold">
-                Paid plans launching soon — join the waitlist
-              </span>
-            </div>
-            <div className="h-px flex-1 bg-white/8" />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-            {PLANS.map((plan, i) => (
-              <PlanCard
-                key={plan.name}
-                plan={plan}
-                index={i}
-                onSelect={() => setEarlyAccessPlan(plan)}
-              />
-            ))}
-          </div>
+        {/* Plan cards */}
+        <div className="w-full max-w-6xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {PLANS.map((plan, index) => (
+            <PlanCard
+              key={plan.slug}
+              plan={plan}
+              index={index}
+              priceId={priceMap[plan.slug]}
+              loading={checkoutLoading === plan.name}
+              onCheckout={handleCheckout}
+            />
+          ))}
         </div>
 
-        <p className="mt-10 text-white/25 text-xs text-center max-w-md">
-          All paid plans include a 14-day free trial. Upgrade, downgrade, or cancel at any time.{" "}
-          Questions?{" "}
-          <a href="mailto:hello@usegrowthforge.com" className="text-[#00E676]/50 hover:text-[#00E676]">
-            hello@usegrowthforge.com
-          </a>
-        </p>
+        {/* Footer note */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="text-white/25 text-xs mt-10 text-center"
+        >
+          All plans billed monthly. Cancel anytime from your billing portal. By subscribing you agree to our{" "}
+          <Link href="/terms" className="underline hover:text-white/50">
+            Terms of Service
+          </Link>{" "}
+          and{" "}
+          <Link href="/refund-policy" className="underline hover:text-white/50">
+            Refund Policy
+          </Link>
+          .
+        </motion.p>
       </main>
-
-      <AnimatePresence>
-        {earlyAccessPlan && (
-          <EarlyAccessModal
-            plan={earlyAccessPlan.name}
-            color={earlyAccessPlan.color}
-            onClose={() => setEarlyAccessPlan(null)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }

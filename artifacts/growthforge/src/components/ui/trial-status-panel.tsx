@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Zap, Check, Bell } from "lucide-react";
+import { Zap, Check, ArrowRight } from "lucide-react";
 import { useTrialUsage } from "@/hooks/use-trial-usage";
 
 interface TrialStatusPanelProps {
@@ -53,7 +53,7 @@ export function TrialStatusPanel({ projectId, trialEndsAt, subscriptionStatus, c
           <div className="w-8 h-1.5 rounded-full bg-white/10 overflow-hidden">
             <div className="h-full rounded-full bg-[#00E676]" style={{ width: `${pct}%` }} />
           </div>
-          <span className="text-[9px] text-[#00E676]/70 font-medium">{daysLeft}d</span>
+          <span className="text-[9px] text-[#00E676]/70 font-medium">{daysLeft}d left</span>
         </Link>
       </div>
     );
@@ -125,13 +125,13 @@ export function TrialStatusPanel({ projectId, trialEndsAt, subscriptionStatus, c
           </div>
         </div>
 
-        {/* Early Access CTA */}
+        {/* Upgrade CTA */}
         <div className="px-3 pb-3">
           <Link
             href="/plans"
             className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg bg-[#00E676] text-black text-[11px] font-bold hover:bg-[#14F195] transition-colors"
           >
-            <Bell className="w-3 h-3" /> Join Early Access
+            <ArrowRight className="w-3 h-3" /> Upgrade Now
           </Link>
         </div>
       </div>
