@@ -4,7 +4,7 @@ import { db } from "@workspace/db";
 import { contentTable, socialPostsTable, emailCampaignsTable, adCreativesTable, activityTable, metaConnectionsTable } from "@workspace/db";
 import { consumeQuota } from "../lib/planLimits.js";
 import { getGroundingContext } from "../lib/projectContext.js";
-import { generateSocialPosts, generateEmailCampaign, type SocialPostResult, type EmailResult } from "../lib/contentGenerators.js";
+import { generateSocialPosts, generateEmailCampaign, generateContentPieces, type SocialPostResult, type EmailResult, type ContentPieceResult } from "../lib/contentGenerators.js";
 import {
   ListContentParams,
   GenerateContentParams,
@@ -57,43 +57,68 @@ router.post("/projects/:id/content", requireActiveSubscription, async (req, res)
 
   const projectId = params.data.id;
   const type = parsed.data.type;
-  const count = parsed.data.count ?? 3;
+  const count = Math.min(parsed.data.count ?? 1, 3);
 
-  const templates: Record<string, Array<{ title: string; body: string; metaDescription: string; seoKeywords: string }>> = {
-    blog: [
-      { title: "10 Ways AI is Replacing Traditional Marketing Teams", body: "## Introduction\n\nThe marketing landscape is undergoing a seismic shift. AI-powered platforms are now capable of executing tasks that once required entire departments...", metaDescription: "Discover how AI marketing tools are transforming how businesses grow in 2024.", seoKeywords: "AI marketing, marketing automation, AI content generation, replace marketing team" },
-      { title: "The Complete Guide to AI-Powered Video Marketing in 2024", body: "## Why Video Marketing Wins\n\nVideo content generates 1200% more shares than text and image content combined...", metaDescription: "Learn how to use AI to create professional marketing videos at scale without a production team.", seoKeywords: "AI video marketing, video generation AI, automated video creation" },
-      { title: "How to Build a Full Marketing Funnel with AI in 30 Minutes", body: "## From Zero to Full Funnel\n\nBuilding a marketing funnel used to take weeks and cost thousands of dollars...", metaDescription: "Step-by-step guide to building a complete marketing funnel using AI tools.", seoKeywords: "AI marketing funnel, automated marketing, AI lead generation" },
-    ],
-    whitepaper: [
-      { title: "The Future of B2B Marketing: AI-Driven Growth Strategies", body: "## Executive Summary\n\nThis whitepaper examines how forward-thinking B2B companies are leveraging artificial intelligence to compress the traditional marketing timeline from months to minutes...", metaDescription: "In-depth analysis of AI-driven growth strategies for B2B companies.", seoKeywords: "B2B AI marketing, AI growth strategy, B2B automation" },
-    ],
-    "case-study": [
-      { title: "How TechCorp Grew 340% in 90 Days Using AI Marketing", body: "## The Challenge\n\nTechCorp was struggling to compete against well-funded competitors with larger marketing teams...", metaDescription: "Real case study showing 340% growth using AI-powered marketing automation.", seoKeywords: "AI marketing results, marketing case study, growth marketing AI" },
-    ],
-  };
+  // Content Engine AI generation is a paid feature (Get-Going+).
+  // Trial budget is at ~$0.440/$0.45 cap — long-form content generation
+  // (~$0.030-0.060 per call) would breach it; see trialLimits.ts for details.
+  if (!meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
+    res.status(403).json({ error: "AI Content generation is available on the Get-Going plan and higher. Upgrade to unlock blog posts, whitepapers, case studies, and more — all grounded in your business." });
+    return;
+  }
 
-  const selectedTemplates = templates[type] ?? templates.blog;
-  const toCreate = selectedTemplates.slice(0, count);
+  // Business analysis must be complete to ground the AI output
+  const ctx = await getGroundingContext(projectId);
+  if (!ctx) {
+    res.status(409).json({ error: "Complete your business analysis first — the Content Engine uses your brand voice, ICP, and value proposition to write content specific to your business." });
+    return;
+  }
 
-  const scores = [78, 84, 71, 89, 65, 92];
+  let pieces: ContentPieceResult[];
+  try {
+    pieces = await generateContentPieces(ctx, { type, count, prompt: parsed.data.prompt });
+  } catch (err) {
+    req.log.error({ err, projectId, type }, "Content Engine: AI generation failed");
+    res.status(500).json({ error: "Content generation failed. Please try again." });
+    return;
+  }
+
+  if (pieces.length === 0) {
+    res.status(500).json({ error: "AI returned no content. Please try again." });
+    return;
+  }
+
   const inserted = await db.insert(contentTable).values(
-    toCreate.map((t, i) => ({
+    pieces.map(p => ({
       projectId,
       type,
       status: "draft",
-      hookStrength: scores[i % scores.length],
-      conversionPotential: scores[(i + 1) % scores.length],
-      engagementPotential: scores[(i + 2) % scores.length],
-      viralPotential: scores[(i + 3) % scores.length],
-      ...t,
+      title: p.title,
+      body: p.body,
+      metaDescription: p.metaDescription,
+      seoKeywords: p.seoKeywords,
+      hookStrength: p.hookStrength,
+      conversionPotential: p.conversionPotential,
+      engagementPotential: p.engagementPotential,
+      viralPotential: p.viralPotential ?? 0,
     }))
   ).returning();
+
+  await recordGeneratedBatch({
+    userId: req.project!.ownerId!,
+    projectId,
+    contentType: "content",
+    items: inserted.map(c => ({
+      id: c.id,
+      data: { type, title: c.title, metaDescription: c.metaDescription },
+      summary: `${type}: ${c.title}`,
+    })),
+  });
 
   await db.insert(activityTable).values({
     projectId,
     type: "content",
-    description: `Generated ${inserted.length} ${type} content pieces`,
+    description: `Generated ${inserted.length} AI-powered ${type} content piece${inserted.length !== 1 ? "s" : ""}`,
   });
 
   res.json(inserted.map(c => ({ ...c, createdAt: c.createdAt.toISOString() })));

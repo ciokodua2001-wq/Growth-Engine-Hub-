@@ -13,6 +13,10 @@ import { projectsTable, trialUsageTable } from "@workspace/db";
 //   video_blueprints $0.030, 5×ads $0.025, 10×agent_messages $0.120,
 //   5×image_generation $0.025 → total ~$0.440
 //
+// Content Engine (blog/whitepaper/case-study etc.): NOT on trial — excluded from this
+// budget because a single 3-piece generation call costs ~$0.030-0.060 (long-form body
+// text). Gated behind meetsMinPlan(..., "get-going") in routes/content.ts instead.
+//
 // social_posts doubled 5→10 (+$0.025), email_campaigns doubled 1→2 (+$0.020).
 // agent_messages kept at 10 — doubling to 20 would add $0.120 and breach the cap.
 // Video renders are NOT available on trial — they are exclusively a paid feature.

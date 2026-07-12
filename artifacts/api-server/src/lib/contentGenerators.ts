@@ -158,6 +158,68 @@ export interface CompetitorResult {
   differentiationScore: number;
 }
 
+export interface ContentPieceResult {
+  title: string;
+  body: string;
+  metaDescription: string;
+  seoKeywords: string;
+  hookStrength: number;
+  conversionPotential: number;
+  engagementPotential: number;
+  viralPotential: number;
+}
+
+const CONTENT_TYPE_BRIEFS: Record<string, string> = {
+  blog: "an engaging, informative blog post (800-1000 words) that addresses a key pain point or topic highly relevant to this business's target audience, using the business's brand voice — with a compelling intro, practical sections with markdown subheadings (##), and a clear CTA",
+  whitepaper: "a concise executive whitepaper (600-800 words) that positions this business as a thought leader in its space — include an Executive Summary, 3-4 key insight sections with markdown subheadings (##), and strategic recommendations grounded in the business's market context",
+  "case-study": "a compelling case study (500-700 words) showing how this type of business helped a client solve a real problem — structured as ## The Challenge, ## The Solution, ## The Results, with specific plausible outcomes matching this business's value proposition",
+  "landing-page": "high-converting landing page copy structured with: ## Headline (punchy H1), ## Value Proposition (subheadline), ## Key Benefits (3 bullet points), ## Social Proof (a testimonial-style quote), ## Features (3 key features), ## CTA — grounded in this business's ICP and UVP",
+  "email-sequence": "a 3-email nurture sequence (200-250 words each) designed to move a lead from awareness to purchase for this business — each email includes ## Email 1/2/3, Subject:, Preview:, and Body: — all grounded in the business's brand voice and audience",
+  "press-release": "a professional press release (400-500 words) announcing a significant milestone or launch for this business — include ## HEADLINE, dateline (city, date), lead paragraph (who/what/when/where/why), two supporting paragraphs, a quote from a company spokesperson, and a boilerplate paragraph",
+};
+
+export async function generateContentPieces(
+  ctx: GroundingContext,
+  opts: { type: string; count: number; prompt?: string },
+): Promise<ContentPieceResult[]> {
+  const brief = CONTENT_TYPE_BRIEFS[opts.type] ?? CONTENT_TYPE_BRIEFS.blog;
+  const cap = Math.min(opts.count, 3);
+
+  const response = await generateJson<{ pieces: ContentPieceResult[] }>({
+    system:
+      "You are a senior content strategist and copywriter. You write high-quality, specific marketing content " +
+      "grounded in the real business context provided — never generic filler, never content about a fictional " +
+      "or placeholder business. Every piece must name the actual business, reference its real products/services, " +
+      "and speak directly to its target audience. Use the brand voice described. " +
+      "Score each piece honestly with integer scores 60–99. Respond with ONLY a single JSON object, no prose.",
+    prompt: `${renderGroundingBlock(ctx)}
+${opts.prompt ? `\nAdditional direction from the user: ${opts.prompt}\n` : ""}
+Write exactly ${cap} piece(s) of the following content type: ${brief}
+
+IMPORTANT: Every word must be specific to THIS business — use the actual business name, its exact products/services, its specific target audience, and its brand voice from the context above. Do not use generic marketing boilerplate.
+
+Return JSON:
+{
+  "pieces": [
+    {
+      "title": "the specific headline or document title for this piece",
+      "body": "the complete content body using markdown for structure (## headings, bullet points etc.)",
+      "metaDescription": "a 150-160 character SEO meta description specific to this piece and this business",
+      "seoKeywords": "6-8 space-separated keywords relevant to this piece and this business's industry",
+      "hookStrength": <integer 60-99 honest rating of the opening hook's ability to capture attention>,
+      "conversionPotential": <integer 60-99 honest rating of likelihood this content converts readers>,
+      "engagementPotential": <integer 60-99 honest rating of share/engagement likelihood>,
+      "viralPotential": <integer 60-99 honest rating of potential to be widely shared>
+    }
+  ]
+}
+The "pieces" array must contain exactly ${cap} item(s).`,
+    maxTokens: 8192,
+  });
+
+  return (response.pieces ?? []).slice(0, cap);
+}
+
 export async function generateCompetitors(ctx: GroundingContext): Promise<CompetitorResult[]> {
   const response = await generateJson<{ competitors: CompetitorResult[] }>({
     system:
