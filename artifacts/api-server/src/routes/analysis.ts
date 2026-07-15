@@ -108,10 +108,23 @@ router.post("/projects/:id/analyze", requireActiveSubscription, async (req, res)
 
   const projectId = params.data.id;
   const websiteUrl = parsed.data.websiteUrl;
+  const businessDescription = parsed.data.businessDescription?.trim();
 
   let result: BusinessAnalysisResult;
   try {
-    const site = await fetchWebsiteContent(websiteUrl);
+    let site: { url: string; title: string | null; metaDescription: string | null; text: string };
+
+    try {
+      site = await fetchWebsiteContent(websiteUrl);
+    } catch (fetchErr) {
+      if (fetchErr instanceof WebsiteFetchError && businessDescription) {
+        // Website couldn't be scraped but user provided a manual description — use it
+        req.log.warn({ err: fetchErr }, "Website fetch failed; using manual business description");
+        site = { url: websiteUrl, title: null, metaDescription: null, text: businessDescription };
+      } else {
+        throw fetchErr;
+      }
+    }
 
     const quota = await consumeQuota(projectId, "analysis");
     if (!quota.allowed) {

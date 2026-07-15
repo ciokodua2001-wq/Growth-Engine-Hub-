@@ -154,7 +154,8 @@ export const AnalyzeWebsiteParams = zod.object({
 
 export const AnalyzeWebsiteBody = zod.object({
   "websiteUrl": zod.string(),
-  "prompt": zod.string().optional()
+  "prompt": zod.string().optional(),
+  "businessDescription": zod.string().optional()
 })
 
 export const AnalyzeWebsiteResponse = zod.object({

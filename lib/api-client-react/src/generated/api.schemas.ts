@@ -74,6 +74,7 @@ export interface DashboardSummary {
 export interface AnalysisInput {
   websiteUrl: string;
   prompt?: string;
+  businessDescription?: string;
 }
 
 export interface BusinessAnalysis {

@@ -39,6 +39,8 @@ export default function AnalysisProgressPage() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
+  const [businessDescription, setBusinessDescription] = useState("");
+  const [showDescriptionForm, setShowDescriptionForm] = useState(false);
   const startedRef = useRef(false);
 
   useEffect(() => {
@@ -51,7 +53,10 @@ export default function AnalysisProgressPage() {
       try {
         setActiveStep(0);
         const project = await getProject(projectId);
-        await analyzeWebsite(projectId, { websiteUrl: project.websiteUrl });
+        await analyzeWebsite(projectId, {
+          websiteUrl: project.websiteUrl,
+          ...(businessDescription ? { businessDescription } : {}),
+        });
         if (!mounted) return;
         setCompletedSteps((prev) => [...prev, 0]);
 
@@ -75,11 +80,17 @@ export default function AnalysisProgressPage() {
         if (mounted) setLocation(`/projects/${projectId}/overview`);
       } catch (err) {
         if (!mounted) return;
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Something went wrong while analyzing your business. Please try again.",
-        );
+        const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+        setError(msg);
+        // If the error is a website scraping failure, offer the manual description form
+        if (
+          msg.includes("readable text") ||
+          msg.includes("Could not reach") ||
+          msg.includes("network error") ||
+          msg.includes("HTTP 4")
+        ) {
+          setShowDescriptionForm(true);
+        }
       }
     }
 
@@ -276,24 +287,72 @@ export default function AnalysisProgressPage() {
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-8 flex flex-col items-center gap-3"
+              className="mt-8 flex flex-col gap-3"
             >
-              <button
-                type="button"
-                onClick={() => {
-                  setCompletedSteps([]);
-                  setActiveStep(0);
-                  setDone(false);
-                  setRetryToken((t) => t + 1);
-                }}
-                className="px-5 py-3 rounded-xl font-semibold text-sm bg-[#00E676] text-black hover:bg-[#14F195] transition-all"
-              >
-                Try again
-              </button>
+              {showDescriptionForm ? (
+                <>
+                  <div className="p-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5">
+                    <p className="text-xs text-yellow-400 font-medium mb-1">
+                      We couldn't read your website automatically
+                    </p>
+                    <p className="text-xs text-white/50 mb-3">
+                      Describe your business below and we'll use that instead — what you do, who you serve, and what makes you different.
+                    </p>
+                    <textarea
+                      value={businessDescription}
+                      onChange={(e) => setBusinessDescription(e.target.value)}
+                      placeholder="e.g. We're a B2B SaaS company that helps logistics teams automate their shipping workflows. We serve mid-market e-commerce brands in the US and reduce manual dispatch time by 80%..."
+                      rows={5}
+                      className="w-full bg-black/30 border border-border rounded-lg px-3 py-2 text-xs text-white placeholder:text-white/25 focus:outline-none focus:border-[#00E676]/40 resize-none"
+                    />
+                    <button
+                      type="button"
+                      disabled={businessDescription.trim().length < 30}
+                      onClick={() => {
+                        setCompletedSteps([]);
+                        setActiveStep(0);
+                        setDone(false);
+                        setShowDescriptionForm(false);
+                        setRetryToken((t) => t + 1);
+                      }}
+                      className="mt-2 w-full px-5 py-2.5 rounded-xl font-semibold text-sm bg-[#00E676] text-black hover:bg-[#14F195] transition-all disabled:opacity-40"
+                    >
+                      Analyse with my description
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCompletedSteps([]);
+                      setActiveStep(0);
+                      setDone(false);
+                      setShowDescriptionForm(false);
+                      setBusinessDescription("");
+                      setRetryToken((t) => t + 1);
+                    }}
+                    className="text-xs text-white/40 hover:text-white/60 transition-colors underline text-center"
+                  >
+                    Try fetching website again
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCompletedSteps([]);
+                    setActiveStep(0);
+                    setDone(false);
+                    setRetryToken((t) => t + 1);
+                  }}
+                  className="px-5 py-3 rounded-xl font-semibold text-sm bg-[#00E676] text-black hover:bg-[#14F195] transition-all"
+                >
+                  Try again
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setLocation(`/projects/${projectId}/overview`)}
-                className="text-xs text-white/40 hover:text-white/60 transition-colors underline"
+                className="text-xs text-white/40 hover:text-white/60 transition-colors underline text-center"
               >
                 Skip to dashboard
               </button>
