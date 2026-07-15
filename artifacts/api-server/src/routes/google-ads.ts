@@ -8,7 +8,7 @@ import { requireProjectOwnershipParam } from "../lib/authz.js";
 const router: IRouter = Router();
 router.param("id", requireProjectOwnershipParam());
 
-const GOOGLE_ADS_API   = "https://googleads.googleapis.com/v17";
+const GOOGLE_ADS_API   = "https://googleads.googleapis.com/v19";
 const GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SCOPE = "https://www.googleapis.com/auth/adwords";
@@ -55,15 +55,35 @@ async function getValidToken(account: typeof connectedAdAccountsTable.$inferSele
 
 // ── Google Ads API helpers ─────────────────────────────────────────────────────
 
+async function googleAdsRequest(url: string, opts: RequestInit): Promise<Response> {
+  const r = await fetch(url, opts);
+  if (!r.ok) {
+    const body = await r.text();
+    if (body.trimStart().startsWith("<")) {
+      // HTML response = API not enabled or wrong endpoint
+      if (r.status === 404) {
+        throw new Error(
+          "Google Ads API is not enabled in your Google Cloud Console project. " +
+          "Go to console.cloud.google.com/apis/library, search 'Google Ads API', and click Enable.",
+        );
+      }
+      throw new Error(`Google Ads API returned an unexpected HTML error (HTTP ${r.status}). Check that the Google Ads API is enabled in Google Cloud Console.`);
+    }
+    let msg = body;
+    try { msg = JSON.stringify((JSON.parse(body) as { error?: { message?: string } }).error ?? body); } catch { /* keep raw */ }
+    throw new Error(`Google Ads API error (HTTP ${r.status}): ${msg}`);
+  }
+  return r;
+}
+
 async function listAccessibleCustomers(accessToken: string): Promise<string[]> {
-  const r = await fetch(`${GOOGLE_ADS_API}/customers:listAccessibleCustomers`, {
+  const r = await googleAdsRequest(`${GOOGLE_ADS_API}/customers:listAccessibleCustomers`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "developer-token": devToken(),
     },
     signal: AbortSignal.timeout(15_000),
   });
-  if (!r.ok) throw new Error(`listAccessibleCustomers failed: ${await r.text()}`);
   const d = await r.json() as { resourceNames?: string[] };
   return (d.resourceNames ?? []).map((n) => n.replace("customers/", ""));
 }
@@ -81,17 +101,17 @@ async function fetchCampaigns(accessToken: string, customerId: string) {
     "LIMIT 50",
   ].join(" ");
 
-  const r = await fetch(`${GOOGLE_ADS_API}/customers/${customerId}/googleAds:search`, {
+  const r = await googleAdsRequest(`${GOOGLE_ADS_API}/customers/${customerId}/googleAds:search`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "developer-token": devToken(),
+      "login-customer-id": customerId,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ query }),
     signal: AbortSignal.timeout(20_000),
   });
-  if (!r.ok) throw new Error(`Campaign fetch failed: ${await r.text()}`);
   const d = await r.json() as { results?: Array<{
     campaign: { id: string; name: string; status: string; advertisingChannelType: string };
     metrics: { impressions: string; clicks: string; conversions: string; costMicros: string; ctr: string; averageCpc: string };
