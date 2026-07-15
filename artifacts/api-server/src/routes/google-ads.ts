@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { getAuth } from "@clerk/express";
+import { GoogleAdsApi } from "google-ads-api";
 import { db } from "@workspace/db";
 import { connectedAdAccountsTable, campaignsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
@@ -8,7 +8,6 @@ import { requireProjectOwnershipParam } from "../lib/authz.js";
 const router: IRouter = Router();
 router.param("id", requireProjectOwnershipParam());
 
-const GOOGLE_ADS_API   = "https://googleads.googleapis.com/v19";
 const GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SCOPE = "https://www.googleapis.com/auth/adwords";
@@ -21,102 +20,50 @@ function redirectUri()  {
     "https://usegrowthforge.com/api/auth/google-ads/callback";
 }
 
-// ── Token helpers ──────────────────────────────────────────────────────────────
-
-async function refreshAccessToken(refreshToken: string) {
-  const r = await fetch(GOOGLE_TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId(),
-      client_secret: clientSecret(),
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
+function makeClient() {
+  return new GoogleAdsApi({
+    client_id: clientId(),
+    client_secret: clientSecret(),
+    developer_token: devToken(),
   });
-  if (!r.ok) throw new Error(`Token refresh failed: ${await r.text()}`);
-  const d = await r.json() as { access_token: string; expires_in: number };
-  return d;
 }
 
-async function getValidToken(account: typeof connectedAdAccountsTable.$inferSelect): Promise<string> {
-  const now = new Date();
-  if (account.tokenExpiresAt && account.tokenExpiresAt > new Date(now.getTime() + 60_000)) {
-    return account.accessToken;
-  }
-  if (!account.refreshToken) throw new Error("No refresh token available");
-  const refreshed = await refreshAccessToken(account.refreshToken);
-  const expiresAt = new Date(now.getTime() + refreshed.expires_in * 1000);
-  await db.update(connectedAdAccountsTable)
-    .set({ accessToken: refreshed.access_token, tokenExpiresAt: expiresAt, updatedAt: new Date() })
-    .where(eq(connectedAdAccountsTable.id, account.id));
-  return refreshed.access_token;
+// ── Google Ads SDK helpers ─────────────────────────────────────────────────────
+
+async function listAccessibleCustomersViaSDK(refreshToken: string): Promise<string[]> {
+  const client = makeClient();
+  const result = await client.listAccessibleCustomers(refreshToken);
+  return (result.resource_names ?? []).map((n: string) => n.replace("customers/", ""));
 }
 
-// ── Google Ads API helpers ─────────────────────────────────────────────────────
-
-async function googleAdsRequest(url: string, opts: RequestInit): Promise<Response> {
-  const r = await fetch(url, opts);
-  if (!r.ok) {
-    const body = await r.text();
-    if (body.trimStart().startsWith("<")) {
-      // HTML response = API not enabled or wrong endpoint
-      if (r.status === 404) {
-        throw new Error(
-          "Google Ads API is not enabled in your Google Cloud Console project. " +
-          "Go to console.cloud.google.com/apis/library, search 'Google Ads API', and click Enable.",
-        );
-      }
-      throw new Error(`Google Ads API returned an unexpected HTML error (HTTP ${r.status}). Check that the Google Ads API is enabled in Google Cloud Console.`);
-    }
-    let msg = body;
-    try { msg = JSON.stringify((JSON.parse(body) as { error?: { message?: string } }).error ?? body); } catch { /* keep raw */ }
-    throw new Error(`Google Ads API error (HTTP ${r.status}): ${msg}`);
-  }
-  return r;
-}
-
-async function listAccessibleCustomers(accessToken: string): Promise<string[]> {
-  const r = await googleAdsRequest(`${GOOGLE_ADS_API}/customers:listAccessibleCustomers`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "developer-token": devToken(),
-    },
-    signal: AbortSignal.timeout(15_000),
+async function fetchCampaignsViaSDK(refreshToken: string, customerId: string) {
+  const client = makeClient();
+  const customer = client.Customer({
+    customer_id: customerId,
+    refresh_token: refreshToken,
+    login_customer_id: customerId,
   });
-  const d = await r.json() as { resourceNames?: string[] };
-  return (d.resourceNames ?? []).map((n) => n.replace("customers/", ""));
-}
 
-async function fetchCampaigns(accessToken: string, customerId: string) {
-  const query = [
-    "SELECT",
-    "  campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type,",
-    "  metrics.impressions, metrics.clicks, metrics.conversions,",
-    "  metrics.cost_micros, metrics.ctr, metrics.average_cpc",
-    "FROM campaign",
-    "WHERE segments.date DURING LAST_30_DAYS",
-    "  AND campaign.status != 'REMOVED'",
-    "ORDER BY metrics.impressions DESC",
-    "LIMIT 50",
-  ].join(" ");
+  const results = await customer.query(`
+    SELECT
+      campaign.id,
+      campaign.name,
+      campaign.status,
+      campaign.advertising_channel_type,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.conversions,
+      metrics.cost_micros,
+      metrics.ctr,
+      metrics.average_cpc
+    FROM campaign
+    WHERE segments.date DURING LAST_30_DAYS
+      AND campaign.status != 'REMOVED'
+    ORDER BY metrics.impressions DESC
+    LIMIT 50
+  `);
 
-  const r = await googleAdsRequest(`${GOOGLE_ADS_API}/customers/${customerId}/googleAds:search`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "developer-token": devToken(),
-      "login-customer-id": customerId,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ query }),
-    signal: AbortSignal.timeout(20_000),
-  });
-  const d = await r.json() as { results?: Array<{
-    campaign: { id: string; name: string; status: string; advertisingChannelType: string };
-    metrics: { impressions: string; clicks: string; conversions: string; costMicros: string; ctr: string; averageCpc: string };
-  }> };
-  return d.results ?? [];
+  return results;
 }
 
 // ── Status ─────────────────────────────────────────────────────────────────────
@@ -226,18 +173,20 @@ router.get("/auth/google-ads/callback", async (req: Request, res: Response): Pro
 
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
 
-    // Get accessible customer IDs
+    // Try to auto-discover customer ID via SDK
     let customerId: string | null = null;
-    let accountName: string | null = null;
-    try {
-      const customers = await listAccessibleCustomers(tokens.access_token);
-      customerId = customers[0] ?? null;
-    } catch {
-      // Customer list may fail if developer token not yet approved — store tokens anyway
+    if (tokens.refresh_token) {
+      try {
+        const customers = await listAccessibleCustomersViaSDK(tokens.refresh_token);
+        customerId = customers[0] ?? null;
+      } catch {
+        // Non-fatal — user can enter manually
+      }
     }
 
     // Get user email from Google
     let accountEmail: string | null = null;
+    let accountName: string | null = null;
     try {
       const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
         headers: { Authorization: `Bearer ${tokens.access_token}` },
@@ -298,15 +247,14 @@ router.post("/projects/:id/google-ads/sync", async (req, res): Promise<void> => 
 
   if (!account) { res.status(404).json({ error: "Google Ads account not connected" }); return; }
   if (!devToken()) { res.status(400).json({ error: "GOOGLE_ADS_DEVELOPER_TOKEN not configured" }); return; }
+  if (!account.refreshToken) { res.status(400).json({ error: "No refresh token — please reconnect your Google Ads account." }); return; }
 
   try {
-    const accessToken = await getValidToken(account);
-
     // Auto-discover customer ID if missing
     if (!account.customerId) {
-      const customers = await listAccessibleCustomers(accessToken);
+      const customers = await listAccessibleCustomersViaSDK(account.refreshToken);
       if (customers.length === 0) {
-        res.status(400).json({ error: "No accessible Google Ads accounts found. Make sure your Google account has access to at least one Ads account." });
+        res.status(400).json({ error: "No accessible Google Ads accounts found. Enter your Customer ID manually." });
         return;
       }
       account.customerId = customers[0]!;
@@ -315,37 +263,43 @@ router.post("/projects/:id/google-ads/sync", async (req, res): Promise<void> => 
         .where(eq(connectedAdAccountsTable.id, account.id));
     }
 
-    const results = await fetchCampaigns(accessToken, account.customerId);
+    const results = await fetchCampaignsViaSDK(account.refreshToken, account.customerId);
+
+    const statusMap: Record<string, string> = {
+      ENABLED: "active", PAUSED: "paused", REMOVED: "completed",
+    };
 
     let synced = 0;
-    for (const r of results) {
-      const costMicros = parseInt(r.metrics.costMicros ?? "0", 10);
-      const clicks     = parseInt(r.metrics.clicks     ?? "0", 10);
-      const impressions= parseInt(r.metrics.impressions?? "0", 10);
-      const conversions= parseFloat(r.metrics.conversions ?? "0");
-      const spent      = costMicros / 1_000_000;
-      const ctr        = parseFloat(r.metrics.ctr ?? "0") * 100;
-      const cpc        = parseInt(r.metrics.averageCpc ?? "0", 10) / 1_000_000;
-      const roas       = spent > 0 ? (conversions * 50) / spent : null; // estimated
+    for (const row of results) {
+      const c = row.campaign;
+      const m = row.metrics;
 
-      const statusMap: Record<string, string> = {
-        ENABLED: "active", PAUSED: "paused", REMOVED: "completed",
-      };
+      const costMicros  = Number(m?.cost_micros   ?? 0);
+      const clicks      = Number(m?.clicks         ?? 0);
+      const impressions = Number(m?.impressions     ?? 0);
+      const conversions = Number(m?.conversions     ?? 0);
+      const spent       = costMicros / 1_000_000;
+      const ctr         = Number(m?.ctr            ?? 0) * 100;
+      const cpc         = Number(m?.average_cpc    ?? 0) / 1_000_000;
+      const roas        = spent > 0 ? (conversions * 50) / spent : null;
+
+      const channelType = String(c?.advertising_channel_type ?? "");
+      const platform = channelType === "SEARCH"  ? "Google Search"
+                     : channelType === "DISPLAY" ? "Google Display"
+                     : channelType === "VIDEO"   ? "YouTube"
+                     : "Google";
 
       const campaignData = {
         projectId,
         source: "google_ads",
-        externalId: r.campaign.id,
-        name: r.campaign.name,
-        platform: r.campaign.advertisingChannelType === "SEARCH" ? "Google Search"
-          : r.campaign.advertisingChannelType === "DISPLAY" ? "Google Display"
-          : r.campaign.advertisingChannelType === "VIDEO" ? "YouTube"
-          : "Google",
-        status: statusMap[r.campaign.status] ?? "draft",
+        externalId: String(c?.id ?? ""),
+        name: String(c?.name ?? "Unknown Campaign"),
+        platform,
+        status: statusMap[String(c?.status ?? "")] ?? "draft",
         spent: spent.toFixed(2),
-        impressions,
-        clicks,
-        conversions: Math.floor(conversions),
+        impressions: Math.round(impressions),
+        clicks: Math.round(clicks),
+        conversions: Math.round(conversions),
         ctr: ctr.toFixed(4),
         cpc: cpc.toFixed(2),
         roas: roas ? roas.toFixed(2) : null,
@@ -356,7 +310,7 @@ router.post("/projects/:id/google-ads/sync", async (req, res): Promise<void> => 
         .where(and(
           eq(campaignsTable.projectId, projectId),
           eq(campaignsTable.source, "google_ads"),
-          eq(campaignsTable.externalId, r.campaign.id),
+          eq(campaignsTable.externalId, campaignData.externalId),
         ));
 
       if (existing) {
@@ -371,7 +325,7 @@ router.post("/projects/:id/google-ads/sync", async (req, res): Promise<void> => 
       .set({ lastSyncAt: new Date() })
       .where(eq(connectedAdAccountsTable.id, account.id));
 
-    res.json({ synced, message: `Synced ${synced} campaigns from Google Ads` });
+    res.json({ synced, message: `Synced ${synced} campaign${synced !== 1 ? "s" : ""} from Google Ads` });
   } catch (err) {
     req.log.error({ err }, "Google Ads sync error");
     res.status(500).json({ error: err instanceof Error ? err.message : "Sync failed" });
@@ -387,7 +341,6 @@ router.delete("/projects/:id/google-ads/disconnect", async (req, res): Promise<v
       eq(connectedAdAccountsTable.projectId, projectId),
       eq(connectedAdAccountsTable.provider, "google_ads"),
     ));
-  // Mark synced campaigns as manual so they remain visible
   await db.update(campaignsTable)
     .set({ source: "manual", externalId: null })
     .where(and(
