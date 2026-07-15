@@ -254,10 +254,23 @@ router.post("/projects/:id/google-ads/sync", async (req, res): Promise<void> => 
 
   if (!account) { res.status(404).json({ error: "Google Ads account not connected" }); return; }
   if (!devToken()) { res.status(400).json({ error: "GOOGLE_ADS_DEVELOPER_TOKEN not configured" }); return; }
-  if (!account.customerId) { res.status(400).json({ error: "No Google Ads customer ID. Re-connect your account." }); return; }
 
   try {
     const accessToken = await getValidToken(account);
+
+    // Auto-discover customer ID if missing
+    if (!account.customerId) {
+      const customers = await listAccessibleCustomers(accessToken);
+      if (customers.length === 0) {
+        res.status(400).json({ error: "No accessible Google Ads accounts found. Make sure your Google account has access to at least one Ads account." });
+        return;
+      }
+      account.customerId = customers[0]!;
+      await db.update(connectedAdAccountsTable)
+        .set({ customerId: account.customerId })
+        .where(eq(connectedAdAccountsTable.id, account.id));
+    }
+
     const results = await fetchCampaigns(accessToken, account.customerId);
 
     let synced = 0;
