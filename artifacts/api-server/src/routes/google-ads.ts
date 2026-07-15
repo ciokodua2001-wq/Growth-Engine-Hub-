@@ -234,10 +234,10 @@ router.get("/auth/google-ads/callback", async (req: Request, res: Response): Pro
       });
     }
 
-    res.redirect(`/project/${projectId}/campaigns?google_ads=connected`);
+    res.redirect(`/projects/${projectId}/campaigns?google_ads=connected`);
   } catch (err) {
     req.log.error({ err }, "Google Ads OAuth callback error");
-    res.redirect(`/project/${projectId}/campaigns?google_ads=error`);
+    res.redirect(`/projects/${projectId}/campaigns?google_ads=error`);
   }
 });
 

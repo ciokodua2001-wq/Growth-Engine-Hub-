@@ -169,10 +169,10 @@ router.get("/auth/meta/callback", async (req: Request, res: Response): Promise<v
       });
     }
 
-    res.redirect(`/project/${projectId}/campaigns?meta=connected`);
+    res.redirect(`/projects/${projectId}/campaigns?meta=connected`);
   } catch (err) {
     req.log.error({ err }, "Meta OAuth callback error");
-    res.redirect(`/project/${projectId}/campaigns?meta=error`);
+    res.redirect(`/projects/${projectId}/campaigns?meta=error`);
   }
 });
 
