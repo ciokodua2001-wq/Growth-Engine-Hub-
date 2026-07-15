@@ -46,9 +46,9 @@ const BUILDS_FROM_URL = [
   },
   {
     icon: Video,
-    title: "Video Blueprints",
-    desc: "Create ready-to-produce marketing videos without any editing experience.",
-    features: ["Video Concepts", "Hooks", "Storyboards", "Voiceover Scripts"],
+    title: "Video Generation",
+    desc: "Generate and render marketing videos ready to post — no editing experience required.",
+    features: ["Video Concepts", "Hooks", "Storyboards", "Rendered Videos"],
     color: "#00E676",
   },
   {
@@ -73,7 +73,7 @@ const WORKFLOW_PIPELINE = [
   { icon: Users2, label: "Competitor Intelligence" },
   { icon: Target, label: "Marketing Strategy" },
   { icon: FileText, label: "Content Creation" },
-  { icon: Video, label: "Video Blueprint" },
+  { icon: Video, label: "Video Generation" },
   { icon: TrendingUp, label: "Growth Recommendations" },
 ];
 
@@ -88,7 +88,7 @@ const HOW_STEPS = [
   { num: "01", icon: Globe, title: "Paste Your Website URL", desc: "Enter your website and business details. No setup, no integrations required." },
   { num: "02", icon: Brain, title: "AI Analyzes Your Business", desc: "GrowthForge identifies your products, audience, positioning, and opportunities." },
   { num: "03", icon: Users2, title: "Competitor Discovery", desc: "Automatically identify your top competitors and uncover market gaps." },
-  { num: "04", icon: Sparkles, title: "Generate Marketing Assets", desc: "Create content, campaigns, emails, ads, strategies, and video blueprints instantly." },
+  { num: "04", icon: Sparkles, title: "Generate Marketing Assets", desc: "Create content, campaigns, emails, ads, strategies, and videos instantly." },
   { num: "05", icon: Rocket, title: "Scale Smarter", desc: "Use AI recommendations to continuously improve your marketing performance." },
 ];
 
@@ -163,37 +163,37 @@ const TESTIMONIALS = [
 
 const PRICING = [
   {
-    name: "Starter", price: 29, color: "#00E676", highlight: false,
+    name: "Starter", price: 39, color: "#00E676", highlight: false,
     desc: "For solo founders and small businesses",
     stats: [{ value: "1", label: "Project" }, { value: "8 min", label: "Video/mo" }, { value: "70", label: "Content/mo" }],
     groups: [
       { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["3 Website Re-analyses / month", "2 Competitor Reports / month", "1 Marketing Strategy / month", "3 AI Customer Personas / month"] },
       { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["50 Social Posts / month", "10 Email Campaigns / month", "10 AI Ad Creatives / month"] },
-      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["Video Blueprints included", "8 min 1080p / month", "Up to 32 × 15-sec or 8 × 1-min"] },
+      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["AI Video Generation", "8 min 1080p / month", "Up to 32 × 15-sec or 8 × 1-min"] },
       { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["1 AI Campaign Report / month"] },
       { label: "Forge AI Agent", icon: <Bot className="w-3 h-3" />, isVideo: false, items: ["200 Forge AI Chats / month", "Full Analytics Dashboard"] },
     ],
   },
   {
-    name: "Get-Going", price: 79, color: "#00D4FF", highlight: true, highlightLabel: "Most Popular",
+    name: "Get-Going", price: 99, color: "#00D4FF", highlight: true, highlightLabel: "Most Popular",
     desc: "For growing creators ready to scale",
     stats: [{ value: "3", label: "Projects" }, { value: "16+2 min", label: "1080p+4K/mo" }, { value: "160", label: "Content/mo" }],
     groups: [
       { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["8 Website Re-analyses / month", "6 Competitor Reports / month", "3 Marketing Strategies / month", "10 AI Customer Personas / month"] },
       { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["100 Social Posts / month", "30 Email Campaigns / month", "30 AI Ad Creatives / month"] },
-      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["Video Blueprints included", "16 min 1080p — up to 64 × 15-sec", "2 min 4K — up to 8 × 15-sec premium"] },
+      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["AI Video Generation", "16 min 1080p — up to 64 × 15-sec", "2 min 4K — up to 8 × 15-sec premium"] },
       { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["2 AI Campaign Reports / month", "AI Campaign Builder", "Social Scheduling"] },
       { label: "Forge AI Agent", icon: <Bot className="w-3 h-3" />, isVideo: false, items: ["600 Forge AI Chats / month", "Priority Support"] },
     ],
   },
   {
-    name: "Growth", price: 199, color: "#14F195", highlight: false,
+    name: "Growth", price: 299, color: "#14F195", highlight: false,
     desc: "For teams serious about growth",
     stats: [{ value: "6", label: "Projects" }, { value: "50+8 min", label: "1080p+4K/mo" }, { value: "320", label: "Content/mo" }],
     groups: [
       { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["15 Website Re-analyses / month", "12 Competitor Reports / month", "6 Marketing Strategies / month", "20 AI Customer Personas / month", "Competitor Video Mining"] },
       { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["200 Social Posts / month", "60 Email Campaigns / month", "60 AI Ad Creatives / month"] },
-      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["Video Blueprints included", "50 min 1080p — up to 200 × 15-sec", "8 min 4K — up to 32 × 15-sec premium"] },
+      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["AI Video Generation", "50 min 1080p — up to 200 × 15-sec", "8 min 4K — up to 32 × 15-sec premium"] },
       { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["5 AI Campaign Reports / month", "White-Label Reports", "Dedicated Onboarding"] },
       { label: "Forge AI Agent", icon: <Bot className="w-3 h-3" />, isVideo: false, items: ["1,000 Forge AI Chats / month"] },
     ],
@@ -205,7 +205,7 @@ const PRICING = [
     groups: [
       { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["30 Website Re-analyses / month", "25 Competitor Reports / month", "15 Marketing Strategies / month", "50 AI Customer Personas / month"] },
       { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["400 Social Posts / month", "120 Email Campaigns / month", "120 AI Ad Creatives / month"] },
-      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["Video Blueprints included", "120 min 1080p — up to 480 × 15-sec", "20 min 4K — up to 80 × 15-sec premium"] },
+      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["AI Video Generation", "120 min 1080p — up to 480 × 15-sec", "20 min 4K — up to 80 × 15-sec premium"] },
       { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["10 AI Campaign Reports / month", "AI Managed Campaigns", "Autonomous Growth Mode"] },
       { label: "Agency Tools", icon: <Users2 className="w-3 h-3" />, isVideo: false, items: ["4,000 Forge AI Chats / month", "Team Members", "Dedicated Success Manager"] },
     ],
@@ -216,7 +216,7 @@ const FAQ = [
   { q: "What is GrowthForge?", a: "GrowthForge is an AI Growth Operating System built by Strapli Technologies. You paste your business website URL and it builds your entire marketing department in minutes — competitive intelligence, brand strategy, social and email content, video campaigns, ad creatives, and an AI agent that can execute tasks on demand. It replaces tools and headcount that would otherwise cost $150K+ per year." },
   { q: "How does GrowthForge work?", a: "Three steps: (1) Paste your website URL. (2) GrowthForge's AI reads your site, discovers your top competitors, identifies market gaps, and builds a complete marketing strategy tailored to your brand. (3) Use the strategy to generate content, videos, campaigns, and more — all in one place. No setup, no learning curve." },
   { q: "Do I need marketing experience?", a: "No. GrowthForge is built for founders, operators, and lean teams who want results without needing to hire a marketing director. The platform handles strategy, positioning, and execution — you just review and publish." },
-  { q: "What plans are available?", a: "GrowthForge offers four paid tiers: Starter ($29/mo, 1 project, 4 min video), Get-Going ($79/mo, 3 projects, 8+1 min 1080p+4K video), Growth ($199/mo, 6 projects, 25+4 min video), and Agency ($599/mo, 20 projects, 60+10 min video). All include a 14-day free trial. Paid billing is launching soon — join the early access waitlist for an exclusive launch discount." },
+  { q: "What plans are available?", a: "GrowthForge offers four paid tiers: Starter ($39/mo, 1 project, 8 min 1080p video), Get-Going ($99/mo, 3 projects, 16 min 1080p + 2 min 4K video), Growth ($299/mo, 6 projects, 50 min 1080p + 8 min 4K video), and Agency ($599/mo, 20 projects, 120 min 1080p + 20 min 4K video). All plans include AI video generation. Start with a free 14-day trial — no credit card required." },
   { q: "Can I analyze competitors?", a: "Yes. GrowthForge automatically discovers your top competitors, analyzes their positioning, identifies weaknesses in their messaging, and generates a full competitive report — including exactly how to position your brand to win against each one." },
   { q: "Can I generate written content?", a: "Yes. GrowthForge generates social media posts, email campaigns, ad copy, and ad creatives — all grounded in your actual business analysis and brand voice. Content is produced in batches so you always have a pipeline ready to publish." },
   { q: "How does video generation work?", a: "On the free trial, GrowthForge generates complete Video Blueprints — concept, hook, storyboard, scene-by-scene breakdown, voiceover script, and CTA — production-ready for any video creator. On paid plans, GrowthForge renders the actual video in 1080p (and 4K on higher tiers) using your brand assets, ready to post directly. Each plan includes a set number of rendered minutes per month (e.g. 8 min 1080p + 1 min 4K on Get-Going)." },
@@ -450,7 +450,6 @@ const ADMIN_NAV_LINKS = [
 ];
 
 export default function LandingPage() {
-  const [earlyAccessPlan, setEarlyAccessPlan] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("Analysis");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -1006,7 +1005,7 @@ export default function LandingPage() {
               <SectionLabel>Video Studio</SectionLabel>
               <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">Create Marketing Videos Faster</h2>
               <p className="text-white/50 text-lg leading-relaxed mb-4">
-                GrowthForge generates complete video production blueprints. No video editing experience required.
+                GrowthForge generates and renders marketing videos ready to post. Scripts, storyboards, and full production — no editing experience required.
               </p>
               <div className="grid grid-cols-2 gap-3 mb-6">
                 {VIDEO_FEATURES.map((f) => (
@@ -1083,9 +1082,9 @@ export default function LandingPage() {
             <p className="text-white/50 text-lg">Replace a $120K/year marketing team for a fraction of the cost.</p>
           </FadeIn>
           <FadeIn className="flex justify-center mb-10">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-amber-500/30 bg-amber-500/10">
-              <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="text-amber-400 text-sm font-semibold">Paid plans launching soon — start free today</span>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-[#00E676]/30 bg-[#00E676]/10">
+              <Check className="w-4 h-4 text-[#00E676] shrink-0" />
+              <span className="text-[#00E676] text-sm font-semibold">All plans include a 14-day free trial — no credit card required</span>
             </div>
           </FadeIn>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
@@ -1167,17 +1166,17 @@ export default function LandingPage() {
 
                     {/* CTA */}
                     <div className="flex flex-col gap-1.5 pt-1">
-                      <button
-                        onClick={() => setEarlyAccessPlan(plan.name)}
+                      <Link
+                        href="/sign-up"
                         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all hover:scale-[1.02] active:scale-[0.99]"
                         style={plan.highlight
                           ? { background: plan.color, color: "#040B14", boxShadow: `0 4px 20px ${plan.color}44` }
                           : { background: "transparent", color: plan.color, border: `1.5px solid ${plan.color}44` }
                         }
                       >
-                        <Bell className="w-3.5 h-3.5" /> Join Early Access
-                      </button>
-                      <p className="text-center text-[10px] text-white/20">Billing coming soon · No charge now</p>
+                        <ArrowRight className="w-3.5 h-3.5" /> Start Free Trial
+                      </Link>
+                      <p className="text-center text-[10px] text-white/20">14-day free trial · No credit card required</p>
                     </div>
                   </div>
                 </div>
@@ -1283,10 +1282,6 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* Early Access Modal */}
-      <AnimatePresence>
-        {earlyAccessPlan && <EarlyAccessModal plan={earlyAccessPlan} onClose={() => setEarlyAccessPlan(null)} />}
-      </AnimatePresence>
     </div>
   );
 }
