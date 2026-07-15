@@ -8,7 +8,7 @@ import { requireProjectOwnershipParam } from "../lib/authz.js";
 const router: IRouter = Router();
 router.param("id", requireProjectOwnershipParam());
 
-const GOOGLE_ADS_API   = "https://googleads.googleapis.com/v18";
+const GOOGLE_ADS_API   = "https://googleads.googleapis.com/v17";
 const GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SCOPE = "https://www.googleapis.com/auth/adwords";
@@ -124,6 +124,30 @@ router.get("/projects/:id/google-ads/status", async (req, res): Promise<void> =>
     oauthConfigured: clientSet,
     account: account ?? null,
   });
+});
+
+// ── Set customer ID manually ───────────────────────────────────────────────────
+
+router.post("/projects/:id/google-ads/customer-id", async (req, res): Promise<void> => {
+  const projectId = req.project!.id;
+  const { customerId } = req.body as { customerId?: string };
+  if (!customerId?.trim()) { res.status(400).json({ error: "customerId is required" }); return; }
+  const clean = customerId.trim().replace(/[^0-9]/g, "");
+  if (!clean) { res.status(400).json({ error: "customerId must be numeric" }); return; }
+
+  const [account] = await db.select({ id: connectedAdAccountsTable.id })
+    .from(connectedAdAccountsTable)
+    .where(and(
+      eq(connectedAdAccountsTable.projectId, projectId),
+      eq(connectedAdAccountsTable.provider, "google_ads"),
+    ));
+  if (!account) { res.status(404).json({ error: "Google Ads account not connected" }); return; }
+
+  await db.update(connectedAdAccountsTable)
+    .set({ customerId: clean, updatedAt: new Date() })
+    .where(eq(connectedAdAccountsTable.id, account.id));
+
+  res.json({ ok: true, customerId: clean });
 });
 
 // ── Auth URL ───────────────────────────────────────────────────────────────────

@@ -99,6 +99,26 @@ function GoogleAdsPanel({ projectId }: { projectId: number }) {
     onError: (err) => toast({ title: "Error", description: String(err), variant: "destructive" }),
   });
 
+  const [customerIdInput, setCustomerIdInput] = useState("");
+  const setCustomerIdMutation = useMutation({
+    mutationFn: async (cid: string) => {
+      const r = await fetch(`/api/projects/${projectId}/google-ads/customer-id`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customerId: cid }),
+      });
+      if (!r.ok) { const d = await r.json() as { error: string }; throw new Error(d.error); }
+      return r.json() as Promise<{ customerId: string }>;
+    },
+    onSuccess: () => {
+      toast({ title: "Account ID saved", description: "Click Sync Now to import your campaigns." });
+      setCustomerIdInput("");
+      statusQuery.refetch();
+    },
+    onError: (err) => toast({ title: "Error", description: String(err), variant: "destructive" }),
+  });
+
   const status = statusQuery.data;
   const loading = statusQuery.isLoading;
 
@@ -179,6 +199,29 @@ function GoogleAdsPanel({ projectId }: { projectId: number }) {
             </button>
           </div>
         </div>
+        {!status.account.customerId && (
+          <div className="mt-3 pt-3 border-t border-[#00E676]/10">
+            <p className="text-xs text-yellow-400/80 mb-2">
+              Account ID not detected automatically. Enter your Google Ads Customer ID (e.g. <code className="bg-black/20 px-1 rounded">549-416-8584</code>) to enable sync:
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={customerIdInput}
+                onChange={e => setCustomerIdInput(e.target.value)}
+                placeholder="e.g. 549-416-8584"
+                className="flex-1 bg-black/30 border border-border rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-muted-foreground focus:outline-none focus:border-[#00E676]/40"
+              />
+              <button
+                onClick={() => setCustomerIdMutation.mutate(customerIdInput)}
+                disabled={!customerIdInput.trim() || setCustomerIdMutation.isPending}
+                className="px-3 py-1.5 rounded-lg bg-[#00E676]/10 hover:bg-[#00E676]/20 border border-[#00E676]/20 text-[#00E676] text-xs font-bold transition-colors disabled:opacity-40"
+              >
+                {setCustomerIdMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+              </button>
+            </div>
+          </div>
+        )}
         {!status.devTokenConfigured && (
           <p className="mt-3 text-xs text-yellow-400/80">
             Your developer token is awaiting Google's approval. Once approved, add <code className="bg-black/20 px-1 rounded">GOOGLE_ADS_DEVELOPER_TOKEN</code> to Replit Secrets and click Sync.
