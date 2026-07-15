@@ -1,4 +1,5 @@
-- [Stripe connector settings key](stripe-connector-key.md) — Replit's Stripe connector exposes the secret as `settings.secret`, not `settings.secret_key` (skill template is wrong).
+- [Stripe connector settings key](stripe-connector-key.md) — Replit's Stripe connector exposes the secret as `settings.secret`, not `settings.secret_key` (skill template is wrong). NOTE: connector credential proxy often fails to propagate to the running server — prefer STRIPE_SECRET_KEY env var directly.
+- [Stripe products endpoint — fetch live not synced DB](stripe-products-live-fetch.md) — GET /stripe/products must call stripe.products.list() directly, not query stripe.products table; synced DB lags and reflects the wrong account if keys change.
 - [Stripe schema bootstrap](stripe-schema-bootstrap.md) — `runMigrations()` from stripe-replit-sync must succeed before any StripeSync call; first-time it may only create the schema but not tables — run once manually if startup fails.
 - [Trial AI spend cap methodology](trial-ai-spend-cap.md) — how to size per-feature quotas from worst-case token estimates to hit a total $ budget per trial; chat/classification cost adds up fast.
 - [Trial quota unit semantics](trial-quota-unit-semantics.md) — use singular vs. plural pricing-card wording to decide call-based vs. count-based quota consumption for batch-generating endpoints.

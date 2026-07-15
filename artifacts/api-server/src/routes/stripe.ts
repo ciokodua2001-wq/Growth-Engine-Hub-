@@ -18,7 +18,7 @@ const router = Router();
  */
 router.get("/stripe/products", async (_req, res) => {
   try {
-    const rows = await stripeStorage.listProductsWithPrices();
+    const stripe = getUncachableStripeClient();
 
     type ProductEntry = {
       id: string;
@@ -28,27 +28,37 @@ router.get("/stripe/products", async (_req, res) => {
       prices: Array<{ id: string; unit_amount: number; currency: string; recurring: unknown }>;
     };
 
+    const [productsPage, pricesPage] = await Promise.all([
+      stripe.products.list({ active: true, limit: 100 }),
+      stripe.prices.list({ active: true, limit: 100 }),
+    ]);
+
+    const pricesByProduct = new Map<string, typeof pricesPage.data>();
+    for (const price of pricesPage.data) {
+      const pid = typeof price.product === "string" ? price.product : price.product.id;
+      if (!pricesByProduct.has(pid)) pricesByProduct.set(pid, []);
+      pricesByProduct.get(pid)!.push(price);
+    }
+
     const map = new Map<string, ProductEntry>();
-    for (const row of rows) {
-      const productId = row.product_id as string;
-      if (!map.has(productId)) {
-        const meta = row.product_metadata as Record<string, string> | null;
-        map.set(productId, {
-          id: productId,
-          name: row.product_name as string,
-          description: (row.product_description as string) ?? "",
-          plan: meta?.plan ?? "",
-          prices: [],
-        });
-      }
-      if (row.price_id) {
-        map.get(productId)!.prices.push({
-          id: row.price_id as string,
-          unit_amount: row.unit_amount as number,
-          currency: row.currency as string,
-          recurring: row.recurring,
-        });
-      }
+    for (const product of productsPage.data) {
+      const meta = product.metadata as Record<string, string> | null;
+      if (!meta?.plan) continue; // skip non-GrowthForge products
+      const productPrices = (pricesByProduct.get(product.id) ?? [])
+        .filter((p) => p.recurring?.interval === "month")
+        .map((p) => ({
+          id: p.id,
+          unit_amount: p.unit_amount ?? 0,
+          currency: p.currency,
+          recurring: p.recurring,
+        }));
+      map.set(product.id, {
+        id: product.id,
+        name: product.name,
+        description: product.description ?? "",
+        plan: meta.plan,
+        prices: productPrices,
+      });
     }
 
     res.json({ products: Array.from(map.values()) });
@@ -163,86 +173,6 @@ router.get("/stripe/subscription", async (req, res) => {
   } catch (err) {
     logger.error({ err }, "GET /stripe/subscription failed");
     res.status(500).json({ error: "Failed to get subscription" });
-  }
-});
-
-/**
- * POST /stripe/internal/seed-plans
- * Localhost-only (127.0.0.1). Creates/updates the 4 GrowthForge products in Stripe
- * with correct prices and metadata.plan slugs. Safe to call multiple times.
- */
-router.post("/stripe/internal/seed-plans", async (req, res) => {
-  const remoteIp = req.socket.remoteAddress ?? "";
-  if (!remoteIp.includes("127.0.0.1") && !remoteIp.includes("::1") && !remoteIp.includes("::ffff:127")) {
-    res.status(403).json({ error: "Localhost only" });
-    return;
-  }
-
-  try {
-    const stripe = await getUncachableStripeClient();
-
-    const PLANS = [
-      { name: "Starter",   price: 3900,  slug: "starter"   },
-      { name: "Get-Going", price: 9900,  slug: "get-going"  },
-      { name: "Growth",    price: 29900, slug: "growth"     },
-      { name: "Agency",    price: 59900, slug: "agency"     },
-    ];
-
-    const results: unknown[] = [];
-
-    for (const plan of PLANS) {
-      const existing = await stripe.products.search({
-        query: `name:'${plan.name}' AND active:'true'`,
-      });
-
-      let productId: string;
-
-      if (existing.data.length > 0) {
-        const prod = existing.data[0];
-        productId = prod.id;
-        if (prod.metadata?.plan !== plan.slug) {
-          await stripe.products.update(productId, { metadata: { plan: plan.slug } });
-        }
-
-        const prices = await stripe.prices.list({ product: productId, active: true });
-        const correct = prices.data.find(
-          (p) => p.unit_amount === plan.price && p.recurring?.interval === "month",
-        );
-
-        if (!correct) {
-          for (const old of prices.data) {
-            await stripe.prices.update(old.id, { active: false });
-          }
-          const np = await stripe.prices.create({
-            product: productId,
-            unit_amount: plan.price,
-            currency: "usd",
-            recurring: { interval: "month" },
-          });
-          results.push({ plan: plan.name, action: "price_updated", priceId: np.id, amount: plan.price });
-        } else {
-          results.push({ plan: plan.name, action: "ok", priceId: correct.id, amount: plan.price });
-        }
-      } else {
-        const product = await stripe.products.create({
-          name: plan.name,
-          metadata: { plan: plan.slug },
-        });
-        productId = product.id;
-        const price = await stripe.prices.create({
-          product: productId,
-          unit_amount: plan.price,
-          currency: "usd",
-          recurring: { interval: "month" },
-        });
-        results.push({ plan: plan.name, action: "created", productId, priceId: price.id, amount: plan.price });
-      }
-    }
-
-    res.json({ ok: true, results });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    res.status(500).json({ error: message });
   }
 });
 
