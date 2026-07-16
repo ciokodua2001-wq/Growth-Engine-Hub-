@@ -78,7 +78,7 @@ export default function ProjectAgent() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { data: history, isLoading } = useGetAgentHistory(projectId, { query: { enabled: !!projectId } });
+  const { data: history, isLoading } = useGetAgentHistory(projectId, { query: { queryKey: getGetAgentHistoryQueryKey(projectId), enabled: !!projectId } });
   const { usage, refetch: refetchUsage } = useTrialUsage(projectId);
   const agentChat = useAgentChat();
   const queryClient = useQueryClient();

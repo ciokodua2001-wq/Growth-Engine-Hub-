@@ -6,6 +6,7 @@ import {
   useSendEmail,
   useGetProject,
   useGetEmailSendConfig,
+  getGetProjectQueryKey,
   getListEmailsQueryKey,
 } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -334,8 +335,8 @@ export default function ProjectEmail() {
   const [sendingEmail, setSendingEmail] = useState<{ id: number; subject: string } | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
-  const { data: emails, isLoading } = useListEmails(projectId, { query: { enabled: !!projectId } });
+  const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
+  const { data: emails, isLoading } = useListEmails(projectId, { query: { queryKey: getListEmailsQueryKey(projectId), enabled: !!projectId } });
   const canScheduleFeature = ["get-going", "growth", "agency"].includes(project?.plan ?? "");
   const generateEmails = useGenerateEmails();
   const queryClient = useQueryClient();

@@ -1,5 +1,5 @@
 import { useParams } from "wouter";
-import { useGetProject } from "@workspace/api-client-react";
+import { useGetProject, getGetProjectQueryKey } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { Loader2, Users, UserPlus, Mail, Trash2, Crown, Clock, CheckCircle2, XCircle, Send, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -36,7 +36,7 @@ function StatusBadge({ status }: { status: TeamMember["status"] }) {
 export default function ProjectTeam() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
-  const { data: project, isLoading: projectLoading } = useGetProject(projectId, { query: { enabled: !!projectId } });
+  const { data: project, isLoading: projectLoading } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
   const { toast } = useToast();
 
   const [members, setMembers] = useState<TeamMember[]>([]);

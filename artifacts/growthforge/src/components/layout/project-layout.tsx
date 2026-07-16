@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { useGetProject } from "@workspace/api-client-react";
+import { useGetProject, getGetProjectQueryKey } from "@workspace/api-client-react";
 import { TrialBanner } from "@/components/ui/trial-banner";
 import { TrialStatusPanel } from "@/components/ui/trial-status-panel";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -75,7 +75,7 @@ export default function ProjectLayout({ projectId, children }: ProjectLayoutProp
   const [location] = useLocation();
   const [trialInfo, setTrialInfo] = useState<{ subscriptionStatus?: string; trialEndsAt?: string } | null>(null);
   const id = parseInt(projectId, 10);
-  const { data: project } = useGetProject(id, { query: { enabled: !!id } });
+  const { data: project } = useGetProject(id, { query: { queryKey: getGetProjectQueryKey(id), enabled: !!id } });
 
   useEffect(() => {
     fetch("/api/auth/me")

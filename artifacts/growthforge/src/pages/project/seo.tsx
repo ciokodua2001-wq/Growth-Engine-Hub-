@@ -7,7 +7,7 @@ import {
   Globe, Bot, TrendingUp, MapPin, Shield, Link, Lightbulb,
   AlertTriangle, CheckCircle2, Target, Calendar, Star, ExternalLink,
 } from "lucide-react";
-import { useGetProject } from "@workspace/api-client-react";
+import { useGetProject, getGetProjectQueryKey } from "@workspace/api-client-react";
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -419,7 +419,7 @@ export default function ProjectSeo() {
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState("");
 
-  const { data: project } = useGetProject(id, { query: { enabled: !!id } });
+  const { data: project } = useGetProject(id, { query: { queryKey: getGetProjectQueryKey(id), enabled: !!id } });
   const plan = project?.plan ?? "trial";
   const isTrialOrMissing = plan === "trial";
 

@@ -684,7 +684,7 @@ export default function ProjectCampaigns() {
   const [showModal, setShowModal] = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
   const queryClient = useQueryClient();
-  const { data: campaigns, isLoading } = useListCampaigns(projectId, { query: { enabled: !!projectId } });
+  const { data: campaigns, isLoading } = useListCampaigns(projectId, { query: { queryKey: getListCampaignsQueryKey(projectId), enabled: !!projectId } });
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full">

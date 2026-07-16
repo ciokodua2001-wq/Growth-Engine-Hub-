@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams } from "wouter";
-import { useListSocialPosts, useListEmails } from "@workspace/api-client-react";
+import { useListSocialPosts, useListEmails, getListSocialPostsQueryKey, getListEmailsQueryKey } from "@workspace/api-client-react";
 import type { SocialPost, EmailCampaign } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, CalendarDays, Share2, Mail, Loader2 } from "lucide-react";
@@ -55,8 +55,8 @@ export default function ProjectCalendar() {
   const [month, setMonth] = useState(now.getMonth());
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
-  const { data: socialPosts, isLoading: postsLoading } = useListSocialPosts(projectId, { query: { enabled: !!projectId } });
-  const { data: emails, isLoading: emailsLoading } = useListEmails(projectId, { query: { enabled: !!projectId } });
+  const { data: socialPosts, isLoading: postsLoading } = useListSocialPosts(projectId, { query: { queryKey: getListSocialPostsQueryKey(projectId), enabled: !!projectId } });
+  const { data: emails, isLoading: emailsLoading } = useListEmails(projectId, { query: { queryKey: getListEmailsQueryKey(projectId), enabled: !!projectId } });
 
   const scheduledPosts = ((socialPosts ?? []) as ScheduledPost[]).filter(p => !!p.scheduledAt);
   const scheduledEmails = ((emails ?? []) as ScheduledEmail[]).filter(e => !!e.scheduledAt);

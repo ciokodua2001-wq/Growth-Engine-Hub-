@@ -1,0 +1,95 @@
+Thanks for the readiness audit. A few follow-ups and action items from my side before we consider the platform launch-ready.
+
+Stripe Billing & Plan Enforcement
+
+You confirmed Stripe billing is working across the current plan tiers, but I want to ensure this verification extends across all five plans, including:
+
+Trial
+Starter
+Growth
+Get-Going
+Agency
+
+Please validate that subscription creation, upgrades, downgrades, renewals, cancellations, quota enforcement, feature access, and billing logic are functioning correctly for every tier. I want confidence that customers receive exactly the features and limits associated with their selected plan and that there are no gaps in entitlement enforcement across any plan.
+
+Google Ads API Credentials
+
+The missing Google Ads API credentials are expected and remain part of the Coming Soon roadmap. As such, I do not consider this a launch blocker at this stage.
+
+Video Rendering & Output Validation
+
+I will be actively testing the video rendering pipeline and associated API keys to ensure everything is functioning correctly in production conditions.
+
+My focus will be on:
+
+Successful render execution
+API authentication and connectivity
+Render completion reliability
+Output quality and consistency
+Presenter mode behavior
+Combined mode behavior
+Multiple video generation scenarios
+Edge-case rendering tests
+
+Additionally, I want to specifically validate the recently updated 70% centered floating presenter layout through multiple real Shotstack renders. While the implementation logic appears solid, I want to confirm the compositor behaves correctly and that the final visual output looks polished and professional across different use cases.
+
+TypeScript Cleanup
+
+Regarding the 36 existing TypeScript errors, I do not believe this should be postponed until after launch.
+
+While these issues may not currently impact runtime behavior, they represent avoidable technical debt and could mask future regressions or make debugging more difficult.
+
+Let's clean these up now, before launch.
+
+Specifically:
+
+Resolve missing queryKey issues.
+Resolve colorText type mismatches.
+Eliminate all current TypeScript errors and warnings.
+Ensure the project passes a clean type check.
+Establish a clean baseline for future development.
+
+A production-ready launch candidate should ideally have zero known TypeScript errors.
+
+Pricing Page vs Feature & Quota Enforcement Audit
+
+I would also like a complete audit of the pricing page against backend enforcement.
+
+Please verify that every feature, entitlement, and quota advertised on /plans maps accurately to the corresponding backend configuration for all five plans:
+
+Trial
+Starter
+Growth
+Get-Going
+Agency
+
+Specifically, confirm that:
+
+Every advertised feature has backend enforcement.
+Every AI capability has a corresponding quota entry.
+Trial quotas are accurate and enforced.
+Starter quotas are accurate and enforced.
+Growth quotas are accurate and enforced.
+Get-Going quotas are accurate and enforced.
+Agency quotas are accurate and enforced.
+No feature appears on the pricing page without an entitlement check.
+No backend entitlement exists that is missing from pricing documentation.
+Upgrade paths unlock the correct features and limits.
+Quota consumption behaves correctly across all subscription levels.
+
+I would like this review completed now so that any inconsistencies can be identified and resolved before launch.
+
+Launch Readiness Priorities
+
+My remaining priorities before launch are:
+
+Verify billing, subscriptions, entitlements, and quota enforcement across Trial, Starter, Growth, Get-Going, and Agency.
+Clean up all existing TypeScript errors immediately.
+Validate actual video generation quality through multiple render tests.
+Confirm the new combined-mode presenter layout renders correctly in production.
+Complete a full pricing-to-entitlement-to-quota audit across all plans.
+Ensure all advertised features have matching backend enforcement and quota definitions.
+
+Once these items are completed, we should have significantly stronger confidence in the platform's technical stability, customer experience, monetization accuracy, and overall launch readiness.
+
+Provide your feedback on BizChat

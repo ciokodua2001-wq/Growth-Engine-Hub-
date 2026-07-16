@@ -4,6 +4,7 @@ import {
   useGetMarketingStrategy,
   useGenerateMarketingStrategy,
   useGetProject,
+  getGetProjectQueryKey,
   getGetMarketingStrategyQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
@@ -37,8 +38,8 @@ export default function ProjectStrategy() {
   const projectId = parseInt(params.projectId, 10);
   const [modalOpen, setModalOpen] = useState(false);
 
-  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
-  const { data: strategy, isLoading } = useGetMarketingStrategy(projectId, { query: { enabled: !!projectId } });
+  const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
+  const { data: strategy, isLoading } = useGetMarketingStrategy(projectId, { query: { queryKey: getGetMarketingStrategyQueryKey(projectId), enabled: !!projectId } });
   const generateStrategy = useGenerateMarketingStrategy();
   const queryClient = useQueryClient();
 

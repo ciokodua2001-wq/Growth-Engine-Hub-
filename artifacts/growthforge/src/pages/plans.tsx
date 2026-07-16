@@ -17,8 +17,8 @@ const TRIAL_FEATURES = [
   "3 AI Customer Personas",
   "10 Social Posts",
   "2 Email Campaigns",
-  "6 Video Blueprints (scripts — no rendering)",
-  "10 Forge AI Chats",
+  "3 Video Blueprints (scripts, no rendering)",
+  "40 Forge AI Chats",
   "Full Dashboard Access",
 ];
 

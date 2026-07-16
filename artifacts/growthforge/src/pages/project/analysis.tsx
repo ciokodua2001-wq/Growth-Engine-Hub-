@@ -8,6 +8,7 @@ import {
   getGetBusinessAnalysisQueryKey,
   getListPersonasQueryKey,
   useGetProject,
+  getGetProjectQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
@@ -49,9 +50,9 @@ export default function ProjectAnalysis() {
   const [analyzeModalOpen, setAnalyzeModalOpen] = useState(false);
   const [personaModalOpen, setPersonaModalOpen] = useState(false);
 
-  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
-  const { data: analysis, isLoading } = useGetBusinessAnalysis(projectId, { query: { enabled: !!projectId } });
-  const { data: personas, isLoading: personasLoading } = useListPersonas(projectId, { query: { enabled: !!projectId } });
+  const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
+  const { data: analysis, isLoading } = useGetBusinessAnalysis(projectId, { query: { queryKey: getGetBusinessAnalysisQueryKey(projectId), enabled: !!projectId } });
+  const { data: personas, isLoading: personasLoading } = useListPersonas(projectId, { query: { queryKey: getListPersonasQueryKey(projectId), enabled: !!projectId } });
   const analyzeWebsite = useAnalyzeWebsite();
   const generatePersonas = useGeneratePersonas();
   const queryClient = useQueryClient();

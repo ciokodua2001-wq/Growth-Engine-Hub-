@@ -24,8 +24,8 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     video_blueprints: 10,
     agent_messages: 200,
     image_generation: 15,
-    // 1 project → 1 SEO strategy per billing period (matches project limit)
     seo_strategy: 1,
+    campaign_reports: 1,
   },
   "get-going": {
     analysis: 8,
@@ -39,8 +39,8 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     video_blueprints: 30,
     agent_messages: 600,
     image_generation: 30,
-    // 3 projects → up to 3 SEO strategies per billing period
     seo_strategy: 3,
+    campaign_reports: 2,
   },
   growth: {
     analysis: 15,
@@ -54,8 +54,8 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     video_blueprints: 60,
     agent_messages: 1000,
     image_generation: 60,
-    // 6 projects → up to 6 SEO strategies per billing period
     seo_strategy: 6,
+    campaign_reports: 5,
   },
   agency: {
     analysis: 30,
@@ -69,8 +69,8 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     video_blueprints: 120,
     agent_messages: 4000,
     image_generation: 120,
-    // 20 projects → up to 20 SEO strategies per billing period
     seo_strategy: 20,
+    campaign_reports: 10,
   },
 };
 
@@ -96,6 +96,7 @@ const FEATURE_LABELS: Record<PlanFeature, string> = {
   agent_messages: "Forge AI messages",
   image_generation: "AI image generation",
   seo_strategy: "AI SEO Strategy generation",
+  campaign_reports: "AI campaign report",
 };
 
 const PLAN_TIER_ORDER = ["trial", "starter", "get-going", "growth", "agency"] as const;

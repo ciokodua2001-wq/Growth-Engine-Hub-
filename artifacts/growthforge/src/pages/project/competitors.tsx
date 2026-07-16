@@ -6,6 +6,7 @@ import {
   useGetCompetitorReport,
   useGenerateCompetitorReport,
   useGetProject,
+  getGetProjectQueryKey,
   getListCompetitorsQueryKey,
   getGetCompetitorReportQueryKey,
 } from "@workspace/api-client-react";
@@ -52,9 +53,9 @@ export default function ProjectCompetitors() {
   const [discoverModalOpen, setDiscoverModalOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
 
-  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
-  const { data: competitors, isLoading } = useListCompetitors(projectId, { query: { enabled: !!projectId } });
-  const { data: report } = useGetCompetitorReport(projectId, { query: { enabled: !!projectId } });
+  const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
+  const { data: competitors, isLoading } = useListCompetitors(projectId, { query: { queryKey: getListCompetitorsQueryKey(projectId), enabled: !!projectId } });
+  const { data: report } = useGetCompetitorReport(projectId, { query: { queryKey: getGetCompetitorReportQueryKey(projectId), enabled: !!projectId } });
   const discoverCompetitors = useDiscoverCompetitors();
   const generateReport = useGenerateCompetitorReport();
   const queryClient = useQueryClient();

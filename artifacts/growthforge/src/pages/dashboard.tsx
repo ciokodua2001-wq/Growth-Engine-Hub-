@@ -233,7 +233,7 @@ export default function DashboardPage() {
             </nav>
             <UserButton
               appearance={{
-                variables: { colorPrimary: "#00E676", colorText: "#ffffff" },
+                variables: { colorPrimary: "#00E676" },
                 elements: {
                   userButtonPopoverActionButtonText: { color: "#FFD600" },
                   userButtonPopoverActionButtonIcon: { color: "#FFD600" },

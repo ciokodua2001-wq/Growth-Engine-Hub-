@@ -5,6 +5,7 @@ import {
   useGenerateContent,
   useDeleteContent,
   useGetProject,
+  getGetProjectQueryKey,
   getListContentQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
@@ -56,8 +57,8 @@ export default function ProjectContent() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
-  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
-  const { data: content, isLoading } = useListContent(projectId, { query: { enabled: !!projectId } });
+  const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
+  const { data: content, isLoading } = useListContent(projectId, { query: { queryKey: getListContentQueryKey(projectId), enabled: !!projectId } });
   const generateContent = useGenerateContent();
   const deleteContent = useDeleteContent();
   const queryClient = useQueryClient();

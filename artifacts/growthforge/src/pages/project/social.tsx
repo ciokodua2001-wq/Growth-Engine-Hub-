@@ -11,6 +11,9 @@ import {
   useGetMetaPages,
   useSelectMetaPage,
   getSocialPostStats,
+  getGetProjectQueryKey,
+  getGetContentCalendarQueryKey,
+  getGetMetaPagesQueryKey,
   getListSocialPostsQueryKey,
   getGetMetaConnectionQueryKey,
 } from "@workspace/api-client-react";
@@ -517,7 +520,7 @@ interface PagePickerModalProps {
 }
 
 function PagePickerModal({ token, projectId, currentPageId, onSuccess, onCancel, onAlreadyConnected }: PagePickerModalProps) {
-  const { data, isLoading, error } = useGetMetaPages({ token }, { query: { retry: false } });
+  const { data, isLoading, error } = useGetMetaPages({ token }, { query: { queryKey: getGetMetaPagesQueryKey({ token }), retry: false } });
   const selectPage = useSelectMetaPage();
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(currentPageId ?? null);
@@ -670,10 +673,10 @@ export default function ProjectSocial() {
   const [pagePickerToken, setPagePickerToken] = useState<string | null>(null);
   const [autoFetchingIds, setAutoFetchingIds] = useState<Set<number>>(new Set());
 
-  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
-  const { data: posts, isLoading } = useListSocialPosts(projectId, { query: { enabled: !!projectId } });
-  const { data: calendar } = useGetContentCalendar(projectId, { query: { enabled: !!projectId && view === "calendar" } });
-  const { data: metaConn, isLoading: metaLoading } = useGetMetaConnection(projectId, { query: { enabled: !!projectId } });
+  const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
+  const { data: posts, isLoading } = useListSocialPosts(projectId, { query: { queryKey: getListSocialPostsQueryKey(projectId), enabled: !!projectId } });
+  const { data: calendar } = useGetContentCalendar(projectId, { query: { queryKey: getGetContentCalendarQueryKey(projectId), enabled: !!projectId && view === "calendar" } });
+  const { data: metaConn, isLoading: metaLoading } = useGetMetaConnection(projectId, { query: { queryKey: getGetMetaConnectionQueryKey(projectId), enabled: !!projectId } });
   const { handles } = useSocialHandles(projectId);
   const disconnectMeta = useDisconnectMeta();
   const generatePosts = useGenerateSocialPosts();

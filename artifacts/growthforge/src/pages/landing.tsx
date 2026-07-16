@@ -245,12 +245,12 @@ const FOOTER_LINKS = {
 
 /* ─── Helpers ───────────────────────────────────────────────── */
 
-function FadeIn({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
+function FadeIn({ children, delay = 0, className = "", style }: { children: React.ReactNode; delay?: number; className?: string; style?: React.CSSProperties }) {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-60px" });
   return (
     <motion.div ref={ref} initial={{ opacity: 0, y: 28 }} animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.55, delay, ease: [0.22, 1, 0.36, 1] }} className={className}>
+      transition={{ duration: 0.55, delay, ease: [0.22, 1, 0.36, 1] }} className={className} style={style}>
       {children}
     </motion.div>
   );
@@ -496,7 +496,7 @@ export default function LandingPage() {
               </div>
               <div className="flex items-center gap-3">
                 <UserButton appearance={{
-                  variables: { colorPrimary: "#00E676", colorText: "#ffffff" },
+                  variables: { colorPrimary: "#00E676" },
                   elements: {
                     userButtonPopoverActionButtonText: { color: "#FFD600" },
                     userButtonPopoverActionButtonIcon: { color: "#FFD600" },

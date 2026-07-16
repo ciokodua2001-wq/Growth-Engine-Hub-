@@ -4,6 +4,7 @@ import {
   useListReports,
   useGenerateReport,
   getListReportsQueryKey,
+  getGetProjectAnalyticsQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,8 +17,8 @@ export default function ProjectAnalytics() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
   const [expandedReport, setExpandedReport] = useState<number | null>(null);
-  const { data: analytics, isLoading } = useGetProjectAnalytics(projectId, { query: { enabled: !!projectId } });
-  const { data: reports } = useListReports(projectId, { query: { enabled: !!projectId } });
+  const { data: analytics, isLoading } = useGetProjectAnalytics(projectId, { query: { queryKey: getGetProjectAnalyticsQueryKey(projectId), enabled: !!projectId } });
+  const { data: reports } = useListReports(projectId, { query: { queryKey: getListReportsQueryKey(projectId), enabled: !!projectId } });
   const generateReport = useGenerateReport();
   const queryClient = useQueryClient();
   const { toast } = useToast();

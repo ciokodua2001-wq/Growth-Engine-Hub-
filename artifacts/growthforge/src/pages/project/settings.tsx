@@ -18,7 +18,7 @@ const ACCENT_PRESETS = [
 export default function ProjectSettings() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
-  const { data: project, isLoading } = useGetProject(projectId, { query: { enabled: !!projectId } });
+  const { data: project, isLoading } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
   const updateProject = useUpdateProject();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -36,7 +36,7 @@ export default function ProjectSettings() {
     if (project) {
       setName(project.name);
       setWebsiteUrl(project.websiteUrl);
-      setAutonomousMode(project.autonomousMode);
+      setAutonomousMode(project.autonomousMode ?? false);
       setBrandingCompanyName(project.brandingCompanyName ?? "");
       setBrandingAccentColor(project.brandingAccentColor ?? "#00E676");
     }

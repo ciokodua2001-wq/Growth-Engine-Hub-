@@ -4,6 +4,7 @@ import {
   useListAds,
   useGenerateAds,
   useGetProject,
+  getGetProjectQueryKey,
   getListAdsQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
@@ -54,8 +55,8 @@ export default function ProjectAds() {
   const [selectedPlatform, setSelectedPlatform] = useState("Meta");
   const [modalOpen, setModalOpen] = useState(false);
 
-  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
-  const { data: ads, isLoading } = useListAds(projectId, { query: { enabled: !!projectId } });
+  const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
+  const { data: ads, isLoading } = useListAds(projectId, { query: { queryKey: getListAdsQueryKey(projectId), enabled: !!projectId } });
   const generateAds = useGenerateAds();
   const queryClient = useQueryClient();
 

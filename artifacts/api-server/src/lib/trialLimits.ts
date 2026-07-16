@@ -38,6 +38,8 @@ export const TRIAL_LIMITS = {
   image_generation: 5,
   // SEO Strategy Builder is a paid-only feature; trial quota = 0 blocks it entirely.
   seo_strategy: 0,
+  // Campaign reports are paid-only (requireActiveSubscription gate); quota = 0 blocks trial entirely.
+  campaign_reports: 0,
 } as const;
 
 export type TrialFeature = keyof typeof TRIAL_LIMITS;
@@ -55,6 +57,7 @@ const FEATURE_LABELS: Record<TrialFeature, string> = {
   agent_messages: "Forge AI messages",
   image_generation: "AI image generation",
   seo_strategy: "AI SEO Strategy Builder",
+  campaign_reports: "AI campaign report",
 };
 
 const FEATURE_UNITS: Record<TrialFeature, string> = {
@@ -70,6 +73,7 @@ const FEATURE_UNITS: Record<TrialFeature, string> = {
   agent_messages: "message",
   image_generation: "image",
   seo_strategy: "strategy",
+  campaign_reports: "report",
 };
 
 /** Trial-plan video blueprint batches are capped smaller than the platform's normal

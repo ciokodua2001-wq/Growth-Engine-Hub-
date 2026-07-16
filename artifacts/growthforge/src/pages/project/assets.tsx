@@ -1,5 +1,5 @@
 import { useParams } from "wouter";
-import { useListAssets } from "@workspace/api-client-react";
+import { useListAssets, getListAssetsQueryKey } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { Loader2, FolderOpen, Video, Image, FileText, Mail, Rss } from "lucide-react";
 
@@ -22,7 +22,7 @@ const typeColors: Record<string, string> = {
 export default function ProjectAssets() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
-  const { data: assets, isLoading } = useListAssets(projectId, { query: { enabled: !!projectId } });
+  const { data: assets, isLoading } = useListAssets(projectId, { query: { queryKey: getListAssetsQueryKey(projectId), enabled: !!projectId } });
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full">

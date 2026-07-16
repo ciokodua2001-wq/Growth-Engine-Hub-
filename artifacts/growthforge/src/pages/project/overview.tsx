@@ -4,6 +4,7 @@ import {
   useGetProject,
   useGetProjectDashboard,
   useAnalyzeWebsite,
+  getGetProjectQueryKey,
   getGetProjectDashboardQueryKey,
 } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -155,8 +156,8 @@ export default function ProjectOverview() {
   const [, setLocation] = useLocation();
   const [modalOpen, setModalOpen] = useState(false);
 
-  const { data: project } = useGetProject(projectId, { query: { enabled: !!projectId } });
-  const { data: dashboard, isLoading } = useGetProjectDashboard(projectId, { query: { enabled: !!projectId } });
+  const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
+  const { data: dashboard, isLoading } = useGetProjectDashboard(projectId, { query: { queryKey: getGetProjectDashboardQueryKey(projectId), enabled: !!projectId } });
   const analyzeWebsite = useAnalyzeWebsite();
   const queryClient = useQueryClient();
 

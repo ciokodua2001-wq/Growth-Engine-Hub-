@@ -343,6 +343,9 @@ router.post("/projects/:id/reports", requireActiveSubscription, async (req, res)
   const type = parsed.data.type;
   const period = parsed.data.period ?? "monthly";
 
+  const quota = await consumeQuota(projectId, "campaign_reports", 1);
+  if (!quota.allowed) { res.status(403).json({ error: quota.message }); return; }
+
   // kpiTrends stay algorithmically generated — there's no real ad platform/analytics
   // integration wired up, so these numbers can't be "real". The summary and
   // recommendations, however, are grounded in the project's actual business context
