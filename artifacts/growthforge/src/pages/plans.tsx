@@ -76,7 +76,7 @@ const PLANS: Plan[] = [
         icon: <Film className="w-3.5 h-3.5" />,
         label: "Video Studio",
         highlight: true,
-        items: ["10 Video Blueprints / month"],
+        items: ["10 Video Generations / month"],
       },
       {
         icon: <Bot className="w-3.5 h-3.5" />,
@@ -121,7 +121,7 @@ const PLANS: Plan[] = [
         icon: <Film className="w-3.5 h-3.5" />,
         label: "Video Studio",
         highlight: true,
-        items: ["30 Video Blueprints / month"],
+        items: ["30 Video Generations / month"],
       },
       {
         icon: <Bot className="w-3.5 h-3.5" />,
@@ -165,7 +165,7 @@ const PLANS: Plan[] = [
         icon: <Film className="w-3.5 h-3.5" />,
         label: "Video Studio",
         highlight: true,
-        items: ["60 Video Blueprints / month"],
+        items: ["60 Video Generations / month"],
       },
       {
         icon: <Bot className="w-3.5 h-3.5" />,
@@ -210,7 +210,7 @@ const PLANS: Plan[] = [
         icon: <Film className="w-3.5 h-3.5" />,
         label: "Video Studio",
         highlight: true,
-        items: ["120 Video Blueprints / month"],
+        items: ["120 Video Generations / month"],
       },
       {
         icon: <Users className="w-3.5 h-3.5" />,

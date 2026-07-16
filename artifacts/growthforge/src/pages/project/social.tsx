@@ -17,7 +17,7 @@ import {
 import type { SocialPost } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Share2, Zap, Calendar, Facebook, CheckCircle2, AlertCircle, Link2, Link2Off, Instagram, RefreshCw, ChevronRight, Heart, MessageCircle, Eye, Clock } from "lucide-react";
+import { Loader2, Share2, Zap, Calendar, Facebook, CheckCircle2, AlertCircle, Link2, Link2Off, Instagram, RefreshCw, ChevronRight, Heart, MessageCircle, Eye, Clock, AtSign, Copy, Check, Pencil } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 
 const platforms = ["linkedin", "instagram", "tiktok", "x", "facebook"];
@@ -132,6 +132,144 @@ function PublishButtons({
           Instagram
         </button>
       )}
+    </div>
+  );
+}
+
+// ── Social Handles (stored in localStorage per project) ────────────────────────
+
+type SocialHandles = Partial<Record<string, string>>;
+
+function useSocialHandles(projectId: number) {
+  const key = `gf_handles_${projectId}`;
+  const [handles, setHandles] = useState<SocialHandles>(() => {
+    try { return JSON.parse(localStorage.getItem(key) ?? "{}") as SocialHandles; } catch { return {}; }
+  });
+  const save = (next: SocialHandles) => {
+    setHandles(next);
+    localStorage.setItem(key, JSON.stringify(next));
+  };
+  return { handles, save };
+}
+
+
+function SocialHandlesPanel({ projectId }: { projectId: number }) {
+  const { handles, save } = useSocialHandles(projectId);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<SocialHandles>({});
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const hasAny = platforms.some(p => handles[p]);
+
+  const startEdit = () => { setDraft({ ...handles }); setEditing(true); };
+  const saveEdit = () => { save(draft); setEditing(false); };
+  const cancel = () => setEditing(false);
+
+  const copyHandle = (p: string) => {
+    const h = handles[p];
+    if (!h) return;
+    navigator.clipboard.writeText(h).then(() => {
+      setCopiedKey(p);
+      setTimeout(() => setCopiedKey(null), 1500);
+    });
+  };
+
+  return (
+    <div className="mb-6 rounded-xl border border-border bg-card/50 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3">
+        <AtSign className="h-4 w-4 text-primary shrink-0" />
+        <span className="text-sm font-semibold">Your Social Handles</span>
+        <div className="flex-1" />
+        {!editing && (
+          <button
+            onClick={startEdit}
+            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground border border-border hover:border-border/80 px-2.5 py-1 rounded-lg transition-colors"
+          >
+            <Pencil className="h-3 w-3" />
+            {hasAny ? "Edit" : "Add Handles"}
+          </button>
+        )}
+        {editing && (
+          <>
+            <button onClick={saveEdit} className="flex items-center gap-1.5 text-xs font-bold text-primary border border-primary/30 bg-primary/10 hover:bg-primary/20 px-3 py-1 rounded-lg transition-colors">
+              <Check className="h-3 w-3" /> Save
+            </button>
+            <button onClick={cancel} className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg transition-colors">Cancel</button>
+          </>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="px-4 pb-4 border-t border-border pt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {platforms.map(p => {
+            const colors = platformColors[p] ?? { bg: "bg-secondary", text: "text-muted-foreground", border: "border-border" };
+            return (
+              <div key={p} className="flex items-center gap-2">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border shrink-0 capitalize w-20 text-center ${colors.bg} ${colors.text} ${colors.border}`}>
+                  {p}
+                </span>
+                <input
+                  type="text"
+                  value={draft[p] ?? ""}
+                  onChange={e => setDraft(prev => ({ ...prev, [p]: e.target.value }))}
+                  placeholder="@handle"
+                  className="flex-1 min-w-0 bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40"
+                />
+              </div>
+            );
+          })}
+        </div>
+      ) : hasAny ? (
+        <div className="px-4 pb-3 border-t border-border pt-3 flex flex-wrap gap-2">
+          {platforms.filter(p => handles[p]).map(p => {
+            const colors = platformColors[p] ?? { bg: "bg-secondary", text: "text-muted-foreground", border: "border-border" };
+            return (
+              <button
+                key={p}
+                onClick={() => copyHandle(p)}
+                title={`Copy ${handles[p]}`}
+                className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all ${colors.bg} ${colors.text} ${colors.border} hover:opacity-80`}
+              >
+                {copiedKey === p ? <Check className="h-2.5 w-2.5" /> : <Copy className="h-2.5 w-2.5" />}
+                {handles[p]}
+                <span className="text-[9px] font-normal opacity-60 capitalize">({p})</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="px-4 pb-3 text-xs text-muted-foreground border-t border-border pt-3">
+          Add your @handles for each platform — they'll appear on every post card so you can copy them instantly when publishing.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PostHandleBadge({ handle, platform }: { handle: string; platform: string }) {
+  const [copied, setCopied] = useState(false);
+  const colors = platformColors[platform] ?? { bg: "bg-secondary", text: "text-muted-foreground", border: "border-border" };
+
+  const copy = () => {
+    navigator.clipboard.writeText(handle).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  return (
+    <div className="flex items-center gap-2 mb-3 py-2 px-2.5 rounded-lg bg-secondary/50 border border-border/50">
+      <AtSign className="h-3 w-3 text-muted-foreground shrink-0" />
+      <span className={`text-[11px] font-bold ${colors.text}`}>{handle}</span>
+      <span className="text-[10px] text-muted-foreground flex-1">your {platform} handle</span>
+      <button
+        onClick={copy}
+        title="Copy handle"
+        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+      >
+        {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+        {copied ? "Copied!" : "Copy"}
+      </button>
     </div>
   );
 }
@@ -536,6 +674,7 @@ export default function ProjectSocial() {
   const { data: posts, isLoading } = useListSocialPosts(projectId, { query: { enabled: !!projectId } });
   const { data: calendar } = useGetContentCalendar(projectId, { query: { enabled: !!projectId && view === "calendar" } });
   const { data: metaConn, isLoading: metaLoading } = useGetMetaConnection(projectId, { query: { enabled: !!projectId } });
+  const { handles } = useSocialHandles(projectId);
   const disconnectMeta = useDisconnectMeta();
   const generatePosts = useGenerateSocialPosts();
   const queryClient = useQueryClient();
@@ -656,6 +795,9 @@ export default function ProjectSocial() {
         </button>
       </div>
 
+      {/* Social Handles panel */}
+      <SocialHandlesPanel projectId={projectId} />
+
       {/* Meta connection banner */}
       {!metaLoading && (
         <div className={`mb-6 rounded-xl border p-4 flex items-center gap-4 ${isConnected ? "bg-blue-600/10 border-blue-500/20" : "bg-secondary/50 border-border"}`}>
@@ -768,6 +910,10 @@ export default function ProjectSocial() {
                   <p className="text-sm text-foreground leading-relaxed mb-3">{post.caption}</p>
                   {post.hashtags && <p className="text-xs text-primary/70 mb-2">{post.hashtags}</p>}
                   {post.cta && <p className="text-xs text-muted-foreground mb-3 italic">{post.cta}</p>}
+
+                  {handles[post.platform.toLowerCase()] && (
+                    <PostHandleBadge handle={handles[post.platform.toLowerCase()]!} platform={post.platform.toLowerCase()} />
+                  )}
 
                   <PublishButtons
                     postId={post.id}
