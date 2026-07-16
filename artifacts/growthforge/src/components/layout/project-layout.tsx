@@ -8,6 +8,7 @@ import {
   LayoutDashboard, Brain, Users2, Megaphone, FileText, Share2,
   Mail, Rss, Video, Target, FolderOpen, BarChart2, Bot, Settings,
   ChevronLeft, ChevronRight, Zap, ArrowLeft, Menu, X, CalendarDays,
+  SearchCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,7 @@ const navGroups = [
       { label: "Analysis", path: "analysis", icon: Brain },
       { label: "Competitors", path: "competitors", icon: Users2 },
       { label: "Strategy", path: "strategy", icon: Megaphone },
+      { label: "SEO Strategy", path: "seo", icon: SearchCheck },
     ],
   },
   {

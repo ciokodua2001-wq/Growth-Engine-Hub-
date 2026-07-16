@@ -61,6 +61,7 @@ const PLANS: Plan[] = [
           "2 Competitor Reports / month",
           "1 Marketing Strategy / month",
           "3 AI Customer Personas / month",
+          "1 AI SEO Strategy / month",
         ],
       },
       {
@@ -115,6 +116,7 @@ const PLANS: Plan[] = [
           "6 Competitor Reports / month",
           "3 Marketing Strategies / month",
           "10 AI Customer Personas / month",
+          "3 AI SEO Strategies / month",
         ],
       },
       {
@@ -141,8 +143,8 @@ const PLANS: Plan[] = [
         label: "Performance",
         items: [
           "2 AI Campaign Reports / month",
-          "AI Campaign Builder",
-          "Social Scheduling",
+          "AI Campaign Builder (Coming Soon)",
+          "Social Scheduling (Coming Soon)",
         ],
       },
       {
@@ -172,6 +174,7 @@ const PLANS: Plan[] = [
           "12 Competitor Reports / month",
           "6 Marketing Strategies / month",
           "20 AI Customer Personas / month",
+          "6 AI SEO Strategies / month",
           "Competitor Video Mining",
         ],
       },
@@ -231,6 +234,7 @@ const PLANS: Plan[] = [
           "25 Competitor Reports / month",
           "15 Marketing Strategies / month",
           "50 AI Customer Personas / month",
+          "20 AI SEO Strategies / month",
         ],
       },
       {
@@ -257,8 +261,8 @@ const PLANS: Plan[] = [
         label: "Performance",
         items: [
           "10 AI Campaign Reports / month",
-          "AI Managed Campaigns",
-          "Autonomous Growth Mode",
+          "AI Managed Campaigns (Coming Soon)",
+          "Autonomous Growth Mode (Coming Soon)",
         ],
       },
       {

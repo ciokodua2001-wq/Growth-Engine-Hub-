@@ -54,6 +54,7 @@ import ProjectAnalytics from "@/pages/project/analytics";
 import ProjectCalendar from "@/pages/project/calendar";
 import ProjectAgent from "@/pages/project/agent";
 import ProjectSettings from "@/pages/project/settings";
+import ProjectSeo from "@/pages/project/seo";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -260,6 +261,10 @@ function AppRoutes() {
               <Route
                 path="/projects/:projectId/agent"
                 component={ProjectAgent}
+              />
+              <Route
+                path="/projects/:projectId/seo"
+                component={ProjectSeo}
               />
               <Route
                 path="/projects/:projectId/settings"
