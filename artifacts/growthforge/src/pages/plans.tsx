@@ -44,7 +44,7 @@ const PLANS: Plan[] = [
   {
     slug: "starter",
     name: "Starter",
-    price: 39,
+    price: 29,
     color: "#00E676",
     description: "For solo founders and small businesses",
     stats: [
@@ -98,7 +98,7 @@ const PLANS: Plan[] = [
   {
     slug: "get-going",
     name: "Get-Going",
-    price: 99,
+    price: 79,
     color: "#00D4FF",
     highlight: "Most Popular",
     description: "For growing creators ready to scale",
@@ -157,7 +157,7 @@ const PLANS: Plan[] = [
   {
     slug: "growth",
     name: "Growth",
-    price: 299,
+    price: 199,
     color: "#14F195",
     description: "For teams serious about growth",
     stats: [
