@@ -1,0 +1,292 @@
+Subject: Minimax Credit Bank Architecture, Tracking, Reporting & Admin UI Recommendations
+
+I'm about to complete the purchase of Minimax credits and would like to revisit how we're handling Minimax within the Admin Credit Bank before we finalize the implementation.
+
+After reviewing the Minimax pricing model ($5 = 5,000 credits, $25 = 25,000 credits, $100 = 100,000 credits), I believe we should move away from using USD as the primary balance metric and instead use credits as the source of truth.
+
+BUSINESS CONTEXT
+
+Minimax operates on a credit-based model. Credits are the actual asset being purchased and consumed. Using USD as the primary balance metric can become inaccurate when:
+
+• Bonus credits are awarded
+• Gifted credits are added
+• Promotional credits are issued
+• Discounted purchases occur
+• Pricing changes in the future
+
+Because of this, I believe credits should be the primary internal unit of accounting and tracking.
+
+SYSTEM DESIGN RECOMMENDATION
+
+The system should be structured into three layers:
+
+====================================================
+1. PROVIDER LAYER (ADMIN ONLY)
+====================================================
+
+This is the operational layer used to manage Minimax.
+
+Track and store:
+
+• Credits Purchased
+• Credits Consumed
+• Credits Remaining
+
+Example:
+
+Purchased: 100,000 Credits
+Consumed: 25,000 Credits
+Remaining: 75,000 Credits
+
+Credits should be the source of truth for all Minimax balance calculations.
+
+====================================================
+2. FINANCIAL LAYER (ADMIN ONLY)
+====================================================
+
+Store purchase costs separately for accounting and profitability analysis.
+
+Example:
+
+100,000 Credits = $100
+
+Track:
+
+• Total USD Spent
+• Purchase History
+• Effective Cost Per Credit
+• Estimated Cost Consumed
+• Estimated Remaining Value
+
+This allows us to understand:
+
+• Infrastructure costs
+• Vendor spend
+• Customer profitability
+• Revenue vs. usage
+• Cost forecasting
+
+USD should be treated as a financial reporting metric, not as the operational balance.
+
+====================================================
+3. CUSTOMER LAYER (USER FACING)
+====================================================
+
+Customers should NOT see:
+
+• Credits
+• Credit balances
+• Provider costs
+• USD spend
+
+Instead, customers should continue seeing only usage-based metrics such as:
+
+• Minutes Generated
+• Minutes Consumed
+• Monthly Minutes Used
+• Remaining Minutes (if applicable)
+
+The platform should continue converting Minimax credit consumption into customer-facing usage metrics.
+
+Example:
+
+Minimax Credits
+        ↓
+Credits Consumed
+        ↓
+Video Generated
+        ↓
+Minutes Calculated
+        ↓
+Minutes Displayed to Customer
+
+This keeps the customer experience simple while allowing us to accurately manage provider costs behind the scenes.
+
+====================================================
+ADMIN CREDIT BANK UI RECOMMENDATION
+====================================================
+
+The current Minimax Top-Up modal uses:
+
+Amount (USD)
+
+I recommend replacing this with:
+
+Credits Added
+
+And optionally storing:
+
+Purchase Cost (USD)
+
+Example:
+
+Credits Added:
+25,000
+
+Purchase Cost (USD):
+$25
+
+Notes:
+Invoice #123
+
+This allows us to accurately track balances even when credits come from promotions, referrals, gifts, or discounted purchases.
+
+====================================================
+ADMIN DASHBOARD DISPLAY
+====================================================
+
+Suggested Minimax Card:
+
+Minimax (Video)
+
+Current Balance:
+75,000 Credits
+
+Estimated USD Value:
+~$75.00
+
+Credits Consumed:
+25,000
+
+Videos Generated:
+342
+
+Minutes Generated:
+1,126
+
+This provides operational visibility without losing financial reporting capabilities.
+
+====================================================
+REPORTING REQUIREMENTS
+====================================================
+
+Reporting should be treated as a core requirement and supported from day one.
+
+The system should allow reports for:
+
+• Daily
+• Weekly
+• Monthly
+• Quarterly
+• Annually
+• Year-to-Date
+• Custom Date Ranges
+
+Date filtering should support:
+
+Start Date
+End Date
+
+Examples:
+
+• January 1 – January 31
+• Q1 2026
+• Last 90 Days
+• Current Year
+• Custom Range
+
+====================================================
+REPORTING METRICS
+====================================================
+
+Credit Activity:
+
+• Credits Purchased
+• Credits Consumed
+• Credits Remaining
+
+Financial Activity:
+
+• USD Spent on Purchases
+• Estimated USD Consumed
+• Estimated USD Remaining
+
+Production Activity:
+
+• Videos Generated
+• Minutes Generated
+• Average Credits per Minute
+• Average Cost per Minute
+
+Operational Activity:
+
+• Top-Up History
+• Consumption History
+• Provider Utilization Trends
+
+====================================================
+EXAMPLE MONTHLY REPORT
+====================================================
+
+Minimax Usage Report
+July 2026
+
+Credits Purchased:
+100,000
+
+Credits Consumed:
+42,500
+
+Credits Remaining:
+57,500
+
+Purchase Cost:
+$100.00
+
+Estimated Cost Consumed:
+$42.50
+
+Videos Generated:
+184
+
+Minutes Generated:
+612
+
+Average Credits Per Minute:
+69.44
+
+Average Cost Per Minute:
+$0.069
+
+====================================================
+DATABASE / DATA MODEL REQUIREMENTS
+====================================================
+
+To support future reporting, auditing, and analytics, we should not simply update the current balance.
+
+Every transaction should be stored historically with timestamps.
+
+Credit Top-Up Record:
+
+• Date
+• Credits Added
+• Purchase Cost (USD)
+• Notes
+• Admin User
+
+Generation Event Record:
+
+• Date
+• Credits Consumed
+• Minutes Generated
+• Project
+• User
+• Video ID (if applicable)
+
+This will allow accurate reporting across any time period without requiring a future redesign.
+
+====================================================
+FINAL RECOMMENDATION
+====================================================
+
+My recommendation is:
+
+1. Use Credits as the primary balance and consumption unit for Minimax.
+2. Store USD separately for accounting and financial reporting.
+3. Continue showing only Minutes Consumed/Generated to customers.
+4. Keep Credits and USD metrics admin-only.
+5. Build reporting support from day one using timestamped historical records.
+6. Support monthly, quarterly, annual, and custom date-range reporting.
+7. Design the system so it remains accurate even if Minimax changes pricing or grants bonus/promotional credits in the future.
+
+Please review and provide your recommended implementation approach before we finalize the Minimax Credit Bank architecture.

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   RefreshCw, ExternalLink, CheckCircle, XCircle, AlertTriangle,
   Minus, ArrowUpCircle, ArrowDownCircle, ChevronDown, ChevronUp,
-  Plus, Settings,
+  Plus, Settings, BarChart2, Video, Clock, DollarSign, Zap,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/admin-layout";
 
@@ -29,6 +29,11 @@ interface BankProvider {
   pct: number | null; unit: string;
   alertThresholdPct: number; alertEmail: string | null; alertEnabled: boolean;
   note: string | null;
+  totalCreditsConsumed?: number | null;
+  totalUsdSpent?: number | null;
+  totalVideosGenerated?: number | null;
+  totalMinutesGenerated?: number | null;
+  costPerCredit?: number | null;
 }
 interface UnifiedData {
   anthropic:  SpendProvider;
@@ -40,6 +45,18 @@ interface UnifiedData {
 interface Transaction {
   id: number; provider: string; type: string; amount: number;
   balanceAfter: number; description: string; createdAt: string;
+  purchaseCostUsd?: number | null;
+  minutesGenerated?: number | null;
+  videosCount?: number | null;
+  projectId?: number | null;
+  videoId?: string | null;
+}
+interface MiniMaxReport {
+  creditsPurchased: number; creditsConsumed: number; creditsRemaining: number | null;
+  usdSpent: number; estimatedUsdConsumed: number; estimatedUsdRemaining: number | null;
+  videosGenerated: number; minutesGenerated: number;
+  avgCreditsPerMinute: number | null; avgCostPerMinute: number | null;
+  topupCount: number; deductionCount: number; costPerCredit: number;
 }
 
 /* ─── Helpers ────────────────────────────────────────────────── */
@@ -49,9 +66,15 @@ const COLORS: Record<string, string> = {
   minimax: "#00E676", shotstack: "#14F195",
 };
 
+function fmtUsd(n: number) {
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+}
+function fmtCredits(n: number) {
+  return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+}
 function fmtN(n: number, unit: string) {
-  if (unit === "USD") return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
-  return n.toLocaleString("en-US", { maximumFractionDigits: 0 }) + " " + unit;
+  if (unit === "USD") return fmtUsd(n);
+  return fmtCredits(n) + " " + unit;
 }
 
 function Bar({ pct, threshold = 30 }: { pct: number; threshold?: number }) {
@@ -71,7 +94,23 @@ function KeyBadge({ configured, valid }: { configured: boolean; valid: boolean |
     : <span className="text-red-400 text-xs flex items-center gap-1"><XCircle className="w-3 h-3" /> Key invalid</span>;
 }
 
+function StatBox({ label, value, sub, icon: Icon, color }: {
+  label: string; value: string; sub?: string; icon?: React.FC<{ className?: string }>; color?: string;
+}) {
+  return (
+    <div className="rounded-xl p-3 flex flex-col gap-0.5" style={{ background: "rgba(255,255,255,0.04)" }}>
+      <div className="flex items-center gap-1.5 text-white/35 text-[10px] uppercase tracking-wider mb-0.5">
+        {Icon && <Icon className="w-3 h-3" style={{ color }} />}
+        {label}
+      </div>
+      <div className="text-white font-bold text-sm leading-tight" style={color ? { color } : undefined}>{value}</div>
+      {sub && <div className="text-white/30 text-[10px] leading-tight">{sub}</div>}
+    </div>
+  );
+}
+
 function TxnList({ provider }: { provider: string }) {
+  const isMM = provider === "minimax";
   const { data, isLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/admin/credits/transactions", provider],
     queryFn: async () => {
@@ -85,19 +124,138 @@ function TxnList({ provider }: { provider: string }) {
   return (
     <div className="space-y-1 max-h-52 overflow-y-auto">
       {data.map((t) => (
-        <div key={t.id} className="flex items-center gap-3 px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
+        <div key={t.id} className="flex items-start gap-3 px-3 py-2 rounded-xl" style={{ background: "rgba(255,255,255,0.03)" }}>
           {t.type === "topup"
-            ? <ArrowUpCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            : <ArrowDownCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />}
+            ? <ArrowUpCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+            : <ArrowDownCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />}
           <div className="flex-1 min-w-0">
             <div className="text-white/60 text-xs truncate">{t.description}</div>
-            <div className="text-white/25 text-[10px]">{new Date(t.createdAt).toLocaleString()}</div>
+            <div className="text-white/25 text-[10px] flex gap-2 flex-wrap mt-0.5">
+              <span>{new Date(t.createdAt).toLocaleString()}</span>
+              {isMM && t.type === "topup" && t.purchaseCostUsd != null && (
+                <span className="text-emerald-300/50">{fmtUsd(t.purchaseCostUsd)} paid</span>
+              )}
+              {isMM && t.type === "deduction" && t.minutesGenerated != null && (
+                <span>{(t.minutesGenerated * 60).toFixed(0)}s video</span>
+              )}
+            </div>
           </div>
           <div className={`text-xs font-bold shrink-0 ${t.type === "topup" ? "text-emerald-400" : "text-red-400"}`}>
-            {t.type === "topup" ? "+" : "-"}{t.amount.toLocaleString("en-US", { maximumFractionDigits: 4 })}
+            {t.type === "topup" ? "+" : "-"}{fmtCredits(t.amount)}
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ─── MiniMax Report ─────────────────────────────────────────── */
+
+function MiniMaxReport() {
+  const today = new Date().toISOString().slice(0, 10);
+  const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  const [startDate, setStartDate] = useState(firstOfMonth);
+  const [endDate, setEndDate]     = useState(today);
+  const [trigger, setTrigger]     = useState(0);
+
+  const { data, isLoading, error } = useQuery<MiniMaxReport>({
+    queryKey: ["/api/admin/credits/reports/minimax", startDate, endDate, trigger],
+    queryFn: async () => {
+      const params = new URLSearchParams({ startDate, endDate });
+      const r = await fetch(`/api/admin/credits/reports/minimax?${params}`, { credentials: "include" });
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    },
+    enabled: trigger > 0,
+    staleTime: 30_000,
+  });
+
+  const presets = [
+    { label: "This Month", start: firstOfMonth, end: today },
+    {
+      label: "Last Month",
+      start: new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().slice(0, 10),
+      end:   new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().slice(0, 10),
+    },
+    {
+      label: "This Year",
+      start: `${new Date().getFullYear()}-01-01`,
+      end:   today,
+    },
+    {
+      label: "Last 90 Days",
+      start: new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10),
+      end:   today,
+    },
+  ];
+
+  return (
+    <div className="space-y-4 pt-3 border-t border-white/8">
+      <div className="flex flex-wrap gap-1.5">
+        {presets.map((p) => (
+          <button key={p.label}
+            onClick={() => { setStartDate(p.start); setEndDate(p.end); }}
+            className="px-2.5 py-1 rounded-lg text-[11px] border border-white/10 text-white/40 hover:text-white hover:border-white/25 transition-all">
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-2 items-end">
+        <div className="flex-1">
+          <label className="text-white/35 text-[10px] uppercase tracking-wider block mb-1">Start Date</label>
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg text-white text-sm border border-white/10 focus:border-white/30 outline-none"
+            style={{ background: "rgba(255,255,255,0.06)" }} />
+        </div>
+        <div className="flex-1">
+          <label className="text-white/35 text-[10px] uppercase tracking-wider block mb-1">End Date</label>
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg text-white text-sm border border-white/10 focus:border-white/30 outline-none"
+            style={{ background: "rgba(255,255,255,0.06)" }} />
+        </div>
+        <button onClick={() => setTrigger((t) => t + 1)} disabled={isLoading}
+          className="px-4 py-2 rounded-lg text-sm font-bold text-black transition-all hover:scale-[1.02] disabled:opacity-50"
+          style={{ background: "#00E676" }}>
+          {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : "Run"}
+        </button>
+      </div>
+
+      {trigger === 0 && (
+        <p className="text-white/20 text-xs text-center py-2">Select a date range and click Run to generate a report.</p>
+      )}
+
+      {error && <p className="text-red-400 text-xs">Failed to load report.</p>}
+
+      {data && trigger > 0 && (
+        <div className="space-y-3">
+          <p className="text-white/30 text-[10px] uppercase tracking-widest">Credit Activity</p>
+          <div className="grid grid-cols-3 gap-2">
+            <StatBox label="Purchased" value={fmtCredits(data.creditsPurchased)} icon={ArrowUpCircle} color="#00E676" />
+            <StatBox label="Consumed"  value={fmtCredits(data.creditsConsumed)}  icon={ArrowDownCircle} color="#ef4444" />
+            <StatBox label="Remaining" value={data.creditsRemaining != null ? fmtCredits(data.creditsRemaining) : "—"} icon={Zap} color="#00D4FF" />
+          </div>
+
+          <p className="text-white/30 text-[10px] uppercase tracking-widest">Financial Activity</p>
+          <div className="grid grid-cols-3 gap-2">
+            <StatBox label="USD Spent"  value={fmtUsd(data.usdSpent)} sub={`${data.topupCount} purchase${data.topupCount !== 1 ? "s" : ""}`} icon={DollarSign} color="#f59e0b" />
+            <StatBox label="Est. Consumed" value={fmtUsd(data.estimatedUsdConsumed)} icon={DollarSign} color="#ef4444" />
+            <StatBox label="Est. Remaining" value={data.estimatedUsdRemaining != null ? fmtUsd(data.estimatedUsdRemaining) : "—"} icon={DollarSign} color="#00E676" />
+          </div>
+
+          <p className="text-white/30 text-[10px] uppercase tracking-widest">Production Activity</p>
+          <div className="grid grid-cols-2 gap-2">
+            <StatBox label="Videos Generated" value={data.videosGenerated.toLocaleString()} sub={`${data.deductionCount} generation events`} icon={Video} color="#00E676" />
+            <StatBox label="Minutes Generated" value={data.minutesGenerated.toFixed(1)} icon={Clock} color="#00E676" />
+            {data.avgCreditsPerMinute != null && (
+              <StatBox label="Avg Credits / Min" value={data.avgCreditsPerMinute.toFixed(2)} />
+            )}
+            {data.avgCostPerMinute != null && (
+              <StatBox label="Avg Cost / Min" value={fmtUsd(data.avgCostPerMinute)} sub={`@ ${fmtUsd(data.costPerCredit)}/credit`} />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -209,16 +367,102 @@ function LiveCard({ p, provider }: { p: LiveProvider; provider: string }) {
   );
 }
 
-/* ─── Card: MiniMax / Shotstack (manual bank) ────────────────── */
+/* ─── MiniMax top-up modal ───────────────────────────────────── */
+
+function MiniMaxTopUpModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [credits, setCredits]         = useState("");
+  const [costUsd, setCostUsd]         = useState("");
+  const [notes, setNotes]             = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [err, setErr]                 = useState("");
+
+  async function submit() {
+    const c = parseFloat(credits);
+    if (!c || c <= 0) { setErr("Enter a positive number of credits"); return; }
+    setLoading(true); setErr("");
+    try {
+      const body: Record<string, unknown> = { credits: c, notes };
+      const cost = parseFloat(costUsd);
+      if (!isNaN(cost) && cost > 0) body.purchaseCostUsd = cost;
+
+      const r = await fetch("/api/admin/credits/bank/minimax/topup", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      onDone();
+    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Failed"); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)" }}>
+      <div className="w-full max-w-md rounded-2xl border border-white/10 p-6 space-y-4" style={{ background: "#0d1b2e" }}>
+        <div>
+          <div className="text-white font-bold text-lg">Top Up MiniMax (Video)</div>
+          <div className="text-white/35 text-xs mt-1">Credits are the primary balance unit · USD is tracked separately for accounting</div>
+        </div>
+
+        <div>
+          <label className="text-white/50 text-xs uppercase tracking-widest block mb-1.5">Credits Added <span className="text-red-400">*</span></label>
+          <input type="number" min="0" step="1" value={credits} onChange={(e) => setCredits(e.target.value)}
+            placeholder="e.g. 25000"
+            className="w-full px-4 py-3 rounded-xl text-white text-sm outline-none border border-white/10 focus:border-[#00E676]/50 transition-all"
+            style={{ background: "rgba(255,255,255,0.06)" }} />
+          <p className="text-white/25 text-[11px] mt-1">Enter the exact credits shown on MiniMax receipt (e.g. 5,000 / 25,000 / 100,000)</p>
+        </div>
+
+        <div>
+          <label className="text-white/50 text-xs uppercase tracking-widest block mb-1.5">Purchase Cost (USD) <span className="text-white/25">optional</span></label>
+          <input type="number" min="0" step="0.01" value={costUsd} onChange={(e) => setCostUsd(e.target.value)}
+            placeholder="e.g. 25.00"
+            className="w-full px-4 py-3 rounded-xl text-white text-sm outline-none border border-white/10 focus:border-[#00E676]/50 transition-all"
+            style={{ background: "rgba(255,255,255,0.06)" }} />
+          <p className="text-white/25 text-[11px] mt-1">Stored for financial reporting only — not used for balance tracking</p>
+        </div>
+
+        <div>
+          <label className="text-white/50 text-xs uppercase tracking-widest block mb-1.5">Notes (optional)</label>
+          <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)}
+            placeholder="e.g. MiniMax invoice #1234"
+            className="w-full px-4 py-3 rounded-xl text-white text-sm outline-none border border-white/10 focus:border-[#00E676]/50 transition-all"
+            style={{ background: "rgba(255,255,255,0.06)" }} />
+        </div>
+
+        {credits && costUsd && !isNaN(parseFloat(credits)) && !isNaN(parseFloat(costUsd)) && parseFloat(credits) > 0 && parseFloat(costUsd) > 0 && (
+          <div className="px-3 py-2.5 rounded-xl text-xs text-white/50 space-y-1" style={{ background: "rgba(0,230,118,0.06)", border: "1px solid rgba(0,230,118,0.12)" }}>
+            <p><span className="text-[#00E676] font-bold">{parseFloat(credits).toLocaleString()}</span> credits @ <span className="text-[#00E676] font-bold">{fmtUsd(parseFloat(costUsd) / parseFloat(credits))}</span> per credit</p>
+          </div>
+        )}
+
+        {err && <p className="text-red-400 text-sm">{err}</p>}
+        <div className="flex gap-3">
+          <button onClick={onClose}
+            className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold text-white/50 border border-white/10 hover:text-white hover:border-white/30 transition-all">
+            Cancel
+          </button>
+          <button onClick={submit} disabled={loading}
+            className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-black transition-all hover:scale-[1.02] disabled:opacity-50"
+            style={{ background: "#00E676" }}>
+            {loading ? "Adding…" : "Add Credits"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Generic top-up modal (Shotstack) ──────────────────────── */
 
 function TopUpModal({ provider, displayName, unit, onClose, onDone }: {
   provider: string; displayName: string; unit: string;
   onClose: () => void; onDone: () => void;
 }) {
   const [amount, setAmount] = useState("");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes]   = useState("");
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState("");
+  const [err, setErr]         = useState("");
 
   async function submit() {
     const n = parseFloat(amount);
@@ -228,7 +472,7 @@ function TopUpModal({ provider, displayName, unit, onClose, onDone }: {
       const r = await fetch(`/api/admin/credits/bank/${provider}/topup`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: n, notes }),
+        body: JSON.stringify({ credits: n, notes }),
       });
       if (!r.ok) throw new Error(await r.text());
       onDone();
@@ -271,12 +515,14 @@ function TopUpModal({ provider, displayName, unit, onClose, onDone }: {
   );
 }
 
+/* ─── Alert panel ────────────────────────────────────────────── */
+
 function AlertPanel({ provider, p, onSaved }: { provider: string; p: BankProvider; onSaved: () => void }) {
   const [threshold, setThreshold] = useState(String(p.alertThresholdPct));
-  const [email, setEmail] = useState(p.alertEmail ?? "");
-  const [enabled, setEnabled] = useState(p.alertEnabled);
-  const [loading, setLoading] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [email, setEmail]         = useState(p.alertEmail ?? "");
+  const [enabled, setEnabled]     = useState(p.alertEnabled);
+  const [loading, setLoading]     = useState(false);
+  const [saved, setSaved]         = useState(false);
 
   async function save() {
     setLoading(true);
@@ -324,22 +570,38 @@ function AlertPanel({ provider, p, onSaved }: { provider: string; p: BankProvide
   );
 }
 
+/* ─── Card: MiniMax / Shotstack (manual bank) ────────────────── */
+
 function BankCard({ p, provider, onRefresh }: { p: BankProvider; provider: string; onRefresh: () => void }) {
-  const [showTopUp, setShowTopUp] = useState(false);
-  const [showTxns, setShowTxns] = useState(false);
-  const [showAlert, setShowAlert] = useState(false);
-  const color = COLORS[provider] ?? "#00E676";
-  const isLow  = p.pct !== null && p.pct <= p.alertThresholdPct;
-  const isWarn = p.pct !== null && !isLow && p.pct <= p.alertThresholdPct * 1.5;
+  const [showTopUp, setShowTopUp]   = useState(false);
+  const [showTxns, setShowTxns]     = useState(false);
+  const [showAlert, setShowAlert]   = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const color   = COLORS[provider] ?? "#00E676";
+  const isLow   = p.pct !== null && p.pct <= p.alertThresholdPct;
+  const isWarn  = p.pct !== null && !isLow && p.pct <= p.alertThresholdPct * 1.5;
   const isEmpty = p.balance === null || p.totalAdded === 0;
+  const isMM    = provider === "minimax";
+
+  const estimatedUsd = isMM && p.balance != null && p.costPerCredit
+    ? p.balance * p.costPerCredit
+    : null;
+
+  function closeAll() { setShowTxns(false); setShowAlert(false); setShowReport(false); }
 
   return (
     <>
-      {showTopUp && (
+      {showTopUp && isMM && (
+        <MiniMaxTopUpModal
+          onClose={() => setShowTopUp(false)}
+          onDone={() => { setShowTopUp(false); onRefresh(); }} />
+      )}
+      {showTopUp && !isMM && (
         <TopUpModal provider={provider} displayName={p.displayName} unit={p.unit}
           onClose={() => setShowTopUp(false)}
           onDone={() => { setShowTopUp(false); onRefresh(); }} />
       )}
+
       <div className="rounded-2xl border p-5 space-y-4"
         style={{ background: "rgba(255,255,255,0.02)", borderColor: isLow ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.08)" }}>
         <div className="flex items-start justify-between gap-3">
@@ -374,35 +636,86 @@ function BankCard({ p, provider, onRefresh }: { p: BankProvider; provider: strin
             <p className="text-white/25">Click <strong className="text-white/40">Top Up</strong> once you've purchased credits.</p>
           </div>
         ) : (
-          <div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-white text-2xl font-black">{(p.balance ?? 0).toLocaleString()} <span className="text-base font-normal text-white/40">{p.unit}</span></span>
-              {p.pct !== null && <span className="text-white/40 text-xs">{p.pct}% remaining</span>}
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-baseline justify-between">
+                <div>
+                  <span className="text-white text-2xl font-black">{fmtCredits(p.balance ?? 0)}</span>
+                  <span className="text-base font-normal text-white/40 ml-1.5">credits</span>
+                  {estimatedUsd != null && (
+                    <div className="text-white/35 text-xs mt-0.5">
+                      ~{fmtUsd(estimatedUsd)} estimated value
+                      {p.costPerCredit && <span className="text-white/20 ml-1">@ {fmtUsd(p.costPerCredit)}/credit</span>}
+                    </div>
+                  )}
+                </div>
+                {p.pct !== null && <span className="text-white/40 text-xs">{p.pct}% remaining</span>}
+              </div>
+              {p.pct !== null && <Bar pct={p.pct} threshold={p.alertThresholdPct} />}
             </div>
-            {p.pct !== null && <Bar pct={p.pct} threshold={p.alertThresholdPct} />}
-            <div className="flex gap-4 mt-1.5 text-xs text-white/30">
-              {p.totalAdded !== null && <span>Purchased: {p.totalAdded.toLocaleString()}</span>}
-              {p.totalAdded !== null && p.balance !== null && <span>Used: {(p.totalAdded - p.balance).toLocaleString()}</span>}
-            </div>
-            {isLow  && <p className="text-red-400 text-xs mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Low — top up soon</p>}
-            {isWarn && <p className="text-amber-400 text-xs mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Getting low</p>}
+
+            {isMM ? (
+              <div className="grid grid-cols-3 gap-2">
+                <StatBox
+                  label="Consumed"
+                  value={fmtCredits(p.totalCreditsConsumed ?? 0)}
+                  sub="all time"
+                  icon={ArrowDownCircle}
+                  color="#ef4444"
+                />
+                <StatBox
+                  label="Videos"
+                  value={(p.totalVideosGenerated ?? 0).toLocaleString()}
+                  sub="generated"
+                  icon={Video}
+                  color={color}
+                />
+                <StatBox
+                  label="Minutes"
+                  value={(p.totalMinutesGenerated ?? 0).toFixed(1)}
+                  sub="generated"
+                  icon={Clock}
+                  color={color}
+                />
+              </div>
+            ) : (
+              <div className="flex gap-4 text-xs text-white/30">
+                {p.totalAdded !== null && <span>Purchased: {fmtCredits(p.totalAdded)}</span>}
+                {p.totalAdded !== null && p.balance !== null && (
+                  <span>Used: {fmtCredits(p.totalAdded - p.balance)}</span>
+                )}
+              </div>
+            )}
+
+            {isLow  && <p className="text-red-400 text-xs flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Low — top up soon</p>}
+            {isWarn && <p className="text-amber-400 text-xs flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Getting low</p>}
           </div>
         )}
 
-        <div className="flex gap-2">
-          <button onClick={() => { setShowTxns(!showTxns); setShowAlert(false); }}
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => { closeAll(); setShowTxns(!showTxns); }}
             className="flex items-center gap-1 text-xs text-white/30 hover:text-white/60 transition-all">
             {showTxns ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />} Usage log
           </button>
           <span className="text-white/15">·</span>
-          <button onClick={() => { setShowAlert(!showAlert); setShowTxns(false); }}
+          <button onClick={() => { closeAll(); setShowAlert(!showAlert); }}
             className="flex items-center gap-1 text-xs text-white/30 hover:text-white/60 transition-all">
             <Settings className="w-3 h-3" /> Alerts
           </button>
+          {isMM && (
+            <>
+              <span className="text-white/15">·</span>
+              <button onClick={() => { closeAll(); setShowReport(!showReport); }}
+                className="flex items-center gap-1 text-xs text-white/30 hover:text-white/60 transition-all">
+                <BarChart2 className="w-3 h-3" /> Report
+              </button>
+            </>
+          )}
         </div>
 
-        {showTxns && <TxnList provider={provider} />}
-        {showAlert && <AlertPanel provider={provider} p={p} onSaved={onRefresh} />}
+        {showTxns   && <TxnList provider={provider} />}
+        {showAlert  && <AlertPanel provider={provider} p={p} onSaved={onRefresh} />}
+        {showReport && isMM && <MiniMaxReport />}
       </div>
     </>
   );
@@ -500,7 +813,7 @@ export default function AdminCredits() {
             <p>🧠 <span className="text-white/55">Anthropic (Claude)</span> — Billed by Replit. We track estimated spend from token counts automatically — no action needed.</p>
             <p>🖼️ <span className="text-white/55">OpenAI</span> — Live API check. Balance shown if you're on a prepaid plan; pay-as-you-go shows key status only.</p>
             <p>🎙️ <span className="text-white/55">ElevenLabs</span> — Live character usage and monthly limit pulled directly from their API.</p>
-            <p>🎬 <span className="text-white/55">MiniMax</span> — Their API doesn't expose balance. Top up here after purchasing, and the system auto-deducts each video generation.</p>
+            <p>🎬 <span className="text-white/55">MiniMax</span> — Credits are the primary unit. Top up after purchasing, and the system auto-deducts credits + tracks minutes and video count per generation.</p>
             <p>⚙️ <span className="text-white/55">Shotstack</span> — Same as MiniMax. Top up here and the system tracks each render automatically.</p>
           </div>
         </div>

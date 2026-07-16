@@ -78,19 +78,31 @@ async function runRenderPipeline(
   let footageUrl: string | null = null;
   let avatarClipUrl: string | null = null;
 
-  // MiniMax charges in USD per generation (~$0.14 per 6-second video — estimate; verify on dashboard)
-  const MINIMAX_EST_USD = 0.14;
+  // MiniMax credit costs: $5 = 5,000 credits → 1 credit = $0.001; ~6-second clip ≈ 140 credits
+  const MINIMAX_CREDITS_PER_CLIP = 140;
+  const MINIMAX_SECONDS_PER_CLIP = 6;
+  const MINIMAX_MINUTES_PER_CLIP = MINIMAX_SECONDS_PER_CLIP / 60;
 
   if (mode === "footage" || mode === "combined") {
     footageUrl = await generateMiniMaxT2V(footagePrompt);
-    deductPlatformCredits("minimax", MINIMAX_EST_USD, `Text-to-video — video #${videoId} (est.)`).catch(() => {});
+    deductPlatformCredits("minimax", MINIMAX_CREDITS_PER_CLIP, `Text-to-video — video #${videoId}`, {
+      minutesGenerated: MINIMAX_MINUTES_PER_CLIP,
+      videosCount: 1,
+      projectId: video.projectId,
+      videoId: String(videoId),
+    }).catch(() => {});
   }
 
   if (mode === "avatar" || mode === "combined") {
     const photoPath = avatarPhotoPath ?? video.avatarPhotoPath;
     if (!photoPath) throw new Error("Avatar mode requires an uploaded avatar photo");
     avatarClipUrl = await generateMiniMaxI2V(photoPath, footagePrompt);
-    deductPlatformCredits("minimax", MINIMAX_EST_USD, `Image-to-video — video #${videoId} (est.)`).catch(() => {});
+    deductPlatformCredits("minimax", MINIMAX_CREDITS_PER_CLIP, `Image-to-video — video #${videoId}`, {
+      minutesGenerated: MINIMAX_MINUTES_PER_CLIP,
+      videosCount: 1,
+      projectId: video.projectId,
+      videoId: String(videoId),
+    }).catch(() => {});
   }
 
   // Step 3: Shotstack composition

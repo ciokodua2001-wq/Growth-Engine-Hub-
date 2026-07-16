@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { usersTable, platformCreditBanksTable, platformCreditTransactionsTable } from "@workspace/db";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, gte, lte } from "drizzle-orm";
 import { seedManualBanks } from "../lib/platformCredits.js";
 
 const router: IRouter = Router();
@@ -49,7 +49,6 @@ async function fetchOpenAIStatus() {
     });
     if (!r.ok) return { keyConfigured: true, keyValid: false, balance: null, used: null, limit: null, pct: null, note: null };
 
-    // Try prepaid credit grants (only works for prepaid accounts)
     const br = await fetch("https://api.openai.com/dashboard/billing/credit_grants", {
       headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8000),
     });
@@ -129,6 +128,11 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
     const ssPct   = ssBank && ssBank.peakBalance > 0 ? Math.round((ssBank.balance / ssBank.peakBalance) * 100) : null;
     const spend   = anthropicSpend[0] ?? { total: 0, monthly: 0 };
 
+    // Effective cost per credit for MiniMax (USD / credits purchased)
+    const mmCostPerCredit = mmBank && mmBank.totalAdded > 0 && mmBank.totalUsdSpent > 0
+      ? mmBank.totalUsdSpent / mmBank.totalAdded
+      : 0.001; // default: $5/5000 = $0.001/credit
+
     res.json({
       anthropic: {
         type: "spend",
@@ -170,16 +174,21 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
         displayName: "MiniMax (Video)", icon: "🎬",
         keyConfigured: miniMaxKey.keyConfigured,
         keyValid:      miniMaxKey.keyValid,
-        balance:       mmBank?.balance          ?? null,
-        peakBalance:   mmBank?.peakBalance      ?? null,
-        totalAdded:    mmBank?.totalAdded       ?? null,
+        balance:              mmBank?.balance             ?? null,
+        peakBalance:          mmBank?.peakBalance         ?? null,
+        totalAdded:           mmBank?.totalAdded          ?? null,
+        totalCreditsConsumed: mmBank?.totalCreditsConsumed ?? null,
+        totalUsdSpent:        mmBank?.totalUsdSpent        ?? null,
+        totalVideosGenerated: mmBank?.totalVideosGenerated ?? null,
+        totalMinutesGenerated: mmBank?.totalMinutesGenerated ?? null,
+        costPerCredit:        mmCostPerCredit,
         pct:           mmPct,
-        unit:          mmBank?.unit             ?? "generations",
+        unit:          "credits",
         alertThresholdPct: mmBank?.alertThresholdPct ?? 30,
         alertEmail:    mmBank?.alertEmail       ?? null,
         alertEnabled:  mmBank?.alertEnabled     ?? true,
         dashboardUrl: "https://platform.minimaxi.com/user-center/basic-information",
-        note: "MiniMax does not expose a token balance via API. Top up here after purchasing generations.",
+        note: "MiniMax does not expose a token balance via API. Top up here after purchasing credits.",
       },
       shotstack: {
         type: "bank",
@@ -212,25 +221,42 @@ router.post("/admin/credits/bank/:provider/topup", requireAdmin, async (req, res
     if (!["minimax", "shotstack"].includes(provider)) {
       res.status(400).json({ error: "Top-up only supported for minimax and shotstack" }); return;
     }
-    const { amount, notes } = req.body as { amount: number; notes?: string };
-    if (!amount || amount <= 0) { res.status(400).json({ error: "amount must be positive" }); return; }
+
+    const body = req.body as { credits?: number; amount?: number; purchaseCostUsd?: number; notes?: string };
+    const credits = body.credits ?? body.amount;
+    if (!credits || credits <= 0) { res.status(400).json({ error: "credits must be positive" }); return; }
+    const purchaseCostUsd = typeof body.purchaseCostUsd === "number" && body.purchaseCostUsd > 0
+      ? body.purchaseCostUsd : null;
 
     const [bank] = await db.select().from(platformCreditBanksTable)
       .where(eq(platformCreditBanksTable.provider, provider));
     if (!bank) { res.status(404).json({ error: "Bank not found" }); return; }
 
-    const newBalance  = bank.balance  + amount;
+    const newBalance  = bank.balance + credits;
     const newPeak     = Math.max(bank.peakBalance, newBalance);
-    const newTotal    = bank.totalAdded + amount;
+    const newTotal    = bank.totalAdded + credits;
+    const newUsdSpent = provider === "minimax"
+      ? (bank.totalUsdSpent ?? 0) + (purchaseCostUsd ?? 0)
+      : (bank.totalUsdSpent ?? 0);
 
     const [updated] = await db.update(platformCreditBanksTable)
-      .set({ balance: newBalance, peakBalance: newPeak, totalAdded: newTotal, updatedAt: new Date() })
+      .set({
+        balance: newBalance,
+        peakBalance: newPeak,
+        totalAdded: newTotal,
+        totalUsdSpent: newUsdSpent,
+        updatedAt: new Date(),
+      })
       .where(eq(platformCreditBanksTable.provider, provider))
       .returning();
 
     await db.insert(platformCreditTransactionsTable).values({
-      provider, type: "topup", amount, balanceAfter: newBalance,
-      description: notes?.trim() || "Manual top-up",
+      provider,
+      type: "topup",
+      amount: credits,
+      balanceAfter: newBalance,
+      description: body.notes?.trim() || "Manual top-up",
+      purchaseCostUsd: provider === "minimax" ? purchaseCostUsd : null,
     });
 
     res.json(updated);
@@ -271,6 +297,76 @@ router.get("/admin/credits/transactions/:provider", requireAdmin, async (req, re
     res.json(rows);
   } catch (err) {
     req.log.error({ err }, "Error fetching transactions");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── MiniMax reporting (date range) ────────────────────────────────────────────
+
+router.get("/admin/credits/reports/minimax", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
+
+    const conditions = [eq(platformCreditTransactionsTable.provider, "minimax")];
+    if (startDate) {
+      const start = new Date(startDate);
+      if (!isNaN(start.getTime())) conditions.push(gte(platformCreditTransactionsTable.createdAt, start));
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      if (!isNaN(end.getTime())) {
+        end.setHours(23, 59, 59, 999);
+        conditions.push(lte(platformCreditTransactionsTable.createdAt, end));
+      }
+    }
+
+    const [agg] = await db.select({
+      creditsPurchased: sql<number>`COALESCE(SUM(CASE WHEN ${platformCreditTransactionsTable.type} = 'topup' THEN ${platformCreditTransactionsTable.amount} ELSE 0 END), 0)`,
+      creditsConsumed:  sql<number>`COALESCE(SUM(CASE WHEN ${platformCreditTransactionsTable.type} = 'deduction' THEN ${platformCreditTransactionsTable.amount} ELSE 0 END), 0)`,
+      usdSpent:         sql<number>`COALESCE(SUM(CASE WHEN ${platformCreditTransactionsTable.type} = 'topup' THEN ${platformCreditTransactionsTable.purchaseCostUsd} ELSE 0 END), 0)`,
+      videosGenerated:  sql<number>`COALESCE(SUM(${platformCreditTransactionsTable.videosCount}), 0)`,
+      minutesGenerated: sql<number>`COALESCE(SUM(${platformCreditTransactionsTable.minutesGenerated}), 0)`,
+      topupCount:       sql<number>`COUNT(CASE WHEN ${platformCreditTransactionsTable.type} = 'topup' THEN 1 END)`,
+      deductionCount:   sql<number>`COUNT(CASE WHEN ${platformCreditTransactionsTable.type} = 'deduction' THEN 1 END)`,
+    })
+    .from(platformCreditTransactionsTable)
+    .where(and(...conditions));
+
+    const creditsConsumed  = Number(agg?.creditsConsumed  ?? 0);
+    const creditsPurchased = Number(agg?.creditsPurchased ?? 0);
+    const usdSpent         = Number(agg?.usdSpent         ?? 0);
+    const minutesGenerated = Number(agg?.minutesGenerated ?? 0);
+    const videosGenerated  = Number(agg?.videosGenerated  ?? 0);
+
+    const costPerCredit         = creditsPurchased > 0 && usdSpent > 0 ? usdSpent / creditsPurchased : 0.001;
+    const estimatedUsdConsumed  = creditsConsumed * costPerCredit;
+    const avgCreditsPerMinute   = minutesGenerated > 0 ? creditsConsumed / minutesGenerated : null;
+    const avgCostPerMinute      = minutesGenerated > 0 ? estimatedUsdConsumed / minutesGenerated : null;
+
+    const [currentBank] = await db.select({
+      balance: platformCreditBanksTable.balance,
+    }).from(platformCreditBanksTable)
+      .where(eq(platformCreditBanksTable.provider, "minimax"));
+
+    res.json({
+      creditsPurchased,
+      creditsConsumed,
+      creditsRemaining: currentBank?.balance ?? null,
+      usdSpent,
+      estimatedUsdConsumed: Math.round(estimatedUsdConsumed * 100) / 100,
+      estimatedUsdRemaining: currentBank
+        ? Math.round(currentBank.balance * costPerCredit * 100) / 100
+        : null,
+      videosGenerated,
+      minutesGenerated: Math.round(minutesGenerated * 100) / 100,
+      avgCreditsPerMinute: avgCreditsPerMinute !== null ? Math.round(avgCreditsPerMinute * 100) / 100 : null,
+      avgCostPerMinute: avgCostPerMinute !== null ? Math.round(avgCostPerMinute * 10000) / 10000 : null,
+      topupCount: Number(agg?.topupCount ?? 0),
+      deductionCount: Number(agg?.deductionCount ?? 0),
+      costPerCredit: Math.round(costPerCredit * 100000) / 100000,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Error generating MiniMax report");
     res.status(500).json({ error: "Internal server error" });
   }
 });

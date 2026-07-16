@@ -9,7 +9,7 @@ export type Provider = "anthropic" | "openai" | "minimax" | "elevenlabs" | "shot
 // Only MiniMax and Shotstack have manually-managed banks.
 // Anthropic/OpenAI/ElevenLabs are either Replit-managed or live-API-checked.
 const MANUAL_BANKS: Array<{ provider: Provider; displayName: string; unit: string }> = [
-  { provider: "minimax",   displayName: "MiniMax (Video)",    unit: "USD" },
+  { provider: "minimax",   displayName: "MiniMax (Video)",    unit: "credits" },
   { provider: "shotstack", displayName: "Shotstack (Render)", unit: "credits" },
 ];
 
@@ -25,18 +25,33 @@ export async function seedManualBanks(): Promise<void> {
   }
 }
 
+export interface MiniMaxDeductMeta {
+  minutesGenerated?: number;
+  videosCount?: number;
+  projectId?: number;
+  userId?: string;
+  videoId?: string;
+}
+
 /**
  * Deduct credits from a provider's bank (if one exists) and always log the transaction.
  * For Anthropic/ElevenLabs/OpenAI: logs spend for reporting without touching any bank row.
  * For MiniMax/Shotstack: also updates the bank balance and fires low-balance alerts.
+ * For MiniMax specifically: pass meta to track production metrics (minutes, videos, project).
  */
 export async function deductPlatformCredits(
   provider: Provider,
   amount: number,
   description: string,
-  referenceId?: string,
+  referenceIdOrMeta?: string | MiniMaxDeductMeta,
 ): Promise<void> {
   if (amount <= 0) return;
+
+  const referenceId = typeof referenceIdOrMeta === "string" ? referenceIdOrMeta : undefined;
+  const meta: MiniMaxDeductMeta = (typeof referenceIdOrMeta === "object" && referenceIdOrMeta !== null)
+    ? referenceIdOrMeta
+    : {};
+
   try {
     await db.transaction(async (tx) => {
       const [bank] = await tx
@@ -49,9 +64,25 @@ export async function deductPlatformCredits(
 
       if (bank) {
         balanceAfter = Math.max(0, bank.balance - amount);
+
+        const bankUpdate: Partial<typeof platformCreditBanksTable.$inferInsert> = {
+          balance: balanceAfter,
+          updatedAt: new Date(),
+        };
+
+        if (provider === "minimax") {
+          bankUpdate.totalCreditsConsumed = (bank.totalCreditsConsumed ?? 0) + amount;
+          if (meta.videosCount) {
+            bankUpdate.totalVideosGenerated = (bank.totalVideosGenerated ?? 0) + meta.videosCount;
+          }
+          if (meta.minutesGenerated) {
+            bankUpdate.totalMinutesGenerated = (bank.totalMinutesGenerated ?? 0) + meta.minutesGenerated;
+          }
+        }
+
         await tx
           .update(platformCreditBanksTable)
-          .set({ balance: balanceAfter, updatedAt: new Date() })
+          .set(bankUpdate)
           .where(eq(platformCreditBanksTable.provider, provider));
 
         const pct = bank.peakBalance > 0 ? (balanceAfter / bank.peakBalance) * 100 : 100;
@@ -72,7 +103,6 @@ export async function deductPlatformCredits(
         }
       }
 
-      // Always write the transaction log — used for spend reporting on providers without banks.
       await tx.insert(platformCreditTransactionsTable).values({
         provider,
         type: "deduction",
@@ -80,6 +110,11 @@ export async function deductPlatformCredits(
         balanceAfter,
         description,
         referenceId: referenceId ?? null,
+        minutesGenerated: meta.minutesGenerated ?? null,
+        videosCount: meta.videosCount ?? null,
+        projectId: meta.projectId ?? null,
+        userId: meta.userId ?? null,
+        videoId: meta.videoId ?? null,
       });
     });
   } catch (err) {
