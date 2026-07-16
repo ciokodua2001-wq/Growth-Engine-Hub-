@@ -8,6 +8,7 @@ import {
   CreditCard, ExternalLink, CheckCircle, TrendingUp,
 } from "lucide-react";
 import { Link } from "wouter";
+import { Logo } from "@/components/ui/logo";
 
 const TRIAL_FEATURES = [
   "1 Project",
@@ -512,9 +513,7 @@ export default function PlansPage() {
       {/* Header */}
       <header className="flex items-center justify-between px-4 sm:px-8 py-5 border-b border-white/5">
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
-            <path d="M20 4L10 16h7L13 28l14-16h-9l5-8z" fill="#00E676" />
-          </svg>
+          <Logo size={44} />
           <span className="text-lg font-bold text-white">GrowthForge</span>
         </Link>
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">

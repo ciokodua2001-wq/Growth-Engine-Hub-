@@ -24,7 +24,7 @@ export function Logo({ size = 40, className, style, glow = true }: LogoProps) {
         flexShrink: 0,
         backgroundImage: `url(${logoSrc})`,
         backgroundSize: "270%",
-        backgroundPosition: "50% 50%",
+        backgroundPosition: "50% 38%",
         backgroundRepeat: "no-repeat",
         filter: glow
           ? "drop-shadow(0 0 12px rgba(0,212,255,0.4)) drop-shadow(0 0 5px rgba(0,230,118,0.25))"

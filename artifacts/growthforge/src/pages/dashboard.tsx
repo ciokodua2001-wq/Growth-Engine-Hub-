@@ -12,6 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Globe, Zap, ArrowRight, Loader2, X, Brain, ChevronRight, Crown, Target, Share2, Bot, BarChart2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { Logo } from "@/components/ui/logo";
 
 const PROJECT_SHORTCUTS = [
   { label: "Campaigns", path: "campaigns", icon: Target, color: "text-emerald-400" },
@@ -220,10 +221,8 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="border-b border-border bg-background/95 sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">
-              <Zap className="h-4 w-4 text-primary" />
-            </div>
+          <Link href="/dashboard" className="flex items-center gap-2">
+            <Logo size={48} />
             <span className="font-bold text-lg tracking-tight">GrowthForge</span>
           </Link>
           <div className="flex items-center gap-4">
