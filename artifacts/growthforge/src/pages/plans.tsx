@@ -143,8 +143,8 @@ const PLANS: Plan[] = [
         label: "Performance",
         items: [
           "2 AI Campaign Reports / month",
-          "AI Campaign Builder (Coming Soon)",
-          "Social Scheduling (Coming Soon)",
+          "AI Campaign Builder",
+          "Social Scheduling",
         ],
       },
       {
@@ -202,6 +202,8 @@ const PLANS: Plan[] = [
         label: "Performance",
         items: [
           "5 AI Campaign Reports / month",
+          "AI Campaign Builder",
+          "Social Scheduling",
           "White-Label Reports",
           "Dedicated Onboarding",
         ],
