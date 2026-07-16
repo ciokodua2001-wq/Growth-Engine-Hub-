@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Brain, Users2, Megaphone, FileText, Share2,
   Mail, Rss, Video, Target, FolderOpen, BarChart2, Bot, Settings,
   ChevronLeft, ChevronRight, Zap, ArrowLeft, Menu, X, CalendarDays,
-  SearchCheck,
+  SearchCheck, Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +52,12 @@ const navGroups = [
     group: "AI",
     items: [
       { label: "AI Agent", path: "agent", icon: Bot },
+    ],
+  },
+  {
+    group: "Workspace",
+    items: [
+      { label: "Team", path: "team", icon: Users },
       { label: "Settings", path: "settings", icon: Settings },
     ],
   },

@@ -14,3 +14,4 @@ export * from "./credits";
 export * from "./google-ads";
 export * from "./meta";
 export * from "./seo";
+export * from "./team";

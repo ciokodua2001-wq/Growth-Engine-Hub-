@@ -20,6 +20,7 @@ import metaAdsRouter from "./meta-ads.js";
 import authMetaRouter from "./auth-meta.js";
 import stripeRouter from "./stripe.js";
 import seoRouter from "./seo.js";
+import teamRouter from "./team.js";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(metaAdsRouter);
 router.use(authMetaRouter);
 router.use(stripeRouter);
 router.use(seoRouter);
+router.use(teamRouter);
 
 export default router;

@@ -1,13 +1,14 @@
 import type { NextFunction, Request, Response } from "express";
 import { getAuth } from "@clerk/express";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { projectsTable, usersTable, type Project } from "@workspace/db";
+import { projectsTable, usersTable, teamMembersTable, type Project } from "@workspace/db";
 
 declare global {
   namespace Express {
     interface Request {
       project?: Project;
+      isProjectOwner?: boolean;
     }
   }
 }
@@ -31,6 +32,35 @@ export async function loadOwnedProject(userId: string, projectId: number): Promi
   const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId));
   if (!project || project.ownerId !== userId) return null;
   return project;
+}
+
+/**
+ * Loads a project if the user is the owner OR an active team member.
+ * Returns { project, isOwner } or null if no access.
+ */
+export async function loadAccessibleProject(
+  userId: string,
+  projectId: number
+): Promise<{ project: Project; isOwner: boolean } | null> {
+  if (Number.isNaN(projectId)) return null;
+  const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId));
+  if (!project || project.deletedAt) return null;
+
+  if (project.ownerId === userId) return { project, isOwner: true };
+
+  const [member] = await db
+    .select()
+    .from(teamMembersTable)
+    .where(
+      and(
+        eq(teamMembersTable.projectId, projectId),
+        eq(teamMembersTable.userId, userId),
+        eq(teamMembersTable.status, "active")
+      )
+    );
+  if (member) return { project, isOwner: false };
+
+  return null;
 }
 
 /**
@@ -58,12 +88,25 @@ export async function requireActiveSubscription(req: Request, res: Response, nex
 }
 
 /**
- * Express `router.param()` handler factory: verifies the caller is authenticated and owns the
- * project referenced by the given route param (default "id"), 401/404 otherwise. On success,
- * attaches the loaded project to `req.project` so downstream handlers can reuse it.
+ * Route middleware that requires the caller to be the project owner (not just a team member).
+ * Must be used after requireProjectOwnershipParam sets req.isProjectOwner.
+ */
+export function requireOwnerOnly(req: Request, res: Response, next: NextFunction): void {
+  if (!req.isProjectOwner) {
+    res.status(403).json({ error: "Only the project owner can perform this action." });
+    return;
+  }
+  next();
+}
+
+/**
+ * Express `router.param()` handler factory: verifies the caller is authenticated and
+ * owns or is an active team member of the project referenced by the given route param
+ * (default "id"), 401/404 otherwise. On success, attaches the loaded project to
+ * `req.project` and sets `req.isProjectOwner` so downstream handlers can distinguish
+ * owners from members.
  *
- * Usage: `router.param("id", requireProjectOwnershipParam());` once per router file — this
- * covers every route on that router whose path contains a `:id` segment.
+ * Usage: `router.param("id", requireProjectOwnershipParam());` once per router file.
  */
 export function requireProjectOwnershipParam() {
   return async (req: Request, res: Response, next: NextFunction, value: string): Promise<void> => {
@@ -75,12 +118,13 @@ export function requireProjectOwnershipParam() {
     const userId = requireUserId(req, res);
     if (!userId) return;
 
-    const project = await loadOwnedProject(userId, projectId);
-    if (!project) {
+    const result = await loadAccessibleProject(userId, projectId);
+    if (!result) {
       res.status(404).json({ error: "Project not found" });
       return;
     }
-    req.project = project;
+    req.project = result.project;
+    req.isProjectOwner = result.isOwner;
     next();
   };
 }

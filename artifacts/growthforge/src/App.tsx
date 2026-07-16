@@ -54,6 +54,8 @@ import ProjectAnalytics from "@/pages/project/analytics";
 import ProjectCalendar from "@/pages/project/calendar";
 import ProjectAgent from "@/pages/project/agent";
 import ProjectSettings from "@/pages/project/settings";
+import ProjectTeam from "@/pages/project/team";
+import TeamAccept from "@/pages/team-accept";
 import ProjectSeo from "@/pages/project/seo";
 
 const queryClient = new QueryClient({
@@ -169,6 +171,7 @@ function AppRoutes() {
 
       {/* Onboarding funnel */}
       <Route path="/plans" component={PlansPage} />
+      <Route path="/team/accept" component={TeamAccept} />
       <Route path="/onboarding" component={OnboardingPage} />
       <Route path="/analysis-progress/:projectId" component={AnalysisProgressPage} />
 
@@ -269,6 +272,10 @@ function AppRoutes() {
               <Route
                 path="/projects/:projectId/settings"
                 component={ProjectSettings}
+              />
+              <Route
+                path="/projects/:projectId/team"
+                component={ProjectTeam}
               />
               <Route component={NotFound} />
             </Switch>
