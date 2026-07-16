@@ -1,5 +1,12 @@
 import logoSrc from "../../assets/logo.png";
 
+/**
+ * GrowthForge logo badge.
+ *
+ * The source PNG has significant transparent padding around the hex badge.
+ * We use background-image with backgroundSize ~270% to zoom into the badge
+ * so it fills the rendered area visibly, instead of appearing tiny.
+ */
 interface LogoProps {
   size?: number;
   className?: string;
@@ -7,20 +14,25 @@ interface LogoProps {
   glow?: boolean;
 }
 
-export function Logo({ size = 32, className, style, glow = true }: LogoProps) {
+export function Logo({ size = 40, className, style, glow = true }: LogoProps) {
   return (
-    <img
-      src={logoSrc}
-      alt="GrowthForge"
-      width={size}
-      height={size}
+    <div
       className={className}
       style={{
-        objectFit: "contain",
+        width: size,
+        height: size,
         flexShrink: 0,
-        filter: glow ? "drop-shadow(0 0 10px rgba(0,212,255,0.3)) drop-shadow(0 0 4px rgba(0,230,118,0.2))" : undefined,
+        backgroundImage: `url(${logoSrc})`,
+        backgroundSize: "270%",
+        backgroundPosition: "50% 50%",
+        backgroundRepeat: "no-repeat",
+        filter: glow
+          ? "drop-shadow(0 0 12px rgba(0,212,255,0.4)) drop-shadow(0 0 5px rgba(0,230,118,0.25))"
+          : undefined,
         ...style,
       }}
+      aria-label="GrowthForge"
+      role="img"
     />
   );
 }

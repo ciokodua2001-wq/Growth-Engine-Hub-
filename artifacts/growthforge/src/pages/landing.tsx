@@ -478,8 +478,8 @@ export default function LandingPage() {
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/8 px-4 sm:px-6 lg:px-8" style={{ background: "rgba(4,11,20,0.85)", backdropFilter: "blur(16px)" }}>
         <div className={`${W} h-16 flex items-center justify-between`}>
           {/* Logo — routes to /admin for admins, /dashboard when signed in, / when not */}
-          <Link href={isAdmin ? "/admin" : isAuthed ? "/dashboard" : "/"} className="flex items-center gap-2.5">
-            <Logo size={38} />
+          <Link href={isAdmin ? "/admin" : isAuthed ? "/dashboard" : "/"} className="flex items-center gap-2">
+            <Logo size={56} />
             <span className="font-bold text-lg tracking-tight text-white">GrowthForge</span>
           </Link>
 
@@ -556,8 +556,8 @@ export default function LandingPage() {
           style={{ background: "#040B14" }}
         >
           <SheetTitle className="sr-only">Navigation menu</SheetTitle>
-          <div className="flex items-center gap-2.5 px-6 py-5 border-b border-white/8">
-            <Logo size={38} />
+          <div className="flex items-center gap-2 px-6 py-5 border-b border-white/8">
+            <Logo size={52} />
             <span className="font-bold text-lg tracking-tight text-white">GrowthForge</span>
           </div>
 
@@ -1249,8 +1249,8 @@ export default function LandingPage() {
         <div className={W}>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
             <div className="col-span-2">
-              <Link href="/" className="flex items-center gap-2.5 mb-4">
-                <div className="h-8 w-8 rounded-lg bg-[#00E676]/20 flex items-center justify-center"><Zap className="h-4 w-4 text-[#00E676]" /></div>
+              <Link href="/" className="flex items-center gap-2 mb-4">
+                <Logo size={52} />
                 <span className="font-bold text-white">GrowthForge</span>
               </Link>
               <p className="text-white/40 text-sm leading-relaxed max-w-xs">The AI Growth Operating System for ambitious businesses. Paste your URL. Get your marketing department.</p>
