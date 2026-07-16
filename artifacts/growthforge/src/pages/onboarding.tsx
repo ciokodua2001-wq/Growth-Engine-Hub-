@@ -19,6 +19,7 @@ import {
   Search,
   Share2,
 } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
 
 const GOALS = [
   { label: "Generate Leads", icon: TrendingUp },
@@ -110,10 +111,8 @@ export default function OnboardingPage() {
     <div className="min-h-screen flex flex-col" style={{ background: "#040B14" }}>
       {/* Header */}
       <header className="flex items-center justify-between px-8 py-5 border-b border-white/5">
-        <div className="flex items-center gap-2">
-          <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
-            <path d="M20 4L10 16h7L13 28l14-16h-9l5-8z" fill="#00E676" />
-          </svg>
+        <div className="flex items-center gap-2.5">
+          <Logo size={36} />
           <span className="text-lg font-bold text-white">GrowthForge</span>
         </div>
         <div className="flex items-center gap-2 text-sm text-white/50">

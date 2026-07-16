@@ -5,8 +5,9 @@ import {
   LayoutDashboard, Users, FolderOpen, CreditCard, Brain,
   FileText, HeadphonesIcon, BarChart2, ToggleLeft, Settings,
   Activity, Shield, Megaphone, ChevronLeft, ChevronRight,
-  Zap, LogOut, Menu, Loader2, DatabaseZap, Wallet,
+  LogOut, Menu, Loader2, DatabaseZap, Wallet,
 } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
 
 const NAV = [
   { label: "Dashboard",     href: "/admin",              icon: LayoutDashboard },
@@ -60,10 +61,7 @@ export default function AdminLayout({ children }: Props) {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className={`flex items-center gap-3 px-4 py-5 border-b border-white/8 shrink-0 ${collapsed ? "justify-center" : ""}`}>
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-          style={{ background: "linear-gradient(135deg,#00E676,#00D4FF)" }}>
-          <Zap className="w-4 h-4 text-black" />
-        </div>
+        <Logo size={36} />
         {!collapsed && (
           <div>
             <div className="text-white font-bold text-sm leading-none">GrowthForge</div>
@@ -149,10 +147,7 @@ export default function AdminLayout({ children }: Props) {
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg,#00E676,#00D4FF)" }}>
-              <Zap className="w-3 h-3 text-black" />
-            </div>
+            <Logo size={28} />
             <span className="text-white text-sm font-bold">Admin</span>
           </div>
           <div className="w-5" />

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Logo } from "@/components/ui/logo";
 
 /* ─── Data ─────────────────────────────────────────────────── */
 
@@ -478,9 +479,7 @@ export default function LandingPage() {
         <div className={`${W} h-16 flex items-center justify-between`}>
           {/* Logo — routes to /admin for admins, /dashboard when signed in, / when not */}
           <Link href={isAdmin ? "/admin" : isAuthed ? "/dashboard" : "/"} className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-[#00E676]/20 flex items-center justify-center">
-              <Zap className="h-4 w-4 text-[#00E676]" />
-            </div>
+            <Logo size={38} />
             <span className="font-bold text-lg tracking-tight text-white">GrowthForge</span>
           </Link>
 
@@ -558,9 +557,7 @@ export default function LandingPage() {
         >
           <SheetTitle className="sr-only">Navigation menu</SheetTitle>
           <div className="flex items-center gap-2.5 px-6 py-5 border-b border-white/8">
-            <div className="h-8 w-8 rounded-lg bg-[#00E676]/20 flex items-center justify-center">
-              <Zap className="h-4 w-4 text-[#00E676]" />
-            </div>
+            <Logo size={38} />
             <span className="font-bold text-lg tracking-tight text-white">GrowthForge</span>
           </div>
 

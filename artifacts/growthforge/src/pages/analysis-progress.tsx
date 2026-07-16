@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Zap, AlertTriangle } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
 import {
   getProject,
   analyzeWebsite,
@@ -110,10 +111,8 @@ export default function AnalysisProgressPage() {
       style={{ background: "#040B14" }}
     >
       {/* Logo */}
-      <div className="flex items-center gap-2 mb-12">
-        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-          <path d="M20 4L10 16h7L13 28l14-16h-9l5-8z" fill="#00E676" />
-        </svg>
+      <div className="flex items-center gap-3 mb-12">
+        <Logo size={44} />
         <span className="text-xl font-bold text-white">GrowthForge</span>
       </div>
 
