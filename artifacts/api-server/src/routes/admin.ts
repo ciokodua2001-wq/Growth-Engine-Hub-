@@ -12,7 +12,7 @@ import {
   metaConnectionsTable,
   trialUsageTable,
 } from "@workspace/db";
-import { eq, desc, count, sql, and, ilike, or, sum, max, isNotNull } from "drizzle-orm";
+import { eq, desc, count, sql, and, ilike, or, sum, max, isNotNull, isNull } from "drizzle-orm";
 import PDFDocument from "pdfkit";
 import nodemailer from "nodemailer";
 import { PassThrough } from "stream";
@@ -243,6 +243,14 @@ router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> =
           .update(projectsTable)
           .set({ deletedAt: null })
           .where(and(eq(projectsTable.ownerId, targetUserId), isNotNull(projectsTable.deletedAt)));
+      }
+      // Cascade plan changes to all active projects so quota enforcement
+      // (which reads projectsTable.plan) immediately reflects the new tier.
+      if (plan !== undefined && updated) {
+        await tx
+          .update(projectsTable)
+          .set({ plan })
+          .where(and(eq(projectsTable.ownerId, targetUserId), isNull(projectsTable.deletedAt)));
       }
       return [updated];
     });

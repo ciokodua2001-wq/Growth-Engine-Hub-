@@ -21,8 +21,16 @@ interface User {
 }
 
 const PLAN_COLORS: Record<string, string> = {
-  trial: "#f59e0b", starter: "#00D4FF", growth: "#00E676", agency: "#a78bfa",
+  trial: "#f59e0b", starter: "#00D4FF", "get-going": "#00D4FF", growth: "#00E676", agency: "#a78bfa",
 };
+
+const PLANS = [
+  { slug: "trial",     label: "Trial",     status: "trial"  },
+  { slug: "starter",   label: "Starter",   status: "active" },
+  { slug: "get-going", label: "Get-Going", status: "active" },
+  { slug: "growth",    label: "Growth",    status: "active" },
+  { slug: "agency",    label: "Agency",    status: "active" },
+];
 
 function RoleBadge({ role, isOwner }: { role: string; isOwner: boolean }) {
   if (isOwner || role === "super_admin") {
@@ -248,20 +256,36 @@ function UserDrawer({ user, onClose, onPatch, onDelete, isPatching, isDeleting }
                 </button>
 
                 {/* Plan */}
-                <button
-                  onClick={() => onPatch({ plan: "growth", subscriptionStatus: "active" })}
-                  disabled={isPatching}
-                  className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm text-emerald-400/80 hover:text-emerald-400 hover:bg-emerald-400/5 transition-all text-left disabled:opacity-40"
-                >
-                  <UserCheck className="w-4 h-4 shrink-0" /> Grant Growth Plan
-                </button>
-                <button
-                  onClick={() => onPatch({ plan: "trial", subscriptionStatus: "trial" })}
-                  disabled={isPatching}
-                  className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm text-white/40 hover:text-white/60 hover:bg-white/5 transition-all text-left disabled:opacity-40"
-                >
-                  <RefreshCw className="w-4 h-4 shrink-0" /> Reset to Trial
-                </button>
+                <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="px-4 py-2 flex items-center gap-2" style={{ background: "rgba(255,255,255,0.02)" }}>
+                    <UserCheck className="w-3.5 h-3.5 text-white/25 shrink-0" />
+                    <span className="text-xs text-white/35 font-medium">Change Plan</span>
+                    <span className="ml-auto text-[10px] text-white/20">current: {user.plan}</span>
+                  </div>
+                  <div className="p-1.5 flex flex-col gap-0.5">
+                    {PLANS.map((p) => {
+                      const color = PLAN_COLORS[p.slug] ?? "#888";
+                      const isCurrent = user.plan === p.slug;
+                      return (
+                        <button
+                          key={p.slug}
+                          onClick={() => onPatch({ plan: p.slug, subscriptionStatus: p.status })}
+                          disabled={isPatching || isCurrent}
+                          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-xs transition-all text-left disabled:opacity-40"
+                          style={isCurrent
+                            ? { background: `${color}18`, color, border: `1px solid ${color}30`, cursor: "default" }
+                            : { color: "rgba(255,255,255,0.5)", border: "1px solid transparent" }}
+                          onMouseEnter={(e) => { if (!isCurrent && !isPatching) (e.currentTarget as HTMLButtonElement).style.background = `${color}10`; }}
+                          onMouseLeave={(e) => { if (!isCurrent) (e.currentTarget as HTMLButtonElement).style.background = ""; }}
+                        >
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                          <span className="font-medium">{p.label}</span>
+                          {isCurrent && <span className="ml-auto text-[10px] opacity-60">active</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 {/* Delete */}
                 <div className="border-t border-white/6 mt-2 pt-2">
