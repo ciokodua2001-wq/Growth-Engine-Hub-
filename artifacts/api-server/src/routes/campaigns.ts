@@ -6,7 +6,7 @@ import { PassThrough } from "stream";
 import { campaignsTable, assetsTable, reportsTable, agentMessagesTable, activityTable, competitorsTable, socialPostsTable, emailCampaignsTable, adCreativesTable, videosTable } from "@workspace/db";
 import { consumeQuota, meetsMinPlan, type PlanFeature } from "../lib/planLimits.js";
 import { TRIAL_MAX_VIDEO_BATCH } from "../lib/trialLimits.js";
-import { generateJson } from "../lib/aiJson.js";
+import { generateJson, generateJsonFast } from "../lib/aiJson.js";
 import { getGroundingContext, renderGroundingBlock, type GroundingContext } from "../lib/projectContext.js";
 import {
   generateSocialPosts,
@@ -432,7 +432,7 @@ async function classifyAgentIntent(
     : "No business analysis has been run yet for this project — you do not have business context.";
 
   try {
-    const result = await generateJson<AgentClassification>({
+    const result = await generateJsonFast<AgentClassification>({
       system:
         "You are Forge, the AI marketing assistant inside GrowthForge AI, a marketing OS that turns a business " +
         "website into a full AI marketing department. You chat naturally with the user AND can trigger content " +
