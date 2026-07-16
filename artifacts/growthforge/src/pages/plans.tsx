@@ -175,7 +175,6 @@ const PLANS: Plan[] = [
           "6 Marketing Strategies / month",
           "20 AI Customer Personas / month",
           "6 AI SEO Strategies / month",
-          "Competitor Video Mining",
         ],
       },
       {

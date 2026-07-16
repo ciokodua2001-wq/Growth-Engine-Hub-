@@ -191,7 +191,7 @@ const PRICING = [
     desc: "For teams serious about growth",
     stats: [{ value: "6", label: "Projects" }, { value: "50+8 min", label: "1080p+4K/mo" }, { value: "320", label: "Content/mo" }],
     groups: [
-      { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["15 Website Re-analyses / month", "12 Competitor Reports / month", "6 Marketing Strategies / month", "20 AI Customer Personas / month", "Competitor Video Mining"] },
+      { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["15 Website Re-analyses / month", "12 Competitor Reports / month", "6 Marketing Strategies / month", "20 AI Customer Personas / month"] },
       { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["200 Social Posts / month", "60 Email Campaigns / month", "60 AI Ad Creatives / month"] },
       { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["AI Video Generation", "50 min 1080p — up to 200 × 15-sec", "8 min 4K — up to 32 × 15-sec premium"] },
       { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["5 AI Campaign Reports / month", "AI Campaign Builder ✓", "Social Scheduling ✓", "White-Label Reports", "Dedicated Onboarding"] },
