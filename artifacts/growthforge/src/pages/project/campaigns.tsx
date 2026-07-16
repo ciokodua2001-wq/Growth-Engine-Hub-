@@ -159,45 +159,45 @@ function GoogleAdsPanel({ projectId }: { projectId: number }) {
       : "Never";
 
     return (
-      <div className="mb-6 p-5 rounded-xl border border-[#00E676]/20 bg-[#00E676]/5">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="p-2 rounded-lg bg-[#4285F4]/10">
+      <div className="mb-6 p-4 rounded-xl border border-[#00E676]/20 bg-[#00E676]/5">
+        {/* Row 1: icon + name + badge */}
+        <div className="flex items-center gap-2.5 mb-2">
+          <div className="p-2 rounded-lg bg-[#4285F4]/10 shrink-0">
             <GoogleAdsIcon />
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="font-semibold text-sm">Google Ads</p>
-              <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
-                <CheckCircle2 className="h-3 w-3" /> Connected
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {status.account.accountEmail ?? status.account.accountName ?? `Customer: ${status.account.customerId}`}
-              {" · "}Last sync: {lastSync}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {!status.devTokenConfigured && (
-              <span className="flex items-center gap-1 text-[10px] text-yellow-400 font-medium">
-                <AlertCircle className="h-3 w-3" /> Developer token pending
-              </span>
-            )}
-            <button
-              onClick={() => syncMutation.mutate()}
-              disabled={syncMutation.isPending || !status.devTokenConfigured}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#00E676]/10 hover:bg-[#00E676]/20 border border-[#00E676]/20 text-[#00E676] text-xs font-bold transition-colors disabled:opacity-40"
-            >
-              {syncMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              Sync Now
-            </button>
-            <button
-              onClick={() => disconnectMutation.mutate()}
-              disabled={disconnectMutation.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-red-500/10 border border-border hover:border-red-500/20 text-muted-foreground hover:text-red-400 text-xs font-medium transition-colors"
-            >
-              <Unlink className="h-3.5 w-3.5" /> Disconnect
-            </button>
-          </div>
+          <p className="font-semibold text-sm">Google Ads</p>
+          <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded shrink-0">
+            <CheckCircle2 className="h-3 w-3" /> Connected
+          </span>
+        </div>
+        {/* Row 2: account info */}
+        <p className="text-xs text-muted-foreground mb-3 pl-0.5">
+          {status.account.accountEmail ?? status.account.accountName ?? `Customer: ${status.account.customerId}`}
+          <span className="mx-1.5 opacity-40">·</span>
+          Last sync: {lastSync}
+        </p>
+        {!status.devTokenConfigured && (
+          <p className="text-xs text-yellow-400/80 mb-2 flex items-center gap-1.5">
+            <AlertCircle className="h-3 w-3 shrink-0" /> Developer token pending approval
+          </p>
+        )}
+        {/* Row 3: action buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending || !status.devTokenConfigured}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#00E676]/10 hover:bg-[#00E676]/20 border border-[#00E676]/20 text-[#00E676] text-xs font-bold transition-colors disabled:opacity-40"
+          >
+            {syncMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Sync Now
+          </button>
+          <button
+            onClick={() => disconnectMutation.mutate()}
+            disabled={disconnectMutation.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-red-500/10 border border-border hover:border-red-500/20 text-muted-foreground hover:text-red-400 text-xs font-medium transition-colors"
+          >
+            <Unlink className="h-3.5 w-3.5" /> Disconnect
+          </button>
         </div>
         {!status.account.customerId && (
           <div className="mt-3 pt-3 border-t border-[#00E676]/10">
@@ -232,24 +232,24 @@ function GoogleAdsPanel({ projectId }: { projectId: number }) {
   }
 
   return (
-    <div className="mb-6 p-5 rounded-xl border border-border bg-card/50">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="p-2 rounded-lg bg-[#4285F4]/10">
+    <div className="mb-6 p-4 rounded-xl border border-border bg-card/50">
+      <div className="flex items-center gap-2.5 mb-3">
+        <div className="p-2 rounded-lg bg-[#4285F4]/10 shrink-0">
           <GoogleAdsIcon />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0">
           <p className="font-semibold text-sm">Connect Google Ads</p>
           <p className="text-xs text-muted-foreground">Import real campaigns, spend, clicks & conversions automatically</p>
         </div>
-        <button
-          onClick={() => connectMutation.mutate()}
-          disabled={connectMutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#4285F4] hover:bg-[#4285F4]/90 text-white text-sm font-bold transition-colors disabled:opacity-50"
-        >
-          {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-          Connect Google Ads
-        </button>
       </div>
+      <button
+        onClick={() => connectMutation.mutate()}
+        disabled={connectMutation.isPending}
+        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#4285F4] hover:bg-[#4285F4]/90 text-white text-sm font-bold transition-colors disabled:opacity-50"
+      >
+        {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+        Connect Google Ads
+      </button>
     </div>
   );
 }
@@ -348,14 +348,14 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
 
   if (!status?.oauthConfigured) {
     return (
-      <div className="mb-3 p-5 rounded-xl border border-border bg-card/50">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="p-2 rounded-lg bg-[#1877F2]/10"><MetaIcon /></div>
-          <div>
+      <div className="mb-3 p-4 rounded-xl border border-border bg-card/50">
+        <div className="flex items-center gap-2.5 mb-2">
+          <div className="p-2 rounded-lg bg-[#1877F2]/10 shrink-0"><MetaIcon /></div>
+          <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm">Connect Meta Ads</p>
             <p className="text-xs text-muted-foreground">Import Facebook & Instagram campaign data</p>
           </div>
-          <span className="ml-auto flex items-center gap-1.5 text-xs text-yellow-400 font-medium">
+          <span className="flex items-center gap-1.5 text-xs text-yellow-400 font-medium shrink-0">
             <Clock className="h-3.5 w-3.5" /> Setup pending
           </span>
         </div>
@@ -369,43 +369,43 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
   if (status.connected && status.account) {
     const lastSync = status.account.lastSyncAt ? new Date(status.account.lastSyncAt).toLocaleString() : "Never";
     return (
-      <div className="mb-3 p-5 rounded-xl border border-[#1877F2]/20 bg-[#1877F2]/5">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="p-2 rounded-lg bg-[#1877F2]/10"><MetaIcon /></div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="font-semibold text-sm">Meta Ads</p>
-              <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
-                <CheckCircle2 className="h-3 w-3" /> Connected
-              </span>
-              {status.tokenExpiresSoon && (
-                <span className="flex items-center gap-1 text-[10px] text-yellow-400 font-medium">
-                  <AlertCircle className="h-3 w-3" /> Token expiring soon
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {status.account.accountEmail ?? status.account.accountName ?? `Account: ${status.account.customerId}`}
-              {" · "}Last sync: {lastSync}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => syncMutation.mutate()}
-              disabled={syncMutation.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1877F2]/10 hover:bg-[#1877F2]/20 border border-[#1877F2]/20 text-[#1877F2] text-xs font-bold transition-colors disabled:opacity-40"
-            >
-              {syncMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              Sync Now
-            </button>
-            <button
-              onClick={() => disconnectMutation.mutate()}
-              disabled={disconnectMutation.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-red-500/10 border border-border hover:border-red-500/20 text-muted-foreground hover:text-red-400 text-xs font-medium transition-colors"
-            >
-              <Unlink className="h-3.5 w-3.5" /> Disconnect
-            </button>
-          </div>
+      <div className="mb-3 p-4 rounded-xl border border-[#1877F2]/20 bg-[#1877F2]/5">
+        {/* Row 1: icon + name + badge */}
+        <div className="flex items-center gap-2.5 mb-2">
+          <div className="p-2 rounded-lg bg-[#1877F2]/10 shrink-0"><MetaIcon /></div>
+          <p className="font-semibold text-sm">Meta Ads</p>
+          <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded shrink-0">
+            <CheckCircle2 className="h-3 w-3" /> Connected
+          </span>
+          {status.tokenExpiresSoon && (
+            <span className="flex items-center gap-1 text-[10px] text-yellow-400 font-medium shrink-0">
+              <AlertCircle className="h-3 w-3" /> Expiring soon
+            </span>
+          )}
+        </div>
+        {/* Row 2: account info */}
+        <p className="text-xs text-muted-foreground mb-3 pl-0.5">
+          {status.account.accountEmail ?? status.account.accountName ?? `Account: ${status.account.customerId}`}
+          <span className="mx-1.5 opacity-40">·</span>
+          Last sync: {lastSync}
+        </p>
+        {/* Row 3: action buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1877F2]/10 hover:bg-[#1877F2]/20 border border-[#1877F2]/20 text-[#1877F2] text-xs font-bold transition-colors disabled:opacity-40"
+          >
+            {syncMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Sync Now
+          </button>
+          <button
+            onClick={() => disconnectMutation.mutate()}
+            disabled={disconnectMutation.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-red-500/10 border border-border hover:border-red-500/20 text-muted-foreground hover:text-red-400 text-xs font-medium transition-colors"
+          >
+            <Unlink className="h-3.5 w-3.5" /> Disconnect
+          </button>
         </div>
         {status.tokenExpiresSoon && (
           <p className="mt-3 text-xs text-yellow-400/80">
@@ -417,22 +417,22 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
   }
 
   return (
-    <div className="mb-3 p-5 rounded-xl border border-border bg-card/50">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="p-2 rounded-lg bg-[#1877F2]/10"><MetaIcon /></div>
+    <div className="mb-3 p-4 rounded-xl border border-border bg-card/50">
+      <div className="flex items-center gap-2.5 mb-3">
+        <div className="p-2 rounded-lg bg-[#1877F2]/10 shrink-0"><MetaIcon /></div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm">Connect Meta Ads</p>
           <p className="text-xs text-muted-foreground">Import Facebook & Instagram campaigns, spend & conversions</p>
         </div>
-        <button
-          onClick={() => connectMutation.mutate()}
-          disabled={connectMutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1877F2] hover:bg-[#1877F2]/90 text-white text-sm font-bold transition-colors disabled:opacity-50"
-        >
-          {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-          Connect Meta Ads
-        </button>
       </div>
+      <button
+        onClick={() => connectMutation.mutate()}
+        disabled={connectMutation.isPending}
+        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#1877F2]/90 text-white text-sm font-bold transition-colors disabled:opacity-50"
+      >
+        {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+        Connect Meta Ads
+      </button>
     </div>
   );
 }
