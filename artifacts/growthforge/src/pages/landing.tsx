@@ -206,7 +206,7 @@ const PRICING = [
       { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["30 Website Re-analyses / month", "25 Competitor Reports / month", "15 Marketing Strategies / month", "50 AI Customer Personas / month"] },
       { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["400 Social Posts / month", "120 Email Campaigns / month", "120 AI Ad Creatives / month"] },
       { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["AI Video Generation", "120 min 1080p — up to 480 × 15-sec", "20 min 4K — up to 80 × 15-sec premium"] },
-      { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["10 AI Campaign Reports / month", "AI Campaign Builder ✓", "Social Scheduling ✓", "AI Managed Campaigns (Coming Soon)", "Autonomous Growth Mode (Coming Soon)"] },
+      { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["10 AI Campaign Reports / month", "AI Campaign Builder ✓", "Social Scheduling ✓", "AI Managed Campaigns (Coming Soon)", "Autonomous Growth Mode (Coming Soon)", "White-Label Reports"] },
       { label: "Agency Tools", icon: <Users2 className="w-3 h-3" />, isVideo: false, items: ["4,000 Forge AI Chats / month", "Team Members", "Dedicated Success Manager"] },
     ],
   },

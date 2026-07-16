@@ -265,6 +265,7 @@ const PLANS: Plan[] = [
           "10 AI Campaign Reports / month",
           "AI Managed Campaigns (Coming Soon)",
           "Autonomous Growth Mode (Coming Soon)",
+          "White-Label Reports",
         ],
       },
       {
