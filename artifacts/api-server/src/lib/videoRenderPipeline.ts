@@ -36,7 +36,7 @@ export function startVideoRender(
 ): void {
   runRenderPipeline(videoId, mode, resolution, avatarPhotoPath).catch((err) => {
     logger.error({ err, videoId }, "Render pipeline unhandled error");
-    void markFailed(videoId, "Internal pipeline error");
+    void markFailed(videoId, "An unexpected error occurred. Please try again — your credits were not charged.");
   });
 }
 
@@ -67,7 +67,14 @@ async function runRenderPipeline(
 
   // Step 1: ElevenLabs TTS
   const scriptText = video.voiceover ?? video.script ?? video.title;
-  const voiceoverUrl = await generateElevenLabsVoiceover(scriptText ?? "");
+  let voiceoverUrl: string;
+  try {
+    voiceoverUrl = await generateElevenLabsVoiceover(scriptText ?? "");
+  } catch (err) {
+    logger.error({ err, videoId }, "ElevenLabs TTS failed");
+    await markFailed(videoId, "Voiceover generation hit a temporary issue. Please try again — your credits were not charged.");
+    return;
+  }
   const ttsChars = Math.min((scriptText ?? "").length, 800);
   deductPlatformCredits("elevenlabs", ttsChars, `TTS voiceover — video #${videoId}`).catch(() => {});
 
@@ -84,7 +91,16 @@ async function runRenderPipeline(
   const MINIMAX_MINUTES_PER_CLIP = MINIMAX_SECONDS_PER_CLIP / 60;
 
   if (mode === "footage" || mode === "combined") {
-    footageUrl = await generateMiniMaxT2V(footagePrompt);
+    try {
+      footageUrl = await generateMiniMaxT2V(footagePrompt);
+    } catch (err) {
+      logger.error({ err, videoId }, "MiniMax T2V failed");
+      const msg = err instanceof Error && err.message.includes("timed out")
+        ? "AI footage generation is taking longer than expected. Please try again in a few minutes."
+        : "AI footage generation hit a temporary issue. Please try again — your credits were not charged.";
+      await markFailed(videoId, msg);
+      return;
+    }
     deductPlatformCredits("minimax", MINIMAX_CREDITS_PER_CLIP, `Text-to-video — video #${videoId}`, {
       minutesGenerated: MINIMAX_MINUTES_PER_CLIP,
       videosCount: 1,
@@ -95,8 +111,20 @@ async function runRenderPipeline(
 
   if (mode === "avatar" || mode === "combined") {
     const photoPath = avatarPhotoPath ?? video.avatarPhotoPath;
-    if (!photoPath) throw new Error("Avatar mode requires an uploaded avatar photo");
-    avatarClipUrl = await generateMiniMaxI2V(photoPath, footagePrompt);
+    if (!photoPath) {
+      await markFailed(videoId, "No avatar photo was found. Please re-upload your photo and try again.");
+      return;
+    }
+    try {
+      avatarClipUrl = await generateMiniMaxI2V(photoPath, footagePrompt);
+    } catch (err) {
+      logger.error({ err, videoId }, "MiniMax I2V failed");
+      const msg = err instanceof Error && err.message.includes("timed out")
+        ? "Avatar video generation is taking longer than expected. Please try again in a few minutes."
+        : "Avatar video generation hit a temporary issue. Please try again — your credits were not charged.";
+      await markFailed(videoId, msg);
+      return;
+    }
     deductPlatformCredits("minimax", MINIMAX_CREDITS_PER_CLIP, `Image-to-video — video #${videoId}`, {
       minutesGenerated: MINIMAX_MINUTES_PER_CLIP,
       videosCount: 1,
@@ -107,13 +135,23 @@ async function runRenderPipeline(
 
   // Step 3: Shotstack composition
   const duration = video.duration ?? 30;
-  const finalUrl = await composeShotstack({
-    voiceoverUrl,
-    footageUrl,
-    avatarClipUrl,
-    duration,
-    resolution,
-  });
+  let finalUrl: string;
+  try {
+    finalUrl = await composeShotstack({
+      voiceoverUrl,
+      footageUrl,
+      avatarClipUrl,
+      duration,
+      resolution,
+    });
+  } catch (err) {
+    logger.error({ err, videoId }, "Shotstack composition failed");
+    const msg = err instanceof Error && err.message.includes("timed out")
+      ? "Video assembly is taking longer than expected. Please try again in a few minutes."
+      : "Final video assembly hit a temporary issue. Please try again — your credits were not charged.";
+    await markFailed(videoId, msg);
+    return;
+  }
   deductPlatformCredits("shotstack", 1, `Render — video #${videoId}`, {
     minutesGenerated: duration / 60,
     videosCount: 1,

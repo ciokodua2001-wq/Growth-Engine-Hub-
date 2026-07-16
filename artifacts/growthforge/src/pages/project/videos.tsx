@@ -199,10 +199,18 @@ function RenderPanel({
       {currentStatus === "failed" && (
         <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
           <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-red-400">Render failed</p>
-            <p className="text-xs text-white/40 mt-0.5">{video.renderError ?? "An error occurred during rendering"}</p>
+            <p className="text-xs text-white/40 mt-0.5">{video.renderError ?? "An error occurred during rendering. Please try again."}</p>
           </div>
+          <button
+            onClick={handleRender}
+            disabled={startRender.isPending}
+            className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-red-500/20 hover:bg-red-500/30 text-red-300 hover:text-red-200 border border-red-500/30 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Try Again
+          </button>
         </div>
       )}
 
