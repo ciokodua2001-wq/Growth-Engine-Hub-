@@ -47,6 +47,7 @@ export * from './metaStatus';
 export * from './metricItem';
 export * from './project';
 export * from './projectAnalytics';
+export * from './projectAvatar';
 export * from './projectInput';
 export * from './projectUpdate';
 export * from './publishSocialInput';

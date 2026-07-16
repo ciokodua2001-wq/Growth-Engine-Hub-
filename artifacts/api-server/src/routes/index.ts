@@ -21,6 +21,7 @@ import authMetaRouter from "./auth-meta.js";
 import stripeRouter from "./stripe.js";
 import seoRouter from "./seo.js";
 import teamRouter from "./team.js";
+import avatarsRouter from "./avatars.js";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use(authMetaRouter);
 router.use(stripeRouter);
 router.use(seoRouter);
 router.use(teamRouter);
+router.use(avatarsRouter);
 
 export default router;

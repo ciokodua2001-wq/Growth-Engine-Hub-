@@ -15,3 +15,4 @@ export * from "./google-ads";
 export * from "./meta";
 export * from "./seo";
 export * from "./team";
+export * from "./avatars";

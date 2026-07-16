@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams } from "wouter";
 import {
   useListVideos,
@@ -13,13 +13,13 @@ import {
   ImageGenerateInputStyle,
   ImageGenerateInputOrientation,
 } from "@workspace/api-client-react";
-import type { Video as VideoModel } from "@workspace/api-client-react";
+import type { Video as VideoModel, ProjectAvatar } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Loader2, Video as VideoIcon, Play, Sparkles, Film, Upload, Check, X,
   AlertCircle, ChevronDown, Image as ImageIcon, RefreshCw,
-  Lock, Download, ExternalLink,
+  Lock, Download, ExternalLink, Plus, Trash2, User,
 } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 
@@ -96,10 +96,22 @@ function RenderPanel({
 }) {
   const [mode, setMode] = useState<RenderMode>("footage");
   const [resolution, setResolution] = useState<RenderResolution>("1080p");
-  const [avatarUploading, setAvatarUploading] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(video.avatarPhotoPath ?? null);
-  const [avatarError, setAvatarError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Avatar library
+  const [avatars, setAvatars] = useState<ProjectAvatar[]>([]);
+  const [avatarsLoading, setAvatarsLoading] = useState(false);
+  const [selectedAvatarId, setSelectedAvatarId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  // Add-avatar inline form
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newInstructions, setNewInstructions] = useState("");
+  const [newFile, setNewFile] = useState<File | null>(null);
+  const [newFilePreview, setNewFilePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const addFileInputRef = useRef<HTMLInputElement>(null);
 
   const startRender = useStartVideoRender();
 
@@ -122,31 +134,80 @@ function RenderPanel({
   const currentStatus = renderStatus?.renderStatus ?? video.renderStatus ?? "idle";
   const currentVideoUrl = renderStatus?.videoUrl ?? video.videoUrl;
 
-  const handleAvatarUpload = useCallback(async (file: File) => {
-    setAvatarError(null);
-    setAvatarUploading(true);
-    const form = new FormData();
-    form.append("photo", file);
+  // Load avatar library on mount
+  const loadAvatars = useCallback(async () => {
+    setAvatarsLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/videos/${video.id}/avatar`, {
-        method: "POST",
-        body: form,
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error((j as { error?: string }).error ?? "Upload failed");
+      const res = await fetch(`/api/projects/${projectId}/avatars`);
+      if (!res.ok) return;
+      const data = await res.json() as { avatars: ProjectAvatar[] };
+      setAvatars(data.avatars ?? []);
+      if (data.avatars?.length && !selectedAvatarId) {
+        const def = data.avatars.find(a => a.isDefault) ?? data.avatars[0];
+        if (def) setSelectedAvatarId(def.id);
       }
-      const data = await res.json() as { avatarPhotoPath: string };
-      setAvatarUrl(data.avatarPhotoPath);
-    } catch (err) {
-      setAvatarError(err instanceof Error ? err.message : "Upload failed");
+    } catch {
+      // ignore
     } finally {
-      setAvatarUploading(false);
+      setAvatarsLoading(false);
     }
-  }, [projectId, video.id]);
+  }, [projectId, selectedAvatarId]);
+
+  useEffect(() => { void loadAvatars(); }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAddAvatar = useCallback(async () => {
+    if (!newFile) return;
+    setUploading(true);
+    setUploadError(null);
+    const form = new FormData();
+    form.append("photo", newFile);
+    form.append("name", newName.trim() || "My Avatar");
+    if (newInstructions.trim()) form.append("instructions", newInstructions.trim());
+    try {
+      const res = await fetch(`/api/projects/${projectId}/avatars`, { method: "POST", body: form });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(j.error ?? "Upload failed");
+      }
+      const data = await res.json() as { avatar: ProjectAvatar };
+      setAvatars(prev => [...prev, data.avatar]);
+      setSelectedAvatarId(data.avatar.id);
+      setShowAddForm(false);
+      setNewName("");
+      setNewInstructions("");
+      setNewFile(null);
+      if (newFilePreview) URL.revokeObjectURL(newFilePreview);
+      setNewFilePreview(null);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }, [newFile, newName, newInstructions, newFilePreview, projectId]);
+
+  const handleDeleteAvatar = useCallback(async (avatarId: number) => {
+    setDeletingId(avatarId);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/avatars/${avatarId}`, { method: "DELETE" });
+      if (res.ok) {
+        setAvatars(prev => prev.filter(a => a.id !== avatarId));
+        if (selectedAvatarId === avatarId) setSelectedAvatarId(null);
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  }, [projectId, selectedAvatarId]);
 
   const handleRender = () => {
-    startRender.mutate({ id: projectId, videoId: video.id, data: { mode, resolution } });
+    startRender.mutate({
+      id: projectId,
+      videoId: video.id,
+      data: {
+        mode,
+        resolution,
+        ...(selectedAvatarId ? { avatarId: selectedAvatarId } : {}),
+      },
+    });
   };
 
   if (isTrial) {
@@ -208,8 +269,7 @@ function RenderPanel({
             disabled={startRender.isPending}
             className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-red-500/20 hover:bg-red-500/30 text-red-300 hover:text-red-200 border border-red-500/30 transition-colors disabled:opacity-50"
           >
-            <RefreshCw className="w-3 h-3" />
-            Try Again
+            <RefreshCw className="w-3 h-3" /> Try Again
           </button>
         </div>
       )}
@@ -242,8 +302,8 @@ function RenderPanel({
             <div className="grid grid-cols-3 gap-2">
               {([
                 { value: "footage", label: "Footage", desc: "AI b-roll only" },
-                { value: "avatar", label: "Avatar", desc: "Talking photo" },
-                { value: "combined", label: "Combined", desc: "Avatar + footage" },
+                { value: "avatar", label: "Presenter", desc: "Talking photo" },
+                { value: "combined", label: "Combined", desc: "Presenter over footage" },
               ] as { value: RenderMode; label: string; desc: string }[]).map((m) => (
                 <button
                   key={m.value}
@@ -263,60 +323,198 @@ function RenderPanel({
             </div>
           </div>
 
-          {/* Avatar upload — required for avatar/combined */}
+          {/* Avatar library — shown when mode requires presenter */}
           {(mode === "avatar" || mode === "combined") && (
             <div>
-              <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">
-                Avatar Photo <span className="text-red-400 normal-case font-normal">required</span>
-              </p>
-              {avatarUrl ? (
-                <div className="flex items-center gap-3">
-                  <img src={avatarUrl} alt="Avatar" className="w-14 h-14 rounded-xl object-cover border border-white/10" />
-                  <div className="flex-1">
-                    <p className="text-xs text-[#00E676] font-semibold flex items-center gap-1">
-                      <Check className="w-3 h-3" /> Photo ready
-                    </p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-white/50 uppercase tracking-wider">
+                  Avatar Library
+                </p>
+                {!showAddForm && (
+                  <button
+                    onClick={() => setShowAddForm(true)}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold text-[#00E676] hover:bg-[#00E676]/10 transition-colors border border-[#00E676]/20"
+                  >
+                    <Plus className="w-3 h-3" /> Add
+                  </button>
+                )}
+              </div>
+
+              {avatarsLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-4 h-4 animate-spin text-white/30" />
+                </div>
+              ) : avatars.length === 0 && !showAddForm ? (
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="w-full flex flex-col items-center justify-center gap-2 py-5 rounded-xl border border-dashed border-white/15 hover:border-[#00E676]/40 hover:bg-[#00E676]/5 transition-all"
+                >
+                  <User className="w-5 h-5 text-white/25" />
+                  <span className="text-xs text-white/40">Upload your first avatar</span>
+                  <span className="text-[10px] text-white/25">Founder, influencer, or brand rep</span>
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  {avatars.map((av) => (
                     <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-[10px] text-white/35 hover:text-white/60 transition-colors mt-0.5"
+                      key={av.id}
+                      onClick={() => setSelectedAvatarId(av.id)}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left ${
+                        selectedAvatarId === av.id
+                          ? "border-[#00E676]/50 bg-[#00E676]/8"
+                          : "border-white/8 bg-white/3 hover:border-white/15"
+                      }`}
                     >
-                      Replace photo
+                      <img
+                        src={av.photoUrl}
+                        alt={av.name}
+                        className="w-10 h-10 rounded-lg object-cover shrink-0 border border-white/10"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-bold truncate ${selectedAvatarId === av.id ? "text-[#00E676]" : "text-white/80"}`}>
+                          {av.name}
+                        </p>
+                        {av.instructions ? (
+                          <p className="text-[10px] text-white/35 truncate mt-0.5">{av.instructions}</p>
+                        ) : (
+                          <p className="text-[10px] text-white/20 mt-0.5 italic">No instructions set</p>
+                        )}
+                      </div>
+                      {selectedAvatarId === av.id && (
+                        <Check className="w-3.5 h-3.5 text-[#00E676] shrink-0" />
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); void handleDeleteAvatar(av.id); }}
+                        disabled={deletingId === av.id}
+                        className="p-1.5 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0 disabled:opacity-40"
+                        title="Remove avatar"
+                      >
+                        {deletingId === av.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3 h-3" />
+                        )}
+                      </button>
+                    </button>
+                  ))}
+
+                  {!showAddForm && (
+                    <button
+                      onClick={() => setShowAddForm(true)}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-white/10 hover:border-white/20 text-white/30 hover:text-white/55 transition-all text-xs"
+                    >
+                      <Plus className="w-3 h-3" /> Add another avatar
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Inline add-avatar form */}
+              {showAddForm && (
+                <div className="mt-2 p-3 rounded-xl border border-white/12 bg-white/3 space-y-3">
+                  <p className="text-xs font-bold text-white">New Avatar</p>
+
+                  {/* Photo picker */}
+                  {newFilePreview ? (
+                    <div className="flex items-center gap-3">
+                      <img src={newFilePreview} alt="Preview" className="w-14 h-14 rounded-xl object-cover border border-white/10 shrink-0" />
+                      <div>
+                        <p className="text-xs text-[#00E676] font-semibold flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Photo selected
+                        </p>
+                        <button
+                          onClick={() => addFileInputRef.current?.click()}
+                          className="text-[10px] text-white/35 hover:text-white/60 transition-colors mt-0.5"
+                        >
+                          Change photo
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => addFileInputRef.current?.click()}
+                      className="w-full flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border border-dashed border-white/12 hover:border-[#00E676]/40 hover:bg-[#00E676]/5 transition-all"
+                    >
+                      <Upload className="w-4 h-4 text-white/30" />
+                      <span className="text-xs text-white/35">Upload photo</span>
+                      <span className="text-[10px] text-white/20">JPEG, PNG, or WebP · max 10 MB</span>
+                    </button>
+                  )}
+                  <input
+                    ref={addFileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) {
+                        setNewFile(f);
+                        if (newFilePreview) URL.revokeObjectURL(newFilePreview);
+                        setNewFilePreview(URL.createObjectURL(f));
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+
+                  {/* Name */}
+                  <input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="Name — e.g. CEO, Founder, Sarah"
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder:text-white/25 focus:outline-none focus:border-[#00E676]/40"
+                  />
+
+                  {/* Instructions */}
+                  <textarea
+                    value={newInstructions}
+                    onChange={(e) => setNewInstructions(e.target.value)}
+                    rows={2}
+                    placeholder="Appearance instructions — e.g. Professional presenter, speaking directly to camera, confident and warm"
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder:text-white/25 resize-none focus:outline-none focus:border-[#00E676]/40"
+                  />
+
+                  {uploadError && (
+                    <p className="text-xs text-red-400 flex items-center gap-1">
+                      <X className="w-3 h-3" /> {uploadError}
+                    </p>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setShowAddForm(false);
+                        setNewFile(null);
+                        if (newFilePreview) URL.revokeObjectURL(newFilePreview);
+                        setNewFilePreview(null);
+                        setNewName("");
+                        setNewInstructions("");
+                        setUploadError(null);
+                      }}
+                      className="flex-1 py-1.5 rounded-lg text-xs text-white/50 hover:text-white/70 border border-white/8 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => void handleAddAvatar()}
+                      disabled={!newFile || uploading}
+                      className="flex-1 py-1.5 rounded-lg text-xs font-bold bg-[#00E676] text-black disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                    >
+                      {uploading ? (
+                        <><Loader2 className="w-3 h-3 animate-spin" /> Saving…</>
+                      ) : (
+                        "Save Avatar"
+                      )}
                     </button>
                   </div>
                 </div>
-              ) : (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={avatarUploading}
-                  className="w-full flex flex-col items-center justify-center gap-2 py-5 rounded-xl border border-dashed border-white/15 hover:border-[#00E676]/40 hover:bg-[#00E676]/5 transition-all"
-                >
-                  {avatarUploading ? (
-                    <Loader2 className="w-5 h-5 animate-spin text-[#00E676]" />
-                  ) : (
-                    <Upload className="w-5 h-5 text-white/30" />
-                  )}
-                  <span className="text-xs text-white/40">
-                    {avatarUploading ? "Uploading…" : "Upload influencer / founder photo"}
-                  </span>
-                  <span className="text-[10px] text-white/25">JPEG, PNG, or WebP · max 10 MB</span>
-                </button>
               )}
-              {avatarError && (
-                <p className="text-xs text-red-400 mt-1.5 flex items-center gap-1">
-                  <X className="w-3 h-3" /> {avatarError}
+
+              {/* Prompt when no avatar selected */}
+              {(mode === "avatar" || mode === "combined") && !selectedAvatarId && avatars.length > 0 && (
+                <p className="text-[10px] text-amber-400/80 mt-1.5 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> Select an avatar above
                 </p>
               )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleAvatarUpload(f);
-                  e.target.value = "";
-                }}
-              />
             </div>
           )}
 
@@ -352,7 +550,7 @@ function RenderPanel({
             onClick={handleRender}
             disabled={
               startRender.isPending ||
-              ((mode === "avatar" || mode === "combined") && !avatarUrl)
+              ((mode === "avatar" || mode === "combined") && !selectedAvatarId)
             }
             className="w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: "#00E676", color: "#040B14" }}

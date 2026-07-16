@@ -40,8 +40,9 @@ export function startVideoRender(
   mode: RenderMode,
   resolution: RenderResolution,
   avatarPhotoPath?: string | null,
+  avatarInstructions?: string | null,
 ): void {
-  runRenderPipeline(videoId, mode, resolution, avatarPhotoPath).catch((err) => {
+  runRenderPipeline(videoId, mode, resolution, avatarPhotoPath, avatarInstructions).catch((err) => {
     logger.error({ err, videoId }, "Render pipeline unhandled error");
     void markFailed(videoId, "An unexpected error occurred. Please try again — your credits were not charged.");
   });
@@ -60,6 +61,7 @@ async function runRenderPipeline(
   mode: RenderMode,
   resolution: RenderResolution,
   avatarPhotoPath?: string | null,
+  avatarInstructions?: string | null,
 ): Promise<void> {
   const [video] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
   if (!video) throw new Error(`Video ${videoId} not found`);
@@ -111,7 +113,7 @@ async function runRenderPipeline(
     if (mode === "combined") {
       // Run footage and avatar generation in parallel — saves significant time
       const avatarCount = Math.min(AVATAR_UNIQUE_CLIPS, numClips);
-      const avatarPrompts = buildScenePrompts(video.title, video.storyboard ?? "", avatarCount);
+      const avatarPrompts = buildAvatarPrompts(video.title, video.storyboard ?? "", avatarCount, avatarInstructions);
       [footageUrls, avatarClipUrls] = await Promise.all([
         generateFootageClipsT2V(scenePrompts, videoId),
         generateAvatarClipsI2V(photoPath!, avatarPrompts, videoId),
@@ -121,7 +123,7 @@ async function runRenderPipeline(
     } else {
       // avatar-only: 3 unique clips, cycled across the full duration
       const avatarCount = Math.min(AVATAR_UNIQUE_CLIPS, numClips);
-      const avatarPrompts = buildScenePrompts(video.title, video.storyboard ?? "", avatarCount);
+      const avatarPrompts = buildAvatarPrompts(video.title, video.storyboard ?? "", avatarCount, avatarInstructions);
       avatarClipUrls = await generateAvatarClipsI2V(photoPath!, avatarPrompts, videoId);
     }
   } catch (err) {
@@ -349,8 +351,8 @@ async function composeShotstack(opts: ShotstackOptions): Promise<string> {
           asset: { type: "video", src: opts.avatarClipUrls[i % opts.avatarClipUrls.length], trim: 0 },
           start: clipStart,
           length: clipLen,
-          position: isOverlay ? "bottomRight" : "center",
-          scale: isOverlay ? 0.35 : 1.0,
+          position: "center",
+          scale: isOverlay ? 0.70 : 1.0,
         };
       }).filter(c => c.length > 0),
     });
@@ -443,17 +445,35 @@ async function pollShotstack(renderId: string, apiKey: string): Promise<string> 
 
 // ── Scene-based clip generation ───────────────────────────────────────────────
 
-function buildScenePrompts(title: string, storyboard: string, count: number): string[] {
+function parseStoryboardScenes(storyboard: string, title: string): string[] {
   const scenes = storyboard
     .split("\n")
     .map(l => l.replace(/^scene\s*\d+[:.]\s*/i, "").trim())
     .filter(l => l.length > 5);
+  return scenes.length > 0 ? scenes : [`Marketing video for: ${title}`];
+}
 
-  const base = scenes.length > 0 ? scenes : [`Marketing video for: ${title}`];
-
+function buildScenePrompts(title: string, storyboard: string, count: number): string[] {
+  const base = parseStoryboardScenes(storyboard, title);
   return Array.from({ length: count }, (_, i) => {
     const scene = base[i % base.length] ?? title;
     return `Cinematic marketing footage, professional grade, 4K quality. ${scene.slice(0, 400)}`;
+  });
+}
+
+function buildAvatarPrompts(
+  title: string,
+  storyboard: string,
+  count: number,
+  instructions: string | null | undefined,
+): string[] {
+  const base = parseStoryboardScenes(storyboard, title);
+  const instructionLine = instructions?.trim()
+    ? `Animate this person naturally. ${instructions.trim()}.`
+    : "Animate this person naturally as a confident professional presenter, speaking directly to camera with clear, engaging energy.";
+  return Array.from({ length: count }, (_, i) => {
+    const scene = base[i % base.length] ?? title;
+    return `${instructionLine} Scene context: ${scene.replace(/^b-roll[:\s]*/i, "").slice(0, 300)}`;
   });
 }
 

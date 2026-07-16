@@ -2237,6 +2237,28 @@ components:
           type: string
           enum: ["1080p", "4k"]
           default: "1080p"
+        avatarId:
+          type: integer
+          description: ID of the avatar from the project avatar library to use for avatar/combined render modes.
+
+    ProjectAvatar:
+      type: object
+      required: [id, projectId, name, photoUrl, isDefault, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        photoUrl:
+          type: string
+        instructions:
+          type: ["string", "null"]
+        isDefault:
+          type: boolean
+        createdAt:
+          type: string
 
     VideoRenderStatus:
       type: object

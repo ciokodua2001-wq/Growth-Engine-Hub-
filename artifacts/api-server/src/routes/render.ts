@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { db } from "@workspace/db";
-import { videosTable } from "@workspace/db";
+import { videosTable, projectAvatarsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
 import { checkRenderRequirements, startVideoRender, type RenderMode, type RenderResolution } from "../lib/videoRenderPipeline.js";
@@ -25,9 +25,10 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     return;
   }
 
-  const { mode = "footage", resolution = "1080p" } = req.body as {
+  const { mode = "footage", resolution = "1080p", avatarId } = req.body as {
     mode?: RenderMode;
     resolution?: RenderResolution;
+    avatarId?: number;
   };
 
   const validModes = ["footage", "avatar", "combined"];
@@ -56,10 +57,28 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     return;
   }
 
-  // Avatar mode needs a photo
-  if ((mode === "avatar" || mode === "combined") && !video.avatarPhotoPath) {
-    res.status(422).json({ error: "Avatar photo must be uploaded before rendering in avatar or combined mode" });
-    return;
+  // Resolve avatar for avatar/combined modes
+  let resolvedAvatarPath: string | null = null;
+  let resolvedAvatarInstructions: string | null = null;
+
+  if (mode === "avatar" || mode === "combined") {
+    if (avatarId) {
+      const [avatar] = await db
+        .select()
+        .from(projectAvatarsTable)
+        .where(and(eq(projectAvatarsTable.id, avatarId), eq(projectAvatarsTable.projectId, projectId)));
+      if (!avatar) {
+        res.status(404).json({ error: "Avatar not found in project library" });
+        return;
+      }
+      resolvedAvatarPath = avatar.photoUrl;
+      resolvedAvatarInstructions = avatar.instructions;
+    } else if (video.avatarPhotoPath) {
+      resolvedAvatarPath = video.avatarPhotoPath;
+    } else {
+      res.status(422).json({ error: "Select an avatar from your library before rendering in avatar or combined mode" });
+      return;
+    }
   }
 
   // Check render service API keys
@@ -84,7 +103,7 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
   }).where(eq(videosTable.id, videoId));
 
   // Fire and forget — pipeline runs in background
-  startVideoRender(videoId, mode, resolution, video.avatarPhotoPath);
+  startVideoRender(videoId, mode, resolution, resolvedAvatarPath, resolvedAvatarInstructions);
 
   const [updated] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
   res.json(updated);

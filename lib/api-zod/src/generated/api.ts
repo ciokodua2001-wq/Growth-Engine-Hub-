@@ -1099,7 +1099,8 @@ export const startVideoRenderBodyResolutionDefault = `1080p`;
 
 export const StartVideoRenderBody = zod.object({
   "mode": zod.enum(['footage', 'avatar', 'combined']).default(startVideoRenderBodyModeDefault),
-  "resolution": zod.enum(['1080p', '4k']).default(startVideoRenderBodyResolutionDefault)
+  "resolution": zod.enum(['1080p', '4k']).default(startVideoRenderBodyResolutionDefault),
+  "avatarId": zod.number().optional().describe('ID of the avatar from the project avatar library to use for avatar\/combined render modes.')
 })
 
 export const StartVideoRenderResponse = zod.object({

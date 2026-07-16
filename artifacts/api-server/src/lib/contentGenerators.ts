@@ -97,8 +97,8 @@ Return JSON:
     {
       "title": "short descriptive title",
       "type": "promo | product | social",
-      "script": "full script with HOOK/scene breaks, tailored to this business",
-      "storyboard": "line-separated scene-by-scene visual description",
+      "script": "full script with HOOK/scene breaks written for direct-to-camera delivery — conversational, natural speech pacing, clear presenter beats",
+      "storyboard": "line-separated scene-by-scene visual description; prefix each line with PRESENTER: for talking-head shots or B-ROLL: for footage-only scenes",
       "duration": integer seconds (15-900),
       "hookStrength": 0-100 integer estimate,
       "engagementPotential": 0-100 integer estimate,

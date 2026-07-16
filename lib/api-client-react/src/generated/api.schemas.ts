@@ -598,6 +598,19 @@ export const VideoRenderInputResolution = {
 export interface VideoRenderInput {
   mode?: VideoRenderInputMode;
   resolution?: VideoRenderInputResolution;
+  /** ID of the avatar from the project avatar library to use for avatar/combined render modes. */
+  avatarId?: number;
+}
+
+export interface ProjectAvatar {
+  id: number;
+  projectId: number;
+  name: string;
+  photoUrl: string;
+  /** @nullable */
+  instructions?: string | null;
+  isDefault: boolean;
+  createdAt: string;
 }
 
 export interface VideoRenderStatus {

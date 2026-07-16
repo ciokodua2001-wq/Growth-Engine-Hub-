@@ -11,4 +11,6 @@ import type { VideoRenderInputResolution } from './videoRenderInputResolution';
 export interface VideoRenderInput {
   mode?: VideoRenderInputMode;
   resolution?: VideoRenderInputResolution;
+  /** ID of the avatar from the project avatar library to use for avatar/combined render modes. */
+  avatarId?: number;
 }
