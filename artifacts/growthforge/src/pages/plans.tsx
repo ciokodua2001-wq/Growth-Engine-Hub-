@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Check, Zap, Loader2, Star, X,
   BarChart3, PenTool, Film, Bot, Megaphone, Users,
-  CreditCard, ExternalLink, CheckCircle,
+  CreditCard, ExternalLink, CheckCircle, TrendingUp,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -49,7 +49,7 @@ const PLANS: Plan[] = [
     description: "For solo founders and small businesses",
     stats: [
       { value: "1", label: "Project" },
-      { value: "10", label: "Videos / mo" },
+      { value: "8 min", label: "Video / mo" },
       { value: "50", label: "Posts / mo" },
     ],
     groups: [
@@ -76,7 +76,16 @@ const PLANS: Plan[] = [
         icon: <Film className="w-3.5 h-3.5" />,
         label: "Video Studio",
         highlight: true,
-        items: ["10 Video Generations / month"],
+        items: [
+          "AI Video Generation",
+          "8 min 1080p / month",
+          "↳ Up to 32 × 15-sec or 8 × 1-min",
+        ],
+      },
+      {
+        icon: <TrendingUp className="w-3.5 h-3.5" />,
+        label: "Performance",
+        items: ["1 AI Campaign Report / month"],
       },
       {
         icon: <Bot className="w-3.5 h-3.5" />,
@@ -94,7 +103,7 @@ const PLANS: Plan[] = [
     description: "For growing creators ready to scale",
     stats: [
       { value: "3", label: "Projects" },
-      { value: "30", label: "Videos / mo" },
+      { value: "16+2 min", label: "1080p+4K / mo" },
       { value: "100", label: "Posts / mo" },
     ],
     groups: [
@@ -121,7 +130,20 @@ const PLANS: Plan[] = [
         icon: <Film className="w-3.5 h-3.5" />,
         label: "Video Studio",
         highlight: true,
-        items: ["30 Video Generations / month"],
+        items: [
+          "AI Video Generation",
+          "16 min 1080p — up to 64 × 15-sec",
+          "2 min 4K — up to 8 × 15-sec premium",
+        ],
+      },
+      {
+        icon: <TrendingUp className="w-3.5 h-3.5" />,
+        label: "Performance",
+        items: [
+          "2 AI Campaign Reports / month",
+          "AI Campaign Builder",
+          "Social Scheduling",
+        ],
       },
       {
         icon: <Bot className="w-3.5 h-3.5" />,
@@ -138,7 +160,7 @@ const PLANS: Plan[] = [
     description: "For teams serious about growth",
     stats: [
       { value: "6", label: "Projects" },
-      { value: "60", label: "Videos / mo" },
+      { value: "50+8 min", label: "1080p+4K / mo" },
       { value: "200", label: "Posts / mo" },
     ],
     groups: [
@@ -150,6 +172,7 @@ const PLANS: Plan[] = [
           "12 Competitor Reports / month",
           "6 Marketing Strategies / month",
           "20 AI Customer Personas / month",
+          "Competitor Video Mining",
         ],
       },
       {
@@ -165,7 +188,20 @@ const PLANS: Plan[] = [
         icon: <Film className="w-3.5 h-3.5" />,
         label: "Video Studio",
         highlight: true,
-        items: ["60 Video Generations / month"],
+        items: [
+          "AI Video Generation",
+          "50 min 1080p — up to 200 × 15-sec",
+          "8 min 4K — up to 32 × 15-sec premium",
+        ],
+      },
+      {
+        icon: <TrendingUp className="w-3.5 h-3.5" />,
+        label: "Performance",
+        items: [
+          "5 AI Campaign Reports / month",
+          "White-Label Reports",
+          "Dedicated Onboarding",
+        ],
       },
       {
         icon: <Bot className="w-3.5 h-3.5" />,
@@ -183,7 +219,7 @@ const PLANS: Plan[] = [
     description: "For agencies managing multiple clients",
     stats: [
       { value: "20", label: "Projects" },
-      { value: "120", label: "Videos / mo" },
+      { value: "120+20 min", label: "1080p+4K / mo" },
       { value: "400", label: "Posts / mo" },
     ],
     groups: [
@@ -210,7 +246,20 @@ const PLANS: Plan[] = [
         icon: <Film className="w-3.5 h-3.5" />,
         label: "Video Studio",
         highlight: true,
-        items: ["120 Video Generations / month"],
+        items: [
+          "AI Video Generation",
+          "120 min 1080p — up to 480 × 15-sec",
+          "20 min 4K — up to 80 × 15-sec premium",
+        ],
+      },
+      {
+        icon: <TrendingUp className="w-3.5 h-3.5" />,
+        label: "Performance",
+        items: [
+          "10 AI Campaign Reports / month",
+          "AI Managed Campaigns",
+          "Autonomous Growth Mode",
+        ],
       },
       {
         icon: <Users className="w-3.5 h-3.5" />,
@@ -311,15 +360,23 @@ function PlanCard({
                 </span>
               </div>
               <ul className="flex flex-col gap-1.5">
-                {group.items.map((item, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <Check
-                      className="w-3.5 h-3.5 shrink-0 mt-0.5"
-                      style={{ color: group.highlight ? plan.color : "rgba(255,255,255,0.35)" }}
-                    />
-                    <span className="text-xs leading-relaxed text-white/65">{item}</span>
-                  </li>
-                ))}
+                {group.items.map((item, idx) => {
+                  const isSub = item.startsWith("↳");
+                  const text = isSub ? item.slice(1).trim() : item;
+                  return (
+                    <li key={idx} className={`flex items-start gap-2 ${isSub ? "ml-5" : ""}`}>
+                      {isSub ? (
+                        <span className="shrink-0 mt-0.5 text-xs leading-none" style={{ color: "rgba(255,255,255,0.2)" }}>└</span>
+                      ) : (
+                        <Check
+                          className="w-3.5 h-3.5 shrink-0 mt-0.5"
+                          style={{ color: group.highlight ? plan.color : "rgba(255,255,255,0.35)" }}
+                        />
+                      )}
+                      <span className={`leading-relaxed ${isSub ? "text-[11px] text-white/35 italic" : "text-xs text-white/65"}`}>{text}</span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}
