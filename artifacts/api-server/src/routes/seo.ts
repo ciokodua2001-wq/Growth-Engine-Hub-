@@ -31,7 +31,7 @@ router.post(
   "/projects/:id/seo-strategy/generate",
   requireActiveSubscription,
   async (req, res): Promise<void> => {
-    const id = parseInt(req.params["id"] ?? "", 10);
+    const id = parseInt(String(req.params["id"] ?? ""), 10);
     if (isNaN(id)) { res.status(400).json({ error: "Invalid project id" }); return; }
 
     const [project] = await db
@@ -59,7 +59,7 @@ router.post(
       return;
     }
 
-    const businessName = ctx.businessName ?? "this business";
+    const businessName = ctx.project.name ?? "this business";
 
     const prompt = `You are an elite SEO and GEO (Generative Engine Optimization) strategist with deep expertise in both traditional search engines and AI-powered discovery platforms.
 
@@ -128,9 +128,9 @@ Requirements:
 - The 90-day roadmap must be sequenced so early phases enable later ones`;
 
     try {
-      const strategy = await generateJson<Record<string, unknown>>(prompt, {
-        systemPrompt: "You are an elite SEO and GEO strategist. Return only valid JSON with no markdown or code fences. Every recommendation must be specific and actionable based on the provided business context.",
-        temperature: 0.5,
+      const strategy = await generateJson<Record<string, unknown>>({
+        system: "You are an elite SEO and GEO strategist. Return only valid JSON with no markdown or code fences. Every recommendation must be specific and actionable based on the provided business context.",
+        prompt,
       });
 
       const [saved] = await db

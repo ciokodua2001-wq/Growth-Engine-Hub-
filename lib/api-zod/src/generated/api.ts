@@ -164,7 +164,8 @@ export const AnalyzeWebsiteParams = zod.object({
 
 export const AnalyzeWebsiteBody = zod.object({
   "websiteUrl": zod.string(),
-  "prompt": zod.string().optional()
+  "prompt": zod.string().optional(),
+  "businessDescription": zod.string().optional().describe('Optional manual business description used as fallback when the website cannot be scraped.')
 })
 
 export const AnalyzeWebsiteResponse = zod.object({

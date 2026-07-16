@@ -9,4 +9,6 @@
 export interface AnalysisInput {
   websiteUrl: string;
   prompt?: string;
+  /** Optional manual business description used as fallback when the website cannot be scraped. */
+  businessDescription?: string;
 }

@@ -1501,6 +1501,9 @@ components:
           type: string
         prompt:
           type: string
+        businessDescription:
+          type: string
+          description: Optional manual business description used as fallback when the website cannot be scraped.
 
     BusinessAnalysis:
       type: object

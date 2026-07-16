@@ -29,7 +29,7 @@ async function exchangeForLongLived(shortToken: string): Promise<{ access_token:
   url.searchParams.set("fb_exchange_token", shortToken);
   const r = await fetch(url.toString(), { signal: AbortSignal.timeout(15_000) });
   if (!r.ok) throw new Error(`Token exchange failed: ${await r.text()}`);
-  return r.json();
+  return r.json() as Promise<{ access_token: string; expires_in: number }>;
 }
 
 // ── Status ─────────────────────────────────────────────────────────────────────

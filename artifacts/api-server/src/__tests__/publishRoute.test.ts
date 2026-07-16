@@ -71,7 +71,8 @@ vi.mock("@clerk/express", () => ({
 vi.mock("../lib/authz.js", () => ({
   requireProjectOwnershipParam: () =>
     (req: Request, _res: Response, next: NextFunction, _value: string) => {
-      (req as Request & { project: unknown }).project = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (req as any).project = {
         id: 1,
         ownerId: "user_clerk_test",
         plan: "pro",
@@ -157,12 +158,8 @@ function buildApp() {
   app.use(express.json());
   // Provide a no-op req.log so route handlers can call req.log.error/info/warn
   app.use((req: Request & { log?: unknown }, _res: Response, next: NextFunction) => {
-    req.log = {
-      info: () => {},
-      warn: () => {},
-      error: () => {},
-      debug: () => {},
-    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    req.log = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, fatal: () => {}, trace: () => {}, silent: () => {}, level: "info" } as any;
     next();
   });
   app.use("/api", contentRouter);

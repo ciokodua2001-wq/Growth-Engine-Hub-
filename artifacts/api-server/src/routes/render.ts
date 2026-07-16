@@ -128,8 +128,8 @@ router.post(
     const userId = requireUserId(req, res);
     if (!userId) return;
 
-    const projectId = parseInt(req.params.id, 10);
-    const videoId = parseInt(req.params.videoId, 10);
+    const projectId = parseInt(String(req.params.id ?? ""), 10);
+    const videoId = parseInt(String(req.params.videoId ?? ""), 10);
 
     if (!req.file) {
       res.status(400).json({ error: "No photo file uploaded" });

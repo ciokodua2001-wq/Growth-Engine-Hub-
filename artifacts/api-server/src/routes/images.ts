@@ -96,14 +96,14 @@ function buildGroundedPrompt(
 
   if (userPrompt) {
     const businessSuffix = ctx
-      ? `. Brand context: ${ctx.businessName}, ${ctx.tagline ?? ""}`
+      ? `. Brand context: ${ctx.project.name}, ${ctx.analysis.uniqueValueProposition ?? ""}`
       : "";
     return `${prefix}: ${userPrompt}${businessSuffix}`;
   }
 
   // Auto-generate from business context
   if (ctx) {
-    return `${prefix} for ${ctx.businessName}. ${ctx.tagline ?? ctx.industry ?? ""}. Professional, high quality, suitable for marketing.`;
+    return `${prefix} for ${ctx.project.name}. ${ctx.analysis.uniqueValueProposition ?? ctx.analysis.industry ?? ""}. Professional, high quality, suitable for marketing.`;
   }
 
   return `${prefix}. Professional, high quality, suitable for marketing.`;

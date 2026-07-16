@@ -109,7 +109,7 @@ router.post("/projects/:id/team/invite", requireOwnerOnly, async (req, res): Pro
 // ── Remove / revoke a team member ────────────────────────────────────────────
 router.delete("/projects/:id/team/:memberId", requireOwnerOnly, async (req, res): Promise<void> => {
   const projectId = req.project!.id;
-  const memberId = parseInt(req.params.memberId, 10);
+  const memberId = parseInt(String(req.params.memberId ?? ""), 10);
   if (isNaN(memberId)) { res.status(400).json({ error: "Invalid member id" }); return; }
 
   const [member] = await db
