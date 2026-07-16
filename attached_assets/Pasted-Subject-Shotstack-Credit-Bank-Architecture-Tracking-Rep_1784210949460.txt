@@ -1,0 +1,363 @@
+Subject: Shotstack Credit Bank Architecture, Tracking, Reporting & Billing Model Recommendations
+
+Before I purchase additional Shotstack credits, I'd like to revisit how we handle Shotstack within the Admin Credit Bank and ensure the architecture is designed for long-term scalability.
+
+Unlike Minimax, Shotstack offers both Pay-As-You-Go and Subscription billing models, so I want to ensure our implementation can support either model without requiring future redesigns.
+
+CURRENT OBSERVATIONS
+
+Shotstack pricing currently offers:
+
+Pay-As-You-Go:
+• Credits purchased upfront
+• Credits valid for 12 months
+• No monthly commitment
+• Higher per-minute rendering cost
+
+Subscription:
+• Lower per-minute rendering cost
+• Monthly recurring billing
+• Credit rollover benefits
+• Additional platform features
+
+While I may initially use Pay-As-You-Go, I want GrowthForge to be architected so that switching to a subscription plan later does not require database, reporting, or UI changes.
+
+====================================================
+CORE RECOMMENDATION
+====================================================
+
+Just like Minimax, I recommend that Shotstack be tracked using credits as the operational source of truth rather than USD.
+
+The reason is that Shotstack consumption is fundamentally tied to render credits and rendered minutes, not directly to dollars.
+
+USD should be treated as an accounting metric, while credits should be treated as the operational balance.
+
+====================================================
+SYSTEM DESIGN RECOMMENDATION
+====================================================
+
+The system should be structured into three layers:
+
+====================================================
+1. PROVIDER LAYER (ADMIN ONLY)
+====================================================
+
+Track and store:
+
+• Credits Purchased
+• Credits Consumed
+• Credits Remaining
+• Credits Expired (if applicable)
+
+Example:
+
+Purchased: 1,000 Credits
+Consumed: 300 Credits
+Remaining: 700 Credits
+
+Credits should be the source of truth for all balance calculations.
+
+====================================================
+2. FINANCIAL LAYER (ADMIN ONLY)
+====================================================
+
+Track:
+
+• Purchase Cost (USD)
+• Subscription Costs (if applicable)
+• Estimated Cost Consumed
+• Estimated Remaining Value
+• Monthly Spend
+• Quarterly Spend
+• Annual Spend
+
+This supports:
+
+• Cost tracking
+• Vendor management
+• Revenue analysis
+• Profitability reporting
+• Forecasting
+
+USD should be used strictly for financial reporting and accounting.
+
+====================================================
+3. CUSTOMER LAYER (USER FACING)
+====================================================
+
+Customers should NOT see:
+
+• Credits
+• Render balances
+• Provider costs
+• Vendor usage
+
+Customers should continue seeing only business-focused metrics such as:
+
+• Videos Generated
+• Minutes Rendered
+• Minutes Consumed
+• Monthly Usage
+
+Example Flow:
+
+Shotstack Credits
+        ↓
+Credits Consumed
+        ↓
+Video Rendered
+        ↓
+Minutes Produced
+        ↓
+Minutes Displayed To Customer
+
+====================================================
+BILLING MODEL SUPPORT
+====================================================
+
+Please design Shotstack so it supports both:
+
+• Pay-As-You-Go
+• Subscription
+
+Example:
+
+Billing Model:
+
+○ Pay-As-You-Go
+○ Subscription
+
+The reporting engine, analytics, and Credit Bank should work identically regardless of which billing model is selected.
+
+This will allow us to switch plans later without architectural changes.
+
+====================================================
+ADMIN CREDIT BANK UI RECOMMENDATION
+====================================================
+
+Instead of tracking only a dollar amount, I recommend:
+
+Shotstack Top-Up
+
+Credits Added:
+[ 1000 ]
+
+Purchase Cost (USD):
+[ 200 ]
+
+Notes:
+[ Invoice #123 ]
+
+If we later switch to Subscription:
+
+Subscription Plan:
+[ Monthly ]
+
+Monthly Cost:
+[ Amount ]
+
+Included Credits:
+[ Quantity ]
+
+This keeps both billing approaches aligned within the same system.
+
+====================================================
+ADMIN DASHBOARD DISPLAY
+====================================================
+
+Suggested Shotstack Card:
+
+Shotstack (Render)
+
+Billing Model:
+Pay-As-You-Go
+
+Current Balance:
+700 Credits
+
+Estimated USD Value:
+~$140
+
+Credits Consumed:
+300
+
+Videos Rendered:
+125
+
+Minutes Rendered:
+450
+
+If Subscription:
+
+Shotstack (Render)
+
+Billing Model:
+Subscription
+
+Current Month Allocation:
+1,000 Credits
+
+Credits Used:
+300
+
+Credits Remaining:
+700
+
+Videos Rendered:
+125
+
+Minutes Rendered:
+450
+
+====================================================
+REPORTING REQUIREMENTS
+====================================================
+
+Reporting should be considered a core feature from day one.
+
+Support reporting by:
+
+• Daily
+• Weekly
+• Monthly
+• Quarterly
+• Annually
+• Year-to-Date
+• Custom Date Ranges
+
+Date Filters:
+
+• Start Date
+• End Date
+
+Examples:
+
+• January 1 – January 31
+• Q1 2026
+• Last 90 Days
+• Current Year
+• Custom Range
+
+====================================================
+REPORTING METRICS
+====================================================
+
+Credit Activity
+
+• Credits Purchased
+• Credits Consumed
+• Credits Remaining
+• Credits Expired
+
+Financial Activity
+
+• Purchase Cost
+• Subscription Cost
+• Estimated Cost Consumed
+• Estimated Cost Remaining
+• Monthly Spend
+• Quarterly Spend
+• Annual Spend
+
+Production Activity
+
+• Videos Rendered
+• Minutes Rendered
+• Average Credits Per Minute
+• Average Cost Per Minute
+• Average Cost Per Video
+
+Operational Activity
+
+• Top-Up History
+• Subscription History
+• Credit Usage History
+• Consumption Trends
+
+====================================================
+EXAMPLE MONTHLY REPORT
+====================================================
+
+Shotstack Usage Report
+July 2026
+
+Billing Model:
+Pay-As-You-Go
+
+Credits Purchased:
+1,000
+
+Credits Consumed:
+325
+
+Credits Remaining:
+675
+
+Purchase Cost:
+$200
+
+Estimated Cost Consumed:
+$65
+
+Videos Rendered:
+150
+
+Minutes Rendered:
+420
+
+Average Credits Per Minute:
+0.77
+
+Average Cost Per Minute:
+$0.15
+
+====================================================
+DATA MODEL REQUIREMENTS
+====================================================
+
+To support future reporting and auditing, do not simply update balances.
+
+Store historical records for every transaction and usage event.
+
+Credit Purchase Record
+
+• Date
+• Credits Added
+• USD Cost
+• Billing Model
+• Notes
+• Admin User
+
+Subscription Record
+
+• Date
+• Plan
+• Monthly Cost
+• Included Credits
+• Billing Cycle
+
+Render Event Record
+
+• Date
+• Credits Consumed
+• Minutes Rendered
+• Project
+• User
+• Render ID
+
+This will allow accurate reporting across any time period without needing future redesign.
+
+====================================================
+FINAL RECOMMENDATION
+====================================================
+
+1. Use Credits as the primary operational unit for Shotstack.
+2. Store USD separately for accounting and reporting purposes.
+3. Continue showing only Videos and Minutes to customers.
+4. Keep Credits and Cost metrics admin-only.
+5. Build support for both Pay-As-You-Go and Subscription models from day one.
+6. Capture all activity as timestamped historical records.
+7. Support monthly, quarterly, annual, and custom date-range reporting.
+8. Ensure future migration between Pay-As-You-Go and Subscription requires no database or reporting redesign.
+
+The goal is to future-proof the Shotstack integration while maintaining accurate operational tracking, financial visibility, and customer-friendly usage reporting.

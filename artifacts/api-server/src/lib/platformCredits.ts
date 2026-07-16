@@ -6,8 +6,6 @@ import { logger } from "./logger.js";
 
 export type Provider = "anthropic" | "openai" | "minimax" | "elevenlabs" | "shotstack";
 
-// Only MiniMax and Shotstack have manually-managed banks.
-// Anthropic/OpenAI/ElevenLabs are either Replit-managed or live-API-checked.
 const MANUAL_BANKS: Array<{ provider: Provider; displayName: string; unit: string }> = [
   { provider: "minimax",   displayName: "MiniMax (Video)",    unit: "credits" },
   { provider: "shotstack", displayName: "Shotstack (Render)", unit: "credits" },
@@ -25,7 +23,7 @@ export async function seedManualBanks(): Promise<void> {
   }
 }
 
-export interface MiniMaxDeductMeta {
+export interface CreditDeductMeta {
   minutesGenerated?: number;
   videosCount?: number;
   projectId?: number;
@@ -36,19 +34,19 @@ export interface MiniMaxDeductMeta {
 /**
  * Deduct credits from a provider's bank (if one exists) and always log the transaction.
  * For Anthropic/ElevenLabs/OpenAI: logs spend for reporting without touching any bank row.
- * For MiniMax/Shotstack: also updates the bank balance and fires low-balance alerts.
- * For MiniMax specifically: pass meta to track production metrics (minutes, videos, project).
+ * For MiniMax/Shotstack: also updates the bank balance, production totals, and fires alerts.
+ * Pass CreditDeductMeta to record per-event production metrics (minutes, videos, project).
  */
 export async function deductPlatformCredits(
   provider: Provider,
   amount: number,
   description: string,
-  referenceIdOrMeta?: string | MiniMaxDeductMeta,
+  referenceIdOrMeta?: string | CreditDeductMeta,
 ): Promise<void> {
   if (amount <= 0) return;
 
   const referenceId = typeof referenceIdOrMeta === "string" ? referenceIdOrMeta : undefined;
-  const meta: MiniMaxDeductMeta = (typeof referenceIdOrMeta === "object" && referenceIdOrMeta !== null)
+  const meta: CreditDeductMeta = (typeof referenceIdOrMeta === "object" && referenceIdOrMeta !== null)
     ? referenceIdOrMeta
     : {};
 
@@ -70,7 +68,8 @@ export async function deductPlatformCredits(
           updatedAt: new Date(),
         };
 
-        if (provider === "minimax") {
+        // Track production totals for manually-managed banks (MiniMax and Shotstack)
+        if (provider === "minimax" || provider === "shotstack") {
           bankUpdate.totalCreditsConsumed = (bank.totalCreditsConsumed ?? 0) + amount;
           if (meta.videosCount) {
             bankUpdate.totalVideosGenerated = (bank.totalVideosGenerated ?? 0) + meta.videosCount;

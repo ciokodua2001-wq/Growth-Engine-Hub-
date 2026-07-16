@@ -114,7 +114,12 @@ async function runRenderPipeline(
     duration,
     resolution,
   });
-  deductPlatformCredits("shotstack", 1, `Render — video #${videoId}`).catch(() => {});
+  deductPlatformCredits("shotstack", 1, `Render — video #${videoId}`, {
+    minutesGenerated: duration / 60,
+    videosCount: 1,
+    projectId: video.projectId,
+    videoId: String(videoId),
+  }).catch(() => {});
 
   // Update DB with completed render
   await db.update(videosTable).set({
