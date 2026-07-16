@@ -1,0 +1,42 @@
+Regarding the findings below:
+
+Trial "6 Video Blueprints": The pricing page currently states 6 Video Blueprints; however, the actual code enforcement is 1 call × 3 maximum batch size, which means Trial users can generate a maximum of 3 Video Blueprints, not 6. The Trial plan page needs to be updated immediately to reflect the correct limit and avoid a mismatch between marketing and backend enforcement.
+
+Trial "10 Forge AI Chats": The pricing page currently advertises 10 Forge AI Chats, but the codebase has been intentionally updated to allow 40 Forge AI Chats, as documented in trialLimits.ts. The Trial plan page is therefore out of date and should be updated to reflect the current allowance of 40 Forge AI Chats.
+
+Required Updates
+
+Please update the Trial plan pricing page to show the correct values:
+
+Video Blueprints: 3
+Forge AI Chats: 40
+
+This will ensure the pricing page accurately reflects the actual product limits being enforced by the platform.
+
+Campaign Performance Reports Quota Enforcement
+
+Regarding the Campaign Performance Reports feature, this requires immediate attention.
+
+The pricing page currently advertises monthly usage limits by plan tier:
+
+Starter: 1 report/month
+Growth: 2 reports/month
+Get-Going: 5 reports/month
+Agency: 10 reports/month
+
+However, the backend currently appears to use only requireActiveSubscription, meaning users simply need an active subscription and there is no actual quota tracking or consumption enforcement in place.
+
+This creates a direct discrepancy between what is being sold and what is technically enforced.
+
+Please implement proper quota enforcement so that:
+
+Usage is tracked per account.
+Monthly quotas are consumed when reports are generated.
+Limits are enforced based on the user's subscribed plan.
+Quotas reset appropriately each billing cycle.
+Trial access is handled according to the intended business rules.
+The quotas displayed on the pricing page match exactly what is enforced in the backend.
+
+Before launch, I want confirmation that Campaign Performance Reports are no longer relying solely on requireActiveSubscription and instead have fully implemented quota consumption and enforcement aligned with all plan tiers.
+
+Provide your feedback on BizChat
