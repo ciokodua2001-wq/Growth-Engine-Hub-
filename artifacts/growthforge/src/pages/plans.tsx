@@ -331,13 +331,13 @@ function PlanCard({
           {plan.stats.map((stat) => (
             <div
               key={stat.label}
-              className="flex flex-col items-center justify-center rounded-xl py-2.5 px-1 text-center"
+              className="flex flex-col items-center justify-center rounded-xl py-2.5 px-1 text-center overflow-hidden"
               style={{ background: `${plan.color}10`, border: `1px solid ${plan.color}22` }}
             >
-              <span className="text-base font-bold leading-tight" style={{ color: plan.color }}>
+              <span className="text-sm font-bold leading-tight break-all" style={{ color: plan.color }}>
                 {stat.value}
               </span>
-              <span className="text-[10px] text-white/40 leading-tight mt-0.5">{stat.label}</span>
+              <span className="text-[9px] text-white/40 leading-tight mt-0.5 break-words">{stat.label}</span>
             </div>
           ))}
         </div>
@@ -502,45 +502,45 @@ export default function PlansPage() {
   const isPaidUser = userPlan && userPlan !== "trial";
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#040B14" }}>
+    <div className="min-h-screen flex flex-col overflow-x-hidden" style={{ background: "#040B14" }}>
       {/* Header */}
-      <header className="flex items-center justify-between px-8 py-5 border-b border-white/5">
-        <Link href="/" className="flex items-center gap-2">
+      <header className="flex items-center justify-between px-4 sm:px-8 py-5 border-b border-white/5">
+        <Link href="/" className="flex items-center gap-2 shrink-0">
           <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
             <path d="M20 4L10 16h7L13 28l14-16h-9l5-8z" fill="#00E676" />
           </svg>
           <span className="text-lg font-bold text-white">GrowthForge</span>
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {isPaidUser && (
             <button
               onClick={handleManageSubscription}
               disabled={portalLoading}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 text-white/60 hover:text-white hover:border-white/20 text-sm transition-colors"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 text-white/60 hover:text-white hover:border-white/20 text-sm transition-colors shrink-0"
             >
               {portalLoading ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
                 <ExternalLink className="w-3.5 h-3.5" />
               )}
-              Manage Subscription
+              <span className="hidden sm:inline">Manage Subscription</span>
             </button>
           )}
-          <div className="flex items-center gap-2 text-sm text-white/50">
-            <div className="w-5 h-5 rounded-full bg-[#00E676]/20 flex items-center justify-center">
+          <div className="flex items-center gap-1.5 text-sm text-white/50">
+            <div className="w-5 h-5 rounded-full bg-[#00E676]/20 flex items-center justify-center shrink-0">
               <Check className="w-3 h-3 text-[#00E676]" />
             </div>
-            Account created
-            <div className="w-4 h-px bg-white/20 mx-1" />
-            <div className="w-5 h-5 rounded-full bg-[#00E676] flex items-center justify-center">
+            <span className="hidden sm:inline">Account created</span>
+            <div className="w-3 sm:w-4 h-px bg-white/20 mx-0.5 sm:mx-1 shrink-0" />
+            <div className="w-5 h-5 rounded-full bg-[#00E676] flex items-center justify-center shrink-0">
               <span className="text-[10px] font-bold text-black">2</span>
             </div>
-            <span className="text-white">Choose plan</span>
-            <div className="w-4 h-px bg-white/20 mx-1" />
-            <div className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center">
+            <span className="text-white text-xs sm:text-sm">Choose plan</span>
+            <div className="w-3 sm:w-4 h-px bg-white/20 mx-0.5 sm:mx-1 shrink-0" />
+            <div className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center shrink-0">
               <span className="text-[10px] text-white/40">3</span>
             </div>
-            <span className="text-white/40">Set up workspace</span>
+            <span className="hidden sm:inline text-white/40">Set up workspace</span>
           </div>
         </div>
       </header>
