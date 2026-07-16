@@ -99,7 +99,7 @@ Return JSON:
       "type": "promo | product | social",
       "script": "full script with HOOK/scene breaks, tailored to this business",
       "storyboard": "line-separated scene-by-scene visual description",
-      "duration": integer seconds (15-90),
+      "duration": integer seconds (15-900),
       "hookStrength": 0-100 integer estimate,
       "engagementPotential": 0-100 integer estimate,
       "viralPotential": 0-100 integer estimate

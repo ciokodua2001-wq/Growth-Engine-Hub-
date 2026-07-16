@@ -6,6 +6,13 @@ import { deductPlatformCredits } from "./platformCredits.js";
 
 const logger = pino({ name: "videoRenderPipeline" });
 
+// ── Render constants ──────────────────────────────────────────────────────────
+const MINIMAX_CLIP_DURATION_S = 6;   // MiniMax generates ~6-second clips
+const CLIP_BATCH_SIZE = 5;           // max concurrent MiniMax requests per batch
+const AVATAR_UNIQUE_CLIPS = 3;       // unique avatar clips generated; cycled to fill duration
+const MINIMAX_CREDITS_PER_CLIP = 140;
+const MINIMAX_MINUTES_PER_CLIP = MINIMAX_CLIP_DURATION_S / 60;
+
 // ── API key constants ─────────────────────────────────────────────────────────
 const ELEVENLABS_API_URL = "https://api.elevenlabs.io";
 const MINIMAX_API_URL = "https://api.minimax.io";
@@ -80,67 +87,67 @@ async function runRenderPipeline(
 
   await db.update(videosTable).set({ voiceoverUrl }).where(eq(videosTable.id, videoId));
 
-  // Step 2: MiniMax AI footage / avatar clip
-  const footagePrompt = buildMiniMaxPrompt(video.title, video.storyboard ?? "");
-  let footageUrl: string | null = null;
-  let avatarClipUrl: string | null = null;
+  // Step 2: Scene-based MiniMax clip generation
+  // Each clip is ~6 seconds; we generate enough clips to cover the full requested duration.
+  // Footage clips are generated in parallel batches of 5.
+  // Avatar clips are capped at AVATAR_UNIQUE_CLIPS (3) and cycled in the Shotstack timeline.
+  const duration = video.duration ?? 60;
+  const numClips = Math.max(1, Math.ceil(duration / MINIMAX_CLIP_DURATION_S));
+  const scenePrompts = buildScenePrompts(video.title, video.storyboard ?? "", numClips);
 
-  // MiniMax credit costs: $5 = 5,000 credits → 1 credit = $0.001; ~6-second clip ≈ 140 credits
-  const MINIMAX_CREDITS_PER_CLIP = 140;
-  const MINIMAX_SECONDS_PER_CLIP = 6;
-  const MINIMAX_MINUTES_PER_CLIP = MINIMAX_SECONDS_PER_CLIP / 60;
+  let footageUrls: string[] = [];
+  let avatarClipUrls: string[] = [];
 
-  if (mode === "footage" || mode === "combined") {
-    try {
-      footageUrl = await generateMiniMaxT2V(footagePrompt);
-    } catch (err) {
-      logger.error({ err, videoId }, "MiniMax T2V failed");
-      const msg = err instanceof Error && err.message.includes("timed out")
-        ? "AI footage generation is taking longer than expected. Please try again in a few minutes."
-        : "AI footage generation hit a temporary issue. Please try again — your credits were not charged.";
-      await markFailed(videoId, msg);
-      return;
-    }
-    deductPlatformCredits("minimax", MINIMAX_CREDITS_PER_CLIP, `Text-to-video — video #${videoId}`, {
-      minutesGenerated: MINIMAX_MINUTES_PER_CLIP,
-      videosCount: 1,
-      projectId: video.projectId,
-      videoId: String(videoId),
-    }).catch(() => {});
-  }
+  const photoPath = avatarPhotoPath ?? video.avatarPhotoPath;
 
   if (mode === "avatar" || mode === "combined") {
-    const photoPath = avatarPhotoPath ?? video.avatarPhotoPath;
     if (!photoPath) {
       await markFailed(videoId, "No avatar photo was found. Please re-upload your photo and try again.");
       return;
     }
-    try {
-      avatarClipUrl = await generateMiniMaxI2V(photoPath, footagePrompt);
-    } catch (err) {
-      logger.error({ err, videoId }, "MiniMax I2V failed");
-      const msg = err instanceof Error && err.message.includes("timed out")
-        ? "Avatar video generation is taking longer than expected. Please try again in a few minutes."
-        : "Avatar video generation hit a temporary issue. Please try again — your credits were not charged.";
-      await markFailed(videoId, msg);
-      return;
-    }
-    deductPlatformCredits("minimax", MINIMAX_CREDITS_PER_CLIP, `Image-to-video — video #${videoId}`, {
-      minutesGenerated: MINIMAX_MINUTES_PER_CLIP,
-      videosCount: 1,
-      projectId: video.projectId,
-      videoId: String(videoId),
-    }).catch(() => {});
   }
 
+  try {
+    if (mode === "combined") {
+      // Run footage and avatar generation in parallel — saves significant time
+      const avatarCount = Math.min(AVATAR_UNIQUE_CLIPS, numClips);
+      const avatarPrompts = buildScenePrompts(video.title, video.storyboard ?? "", avatarCount);
+      [footageUrls, avatarClipUrls] = await Promise.all([
+        generateFootageClipsT2V(scenePrompts, videoId),
+        generateAvatarClipsI2V(photoPath!, avatarPrompts, videoId),
+      ]);
+    } else if (mode === "footage") {
+      footageUrls = await generateFootageClipsT2V(scenePrompts, videoId);
+    } else {
+      // avatar-only: 3 unique clips, cycled across the full duration
+      const avatarCount = Math.min(AVATAR_UNIQUE_CLIPS, numClips);
+      const avatarPrompts = buildScenePrompts(video.title, video.storyboard ?? "", avatarCount);
+      avatarClipUrls = await generateAvatarClipsI2V(photoPath!, avatarPrompts, videoId);
+    }
+  } catch (err) {
+    logger.error({ err, videoId }, "MiniMax clip generation failed");
+    const msg = err instanceof Error && err.message.includes("timed out")
+      ? "AI video generation is taking longer than expected. Please try again in a few minutes."
+      : "AI video generation hit a temporary issue. Please try again — your credits were not charged.";
+    await markFailed(videoId, msg);
+    return;
+  }
+
+  const totalClips = footageUrls.length + avatarClipUrls.length;
+  deductPlatformCredits("minimax", MINIMAX_CREDITS_PER_CLIP * totalClips, `AI clips (${totalClips}) — video #${videoId}`, {
+    minutesGenerated: MINIMAX_MINUTES_PER_CLIP * totalClips,
+    videosCount: totalClips,
+    projectId: video.projectId,
+    videoId: String(videoId),
+  }).catch(() => {});
+
   // Step 3: Shotstack composition
-  const duration = video.duration ?? 30;
   let finalUrl: string;
   try {
     finalUrl = await composeShotstack({
       voiceoverUrl,
-      footageUrl,
-      avatarClipUrl,
+      footageUrls,
+      avatarClipUrls,
       duration,
       resolution,
     });
@@ -315,8 +322,8 @@ async function retrieveMiniMaxFile(fileId: string, apiKey: string): Promise<stri
 
 interface ShotstackOptions {
   voiceoverUrl: string;
-  footageUrl: string | null;
-  avatarClipUrl: string | null;
+  footageUrls: string[];     // one per scene clip; tiled across the timeline
+  avatarClipUrls: string[];  // 1-3 unique clips; cycled to fill the full duration
   duration: number;
   resolution: RenderResolution;
 }
@@ -326,29 +333,41 @@ async function composeShotstack(opts: ShotstackOptions): Promise<string> {
   if (!apiKey) throw new Error("SHOTSTACK_API_KEY not configured");
 
   const shotstackResolution = opts.resolution === "4k" ? "2160" : "1080";
+  const numSlots = Math.max(1, Math.ceil(opts.duration / MINIMAX_CLIP_DURATION_S));
+  const isOverlay = opts.footageUrls.length > 0 && opts.avatarClipUrls.length > 0;
 
   // Build video tracks — avatar on top, footage underneath
   const tracks: ShotstackTrack[] = [];
 
-  if (opts.avatarClipUrl) {
+  // Avatar track: cycle the unique clips to fill the full duration
+  if (opts.avatarClipUrls.length > 0) {
     tracks.push({
-      clips: [{
-        asset: { type: "video", src: opts.avatarClipUrl, trim: 0 },
-        start: 0,
-        length: opts.duration,
-        position: opts.footageUrl ? "bottomRight" : "center",
-        scale: opts.footageUrl ? 0.35 : 1.0,
-      }],
+      clips: Array.from({ length: numSlots }, (_, i) => {
+        const clipStart = i * MINIMAX_CLIP_DURATION_S;
+        const clipLen = Math.min(MINIMAX_CLIP_DURATION_S, opts.duration - clipStart);
+        return {
+          asset: { type: "video", src: opts.avatarClipUrls[i % opts.avatarClipUrls.length], trim: 0 },
+          start: clipStart,
+          length: clipLen,
+          position: isOverlay ? "bottomRight" : "center",
+          scale: isOverlay ? 0.35 : 1.0,
+        };
+      }).filter(c => c.length > 0),
     });
   }
 
-  if (opts.footageUrl) {
+  // Footage track: each clip plays sequentially, covering its 6-second slot
+  if (opts.footageUrls.length > 0) {
     tracks.push({
-      clips: [{
-        asset: { type: "video", src: opts.footageUrl, trim: 0, volume: 0 },
-        start: 0,
-        length: opts.duration,
-      }],
+      clips: opts.footageUrls.map((src, i) => {
+        const clipStart = i * MINIMAX_CLIP_DURATION_S;
+        const clipLen = Math.min(MINIMAX_CLIP_DURATION_S, opts.duration - clipStart);
+        return {
+          asset: { type: "video", src, trim: 0, volume: 0 },
+          start: clipStart,
+          length: clipLen,
+        };
+      }).filter(c => c.length > 0),
     });
   }
 
@@ -422,14 +441,45 @@ async function pollShotstack(renderId: string, apiKey: string): Promise<string> 
   throw new Error("Shotstack render timed out after 16 minutes");
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Scene-based clip generation ───────────────────────────────────────────────
 
-function buildMiniMaxPrompt(title: string, storyboard: string): string {
-  const base = storyboard
-    ? `${title}. ${storyboard.slice(0, 300)}`
-    : `Marketing video for: ${title}`;
-  return `Cinematic marketing footage, professional grade, 4K quality. ${base}`;
+function buildScenePrompts(title: string, storyboard: string, count: number): string[] {
+  const scenes = storyboard
+    .split("\n")
+    .map(l => l.replace(/^scene\s*\d+[:.]\s*/i, "").trim())
+    .filter(l => l.length > 5);
+
+  const base = scenes.length > 0 ? scenes : [`Marketing video for: ${title}`];
+
+  return Array.from({ length: count }, (_, i) => {
+    const scene = base[i % base.length] ?? title;
+    return `Cinematic marketing footage, professional grade, 4K quality. ${scene.slice(0, 400)}`;
+  });
 }
+
+async function generateFootageClipsT2V(prompts: string[], videoId: number): Promise<string[]> {
+  const results: string[] = [];
+  for (let i = 0; i < prompts.length; i += CLIP_BATCH_SIZE) {
+    const batch = prompts.slice(i, i + CLIP_BATCH_SIZE);
+    logger.info({ videoId, batchStart: i, batchSize: batch.length, totalClips: prompts.length }, "Generating footage batch");
+    const batchUrls = await Promise.all(batch.map(prompt => generateMiniMaxT2V(prompt)));
+    results.push(...batchUrls);
+  }
+  return results;
+}
+
+async function generateAvatarClipsI2V(photoPath: string, prompts: string[], videoId: number): Promise<string[]> {
+  const results: string[] = [];
+  for (let i = 0; i < prompts.length; i += CLIP_BATCH_SIZE) {
+    const batch = prompts.slice(i, i + CLIP_BATCH_SIZE);
+    logger.info({ videoId, batchStart: i, batchSize: batch.length, totalClips: prompts.length }, "Generating avatar batch");
+    const batchUrls = await Promise.all(batch.map(prompt => generateMiniMaxI2V(photoPath, prompt)));
+    results.push(...batchUrls);
+  }
+  return results;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function uploadAudioToStorage(buffer: Buffer, format: string): Promise<string> {
   // Store audio in object storage and return a publicly accessible URL
