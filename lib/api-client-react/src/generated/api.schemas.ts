@@ -24,6 +24,10 @@ export interface Project {
   logoUrl?: string | null;
   autonomousMode?: boolean;
   plan?: string;
+  /** @nullable */
+  brandingCompanyName?: string | null;
+  /** @nullable */
+  brandingAccentColor?: string | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -39,6 +43,10 @@ export interface ProjectUpdate {
   websiteUrl?: string;
   description?: string;
   autonomousMode?: boolean;
+  /** @nullable */
+  brandingCompanyName?: string | null;
+  /** @nullable */
+  brandingAccentColor?: string | null;
 }
 
 export interface ActivityItem {
@@ -74,7 +82,6 @@ export interface DashboardSummary {
 export interface AnalysisInput {
   websiteUrl: string;
   prompt?: string;
-  businessDescription?: string;
 }
 
 export interface BusinessAnalysis {

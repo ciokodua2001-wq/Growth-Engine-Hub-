@@ -11,4 +11,8 @@ export interface ProjectUpdate {
   websiteUrl?: string;
   description?: string;
   autonomousMode?: boolean;
+  /** @nullable */
+  brandingCompanyName?: string | null;
+  /** @nullable */
+  brandingAccentColor?: string | null;
 }

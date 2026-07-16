@@ -19,6 +19,10 @@ export interface Project {
   logoUrl?: string | null;
   autonomousMode?: boolean;
   plan?: string;
+  /** @nullable */
+  brandingCompanyName?: string | null;
+  /** @nullable */
+  brandingAccentColor?: string | null;
   createdAt: string;
   updatedAt?: string;
 }

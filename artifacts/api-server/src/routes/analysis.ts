@@ -376,10 +376,10 @@ const PDF_GRAY = "#7a8fa6";
 const PDF_WHITE = "#ffffff";
 const PDF_W = 595 - 120; // usable width at 60px margins
 
-function pdfHeader(doc: InstanceType<typeof PDFDocument>, title: string, subtitle: string) {
+function pdfHeader(doc: InstanceType<typeof PDFDocument>, title: string, subtitle: string, accentColor = PDF_GREEN, companyName = "GrowthForge AI", tagline = "Strapli Technologies Inc. · UseGrowthForge.com") {
   doc.rect(0, 0, 595, 72).fill(PDF_DARK);
-  doc.font("Helvetica-Bold").fontSize(16).fillColor(PDF_GREEN).text("GrowthForge AI", 60, 18);
-  doc.font("Helvetica").fontSize(8).fillColor(PDF_GRAY).text("Strapli Technologies Inc. · UseGrowthForge.com", 60, 38);
+  doc.font("Helvetica-Bold").fontSize(16).fillColor(accentColor).text(companyName, 60, 18);
+  if (tagline) doc.font("Helvetica").fontSize(8).fillColor(PDF_GRAY).text(tagline, 60, 38);
   doc.font("Helvetica-Bold").fontSize(11).fillColor(PDF_WHITE).text(title.toUpperCase(), 60, 54);
   doc.moveDown(0);
   let y = 88;
@@ -387,10 +387,10 @@ function pdfHeader(doc: InstanceType<typeof PDFDocument>, title: string, subtitl
   return y + 20;
 }
 
-function pdfSection(doc: InstanceType<typeof PDFDocument>, label: string, y: number): number {
-  doc.font("Helvetica-Bold").fontSize(10).fillColor(PDF_GREEN).text(label, 60, y);
+function pdfSection(doc: InstanceType<typeof PDFDocument>, label: string, y: number, accentColor = PDF_GREEN): number {
+  doc.font("Helvetica-Bold").fontSize(10).fillColor(accentColor).text(label, 60, y);
   y += 14;
-  doc.moveTo(60, y).lineTo(535, y).strokeColor(PDF_GREEN).lineWidth(0.4).stroke();
+  doc.moveTo(60, y).lineTo(535, y).strokeColor(accentColor).lineWidth(0.4).stroke();
   return y + 8;
 }
 
@@ -426,9 +426,15 @@ router.get("/projects/:id/strategy/pdf", async (req, res): Promise<void> => {
 
   const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, params.data.id));
 
+  const isWhiteLabel = (project?.plan === "growth" || project?.plan === "agency") && !!project?.brandingCompanyName;
+  const wlCompany = isWhiteLabel ? (project!.brandingCompanyName ?? "") : "GrowthForge AI";
+  const wlTagline = isWhiteLabel ? "" : "Strapli Technologies Inc. · UseGrowthForge.com";
+  const wlAccent = isWhiteLabel && project?.brandingAccentColor ? project.brandingAccentColor : PDF_GREEN;
+  const wlFooter = isWhiteLabel ? `${wlCompany} · Confidential` : "GrowthForge AI · Confidential";
+
   const buffer = await buildPdfBuffer((doc) => {
     const generated = new Date().toUTCString();
-    let y = pdfHeader(doc, "Marketing Strategy", `${project?.name ?? "Project"} · Generated ${generated}`);
+    let y = pdfHeader(doc, "Marketing Strategy", `${project?.name ?? "Project"} · Generated ${generated}`, wlAccent, wlCompany, wlTagline);
 
     const sections: [string, string | null][] = [
       ["POSITIONING STATEMENT", strategy.positioningStatement],
@@ -443,12 +449,12 @@ router.get("/projects/:id/strategy/pdf", async (req, res): Promise<void> => {
     for (const [label, content] of sections) {
       if (!content) continue;
       if (y > 700) { doc.addPage(); y = 60; }
-      y = pdfSection(doc, label, y);
+      y = pdfSection(doc, label, y, wlAccent);
       y = pdfBody(doc, content, y);
     }
 
     doc.font("Helvetica").fontSize(7).fillColor(PDF_GRAY)
-      .text(`GrowthForge AI · Confidential · ${generated}`, 60, 820, { width: PDF_W, align: "center" });
+      .text(`${wlFooter} · ${generated}`, 60, 820, { width: PDF_W, align: "center" });
   });
 
   res.setHeader("Content-Type", "application/pdf");

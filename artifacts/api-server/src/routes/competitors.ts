@@ -272,13 +272,18 @@ router.get("/projects/:id/competitor-report/pdf", async (req, res): Promise<void
     return;
   }
 
+  const isWhiteLabel = (project?.plan === "growth" || project?.plan === "agency") && !!project?.brandingCompanyName;
+  const wlCompany = isWhiteLabel ? (project!.brandingCompanyName ?? "") : "GrowthForge AI";
+  const wlTagline = isWhiteLabel ? "" : "Strapli Technologies Inc. · UseGrowthForge.com";
+  const wlAccent = isWhiteLabel && project?.brandingAccentColor ? project.brandingAccentColor : PDF_GREEN;
+
   const buffer = await buildPdfBuffer((doc) => {
     const generated = new Date().toUTCString();
 
     // Header
     doc.rect(0, 0, 595, 72).fill(PDF_DARK);
-    doc.font("Helvetica-Bold").fontSize(16).fillColor(PDF_GREEN).text("GrowthForge AI", 60, 18);
-    doc.font("Helvetica").fontSize(8).fillColor(PDF_GRAY).text("Strapli Technologies Inc. · UseGrowthForge.com", 60, 38);
+    doc.font("Helvetica-Bold").fontSize(16).fillColor(wlAccent).text(wlCompany, 60, 18);
+    if (wlTagline) doc.font("Helvetica").fontSize(8).fillColor(PDF_GRAY).text(wlTagline, 60, 38);
     doc.font("Helvetica-Bold").fontSize(11).fillColor(PDF_WHITE).text("COMPETITIVE INTELLIGENCE REPORT", 60, 54);
 
     let y = 88;
@@ -288,9 +293,9 @@ router.get("/projects/:id/competitor-report/pdf", async (req, res): Promise<void
 
     const section = (label: string) => {
       if (y > 700) { doc.addPage(); y = 60; }
-      doc.font("Helvetica-Bold").fontSize(10).fillColor(PDF_GREEN).text(label, 60, y);
+      doc.font("Helvetica-Bold").fontSize(10).fillColor(wlAccent).text(label, 60, y);
       y += 14;
-      doc.moveTo(60, y).lineTo(535, y).strokeColor(PDF_GREEN).lineWidth(0.4).stroke();
+      doc.moveTo(60, y).lineTo(535, y).strokeColor(wlAccent).lineWidth(0.4).stroke();
       y += 8;
     };
 
@@ -340,7 +345,7 @@ router.get("/projects/:id/competitor-report/pdf", async (req, res): Promise<void
       scores.forEach(([label, val]) => {
         if (val == null) return;
         doc.font("Helvetica").fontSize(8).fillColor(PDF_GRAY).text(`${label}: `, 60, y, { continued: true });
-        doc.font("Helvetica-Bold").fillColor(PDF_GREEN).text(`${val}/100`);
+        doc.font("Helvetica-Bold").fillColor(wlAccent).text(`${val}/100`);
         y = doc.y + 2;
       });
       y += 4;

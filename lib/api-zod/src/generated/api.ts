@@ -30,6 +30,8 @@ export const ListProjectsResponseItem = zod.object({
   "logoUrl": zod.string().nullish(),
   "autonomousMode": zod.boolean().optional(),
   "plan": zod.string().optional(),
+  "brandingCompanyName": zod.string().nullish(),
+  "brandingAccentColor": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -55,6 +57,8 @@ export const CreateProjectResponse = zod.object({
   "logoUrl": zod.string().nullish(),
   "autonomousMode": zod.boolean().optional(),
   "plan": zod.string().optional(),
+  "brandingCompanyName": zod.string().nullish(),
+  "brandingAccentColor": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -74,6 +78,8 @@ export const GetProjectResponse = zod.object({
   "logoUrl": zod.string().nullish(),
   "autonomousMode": zod.boolean().optional(),
   "plan": zod.string().optional(),
+  "brandingCompanyName": zod.string().nullish(),
+  "brandingAccentColor": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -87,7 +93,9 @@ export const UpdateProjectBody = zod.object({
   "name": zod.string().optional(),
   "websiteUrl": zod.string().optional(),
   "description": zod.string().optional(),
-  "autonomousMode": zod.boolean().optional()
+  "autonomousMode": zod.boolean().optional(),
+  "brandingCompanyName": zod.string().nullish(),
+  "brandingAccentColor": zod.string().nullish()
 })
 
 export const UpdateProjectResponse = zod.object({
@@ -100,6 +108,8 @@ export const UpdateProjectResponse = zod.object({
   "logoUrl": zod.string().nullish(),
   "autonomousMode": zod.boolean().optional(),
   "plan": zod.string().optional(),
+  "brandingCompanyName": zod.string().nullish(),
+  "brandingAccentColor": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -154,8 +164,7 @@ export const AnalyzeWebsiteParams = zod.object({
 
 export const AnalyzeWebsiteBody = zod.object({
   "websiteUrl": zod.string(),
-  "prompt": zod.string().optional(),
-  "businessDescription": zod.string().optional()
+  "prompt": zod.string().optional()
 })
 
 export const AnalyzeWebsiteResponse = zod.object({

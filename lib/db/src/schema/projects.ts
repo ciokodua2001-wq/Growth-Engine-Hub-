@@ -13,6 +13,8 @@ export const projectsTable = pgTable("projects", {
   industry: text("industry"),
   logoUrl: text("logo_url"),
   autonomousMode: boolean("autonomous_mode").notNull().default(false),
+  brandingCompanyName: text("branding_company_name"),
+  brandingAccentColor: text("branding_accent_color"),
   plan: text("plan").notNull().default("starter"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

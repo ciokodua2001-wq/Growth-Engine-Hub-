@@ -3,7 +3,7 @@ import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
 import PDFDocument from "pdfkit";
 import { PassThrough } from "stream";
-import { campaignsTable, assetsTable, reportsTable, agentMessagesTable, activityTable, competitorsTable, socialPostsTable, emailCampaignsTable, adCreativesTable, videosTable } from "@workspace/db";
+import { campaignsTable, assetsTable, reportsTable, agentMessagesTable, activityTable, competitorsTable, socialPostsTable, emailCampaignsTable, adCreativesTable, videosTable, projectsTable } from "@workspace/db";
 import { consumeQuota, meetsMinPlan, type PlanFeature } from "../lib/planLimits.js";
 import { TRIAL_MAX_VIDEO_BATCH } from "../lib/trialLimits.js";
 import { generateJson, generateJsonFast } from "../lib/aiJson.js";
@@ -242,6 +242,14 @@ router.get("/projects/:id/reports/:reportId/pdf", async (req, res): Promise<void
     return;
   }
 
+  const [proj] = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId));
+
+  const isWhiteLabel = (proj?.plan === "growth" || proj?.plan === "agency") && !!proj?.brandingCompanyName;
+  const wlCompany = isWhiteLabel ? (proj!.brandingCompanyName ?? "") : "GrowthForge AI";
+  const wlTagline = isWhiteLabel ? "" : "Strapli Technologies Inc. · UseGrowthForge.com";
+  const wlAccent = isWhiteLabel && proj?.brandingAccentColor ? proj.brandingAccentColor : PDF_GREEN_C;
+  const wlFooter = isWhiteLabel ? `${wlCompany} · Confidential` : "GrowthForge AI · Confidential";
+
   const buffer = await buildPdfBufferC((doc) => {
     const generated = new Date().toUTCString();
     const reportTitle = `${(report.type ?? "Campaign").charAt(0).toUpperCase() + (report.type ?? "Campaign").slice(1)} Performance Report`;
@@ -249,8 +257,8 @@ router.get("/projects/:id/reports/:reportId/pdf", async (req, res): Promise<void
 
     // Header
     doc.rect(0, 0, 595, 72).fill(PDF_DARK_C);
-    doc.font("Helvetica-Bold").fontSize(16).fillColor(PDF_GREEN_C).text("GrowthForge AI", 60, 18);
-    doc.font("Helvetica").fontSize(8).fillColor(PDF_GRAY_C).text("Strapli Technologies Inc. · UseGrowthForge.com", 60, 38);
+    doc.font("Helvetica-Bold").fontSize(16).fillColor(wlAccent).text(wlCompany, 60, 18);
+    if (wlTagline) doc.font("Helvetica").fontSize(8).fillColor(PDF_GRAY_C).text(wlTagline, 60, 38);
     doc.font("Helvetica-Bold").fontSize(11).fillColor(PDF_WHITE_C).text(reportTitle.toUpperCase(), 60, 54);
 
     let y = 88;
@@ -260,9 +268,9 @@ router.get("/projects/:id/reports/:reportId/pdf", async (req, res): Promise<void
 
     const section = (label: string) => {
       if (y > 700) { doc.addPage(); y = 60; }
-      doc.font("Helvetica-Bold").fontSize(10).fillColor(PDF_GREEN_C).text(label, 60, y);
+      doc.font("Helvetica-Bold").fontSize(10).fillColor(wlAccent).text(label, 60, y);
       y += 14;
-      doc.moveTo(60, y).lineTo(535, y).strokeColor(PDF_GREEN_C).lineWidth(0.4).stroke();
+      doc.moveTo(60, y).lineTo(535, y).strokeColor(wlAccent).lineWidth(0.4).stroke();
       y += 8;
     };
 
@@ -317,7 +325,7 @@ router.get("/projects/:id/reports/:reportId/pdf", async (req, res): Promise<void
     }
 
     doc.font("Helvetica").fontSize(7).fillColor(PDF_GRAY_C)
-      .text(`GrowthForge AI · Confidential · ${generated}`, 60, 820, { width: PDF_W_C, align: "center" });
+      .text(`${wlFooter} · ${generated}`, 60, 820, { width: PDF_W_C, align: "center" });
   });
 
   res.setHeader("Content-Type", "application/pdf");
