@@ -14,7 +14,7 @@ interface LogoProps {
   glow?: boolean;
 }
 
-export function Logo({ size = 40, className, style, glow = true }: LogoProps) {
+export function Logo({ size = 40, className, style, glow = false }: LogoProps) {
   return (
     <div
       className={className}
