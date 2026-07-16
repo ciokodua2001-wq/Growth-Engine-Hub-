@@ -173,33 +173,32 @@ async function generateElevenLabsVoiceover(text: string): Promise<string> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY not configured");
 
-  // Truncate to keep the audio clip short (≤ 30 seconds)
   const cappedText = text.length > 800 ? text.slice(0, 800) + "..." : text;
 
-  const response = await fetch(
-    `${ELEVENLABS_API_URL}/v1/text-to-speech/${DEFAULT_VOICE_ID}`,
-    {
-      method: "POST",
-      headers: {
-        "xi-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text: cappedText,
-        model_id: "eleven_turbo_v2_5",
-        voice_settings: { stability: 0.5, similarity_boost: 0.8 },
-        output_format: "mp3_44100_128",
-      }),
+  const audioBuffer = await withRetry(async () => {
+    const response = await fetch(
+      `${ELEVENLABS_API_URL}/v1/text-to-speech/${DEFAULT_VOICE_ID}`,
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: cappedText,
+          model_id: "eleven_turbo_v2_5",
+          voice_settings: { stability: 0.5, similarity_boost: 0.8 },
+          output_format: "mp3_44100_128",
+        }),
+      }
+    );
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`ElevenLabs: ${response.status} ${body.slice(0, 200)}`);
     }
-  );
+    return Buffer.from(await response.arrayBuffer());
+  });
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`ElevenLabs TTS failed: ${response.status} ${body}`);
-  }
-
-  const audioBuffer = Buffer.from(await response.arrayBuffer());
-  // Upload to object storage and return public URL
   return await uploadAudioToStorage(audioBuffer, "mp3");
 }
 
@@ -209,24 +208,22 @@ async function generateMiniMaxT2V(prompt: string): Promise<string> {
   const apiKey = process.env.MINIMAX_API_KEY;
   if (!apiKey) throw new Error("MINIMAX_API_KEY not configured");
 
-  const submitResponse = await fetch(`${MINIMAX_API_URL}/v1/video_generation`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "video-01",
-      prompt,
-    }),
+  const { task_id } = await withRetry(async () => {
+    const submitResponse = await fetch(`${MINIMAX_API_URL}/v1/video_generation`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "video-01", prompt }),
+    });
+    if (!submitResponse.ok) {
+      const body = await submitResponse.text();
+      throw new Error(`MiniMax T2V: ${submitResponse.status} ${body.slice(0, 200)}`);
+    }
+    return submitResponse.json() as Promise<{ task_id: string }>;
   });
 
-  if (!submitResponse.ok) {
-    const body = await submitResponse.text();
-    throw new Error(`MiniMax T2V submit failed: ${submitResponse.status} ${body}`);
-  }
-
-  const { task_id } = await submitResponse.json() as { task_id: string };
   return await pollMiniMaxVideo(task_id, apiKey);
 }
 
@@ -236,50 +233,45 @@ async function generateMiniMaxI2V(avatarImageUrl: string, prompt: string): Promi
   const apiKey = process.env.MINIMAX_API_KEY;
   if (!apiKey) throw new Error("MINIMAX_API_KEY not configured");
 
-  const submitResponse = await fetch(`${MINIMAX_API_URL}/v1/image_to_video`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "video-01-live2d",
-      first_frame_image: avatarImageUrl,
-      prompt,
-    }),
+  const { task_id } = await withRetry(async () => {
+    const submitResponse = await fetch(`${MINIMAX_API_URL}/v1/image_to_video`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "video-01-live2d", first_frame_image: avatarImageUrl, prompt }),
+    });
+    if (!submitResponse.ok) {
+      const body = await submitResponse.text();
+      throw new Error(`MiniMax I2V: ${submitResponse.status} ${body.slice(0, 200)}`);
+    }
+    return submitResponse.json() as Promise<{ task_id: string }>;
   });
 
-  if (!submitResponse.ok) {
-    const body = await submitResponse.text();
-    throw new Error(`MiniMax I2V submit failed: ${submitResponse.status} ${body}`);
-  }
-
-  const { task_id } = await submitResponse.json() as { task_id: string };
   return await pollMiniMaxVideo(task_id, apiKey);
 }
 
 // ── MiniMax polling ───────────────────────────────────────────────────────────
 
 async function pollMiniMaxVideo(taskId: string, apiKey: string): Promise<string> {
-  const MAX_POLLS = 60;
+  const MAX_POLLS = 90; // up to 15 minutes
   const POLL_INTERVAL_MS = 10_000;
 
   for (let i = 0; i < MAX_POLLS; i++) {
     await sleep(POLL_INTERVAL_MS);
 
-    const res = await fetch(
-      `${MINIMAX_API_URL}/v1/query/video_generation?task_id=${taskId}`,
-      { headers: { "Authorization": `Bearer ${apiKey}` } }
-    );
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`MiniMax poll failed: ${res.status} ${body}`);
-    }
-
-    const data = await res.json() as {
-      task: { status: string; file_id?: string };
-    };
+    const data = await withRetry(async () => {
+      const res = await fetch(
+        `${MINIMAX_API_URL}/v1/query/video_generation?task_id=${taskId}`,
+        { headers: { "Authorization": `Bearer ${apiKey}` } }
+      );
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`MiniMax poll: ${res.status} ${body.slice(0, 200)}`);
+      }
+      return res.json() as Promise<{ task: { status: string; file_id?: string } }>;
+    });
 
     if (data.task.status === "Success" && data.task.file_id) {
       return await retrieveMiniMaxFile(data.task.file_id, apiKey);
@@ -290,26 +282,33 @@ async function pollMiniMaxVideo(taskId: string, apiKey: string): Promise<string>
     // status === "Queueing" or "Processing" — keep polling
   }
 
-  throw new Error("MiniMax video generation timed out after 10 minutes");
+  throw new Error("MiniMax video generation timed out after 15 minutes");
 }
 
 async function retrieveMiniMaxFile(fileId: string, apiKey: string): Promise<string> {
-  const res = await fetch(`${MINIMAX_API_URL}/v1/files/retrieve`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ file_id: fileId }),
+  const { download_url } = await withRetry(async () => {
+    const res = await fetch(`${MINIMAX_API_URL}/v1/files/retrieve`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ file_id: fileId }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`MiniMax file retrieve: ${res.status} ${body.slice(0, 200)}`);
+    }
+    const data = await res.json() as { file: { download_url: string } };
+    return { download_url: data.file.download_url };
   });
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`MiniMax file retrieve failed: ${res.status} ${body}`);
-  }
-
-  const data = await res.json() as { file: { download_url: string } };
-  return data.file.download_url;
+  // Download and re-host to our stable storage so Shotstack gets a reliable URL
+  // (MiniMax download_urls are temporary signed URLs that can expire)
+  const videoRes = await withRetry(() => fetch(download_url));
+  if (!videoRes.ok) throw new Error(`MiniMax download failed: ${videoRes.status}`);
+  const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
+  return await uploadVideoToStorage(videoBuffer);
 }
 
 // ── Shotstack composition ─────────────────────────────────────────────────────
@@ -378,50 +377,49 @@ async function composeShotstack(opts: ShotstackOptions): Promise<string> {
     },
   };
 
-  const submitRes = await fetch(`${SHOTSTACK_API_URL}/render`, {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(edit),
+  const { data: submitData } = await withRetry(async () => {
+    const submitRes = await fetch(`${SHOTSTACK_API_URL}/render`, {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(edit),
+    });
+    if (!submitRes.ok) {
+      const body = await submitRes.text();
+      throw new Error(`Shotstack submit: ${submitRes.status} ${body.slice(0, 200)}`);
+    }
+    return submitRes.json() as Promise<{ data: { id: string } }>;
   });
 
-  if (!submitRes.ok) {
-    const body = await submitRes.text();
-    throw new Error(`Shotstack render submit failed: ${submitRes.status} ${body}`);
-  }
-
-  const { data: submitData } = await submitRes.json() as { data: { id: string } };
   return await pollShotstack(submitData.id, apiKey);
 }
 
 async function pollShotstack(renderId: string, apiKey: string): Promise<string> {
-  const MAX_POLLS = 90;
+  const MAX_POLLS = 120; // up to 16 minutes
   const POLL_INTERVAL_MS = 8_000;
 
   for (let i = 0; i < MAX_POLLS; i++) {
     await sleep(POLL_INTERVAL_MS);
 
-    const res = await fetch(`${SHOTSTACK_API_URL}/render/${renderId}`, {
-      headers: { "x-api-key": apiKey },
+    const { data } = await withRetry(async () => {
+      const res = await fetch(`${SHOTSTACK_API_URL}/render/${renderId}`, {
+        headers: { "x-api-key": apiKey },
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Shotstack poll: ${res.status} ${body.slice(0, 200)}`);
+      }
+      return res.json() as Promise<{ data: { status: string; url?: string } }>;
     });
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Shotstack poll failed: ${res.status} ${body}`);
-    }
-
-    const { data } = await res.json() as {
-      data: { status: string; url?: string };
-    };
 
     if (data.status === "done" && data.url) return data.url;
     if (data.status === "failed") throw new Error("Shotstack render failed");
     // status is "queued" or "rendering" — keep polling
   }
 
-  throw new Error("Shotstack render timed out after 12 minutes");
+  throw new Error("Shotstack render timed out after 16 minutes");
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -453,6 +451,50 @@ async function uploadAudioToStorage(buffer: Buffer, format: string): Promise<str
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ── Retry with exponential backoff ────────────────────────────────────────────
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts = 4,
+  baseDelayMs = 2000,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt === maxAttempts || !isRetryable(err)) throw err;
+      const delay = baseDelayMs * 2 ** (attempt - 1) + Math.random() * 500;
+      logger.warn({ attempt, nextRetryMs: Math.round(delay) }, "Transient error — retrying");
+      await sleep(delay);
+    }
+  }
+  throw lastErr;
+}
+
+function isRetryable(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /429|502|503|504|ECONNRESET|ETIMEDOUT|ECONNREFUSED/i.test(msg);
+}
+
+async function uploadVideoToStorage(buffer: Buffer): Promise<string> {
+  const { Storage } = await import("@google-cloud/storage");
+  const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+  if (!bucketId) throw new Error("DEFAULT_OBJECT_STORAGE_BUCKET_ID not set");
+
+  const storage = new Storage();
+  const bucket = storage.bucket(bucketId);
+  const filename = `renders/footage-${Date.now()}.mp4`;
+  const file = bucket.file(filename);
+
+  await file.save(buffer, { metadata: { contentType: "video/mp4" } });
+  await file.makePublic();
+
+  const [metadata] = await file.getMetadata();
+  return metadata.mediaLink as string;
 }
 
 // Shotstack type helpers (not exported — internal to pipeline)
