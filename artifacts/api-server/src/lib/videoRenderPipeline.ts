@@ -242,12 +242,16 @@ async function pollFalJob(modelId: string, requestId: string): Promise<string> {
   const MAX_POLLS = 90; // up to 15 minutes
   const POLL_INTERVAL_MS = 10_000;
 
+  // FAL returns compound request IDs like "fal-ai/model-name:uuid".
+  // The status URL needs only the UUID portion after the colon.
+  const uuid = requestId.includes(":") ? requestId.split(":").pop()! : requestId;
+
   for (let i = 0; i < MAX_POLLS; i++) {
     await sleep(POLL_INTERVAL_MS);
 
     const data = await withRetry(async () => {
       const res = await fetch(
-        `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}/status`,
+        `${FAL_QUEUE_BASE}/${modelId}/requests/${uuid}/status`,
         { headers: { "Authorization": `Key ${apiKey}` } },
       );
       if (!res.ok) {
