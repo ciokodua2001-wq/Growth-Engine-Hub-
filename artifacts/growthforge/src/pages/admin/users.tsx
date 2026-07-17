@@ -143,7 +143,10 @@ function UserDrawer({ user, onClose, onPatch, onDelete, isPatching, isDeleting }
             <Avatar email={user.email} isOwner={user.isOwner} plan={user.plan} />
             <div>
               <div className="font-semibold text-white text-sm truncate max-w-[280px]">
-                {user.email ?? <span className="text-white/30 italic">no email</span>}
+                {isProtected
+                  ? <span className="text-amber-400/80 italic">Platform Owner</span>
+                  : (user.email ?? <span className="text-white/30 italic">no email</span>)
+                }
               </div>
               <div className="text-white/25 text-xs font-mono">
                 {user.id.slice(0, 20)}…
@@ -438,11 +441,14 @@ export default function AdminUsers() {
                             <Avatar email={user.email} isOwner={user.isOwner} plan={user.plan} />
                             <div className="min-w-0">
                               <div className="text-white/80 font-medium text-sm truncate max-w-[200px]">
-                                {user.email ?? <span className="text-white/25 italic">no email</span>}
+                                {isProtected
+                                  ? <span className="text-amber-400/70 italic">Platform Owner</span>
+                                  : (user.email ?? <span className="text-white/25 italic">no email</span>)
+                                }
                               </div>
                               {isProtected && (
-                                <div className="text-amber-400/60 text-[10px] flex items-center gap-1 mt-0.5">
-                                  <Crown className="w-2.5 h-2.5" /> Platform Owner
+                                <div className="text-amber-400/40 text-[10px] flex items-center gap-1 mt-0.5">
+                                  <Crown className="w-2.5 h-2.5" /> Protected account
                                 </div>
                               )}
                             </div>

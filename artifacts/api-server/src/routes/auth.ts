@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -15,13 +15,27 @@ router.post("/auth/provision", async (req, res): Promise<void> => {
       return;
     }
 
-    const email = auth?.sessionClaims?.email as string | undefined;
+    // Fetch the real email from Clerk — sessionClaims.email is not a standard
+    // JWT claim and arrives as undefined for most sign-in methods.
+    let email: string | null = null;
+    try {
+      const clerkUser = await clerkClient.users.getUser(userId);
+      const primary = clerkUser.emailAddresses.find(
+        (e) => e.id === clerkUser.primaryEmailAddressId
+      );
+      email = primary?.emailAddress ?? null;
+    } catch {
+      // Non-fatal — fall back to null; email will be picked up on next provision
+    }
 
     const existing = await db.select().from(usersTable).where(eq(usersTable.id, userId));
     if (existing.length === 0) {
-      await db.insert(usersTable).values({ id: userId, email: email ?? null });
-    } else if (email && !existing[0].email) {
-      await db.update(usersTable).set({ email }).where(eq(usersTable.id, userId));
+      await db.insert(usersTable).values({ id: userId, email });
+    } else {
+      // Always sync email in case user updated it in Clerk
+      if (email && existing[0].email !== email) {
+        await db.update(usersTable).set({ email }).where(eq(usersTable.id, userId));
+      }
     }
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
