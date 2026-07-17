@@ -95,7 +95,7 @@ async function runRenderPipeline(
   // Avatar clips are capped at AVATAR_UNIQUE_CLIPS (3) and cycled in the Shotstack timeline.
   const duration = video.duration ?? 60;
   const numClips = Math.max(1, Math.ceil(duration / MINIMAX_CLIP_DURATION_S));
-  const scenePrompts = buildScenePrompts(video.title, video.storyboard ?? "", numClips);
+  const scenePrompts = buildScenePrompts(video.title, video.storyboard ?? "", numClips, video.cinematicPlan);
 
   let footageUrls: string[] = [];
   let avatarClipUrls: string[] = [];
@@ -113,7 +113,7 @@ async function runRenderPipeline(
     if (mode === "combined") {
       // Run footage and avatar generation in parallel — saves significant time
       const avatarCount = Math.min(AVATAR_UNIQUE_CLIPS, numClips);
-      const avatarPrompts = buildAvatarPrompts(video.title, video.storyboard ?? "", avatarCount, avatarInstructions);
+      const avatarPrompts = buildAvatarPrompts(video.title, video.storyboard ?? "", avatarCount, avatarInstructions, video.cinematicPlan);
       [footageUrls, avatarClipUrls] = await Promise.all([
         generateFootageClipsT2V(scenePrompts, videoId),
         generateAvatarClipsI2V(photoPath!, avatarPrompts, videoId),
@@ -123,7 +123,7 @@ async function runRenderPipeline(
     } else {
       // avatar-only: 3 unique clips, cycled across the full duration
       const avatarCount = Math.min(AVATAR_UNIQUE_CLIPS, numClips);
-      const avatarPrompts = buildAvatarPrompts(video.title, video.storyboard ?? "", avatarCount, avatarInstructions);
+      const avatarPrompts = buildAvatarPrompts(video.title, video.storyboard ?? "", avatarCount, avatarInstructions, video.cinematicPlan);
       avatarClipUrls = await generateAvatarClipsI2V(photoPath!, avatarPrompts, videoId);
     }
   } catch (err) {
@@ -443,18 +443,73 @@ async function pollShotstack(renderId: string, apiKey: string): Promise<string> 
   throw new Error("Shotstack render timed out after 16 minutes");
 }
 
+// ── Cinematic plan type (mirrors frontend) ────────────────────────────────────
+
+interface CinematicShot {
+  shotNumber: number;
+  duration: number;
+  environment: string;
+  subjectAction: string;
+  facialExpression: string;
+  bodyMovement: string;
+  cameraMovement: string;
+  lensStyle: string;
+  lighting: string;
+  visualEffects: string;
+  transition: string;
+}
+
+interface CinematicPlan {
+  visualStyle: string;
+  characterDescription: string;
+  environment: string;
+  lighting: string;
+  cameraLanguage: string;
+  performanceDirection: string;
+  shots: CinematicShot[];
+  voiceoverPlacement: string;
+  textOverlayPlacement: string;
+  finalHeroShot: string;
+}
+
+function parseCinematicPlan(json: string | null | undefined): CinematicPlan | null {
+  if (!json) return null;
+  try { return JSON.parse(json) as CinematicPlan; } catch { return null; }
+}
+
 // ── Scene-based clip generation ───────────────────────────────────────────────
 
-function parseStoryboardScenes(storyboard: string, title: string): string[] {
+function buildScenePrompts(title: string, storyboard: string, count: number, cinematicPlan?: string | null): string[] {
+  const plan = parseCinematicPlan(cinematicPlan);
+
+  // Prefer cinematic shot descriptions (new blueprints)
+  if (plan?.shots?.length) {
+    const stylePrefix = plan.visualStyle
+      ? `${plan.visualStyle}. Photorealistic, cinema-grade, Hollywood-quality. `
+      : "Photorealistic, cinema-grade, Hollywood-quality. ";
+    return Array.from({ length: count }, (_, i) => {
+      const shot = plan.shots[i % plan.shots.length]!;
+      const parts = [
+        stylePrefix,
+        shot.environment ? `Location: ${shot.environment}.` : "",
+        shot.subjectAction ? `Action: ${shot.subjectAction}.` : "",
+        shot.cameraMovement ? `Camera: ${shot.cameraMovement}.` : "",
+        shot.lensStyle ? `Lens: ${shot.lensStyle}.` : "",
+        shot.lighting ? `Lighting: ${shot.lighting}.` : "",
+        shot.visualEffects && !["none", "n/a"].includes(shot.visualEffects.toLowerCase())
+          ? `Effects: ${shot.visualEffects}.` : "",
+        "Natural motion, shallow depth of field, professional color grading.",
+      ].filter(Boolean).join(" ");
+      return parts.slice(0, 500);
+    });
+  }
+
+  // Fallback: parse storyboard lines (legacy blueprints)
   const scenes = storyboard
     .split("\n")
     .map(l => l.replace(/^scene\s*\d+[:.]\s*/i, "").trim())
     .filter(l => l.length > 5);
-  return scenes.length > 0 ? scenes : [`Marketing video for: ${title}`];
-}
-
-function buildScenePrompts(title: string, storyboard: string, count: number): string[] {
-  const base = parseStoryboardScenes(storyboard, title);
+  const base = scenes.length > 0 ? scenes : [`Marketing video for: ${title}`];
   return Array.from({ length: count }, (_, i) => {
     const scene = base[i % base.length] ?? title;
     return `Cinematic marketing footage, professional grade, 4K quality. ${scene.slice(0, 400)}`;
@@ -466,11 +521,41 @@ function buildAvatarPrompts(
   storyboard: string,
   count: number,
   instructions: string | null | undefined,
+  cinematicPlan?: string | null,
 ): string[] {
-  const base = parseStoryboardScenes(storyboard, title);
+  const plan = parseCinematicPlan(cinematicPlan);
+
+  // Build instruction prefix from cinematic plan or fallback
   const instructionLine = instructions?.trim()
     ? `Animate this person naturally. ${instructions.trim()}.`
-    : "Animate this person naturally as a confident professional presenter, speaking directly to camera with clear, engaging energy.";
+    : plan?.performanceDirection
+      ? `Animate this person naturally. ${plan.performanceDirection}.`
+      : "Animate this person naturally as a confident professional presenter, speaking directly to camera with clear, engaging energy.";
+
+  if (plan?.shots?.length) {
+    const charDesc = plan.characterDescription ? `Character: ${plan.characterDescription}. ` : "";
+    return Array.from({ length: count }, (_, i) => {
+      const shot = plan.shots[i % plan.shots.length]!;
+      const parts = [
+        instructionLine,
+        charDesc,
+        shot.environment ? `Setting: ${shot.environment}.` : "",
+        shot.subjectAction ? `${shot.subjectAction}.` : "",
+        shot.facialExpression ? `Expression: ${shot.facialExpression}.` : "",
+        shot.bodyMovement ? `Movement: ${shot.bodyMovement}.` : "",
+        shot.cameraMovement ? `Camera: ${shot.cameraMovement}.` : "",
+        shot.lighting ? `Lighting: ${shot.lighting}.` : "",
+      ].filter(Boolean).join(" ");
+      return parts.slice(0, 500);
+    });
+  }
+
+  // Fallback: storyboard-based prompts
+  const scenes = storyboard
+    .split("\n")
+    .map(l => l.replace(/^scene\s*\d+[:.]\s*/i, "").trim())
+    .filter(l => l.length > 5);
+  const base = scenes.length > 0 ? scenes : [`Marketing video for: ${title}`];
   return Array.from({ length: count }, (_, i) => {
     const scene = base[i % base.length] ?? title;
     return `${instructionLine} Scene context: ${scene.replace(/^b-roll[:\s]*/i, "").slice(0, 300)}`;
