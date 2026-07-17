@@ -12,6 +12,7 @@ export const videosTable = pgTable("videos", {
   script: text("script"),
   storyboard: text("storyboard"),
   voiceover: text("voiceover"),
+  cinematicPlan: text("cinematic_plan"),
   thumbnailUrl: text("thumbnail_url"),
   videoUrl: text("video_url"),
   duration: integer("duration"),

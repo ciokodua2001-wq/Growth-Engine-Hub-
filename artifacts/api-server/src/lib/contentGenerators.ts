@@ -67,49 +67,131 @@ Write ${EMAIL_TYPE_BRIEFS[opts.type] ?? EMAIL_TYPE_BRIEFS.welcome} for this spec
   });
 }
 
+export interface CinematicShot {
+  shotNumber: number;
+  duration: number;
+  environment: string;
+  subjectAction: string;
+  facialExpression: string;
+  bodyMovement: string;
+  cameraMovement: string;
+  lensStyle: string;
+  lighting: string;
+  visualEffects: string;
+  transition: string;
+}
+
+export interface CinematicPlan {
+  visualStyle: string;
+  characterDescription: string;
+  environment: string;
+  lighting: string;
+  cameraLanguage: string;
+  performanceDirection: string;
+  shots: CinematicShot[];
+  voiceoverPlacement: string;
+  textOverlayPlacement: string;
+  finalHeroShot: string;
+}
+
 export interface VideoBlueprintResult {
   title: string;
   type: string;
   script: string;
   storyboard: string;
+  cinematicPlan: string; // JSON-serialised CinematicPlan
   duration: number;
   hookStrength: number;
   engagementPotential: number;
   viralPotential: number;
 }
 
+const AI_VIDEO_DIRECTOR_SYSTEM = `You are a world-class AI Video Director responsible for converting user requests into true cinematic video generation instructions.
+
+IMPORTANT:
+Do NOT generate stock footage plans, b-roll lists, slideshow sequences, image montages, or scene suggestions.
+
+Your job is to generate a complete, shot-by-shot cinematic production blueprint that can be rendered using AI video generation models.
+
+IDENTITY PRESERVATION RULES
+If the user uploads a person, avatar, presenter, creator, talking head, influencer, spokesperson, or character reference, treat the uploaded subject as the MAIN CHARACTER. Preserve throughout every clip: facial structure, face proportions, hair appearance, skin appearance, eye appearance, body proportions, clothing appearance unless changed by prompt, distinguishing visual features, character identity consistency. Character consistency is mandatory across the entire video.
+
+VIDEO GENERATION RULES
+Generate real scenes. Generate real actions. Generate real camera movements. Generate real performances. Generate continuous cinematic storytelling.
+Avoid: stock footage, generic b-roll, photo slideshow effects, image panning, static presenter videos, disconnected clips.
+Every scene must feel like it was filmed by a real production crew.
+
+COMMERCIAL QUALITY REQUIREMENTS
+Default output quality: Photorealistic, Cinema-grade, Hollywood-quality, Ultra realistic, Professional production, Natural motion, Realistic physics, Realistic human movement, High-end color grading, HDR rendering, Shallow depth of field, Professional lighting.
+
+FILMMAKER MODE
+Always think like: Director + Cinematographer + Commercial Producer + Creative Agency.
+Output should resemble: Kling-quality productions, Minimax-quality productions, Higgsfield-quality productions, Runway-quality productions, Luxury commercial productions, Modern cinematic advertisements.
+
+Never return a simple footage plan. Always return a complete cinematic shot list that an AI video model can directly generate clip-by-clip.
+
+Respond with ONLY a single JSON object, no prose.`;
+
 export async function generateVideoBlueprints(
   ctx: GroundingContext,
   opts: { count: number; type?: string; prompt?: string },
 ): Promise<VideoBlueprintResult[]> {
-  const response = await generateJson<{ videos: VideoBlueprintResult[] }>({
-    system:
-      "You are a senior video marketing creative director. You write specific, on-brand video scripts and " +
-      "storyboards grounded in the real business context provided — never generic filler, never a video " +
-      "about the platform itself. Respond with ONLY a single JSON object, no prose.",
+  const response = await generateJson<{ videos: Array<Omit<VideoBlueprintResult, "cinematicPlan"> & { cinematicPlan: CinematicPlan }> }>({
+    system: AI_VIDEO_DIRECTOR_SYSTEM,
     prompt: `${renderGroundingBlock(ctx)}
 ${opts.prompt ? `\nAdditional direction from the user: ${opts.prompt}\n` : ""}
-Write exactly ${opts.count} distinct short-form marketing video blueprint(s) for this specific business${opts.type ? `, of type "${opts.type}"` : " (mix of promo/product/social types as appropriate)"}.
-Each must have a strong hook, a full script with scene/beat breaks, and a scene-by-scene storyboard description.
-Return JSON:
+Create exactly ${opts.count} distinct short-form cinematic marketing video blueprint(s) for this specific business${opts.type ? `, of type "${opts.type}"` : " (mix of promo/product/social types as appropriate)"}.
+
+Each video must have a strong cinematic hook, full voiceover script, and a complete shot-by-shot production blueprint.
+
+Return JSON with this exact structure:
 {
   "videos": [
     {
-      "title": "short descriptive title",
+      "title": "short punchy title",
       "type": "promo | product | social",
-      "script": "full script with HOOK/scene breaks written for direct-to-camera delivery — conversational, natural speech pacing, clear presenter beats",
-      "storyboard": "line-separated scene-by-scene visual description; prefix each line with PRESENTER: for talking-head shots or B-ROLL: for footage-only scenes",
-      "duration": integer seconds (15-900),
-      "hookStrength": 0-100 integer estimate,
-      "engagementPotential": 0-100 integer estimate,
-      "viralPotential": 0-100 integer estimate
+      "script": "full voiceover script with [HOOK], [SCENE 1], [SCENE 2]... beat markers — conversational, natural pacing, written for direct-to-camera delivery",
+      "storyboard": "brief one-paragraph human-readable overview of the video's visual narrative",
+      "duration": <integer seconds, 15–120>,
+      "hookStrength": <0–100 integer>,
+      "engagementPotential": <0–100 integer>,
+      "viralPotential": <0–100 integer>,
+      "cinematicPlan": {
+        "visualStyle": "one-sentence cinematic style description (e.g. 'Desaturated luxury with warm practicals, anamorphic lens flares')",
+        "characterDescription": "specific appearance — clothing, hair, skin, demeanor",
+        "environment": "precise location and set description",
+        "lighting": "lighting setup description",
+        "cameraLanguage": "primary camera techniques used",
+        "performanceDirection": "acting and movement instructions for the presenter/character",
+        "shots": [
+          {
+            "shotNumber": <integer>,
+            "duration": <integer seconds>,
+            "environment": "specific environment for this shot",
+            "subjectAction": "exactly what the subject is doing",
+            "facialExpression": "precise expression",
+            "bodyMovement": "precise movement",
+            "cameraMovement": "e.g. Dolly In, Gimbal Movement, Tracking Shot, Extreme Close Up",
+            "lensStyle": "e.g. 35mm, Macro, Anamorphic Wide",
+            "lighting": "lighting for this specific shot",
+            "visualEffects": "any practical or post effects",
+            "transition": "cut to next shot — e.g. Hard Cut, Match Cut, Dissolve"
+          }
+        ],
+        "voiceoverPlacement": "when/where voiceover starts, any sync notes",
+        "textOverlayPlacement": "when/where on-screen text appears and what it says",
+        "finalHeroShot": "description of the closing hero shot — brand moment"
+      }
     }
   ]
 }
 The "videos" array must contain exactly ${opts.count} items.`,
     maxTokens: 8192,
   });
-  return response.videos.slice(0, opts.count);
+  return response.videos.slice(0, opts.count).map(v => ({
+    ...v,
+    cinematicPlan: JSON.stringify(v.cinematicPlan),
+  }));
 }
 
 export interface AdCreativeResult {

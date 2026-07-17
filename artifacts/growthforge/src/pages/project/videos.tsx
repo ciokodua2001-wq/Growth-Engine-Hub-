@@ -23,6 +23,153 @@ import {
 } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 
+// ── Cinematic Plan types ──────────────────────────────────────────────────────
+interface CinematicShot {
+  shotNumber: number;
+  duration: number;
+  environment: string;
+  subjectAction: string;
+  facialExpression: string;
+  bodyMovement: string;
+  cameraMovement: string;
+  lensStyle: string;
+  lighting: string;
+  visualEffects: string;
+  transition: string;
+}
+
+interface CinematicPlan {
+  visualStyle: string;
+  characterDescription: string;
+  environment: string;
+  lighting: string;
+  cameraLanguage: string;
+  performanceDirection: string;
+  shots: CinematicShot[];
+  voiceoverPlacement: string;
+  textOverlayPlacement: string;
+  finalHeroShot: string;
+}
+
+function parseCinematicPlan(json: string | null | undefined): CinematicPlan | null {
+  if (!json) return null;
+  try { return JSON.parse(json) as CinematicPlan; } catch { return null; }
+}
+
+// ── Cinematic Blueprint Viewer ────────────────────────────────────────────────
+function CinematicBlueprintViewer({ plan, script }: { plan: CinematicPlan; script?: string | null }) {
+  return (
+    <div className="mt-4 pt-4 border-t border-border space-y-4">
+      {/* Production Brief */}
+      <div className="rounded-xl bg-white/2 border border-white/8 p-3 space-y-3">
+        <p className="text-[10px] font-black text-[#00E676] uppercase tracking-widest">Production Brief</p>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+          {([
+            ["Visual Style", plan.visualStyle],
+            ["Environment", plan.environment],
+            ["Lighting", plan.lighting],
+            ["Camera Language", plan.cameraLanguage],
+          ] as [string, string][]).map(([label, value]) => (
+            <div key={label}>
+              <p className="text-[9px] font-semibold text-white/30 uppercase tracking-wider">{label}</p>
+              <p className="text-[11px] text-white/70 mt-0.5 leading-snug">{value}</p>
+            </div>
+          ))}
+        </div>
+        {plan.characterDescription && (
+          <div className="pt-2.5 border-t border-white/6">
+            <p className="text-[9px] font-semibold text-white/30 uppercase tracking-wider">Character</p>
+            <p className="text-[11px] text-white/70 mt-0.5 leading-snug">{plan.characterDescription}</p>
+          </div>
+        )}
+        {plan.performanceDirection && (
+          <div>
+            <p className="text-[9px] font-semibold text-white/30 uppercase tracking-wider">Performance Direction</p>
+            <p className="text-[11px] text-white/70 mt-0.5 leading-snug">{plan.performanceDirection}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Shot List */}
+      <div>
+        <p className="text-[10px] font-black text-white/35 uppercase tracking-widest mb-2.5">
+          Shot List · {plan.shots.length} Shot{plan.shots.length !== 1 ? "s" : ""}
+        </p>
+        <div className="space-y-2">
+          {plan.shots.map((shot) => (
+            <div key={shot.shotNumber} className="rounded-xl bg-white/2 border border-white/6 p-3">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <span className="text-[10px] font-black text-[#00D4FF] bg-[#00D4FF]/10 border border-[#00D4FF]/20 px-2 py-0.5 rounded-md">
+                  SHOT {shot.shotNumber}
+                </span>
+                <span className="text-[10px] text-white/35">{shot.duration}s</span>
+                <span className="text-[10px] font-semibold text-white/55 truncate">{shot.cameraMovement}</span>
+                {shot.lensStyle && (
+                  <span className="text-[10px] text-white/25 ml-auto truncate">{shot.lensStyle}</span>
+                )}
+              </div>
+              <p className="text-xs text-white/75 leading-snug mb-2">{shot.subjectAction}</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {([
+                  ["Expression", shot.facialExpression],
+                  ["Body", shot.bodyMovement],
+                  ["Lighting", shot.lighting],
+                  ["Transition", shot.transition],
+                ] as [string, string][]).map(([label, value]) =>
+                  value && value.toLowerCase() !== "none" ? (
+                    <div key={label} className="flex items-start gap-1">
+                      <span className="text-[9px] text-white/25 shrink-0 mt-0.5">{label}:</span>
+                      <span className="text-[9px] text-white/50 leading-snug">{value}</span>
+                    </div>
+                  ) : null
+                )}
+              </div>
+              {shot.environment && (
+                <p className="text-[9px] text-white/30 mt-1.5 italic">{shot.environment}</p>
+              )}
+              {shot.visualEffects && !["none", "n/a", "no effects"].includes(shot.visualEffects.toLowerCase()) && (
+                <p className="text-[9px] text-[#14F195]/70 mt-1.5">✦ {shot.visualEffects}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Post-production details */}
+      <div className="grid gap-2">
+        {plan.voiceoverPlacement && (
+          <div className="rounded-xl bg-[#00E676]/4 border border-[#00E676]/10 p-2.5">
+            <p className="text-[9px] font-black text-[#00E676]/60 uppercase tracking-widest mb-1">Voiceover Placement</p>
+            <p className="text-[11px] text-white/60 leading-snug">{plan.voiceoverPlacement}</p>
+          </div>
+        )}
+        {plan.textOverlayPlacement && (
+          <div className="rounded-xl bg-white/2 border border-white/6 p-2.5">
+            <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1">Text Overlays</p>
+            <p className="text-[11px] text-white/60 leading-snug">{plan.textOverlayPlacement}</p>
+          </div>
+        )}
+        {plan.finalHeroShot && (
+          <div className="rounded-xl bg-[#00D4FF]/4 border border-[#00D4FF]/10 p-2.5">
+            <p className="text-[9px] font-black text-[#00D4FF]/60 uppercase tracking-widest mb-1">Final Hero Shot</p>
+            <p className="text-[11px] text-white/60 leading-snug">{plan.finalHeroShot}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Voiceover Script */}
+      {script && (
+        <div>
+          <p className="text-[10px] font-black text-white/35 uppercase tracking-widest mb-2">Voiceover Script</p>
+          <div className="rounded-xl bg-white/2 border border-white/8 p-3">
+            <pre className="text-xs text-white/65 whitespace-pre-wrap leading-relaxed font-sans">{script}</pre>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const typeColors: Record<string, string> = {
   promo: "bg-violet-500/15 text-violet-400 border-violet-500/20",
   product: "bg-cyan-500/15 text-cyan-400 border-cyan-500/20",
@@ -891,21 +1038,28 @@ export default function ProjectVideos() {
                       exit={{ opacity: 0, height: 0 }}
                       className="overflow-hidden"
                     >
-                      {/* Script + Storyboard */}
-                      {video.script && (
-                        <div className="mt-4 pt-4 border-t border-border space-y-3">
-                          <div>
-                            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Script</div>
-                            <pre className="text-xs text-foreground whitespace-pre-wrap leading-relaxed font-sans">{video.script}</pre>
-                          </div>
-                          {video.storyboard && (
+                      {/* Cinematic Blueprint or legacy Script/Storyboard */}
+                      {(() => {
+                        const plan = parseCinematicPlan(video.cinematicPlan);
+                        if (plan) {
+                          return <CinematicBlueprintViewer plan={plan} script={video.script} />;
+                        }
+                        // Fallback for older blueprints that pre-date cinematic plans
+                        return video.script ? (
+                          <div className="mt-4 pt-4 border-t border-border space-y-3">
                             <div>
-                              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Storyboard</div>
-                              <pre className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed font-sans">{video.storyboard}</pre>
+                              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Script</div>
+                              <pre className="text-xs text-foreground whitespace-pre-wrap leading-relaxed font-sans">{video.script}</pre>
                             </div>
-                          )}
-                        </div>
-                      )}
+                            {video.storyboard && (
+                              <div>
+                                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Storyboard</div>
+                                <pre className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed font-sans">{video.storyboard}</pre>
+                              </div>
+                            )}
+                          </div>
+                        ) : null;
+                      })()}
 
                       {/* Render panel */}
                       <RenderPanel

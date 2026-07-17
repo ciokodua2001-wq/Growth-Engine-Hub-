@@ -430,6 +430,11 @@ export interface Video {
   storyboard?: string | null;
   /** @nullable */
   voiceover?: string | null;
+  /**
+     * JSON string of the full cinematic production blueprint
+     * @nullable
+     */
+  cinematicPlan?: string | null;
   /** @nullable */
   thumbnailUrl?: string | null;
   /** @nullable */

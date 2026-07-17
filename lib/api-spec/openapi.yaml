@@ -1993,6 +1993,9 @@ components:
           type: ["string", "null"]
         voiceover:
           type: ["string", "null"]
+        cinematicPlan:
+          type: ["string", "null"]
+          description: JSON string of the full cinematic production blueprint
         thumbnailUrl:
           type: ["string", "null"]
         videoUrl:
