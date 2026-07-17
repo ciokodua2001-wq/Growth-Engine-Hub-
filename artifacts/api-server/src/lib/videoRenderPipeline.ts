@@ -214,13 +214,19 @@ async function generateElevenLabsVoiceover(text: string): Promise<string> {
 
 // ── FAL.ai Kling v1.6 — Text-to-Video ────────────────────────────────────────
 
+interface FalQueueResponse {
+  request_id: string;
+  status_url: string;
+  response_url: string;
+}
+
 interface FalStatusResponse {
   status: "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
-  output?: { video: { url: string } };
+  output?: { video?: { url: string }; videos?: Array<{ url: string }> };
   error?: string;
 }
 
-async function submitFalJob(modelId: string, body: Record<string, unknown>): Promise<string> {
+async function submitFalJob(modelId: string, body: Record<string, unknown>): Promise<FalQueueResponse> {
   const apiKey = process.env.FAL_API_KEY;
   if (!apiKey) throw new Error("FAL_API_KEY not configured");
 
@@ -233,27 +239,21 @@ async function submitFalJob(modelId: string, body: Record<string, unknown>): Pro
     const text = await res.text();
     throw new Error(`FAL submit: ${res.status} ${text.slice(0, 200)}`);
   }
-  const data = await res.json() as { request_id: string };
-  return data.request_id;
+  return res.json() as Promise<FalQueueResponse>;
 }
 
-async function pollFalJob(modelId: string, requestId: string): Promise<string> {
+async function pollFalJob(job: FalQueueResponse): Promise<string> {
   const apiKey = process.env.FAL_API_KEY!;
   const MAX_POLLS = 90; // up to 15 minutes
   const POLL_INTERVAL_MS = 10_000;
-
-  // FAL returns compound request IDs like "fal-ai/model-name:uuid".
-  // The status URL needs only the UUID portion after the colon.
-  const uuid = requestId.includes(":") ? requestId.split(":").pop()! : requestId;
 
   for (let i = 0; i < MAX_POLLS; i++) {
     await sleep(POLL_INTERVAL_MS);
 
     const data = await withRetry(async () => {
-      const res = await fetch(
-        `${FAL_QUEUE_BASE}/${modelId}/requests/${uuid}/status`,
-        { headers: { "Authorization": `Key ${apiKey}` } },
-      );
+      const res = await fetch(job.status_url, {
+        headers: { "Authorization": `Key ${apiKey}` },
+      });
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`FAL poll: ${res.status} ${text.slice(0, 200)}`);
@@ -261,15 +261,27 @@ async function pollFalJob(modelId: string, requestId: string): Promise<string> {
       return res.json() as Promise<FalStatusResponse>;
     });
 
-    if (data.status === "COMPLETED" && data.output?.video?.url) {
-      // Download and re-host to stable storage — FAL URLs are temporary signed URLs
-      const videoRes = await withRetry(() => fetch(data.output!.video.url));
-      if (!videoRes.ok) throw new Error(`FAL download failed: ${videoRes.status}`);
+    if (data.status === "COMPLETED") {
+      // Fetch the full result from response_url (status may not include output)
+      const resultRes = await withRetry(() =>
+        fetch(job.response_url, { headers: { "Authorization": `Key ${apiKey}` } })
+      );
+      if (!resultRes.ok) throw new Error(`FAL result fetch: ${resultRes.status}`);
+      const result = await resultRes.json() as FalStatusResponse;
+      const videoUrl =
+        result.output?.video?.url ??
+        result.output?.videos?.[0]?.url ??
+        data.output?.video?.url ??
+        data.output?.videos?.[0]?.url;
+      if (!videoUrl) throw new Error("FAL completed but no video URL in response");
+      // Download and re-host — FAL URLs are temporary signed URLs
+      const videoRes = await withRetry(() => fetch(videoUrl));
+      if (!videoRes.ok) throw new Error(`FAL download: ${videoRes.status}`);
       const buffer = Buffer.from(await videoRes.arrayBuffer());
       return await uploadVideoToStorage(buffer);
     }
     if (data.status === "FAILED") {
-      throw new Error(`FAL video generation failed: ${data.error ?? "unknown error"}`);
+      throw new Error(`FAL generation failed: ${data.error ?? "unknown"}`);
     }
     // IN_QUEUE or IN_PROGRESS — keep polling
   }
@@ -278,17 +290,17 @@ async function pollFalJob(modelId: string, requestId: string): Promise<string> {
 }
 
 async function generateFalT2V(prompt: string): Promise<string> {
-  const requestId = await withRetry(() =>
+  const job = await withRetry(() =>
     submitFalJob(FAL_T2V_MODEL, { prompt, duration: "5", aspect_ratio: "16:9" })
   );
-  return await pollFalJob(FAL_T2V_MODEL, requestId);
+  return await pollFalJob(job);
 }
 
 async function generateFalI2V(avatarImageUrl: string, prompt: string): Promise<string> {
-  const requestId = await withRetry(() =>
+  const job = await withRetry(() =>
     submitFalJob(FAL_I2V_MODEL, { image_url: avatarImageUrl, prompt, duration: "5" })
   );
-  return await pollFalJob(FAL_I2V_MODEL, requestId);
+  return await pollFalJob(job);
 }
 
 // ── Shotstack composition ─────────────────────────────────────────────────────
