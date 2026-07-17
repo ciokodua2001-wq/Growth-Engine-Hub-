@@ -15,7 +15,7 @@ const MINIMAX_MINUTES_PER_CLIP = MINIMAX_CLIP_DURATION_S / 60;
 
 // ── API key constants ─────────────────────────────────────────────────────────
 const ELEVENLABS_API_URL = "https://api.elevenlabs.io";
-const MINIMAX_API_URL = "https://api.minimaxi.com";
+const MINIMAX_API_URL = "https://api.minimax.io";
 const SHOTSTACK_ENV = process.env.NODE_ENV === "production" ? "production" : "stage";
 const SHOTSTACK_API_URL = `https://api.shotstack.io/edit/${SHOTSTACK_ENV}`;
 const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID ?? "pNInz6obpgDQGcFmaJgB"; // Adam

@@ -70,10 +70,17 @@ async function fetchMiniMaxKeyValid() {
   const key = process.env["MINIMAX_API_KEY"];
   if (!key) return { keyConfigured: false, keyValid: null };
   try {
-    const r = await fetch("https://api.minimaxi.com/v1/files?purpose=assistants", {
-      headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8000),
+    const r = await fetch("https://api.minimax.io/v1/video_generation", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "video-01", prompt: "test" }),
+      signal: AbortSignal.timeout(8000),
     });
-    return { keyConfigured: true, keyValid: r.ok || r.status === 400 || r.status === 404 };
+    // 200 with task_id = ok; base_resp status_code 1008 = insufficient balance (key valid); 2049 = invalid key
+    const json = await r.json() as { base_resp?: { status_code?: number } };
+    const code = json?.base_resp?.status_code ?? 0;
+    const keyValid = code !== 2049 && code !== 1004; // not "invalid key" and not "missing auth"
+    return { keyConfigured: true, keyValid };
   } catch {
     return { keyConfigured: true, keyValid: null };
   }
