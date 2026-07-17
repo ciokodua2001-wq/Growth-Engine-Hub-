@@ -1,0 +1,106 @@
+Video Generation System Audit & Redesign Request
+
+The video generation pipeline finally completed rendering, but the output is fundamentally different from the product vision and desired user experience.
+
+Current Issues Identified
+
+The video resembles a slideshow of stock footage with a narrator speaking over it.
+
+This is not the intended outcome.
+The system appears to be assembling stock video clips and overlaying narration rather than generating actual AI-driven character performances.
+
+Shotstack watermark is visible at the top of the video.
+
+This creates an unprofessional user experience.
+Determine whether this is caused by a free-tier limitation, incorrect configuration, or the platform itself.
+
+The narrator is verbally describing each scene.
+
+The narration sounds like it is reading instructions or scene descriptions.
+Users should not hear scene labels, production notes, or prompts.
+The actors themselves should be performing the scenes naturally through dialogue and actions.
+
+Audio disappears during the final ~7 seconds of the video.
+
+Investigate audio timeline synchronization and rendering issues.
+Ensure voice, music, and sound effects persist through the entire video duration.
+What We Actually Want to Achieve
+
+The goal is not to create narrated videos assembled from stock assets.
+
+The goal is to create AI-generated videos similar to the experience offered by:
+
+Kling AI
+Higgsfield
+Veo
+Runway
+Pika
+Other modern generative video platforms
+
+Specifically:
+
+A user enters a prompt describing a scene.
+The user can optionally:
+Upload their own photo.
+Upload multiple photos.
+Upload a reference character.
+Upload an influencer image.
+Create a character from text description alone.
+The system generates realistic AI actors from those references.
+The actors speak, move, emote, gesture, and interact naturally within the scene.
+Dialogue is spoken by the actors themselves.
+Lip synchronization is accurate.
+Body movements match the scene context.
+Camera movement, lighting, and cinematic realism are generated automatically.
+The final result should look like genuine AI-generated video content rather than a slideshow assembled from stock footage.
+Required Investigation
+
+Conduct a full technical assessment of the current architecture and answer the following:
+
+Question 1
+
+Can the current infrastructure realistically achieve the experience described above?
+
+Provide:
+
+Yes or No
+Detailed technical limitations
+Bottlenecks in the current architecture
+Reasons why the current stack produces stock-footage-style videos rather than AI-generated performances
+Question 2
+
+If the answer is No, identify the infrastructure required to achieve the target experience.
+
+Research and compare:
+
+Kling-style architectures
+Higgsfield-style architectures
+Runway APIs
+Google Veo integrations
+Character-consistent video generation systems
+Image-to-video pipelines
+Talking avatar systems
+Lip-sync solutions
+Multi-character scene generation frameworks
+
+For each option provide:
+
+Implementation complexity
+API availability
+Commercial licensing considerations
+Scalability
+Cost estimates
+Expected output quality
+Production readiness
+Deliverables
+
+Provide:
+
+A complete assessment of the current system.
+A gap analysis between current output and desired output.
+A recommended architecture capable of producing realistic AI actor-based videos.
+A migration plan from the current setup to the recommended architecture.
+Specific technologies, APIs, models, and services that should be used.
+A recommendation on whether Shotstack should remain in the stack or be replaced entirely.
+
+Important: Do not attempt to preserve the current approach if it fundamentally cannot achieve the target experience. If the existing architecture is incapable of producing Kling/Higgsfield-style AI video generation, recommend a complete redesign and provide the optimal architecture needed to achieve that outcome.
