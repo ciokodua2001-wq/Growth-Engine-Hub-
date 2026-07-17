@@ -389,7 +389,7 @@ async function composeShotstack(opts: ShotstackOptions): Promise<string> {
     },
   };
 
-  const { data: submitData } = await withRetry(async () => {
+  const submitResult = await withRetry(async () => {
     const submitRes = await fetch(`${SHOTSTACK_API_URL}/render`, {
       method: "POST",
       headers: {
@@ -402,10 +402,10 @@ async function composeShotstack(opts: ShotstackOptions): Promise<string> {
       const body = await submitRes.text();
       throw new Error(`Shotstack submit: ${submitRes.status} ${body.slice(0, 200)}`);
     }
-    return submitRes.json() as Promise<{ data: { id: string } }>;
+    return submitRes.json() as Promise<{ response: { id: string } }>;
   });
 
-  return await pollShotstack(submitData.id, apiKey);
+  return await pollShotstack(submitResult.response.id, apiKey);
 }
 
 async function pollShotstack(renderId: string, apiKey: string): Promise<string> {
@@ -415,7 +415,7 @@ async function pollShotstack(renderId: string, apiKey: string): Promise<string> 
   for (let i = 0; i < MAX_POLLS; i++) {
     await sleep(POLL_INTERVAL_MS);
 
-    const { data } = await withRetry(async () => {
+    const pollResult = await withRetry(async () => {
       const res = await fetch(`${SHOTSTACK_API_URL}/render/${renderId}`, {
         headers: { "x-api-key": apiKey },
       });
@@ -423,11 +423,11 @@ async function pollShotstack(renderId: string, apiKey: string): Promise<string> 
         const body = await res.text();
         throw new Error(`Shotstack poll: ${res.status} ${body.slice(0, 200)}`);
       }
-      return res.json() as Promise<{ data: { status: string; url?: string } }>;
+      return res.json() as Promise<{ response: { status: string; url?: string } }>;
     });
 
-    if (data.status === "done" && data.url) return data.url;
-    if (data.status === "failed") throw new Error("Shotstack render failed");
+    if (pollResult.response.status === "done" && pollResult.response.url) return pollResult.response.url;
+    if (pollResult.response.status === "failed") throw new Error("Shotstack render failed");
     // status is "queued" or "rendering" — keep polling
   }
 
