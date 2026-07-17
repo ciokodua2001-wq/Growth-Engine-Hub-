@@ -16,7 +16,11 @@ const ELEVENLABS_API_URL = "https://api.elevenlabs.io";
 const FAL_QUEUE_BASE = "https://queue.fal.run";
 const FAL_T2V_MODEL = "fal-ai/kling-video/v1.6/standard/text-to-video";
 const FAL_I2V_MODEL = "fal-ai/kling-video/v1.6/standard/image-to-video";
-const SHOTSTACK_API_URL = "https://api.shotstack.io/edit/v1";
+// Stage key → https://api.shotstack.io/edit/stage/render
+// Production key → https://api.shotstack.io/edit/v1/render
+// Confirmed via live probe: the configured key is a stage key (edit/v1 returns 403, edit/stage returns 400/valid)
+const SHOTSTACK_STAGE = process.env.SHOTSTACK_STAGE ?? "stage";
+const SHOTSTACK_API_URL = `https://api.shotstack.io/edit/${SHOTSTACK_STAGE}`;
 const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID ?? "pNInz6obpgDQGcFmaJgB"; // Adam
 
 export type RenderMode = "footage" | "avatar" | "combined";
@@ -386,7 +390,7 @@ async function composeShotstack(opts: ShotstackOptions): Promise<string> {
   };
 
   const { data: submitData } = await withRetry(async () => {
-    const submitRes = await fetch(`${SHOTSTACK_API_URL}/renders`, {
+    const submitRes = await fetch(`${SHOTSTACK_API_URL}/render`, {
       method: "POST",
       headers: {
         "x-api-key": apiKey,
@@ -412,7 +416,7 @@ async function pollShotstack(renderId: string, apiKey: string): Promise<string> 
     await sleep(POLL_INTERVAL_MS);
 
     const { data } = await withRetry(async () => {
-      const res = await fetch(`${SHOTSTACK_API_URL}/renders/${renderId}`, {
+      const res = await fetch(`${SHOTSTACK_API_URL}/render/${renderId}`, {
         headers: { "x-api-key": apiKey },
       });
       if (!res.ok) {
