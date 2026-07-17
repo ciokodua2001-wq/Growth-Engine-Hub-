@@ -20,9 +20,9 @@ export const ACTION_COST_USD: Record<string, number> = {
   image_generation:  0.005,   // per image (managed billing)
 
   // Video render pipeline — all-in cost per 30-second render segment
-  video_render_footage_30s:  0.107,  // MiniMax T2V clips + ElevenLabs TTS + Shotstack 1080p
-  video_render_avatar_30s:   0.158,  // MiniMax I2V (talking photo) + ElevenLabs TTS + Shotstack
-  video_render_combined_30s: 0.205,  // MiniMax I2V + T2V clips + ElevenLabs TTS + Shotstack
+  video_render_footage_30s:  0.068,  // FAL Kling v1.6 T2V clips ($0.045/5s clip × ~6 clips) + ElevenLabs TTS + Shotstack 1080p
+  video_render_avatar_30s:   0.095,  // FAL Kling v1.6 I2V (image-to-video) + ElevenLabs TTS + Shotstack
+  video_render_combined_30s: 0.130,  // FAL Kling v1.6 I2V + T2V clips + ElevenLabs TTS + Shotstack
   video_render_4k_surcharge: 0.009,  // Shotstack 4K vs 1080p delta per 30s render
 
   // Legacy per-minute costs retained for backward compatibility with existing refund records

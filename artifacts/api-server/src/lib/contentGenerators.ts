@@ -132,15 +132,19 @@ Never return a simple footage plan. Always return a complete cinematic shot list
 
 Respond with ONLY a single JSON object, no prose.`;
 
-export async function generateVideoBlueprints(
+// Max videos per AI call — keeps output well under the 8192-token model limit.
+// 9 full cinematic blueprints in one shot truncates the JSON; 3 at a time is safe.
+const VIDEO_BATCH_SIZE = 3;
+
+async function generateVideoBatch(
   ctx: GroundingContext,
-  opts: { count: number; type?: string; prompt?: string },
+  opts: { count: number; type?: string; prompt?: string; batchIndex: number },
 ): Promise<VideoBlueprintResult[]> {
   const response = await generateJson<{ videos: Array<Omit<VideoBlueprintResult, "cinematicPlan"> & { cinematicPlan: CinematicPlan }> }>({
     system: AI_VIDEO_DIRECTOR_SYSTEM,
     prompt: `${renderGroundingBlock(ctx)}
 ${opts.prompt ? `\nAdditional direction from the user: ${opts.prompt}\n` : ""}
-Create exactly ${opts.count} distinct short-form cinematic marketing video blueprint(s) for this specific business${opts.type ? `, of type "${opts.type}"` : " (mix of promo/product/social types as appropriate)"}.
+Create exactly ${opts.count} distinct short-form cinematic marketing video blueprint(s) for this specific business${opts.type ? `, of type "${opts.type}"` : " (mix of promo/product/social types as appropriate)"}. This is batch ${opts.batchIndex + 1} — make these feel fresh and distinct from any previously generated videos.
 
 Each video must have a strong cinematic hook, full voiceover script, and a complete shot-by-shot production blueprint.
 
@@ -192,6 +196,31 @@ The "videos" array must contain exactly ${opts.count} items.`,
     ...v,
     cinematicPlan: JSON.stringify(v.cinematicPlan),
   }));
+}
+
+export async function generateVideoBlueprints(
+  ctx: GroundingContext,
+  opts: { count: number; type?: string; prompt?: string },
+): Promise<VideoBlueprintResult[]> {
+  // Split into batches of VIDEO_BATCH_SIZE to stay within model output token limits.
+  // Generating 9 blueprints in one call reliably exceeds 8192 tokens and truncates the JSON.
+  const batches: Array<{ count: number; batchIndex: number }> = [];
+  let remaining = opts.count;
+  let batchIndex = 0;
+  while (remaining > 0) {
+    const batchCount = Math.min(remaining, VIDEO_BATCH_SIZE);
+    batches.push({ count: batchCount, batchIndex });
+    remaining -= batchCount;
+    batchIndex++;
+  }
+
+  // Run batches sequentially to avoid rate-limit collisions on large requests
+  const results: VideoBlueprintResult[] = [];
+  for (const batch of batches) {
+    const batchResults = await generateVideoBatch(ctx, { ...opts, count: batch.count, batchIndex: batch.batchIndex });
+    results.push(...batchResults);
+  }
+  return results;
 }
 
 export interface AdCreativeResult {

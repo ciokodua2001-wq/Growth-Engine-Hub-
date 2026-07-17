@@ -365,7 +365,7 @@ function RenderPanel({
           <span className="text-sm font-bold text-[#00E676]">Video Rendering — Paid Plans Only</span>
         </div>
         <p className="text-xs text-white/50 mb-3">
-          Your trial includes video blueprints (scripts + storyboards). Upgrade to render actual MP4 videos with AI voiceover, MiniMax footage, and Shotstack composition.
+          Your trial includes video blueprints (scripts + storyboards). Upgrade to render actual MP4 videos with AI voiceover, FAL Kling footage, and Shotstack composition.
         </p>
         <a
           href="/plans"
@@ -429,7 +429,7 @@ function RenderPanel({
             <p className="text-xs font-semibold text-blue-400">
               {currentStatus === "queued" ? "Queued for rendering…" : "Rendering your video…"}
             </p>
-            <p className="text-xs text-white/40 truncate">ElevenLabs → MiniMax → Shotstack pipeline running</p>
+            <p className="text-xs text-white/40 truncate">ElevenLabs → FAL Kling → Shotstack pipeline running</p>
           </div>
           <button
             onClick={() => refetchStatus()}

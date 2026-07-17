@@ -34,7 +34,7 @@ export interface CreditDeductMeta {
 /**
  * Deduct credits from a provider's bank (if one exists) and always log the transaction.
  * For Anthropic/ElevenLabs/OpenAI: logs spend for reporting without touching any bank row.
- * For MiniMax/Shotstack: also updates the bank balance, production totals, and fires alerts.
+ * For FAL/Shotstack: also updates the bank balance, production totals, and fires alerts.
  * Pass CreditDeductMeta to record per-event production metrics (minutes, videos, project).
  */
 export async function deductPlatformCredits(
@@ -68,8 +68,8 @@ export async function deductPlatformCredits(
           updatedAt: new Date(),
         };
 
-        // Track production totals for manually-managed banks (MiniMax and Shotstack)
-        if (provider === "minimax" || provider === "shotstack") {
+        // Track production totals for manually-managed banks (FAL and Shotstack)
+        if (provider === "fal" || provider === "minimax" || provider === "shotstack") {
           bankUpdate.totalCreditsConsumed = (bank.totalCreditsConsumed ?? 0) + amount;
           if (meta.videosCount) {
             bankUpdate.totalVideosGenerated = (bank.totalVideosGenerated ?? 0) + meta.videosCount;
