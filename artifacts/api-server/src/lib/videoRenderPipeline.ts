@@ -554,13 +554,13 @@ async function generateAvatarClipsI2V(photoPath: string, prompts: string[], vide
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function uploadAudioToStorage(buffer: Buffer, format: string): Promise<string> {
-  // Store audio in object storage and return a publicly accessible URL
-  const { Storage } = await import("@google-cloud/storage");
+  // Store audio in object storage and return a publicly accessible URL.
+  // Uses objectStorageClient (sidecar-authenticated) so this works in production.
+  const { objectStorageClient } = await import("./objectStorage.js");
   const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
   if (!bucketId) throw new Error("DEFAULT_OBJECT_STORAGE_BUCKET_ID not set");
 
-  const storage = new Storage();
-  const bucket = storage.bucket(bucketId);
+  const bucket = objectStorageClient.bucket(bucketId);
   const filename = `renders/voiceover-${Date.now()}.${format}`;
   const file = bucket.file(filename);
 
@@ -603,12 +603,11 @@ function isRetryable(err: unknown): boolean {
 }
 
 async function uploadVideoToStorage(buffer: Buffer): Promise<string> {
-  const { Storage } = await import("@google-cloud/storage");
+  const { objectStorageClient } = await import("./objectStorage.js");
   const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
   if (!bucketId) throw new Error("DEFAULT_OBJECT_STORAGE_BUCKET_ID not set");
 
-  const storage = new Storage();
-  const bucket = storage.bucket(bucketId);
+  const bucket = objectStorageClient.bucket(bucketId);
   const filename = `renders/footage-${Date.now()}.mp4`;
   const file = bucket.file(filename);
 
