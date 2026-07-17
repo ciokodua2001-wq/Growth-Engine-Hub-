@@ -57,16 +57,28 @@ router.post("/projects/:id/images/generate", async (req, res) => {
   const groundedPrompt = buildGroundedPrompt(prompt, style, ctx);
 
   // Generate images in parallel
-  const imagePromises = Array.from({ length: safeCount }, () =>
-    generateImageBuffer(groundedPrompt, size)
-  );
-
-  const buffers = await Promise.all(imagePromises);
+  let buffers: Buffer[];
+  try {
+    const imagePromises = Array.from({ length: safeCount }, () =>
+      generateImageBuffer(groundedPrompt, size)
+    );
+    buffers = await Promise.all(imagePromises);
+  } catch (err: unknown) {
+    req.log.error({ err }, "Image generation failed");
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(502).json({ error: `Image generation failed: ${message}` });
+    return;
+  }
 
   // Upload each to object storage and collect public URLs
-  const urls = await Promise.all(
-    buffers.map((buf) => uploadImageToStorage(buf))
-  );
+  let urls: string[];
+  try {
+    urls = await Promise.all(buffers.map((buf) => uploadImageToStorage(buf)));
+  } catch (err: unknown) {
+    req.log.error({ err }, "Image upload failed");
+    res.status(502).json({ error: "Failed to upload generated image" });
+    return;
+  }
 
   res.json({
     urls,
