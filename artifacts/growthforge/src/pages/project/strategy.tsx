@@ -11,9 +11,78 @@ import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Loader2, Megaphone, Zap, Target, MessageCircle,
-  Globe, TrendingUp, Filter, Download, Bot,
+  Globe, TrendingUp, Filter, Download, Bot, ExternalLink,
 } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
+
+const SECTION_RESOURCES: Record<string, Array<{ name: string; url: string; description: string }>> = {
+  positioningStatement: [
+    { name: "Value Proposition Canvas", url: "https://www.strategyzer.com/canvas/value-proposition-canvas", description: "Design your positioning vs. customer needs" },
+    { name: "Obviously Awesome", url: "https://www.aprildunford.com/obviously-awesome", description: "April Dunford's positioning framework" },
+    { name: "HubSpot Positioning Templates", url: "https://offers.hubspot.com/brand-positioning-templates", description: "Free positioning worksheet" },
+  ],
+  messagingFramework: [
+    { name: "StoryBrand", url: "https://storybrand.com/", description: "Clarify your brand message" },
+    { name: "Copyhackers", url: "https://copyhackers.com/", description: "Conversion copywriting guides" },
+    { name: "Swipe Files", url: "https://www.swipefiles.com/", description: "Best-in-class copy examples" },
+  ],
+  brandVoiceGuide: [
+    { name: "Mailchimp Voice & Tone", url: "https://styleguide.mailchimp.com/voice-and-tone/", description: "Gold standard brand voice guide" },
+    { name: "Grammarly Style Guide", url: "https://www.grammarly.com/business/learn/how-to-create-brand-style-guide/", description: "Build your content style guide" },
+  ],
+  seoStrategy: [
+    { name: "Google Search Console", url: "https://search.google.com/search-console", description: "Monitor your search performance" },
+    { name: "Ahrefs Free Tools", url: "https://ahrefs.com/free-seo-tools", description: "Keyword research & site audit" },
+    { name: "Answer the Public", url: "https://answerthepublic.com/", description: "Questions your audience is searching" },
+    { name: "Google Keyword Planner", url: "https://ads.google.com/home/tools/keyword-planner/", description: "Search volume & keyword ideas" },
+  ],
+  campaignStrategy: [
+    { name: "Meta Ads Manager", url: "https://www.facebook.com/adsmanager", description: "Run Facebook & Instagram campaigns" },
+    { name: "Meta Ads Library", url: "https://www.facebook.com/ads/library", description: "Research competitor creatives" },
+    { name: "LinkedIn Campaign Manager", url: "https://www.linkedin.com/campaignmanager", description: "B2B audience targeting" },
+    { name: "Reddit Ads", url: "https://ads.reddit.com/", description: "Reach niche communities" },
+  ],
+  leadGenerationStrategy: [
+    { name: "HubSpot CRM (Free)", url: "https://www.hubspot.com/products/crm", description: "Track and manage leads" },
+    { name: "Mailchimp", url: "https://mailchimp.com/", description: "Email list building & automation" },
+    { name: "ConvertKit", url: "https://convertkit.com/", description: "Creator email marketing" },
+    { name: "Hunter.io", url: "https://hunter.io/", description: "Find and verify business emails" },
+  ],
+  funnelRecommendations: [
+    { name: "Google Analytics 4", url: "https://analytics.google.com/", description: "Track traffic and conversions" },
+    { name: "Hotjar", url: "https://www.hotjar.com/", description: "Heatmaps & session recordings" },
+    { name: "Microsoft Clarity", url: "https://clarity.microsoft.com/", description: "Free heatmaps (no limits)" },
+    { name: "Mixpanel", url: "https://mixpanel.com/", description: "Product & funnel analytics" },
+  ],
+};
+
+function ResourceChips({ resources }: { resources: Array<{ name: string; url: string; description: string }> }) {
+  return (
+    <div className="mt-4 pt-4 border-t border-white/[0.06]">
+      <p className="text-[10px] font-bold text-white/25 uppercase tracking-widest mb-2.5">Tools & Resources</p>
+      <div className="flex flex-wrap gap-1.5">
+        {resources.map((r) => (
+          <a
+            key={r.name}
+            href={r.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={r.description}
+            className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md transition-all hover:opacity-80"
+            style={{
+              background: "rgba(96,165,250,0.08)",
+              color: "#60a5fa",
+              border: "1px solid rgba(96,165,250,0.15)",
+            }}
+          >
+            <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+            {r.name}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const STRATEGY_STEPS = [
   "Analyzing brand positioning...",
@@ -92,15 +161,18 @@ function StrategyCard({
   icon: Icon,
   projectId,
   accentColor = "#00E676",
+  resourceKey,
 }: {
   title: string;
   content: string | null | undefined;
   icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
   projectId: number;
   accentColor?: string;
+  resourceKey?: string;
 }) {
   if (!content) return null;
   const subsections = parseSubsections(content);
+  const resources = resourceKey ? SECTION_RESOURCES[resourceKey] : undefined;
 
   return (
     <motion.div
@@ -155,6 +227,7 @@ function StrategyCard({
             <p className="text-sm text-white/65 leading-relaxed">{s.body}</p>
           </div>
         ))}
+        {resources && <ResourceChips resources={resources} />}
       </div>
     </motion.div>
   );
@@ -188,15 +261,22 @@ export default function ProjectStrategy() {
       );
     });
 
-  const SECTIONS = [
-    { key: "positioningStatement", title: "Positioning Statement", icon: Megaphone, accent: "#00E676", span: false },
-    { key: "messagingFramework",   title: "Messaging Framework",   icon: MessageCircle, accent: "#00D4FF", span: false },
-    { key: "brandVoiceGuide",      title: "Brand Voice Guide",     icon: MessageCircle, accent: "#14F195", span: false },
-    { key: "seoStrategy",          title: "SEO Strategy",          icon: Globe,         accent: "#818cf8", span: false },
-    { key: "campaignStrategy",     title: "Campaign Strategy",     icon: Target,        accent: "#fb923c", span: true  },
-    { key: "leadGenerationStrategy", title: "Lead Generation Strategy", icon: TrendingUp, accent: "#f472b6", span: true },
-    { key: "funnelRecommendations",  title: "Funnel Recommendations",  icon: Filter,     accent: "#60a5fa", span: true },
-  ] as const;
+  type StrategyKey = "positioningStatement" | "messagingFramework" | "brandVoiceGuide" | "seoStrategy" | "campaignStrategy" | "leadGenerationStrategy" | "funnelRecommendations";
+  const SECTIONS: Array<{
+    key: StrategyKey;
+    title: string;
+    icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+    accent: string;
+    span: boolean;
+  }> = [
+    { key: "positioningStatement",   title: "Positioning Statement",      icon: Megaphone,    accent: "#00E676", span: false },
+    { key: "messagingFramework",     title: "Messaging Framework",        icon: MessageCircle,accent: "#00D4FF", span: false },
+    { key: "brandVoiceGuide",        title: "Brand Voice Guide",          icon: MessageCircle,accent: "#14F195", span: false },
+    { key: "seoStrategy",            title: "SEO Strategy",               icon: Globe,        accent: "#818cf8", span: false },
+    { key: "campaignStrategy",       title: "Campaign Strategy",          icon: Target,       accent: "#fb923c", span: true  },
+    { key: "leadGenerationStrategy", title: "Lead Generation Strategy",   icon: TrendingUp,   accent: "#f472b6", span: true  },
+    { key: "funnelRecommendations",  title: "Funnel Recommendations",     icon: Filter,       accent: "#60a5fa", span: true  },
+  ];
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full">
@@ -254,6 +334,7 @@ export default function ProjectStrategy() {
                   icon={icon}
                   projectId={projectId}
                   accentColor={accent}
+                  resourceKey={key}
                 />
               </div>
             );

@@ -387,10 +387,87 @@ function pdfHeader(doc: InstanceType<typeof PDFDocument>, title: string, subtitl
   return y + 20;
 }
 
+/**
+ * Server-side mirror of the UI's parseSubsections parser.
+ * Splits AI text on ALL-CAPS section labels (e.g. "PRIMARY PILLAR —", "TONE:", "TOFU (...):").
+ */
+function pdfParseSubsections(text: string): Array<{ label: string; body: string }> {
+  const re = /\b([A-Z]{2,}(?:\s+[A-Z]{2,})*(?:\s+\d+)?(?:\s*\([^)]{1,100}\))?)\s*(?:—|:)\s*/g;
+  const candidates: Array<{ index: number; end: number; label: string }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const before = text.slice(0, m.index).trim();
+    if (m.index === 0 || /\.\s*$/.test(before)) {
+      candidates.push({ index: m.index, end: m.index + m[0].length, label: m[1].trim() });
+    }
+  }
+  if (candidates.length < 2) return [{ label: "", body: text.trim() }];
+  const results: Array<{ label: string; body: string }> = [];
+  if (candidates[0].index > 0) {
+    const pre = text.slice(0, candidates[0].index).trim();
+    if (pre) results.push({ label: "", body: pre });
+  }
+  for (let i = 0; i < candidates.length; i++) {
+    const bodyEnd = candidates[i + 1]?.index ?? text.length;
+    const body = text.slice(candidates[i].end, bodyEnd).trim();
+    if (body) results.push({ label: candidates[i].label, body });
+  }
+  return results;
+}
+
+/** Renders a section title (large, colored) with a full-width underline rule. */
 function pdfSection(doc: InstanceType<typeof PDFDocument>, label: string, y: number, accentColor = PDF_GREEN): number {
-  doc.font("Helvetica-Bold").fontSize(10).fillColor(accentColor).text(label, 60, y);
-  y += 14;
-  doc.moveTo(60, y).lineTo(535, y).strokeColor(accentColor).lineWidth(0.4).stroke();
+  if (y > 110) y += 16;
+  if (y + 40 > doc.page.height - 55) { doc.addPage(); y = 55; }
+  doc.font("Helvetica-Bold").fontSize(11).fillColor(accentColor).text(label, 60, y, { width: PDF_W });
+  y = doc.y + 3;
+  doc.moveTo(60, y).lineTo(535, y).strokeColor(accentColor).lineWidth(0.7).stroke();
+  return y + 10;
+}
+
+/** Renders a labeled sub-section: left accent bar + bold label + body text. */
+function pdfSubBlock(
+  doc: InstanceType<typeof PDFDocument>,
+  label: string,
+  body: string,
+  y: number,
+  accentColor = PDF_GREEN,
+): number {
+  if (y + 50 > doc.page.height - 55) { doc.addPage(); y = 55; }
+  if (label) {
+    doc.rect(60, y + 1, 3, 10).fill(accentColor);
+    doc.font("Helvetica-Bold").fontSize(8.5).fillColor(accentColor)
+      .text(label, 68, y, { width: PDF_W - 8 });
+    y = doc.y + 3;
+    doc.font("Helvetica").fontSize(9).fillColor("#b0c4d8")
+      .text(body, 68, y, { width: PDF_W - 8 });
+  } else {
+    doc.font("Helvetica").fontSize(9).fillColor(PDF_WHITE)
+      .text(body, 60, y, { width: PDF_W });
+  }
+  return doc.y + 12;
+}
+
+/** Renders a "Tools & Resources" footer block with clickable hyperlinks. */
+function pdfResourceLinks(
+  doc: InstanceType<typeof PDFDocument>,
+  resources: Array<{ name: string; url: string; description: string }>,
+  y: number,
+): number {
+  if (y + 30 > doc.page.height - 55) { doc.addPage(); y = 55; }
+  y += 4;
+  doc.moveTo(60, y).lineTo(535, y).strokeColor("#1e2e40").lineWidth(0.5).stroke();
+  y += 6;
+  doc.font("Helvetica-Bold").fontSize(7).fillColor("#4a6070").text("TOOLS & RESOURCES", 60, y);
+  y = doc.y + 4;
+  for (const r of resources) {
+    if (y + 12 > doc.page.height - 55) { doc.addPage(); y = 55; }
+    doc.font("Helvetica-Bold").fontSize(8).fillColor("#4488bb")
+      .text(`↗ ${r.name}`, 60, y, { link: r.url, underline: true, continued: true });
+    doc.font("Helvetica").fontSize(8).fillColor("#4a6070")
+      .text(` — ${r.description}`, { underline: false, continued: false });
+    y = doc.y + 2;
+  }
   return y + 8;
 }
 
@@ -425,6 +502,47 @@ function buildPdfBuffer(builder: (doc: InstanceType<typeof PDFDocument>) => void
 
 /* ── Strategy PDF ──────────────────────────────────────────── */
 
+const STRATEGY_PDF_RESOURCES: Record<string, Array<{ name: string; url: string; description: string }>> = {
+  "POSITIONING STATEMENT": [
+    { name: "Value Proposition Canvas", url: "https://www.strategyzer.com/canvas/value-proposition-canvas", description: "Map your value vs. customer needs" },
+    { name: "Obviously Awesome (Book)", url: "https://www.aprildunford.com/obviously-awesome", description: "April Dunford's positioning framework" },
+    { name: "HubSpot Positioning Templates", url: "https://offers.hubspot.com/brand-positioning-templates", description: "Free positioning worksheet" },
+  ],
+  "MESSAGING FRAMEWORK": [
+    { name: "StoryBrand Framework", url: "https://storybrand.com/", description: "Clarify your brand message" },
+    { name: "Copyhackers", url: "https://copyhackers.com/", description: "Conversion copywriting guides" },
+    { name: "Swipe Files", url: "https://www.swipefiles.com/", description: "Best-in-class marketing copy examples" },
+  ],
+  "BRAND VOICE GUIDE": [
+    { name: "Mailchimp Voice & Tone", url: "https://styleguide.mailchimp.com/voice-and-tone/", description: "Gold standard brand voice guide" },
+    { name: "Grammarly Style Guide Builder", url: "https://www.grammarly.com/business/learn/how-to-create-brand-style-guide/", description: "Build your content style guide" },
+  ],
+  "SEO STRATEGY": [
+    { name: "Google Search Console", url: "https://search.google.com/search-console", description: "Monitor your site's search performance" },
+    { name: "Ahrefs Free Tools", url: "https://ahrefs.com/free-seo-tools", description: "Keyword research & site audit" },
+    { name: "Answer the Public", url: "https://answerthepublic.com/", description: "Questions your audience is searching" },
+    { name: "Google Keyword Planner", url: "https://ads.google.com/home/tools/keyword-planner/", description: "Search volume & keyword ideas" },
+  ],
+  "CAMPAIGN STRATEGY": [
+    { name: "Meta Ads Manager", url: "https://www.facebook.com/adsmanager", description: "Run Facebook & Instagram campaigns" },
+    { name: "Meta Ads Library", url: "https://www.facebook.com/ads/library", description: "Research competitor ad creatives" },
+    { name: "LinkedIn Campaign Manager", url: "https://www.linkedin.com/campaignmanager", description: "B2B audience targeting" },
+    { name: "Reddit Ads", url: "https://ads.reddit.com/", description: "Reach niche communities organically" },
+  ],
+  "LEAD GENERATION STRATEGY": [
+    { name: "HubSpot CRM (Free)", url: "https://www.hubspot.com/products/crm", description: "Track and manage leads" },
+    { name: "Mailchimp", url: "https://mailchimp.com/", description: "Email list building & automation" },
+    { name: "ConvertKit", url: "https://convertkit.com/", description: "Creator-focused email marketing" },
+    { name: "Hunter.io", url: "https://hunter.io/", description: "Find and verify business emails" },
+  ],
+  "FUNNEL RECOMMENDATIONS": [
+    { name: "Google Analytics 4", url: "https://analytics.google.com/", description: "Track traffic and conversions" },
+    { name: "Hotjar", url: "https://www.hotjar.com/", description: "Heatmaps & session recordings" },
+    { name: "Microsoft Clarity", url: "https://clarity.microsoft.com/", description: "Free heatmaps and user recordings" },
+    { name: "Mixpanel", url: "https://mixpanel.com/", description: "Product & funnel analytics" },
+  ],
+};
+
 router.get("/projects/:id/strategy/pdf", async (req, res): Promise<void> => {
   const params = GetMarketingStrategyParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
@@ -456,11 +574,15 @@ router.get("/projects/:id/strategy/pdf", async (req, res): Promise<void> => {
       ["FUNNEL RECOMMENDATIONS", strategy.funnelRecommendations],
     ];
 
-    for (const [label, content] of sections) {
+    for (const [sectionLabel, content] of sections) {
       if (!content) continue;
-      if (y > 700) { doc.addPage(); y = 60; }
-      y = pdfSection(doc, label, y, wlAccent);
-      y = pdfBody(doc, content, y);
+      y = pdfSection(doc, sectionLabel, y, wlAccent);
+      const subsections = pdfParseSubsections(content);
+      for (const { label, body } of subsections) {
+        y = pdfSubBlock(doc, label, body, y, wlAccent);
+      }
+      const sectionResources = STRATEGY_PDF_RESOURCES[sectionLabel];
+      if (sectionResources) y = pdfResourceLinks(doc, sectionResources, y);
     }
 
     doc.font("Helvetica").fontSize(7).fillColor(PDF_GRAY)
