@@ -66,21 +66,21 @@ async function fetchOpenAIStatus() {
   }
 }
 
-async function fetchMiniMaxKeyValid() {
-  const key = process.env["MINIMAX_API_KEY"];
+async function fetchFalKeyValid() {
+  const key = process.env["FAL_API_KEY"];
   if (!key) return { keyConfigured: false, keyValid: null };
   try {
-    const r = await fetch("https://api.minimax.io/v1/video_generation", {
+    // Probe FAL with an empty POST — a 422/400/401 response means the endpoint is reachable;
+    // only a 401 "unauthorized" means the key is invalid.
+    const r = await fetch("https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video", {
       method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "video-01", prompt: "test" }),
-      signal: AbortSignal.timeout(8000),
+      headers: { Authorization: `Key ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "test", duration: "5" }),
+      signal: AbortSignal.timeout(10000),
     });
-    // 200 with task_id = ok; base_resp status_code 1008 = insufficient balance (key valid); 2049 = invalid key
-    const json = await r.json() as { base_resp?: { status_code?: number } };
-    const code = json?.base_resp?.status_code ?? 0;
-    const keyValid = code !== 2049 && code !== 1004; // not "invalid key" and not "missing auth"
-    return { keyConfigured: true, keyValid };
+    // 200 (queued) or 422 (validation error) both mean the key is valid
+    // 401 means invalid key
+    return { keyConfigured: true, keyValid: r.status !== 401 };
   } catch {
     return { keyConfigured: true, keyValid: null };
   }
@@ -106,14 +106,14 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
   try {
     await seedManualBanks();
 
-    const [elevenLabsLive, openAILive, miniMaxKey, shotstackKey, banks, anthropicSpend] =
+    const [elevenLabsLive, openAILive, falKey, shotstackKey, banks, anthropicSpend] =
       await Promise.all([
         fetchElevenLabsStatus(),
         fetchOpenAIStatus(),
-        fetchMiniMaxKeyValid(),
+        fetchFalKeyValid(),
         fetchShotstackKeyValid(),
         db.select().from(platformCreditBanksTable)
-          .where(sql`${platformCreditBanksTable.provider} IN ('minimax','shotstack')`),
+          .where(sql`${platformCreditBanksTable.provider} IN ('fal','shotstack')`),
         db.select({
           total:   sql<number>`COALESCE(SUM(${platformCreditTransactionsTable.amount}), 0)`,
           monthly: sql<number>`COALESCE(SUM(CASE WHEN ${platformCreditTransactionsTable.createdAt} >= date_trunc('month', now()) THEN ${platformCreditTransactionsTable.amount} ELSE 0 END), 0)`,
@@ -126,15 +126,15 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
       ]);
 
     const bankMap = Object.fromEntries(banks.map((b) => [b.provider, b]));
-    const mmBank  = bankMap["minimax"]   ?? null;
+    const falBank = bankMap["fal"]       ?? null;
     const ssBank  = bankMap["shotstack"] ?? null;
-    const mmPct   = mmBank && mmBank.peakBalance > 0 ? Math.round((mmBank.balance / mmBank.peakBalance) * 100) : null;
+    const falPct  = falBank && falBank.peakBalance > 0 ? Math.round((falBank.balance / falBank.peakBalance) * 100) : null;
     const ssPct   = ssBank && ssBank.peakBalance > 0 ? Math.round((ssBank.balance / ssBank.peakBalance) * 100) : null;
     const spend   = anthropicSpend[0] ?? { total: 0, monthly: 0 };
 
-    const mmCostPerCredit = mmBank && mmBank.totalAdded > 0 && (mmBank.totalUsdSpent ?? 0) > 0
-      ? mmBank.totalUsdSpent! / mmBank.totalAdded
-      : 0.001;
+    const falCostPerClip = falBank && falBank.totalAdded > 0 && (falBank.totalUsdSpent ?? 0) > 0
+      ? falBank.totalUsdSpent! / falBank.totalAdded
+      : 0.045; // default: ~$0.045/clip (Kling v1.6 Standard 5s)
     const ssCostPerCredit = ssBank && ssBank.totalAdded > 0 && (ssBank.totalUsdSpent ?? 0) > 0
       ? ssBank.totalUsdSpent! / ssBank.totalAdded
       : 0.2; // default: ~$0.20/credit (Shotstack pay-as-you-go estimate)
@@ -175,30 +175,30 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
         note: null,
         dashboardUrl: "https://elevenlabs.io/subscription",
       },
-      minimax: {
+      fal: {
         type: "bank",
-        displayName: "MiniMax (Video)", icon: "🎬",
-        keyConfigured: miniMaxKey.keyConfigured,
-        keyValid:      miniMaxKey.keyValid,
-        balance:               mmBank?.balance              ?? null,
-        peakBalance:           mmBank?.peakBalance          ?? null,
-        totalAdded:            mmBank?.totalAdded           ?? null,
-        totalCreditsConsumed:  mmBank?.totalCreditsConsumed ?? null,
-        totalUsdSpent:         mmBank?.totalUsdSpent        ?? null,
-        totalVideosGenerated:  mmBank?.totalVideosGenerated ?? null,
-        totalMinutesGenerated: mmBank?.totalMinutesGenerated ?? null,
-        costPerCredit:         mmCostPerCredit,
-        billingModel:          mmBank?.billingModel         ?? "payg",
-        subscriptionPlan:      mmBank?.subscriptionPlan     ?? null,
-        subscriptionCostUsd:   mmBank?.subscriptionCostUsd  ?? null,
-        monthlyCredits:        mmBank?.monthlyCredits       ?? null,
-        pct:           mmPct,
-        unit:          "credits",
-        alertThresholdPct: mmBank?.alertThresholdPct ?? 30,
-        alertEmail:    mmBank?.alertEmail            ?? null,
-        alertEnabled:  mmBank?.alertEnabled          ?? true,
-        dashboardUrl: "https://platform.minimaxi.com/user-center/basic-information",
-        note: "MiniMax does not expose a token balance via API. Top up here after purchasing credits.",
+        displayName: "FAL.ai (Video — Kling v1.6)", icon: "🎬",
+        keyConfigured: falKey.keyConfigured,
+        keyValid:      falKey.keyValid,
+        balance:               falBank?.balance              ?? null,
+        peakBalance:           falBank?.peakBalance          ?? null,
+        totalAdded:            falBank?.totalAdded           ?? null,
+        totalCreditsConsumed:  falBank?.totalCreditsConsumed ?? null,
+        totalUsdSpent:         falBank?.totalUsdSpent        ?? null,
+        totalVideosGenerated:  falBank?.totalVideosGenerated ?? null,
+        totalMinutesGenerated: falBank?.totalMinutesGenerated ?? null,
+        costPerCredit:         falCostPerClip,
+        billingModel:          falBank?.billingModel         ?? "payg",
+        subscriptionPlan:      falBank?.subscriptionPlan     ?? null,
+        subscriptionCostUsd:   falBank?.subscriptionCostUsd  ?? null,
+        monthlyCredits:        falBank?.monthlyCredits       ?? null,
+        pct:           falPct,
+        unit:          "clips",
+        alertThresholdPct: falBank?.alertThresholdPct ?? 30,
+        alertEmail:    falBank?.alertEmail            ?? null,
+        alertEnabled:  falBank?.alertEnabled          ?? true,
+        dashboardUrl: "https://fal.ai/dashboard",
+        note: "FAL does not expose a live balance via API. Top up at fal.ai/dashboard after purchasing credits.",
       },
       shotstack: {
         type: "bank",
@@ -237,8 +237,8 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
 router.post("/admin/credits/bank/:provider/topup", requireAdmin, async (req, res): Promise<void> => {
   try {
     const { provider } = req.params as { provider: string };
-    if (!["minimax", "shotstack"].includes(provider)) {
-      res.status(400).json({ error: "Top-up only supported for minimax and shotstack" }); return;
+    if (!["fal", "shotstack"].includes(provider)) {
+      res.status(400).json({ error: "Top-up only supported for fal and shotstack" }); return;
     }
 
     const body = req.body as { credits?: number; amount?: number; purchaseCostUsd?: number; notes?: string };
@@ -336,8 +336,8 @@ router.get("/admin/credits/transactions/:provider", requireAdmin, async (req, re
 router.get("/admin/credits/reports/:provider", requireAdmin, async (req, res): Promise<void> => {
   try {
     const { provider } = req.params as { provider: string };
-    if (!["minimax", "shotstack"].includes(provider)) {
-      res.status(400).json({ error: "Reports only supported for minimax and shotstack" }); return;
+    if (!["fal", "shotstack"].includes(provider)) {
+      res.status(400).json({ error: "Reports only supported for fal and shotstack" }); return;
     }
 
     const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };

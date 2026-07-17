@@ -7,15 +7,15 @@ import { deductPlatformCredits } from "./platformCredits.js";
 const logger = pino({ name: "videoRenderPipeline" });
 
 // ── Render constants ──────────────────────────────────────────────────────────
-const MINIMAX_CLIP_DURATION_S = 6;   // MiniMax generates ~6-second clips
-const CLIP_BATCH_SIZE = 5;           // max concurrent MiniMax requests per batch
+const FAL_CLIP_DURATION_S = 5;      // Kling v1.6 generates 5-second clips
+const CLIP_BATCH_SIZE = 5;           // max concurrent FAL requests per batch
 const AVATAR_UNIQUE_CLIPS = 3;       // unique avatar clips generated; cycled to fill duration
-const MINIMAX_CREDITS_PER_CLIP = 140;
-const MINIMAX_MINUTES_PER_CLIP = MINIMAX_CLIP_DURATION_S / 60;
 
-// ── API key constants ─────────────────────────────────────────────────────────
+// ── API constants ─────────────────────────────────────────────────────────────
 const ELEVENLABS_API_URL = "https://api.elevenlabs.io";
-const MINIMAX_API_URL = "https://api.minimax.io";
+const FAL_QUEUE_BASE = "https://queue.fal.run";
+const FAL_T2V_MODEL = "fal-ai/kling-video/v1.6/standard/text-to-video";
+const FAL_I2V_MODEL = "fal-ai/kling-video/v1.6/standard/image-to-video";
 const SHOTSTACK_ENV = process.env.NODE_ENV === "production" ? "production" : "stage";
 const SHOTSTACK_API_URL = `https://api.shotstack.io/edit/${SHOTSTACK_ENV}`;
 const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID ?? "pNInz6obpgDQGcFmaJgB"; // Adam
@@ -31,7 +31,7 @@ export interface RenderRequirementsResult {
 export function checkRenderRequirements(): RenderRequirementsResult {
   const missing: string[] = [];
   if (!process.env.ELEVENLABS_API_KEY) missing.push("ELEVENLABS_API_KEY");
-  if (!process.env.MINIMAX_API_KEY) missing.push("MINIMAX_API_KEY");
+  if (!process.env.FAL_API_KEY) missing.push("FAL_API_KEY");
   if (!process.env.SHOTSTACK_API_KEY) missing.push("SHOTSTACK_API_KEY");
   return { ready: missing.length === 0, missing };
 }
@@ -90,12 +90,12 @@ async function runRenderPipeline(
 
   await db.update(videosTable).set({ voiceoverUrl }).where(eq(videosTable.id, videoId));
 
-  // Step 2: Scene-based MiniMax clip generation
-  // Each clip is ~6 seconds; we generate enough clips to cover the full requested duration.
+  // Step 2: FAL.ai Kling v1.6 clip generation
+  // Each clip is ~5 seconds; we generate enough clips to cover the full requested duration.
   // Footage clips are generated in parallel batches of 5.
   // Avatar clips are capped at AVATAR_UNIQUE_CLIPS (3) and cycled in the Shotstack timeline.
   const duration = video.duration ?? 60;
-  const numClips = Math.max(1, Math.ceil(duration / MINIMAX_CLIP_DURATION_S));
+  const numClips = Math.max(1, Math.ceil(duration / FAL_CLIP_DURATION_S));
   const scenePrompts = buildScenePrompts(video.title, video.storyboard ?? "", numClips, video.cinematicPlan);
 
   let footageUrls: string[] = [];
@@ -128,7 +128,7 @@ async function runRenderPipeline(
       avatarClipUrls = await generateAvatarClipsI2V(photoPath!, avatarPrompts, videoId);
     }
   } catch (err) {
-    logger.error({ err, videoId }, "MiniMax clip generation failed");
+    logger.error({ err, videoId }, "FAL clip generation failed");
     const msg = err instanceof Error && err.message.includes("timed out")
       ? "AI video generation is taking longer than expected. Please try again in a few minutes."
       : "AI video generation hit a temporary issue. Please try again — your credits were not charged.";
@@ -137,8 +137,8 @@ async function runRenderPipeline(
   }
 
   const totalClips = footageUrls.length + avatarClipUrls.length;
-  deductPlatformCredits("minimax", MINIMAX_CREDITS_PER_CLIP * totalClips, `AI clips (${totalClips}) — video #${videoId}`, {
-    minutesGenerated: MINIMAX_MINUTES_PER_CLIP * totalClips,
+  deductPlatformCredits("fal", totalClips, `AI clips (${totalClips}) — video #${videoId}`, {
+    minutesGenerated: (FAL_CLIP_DURATION_S / 60) * totalClips,
     videosCount: totalClips,
     projectId: video.projectId,
     videoId: String(videoId),
@@ -212,59 +212,33 @@ async function generateElevenLabsVoiceover(text: string): Promise<string> {
   return await uploadAudioToStorage(audioBuffer, "mp3");
 }
 
-// ── MiniMax Text-to-Video ─────────────────────────────────────────────────────
+// ── FAL.ai Kling v1.6 — Text-to-Video ────────────────────────────────────────
 
-async function generateMiniMaxT2V(prompt: string): Promise<string> {
-  const apiKey = process.env.MINIMAX_API_KEY;
-  if (!apiKey) throw new Error("MINIMAX_API_KEY not configured");
-
-  const { task_id } = await withRetry(async () => {
-    const submitResponse = await fetch(`${MINIMAX_API_URL}/v1/video_generation`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ model: "video-01", prompt }),
-    });
-    if (!submitResponse.ok) {
-      const body = await submitResponse.text();
-      throw new Error(`MiniMax T2V: ${submitResponse.status} ${body.slice(0, 200)}`);
-    }
-    return submitResponse.json() as Promise<{ task_id: string }>;
-  });
-
-  return await pollMiniMaxVideo(task_id, apiKey);
+interface FalStatusResponse {
+  status: "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
+  output?: { video: { url: string } };
+  error?: string;
 }
 
-// ── MiniMax Image-to-Video ────────────────────────────────────────────────────
+async function submitFalJob(modelId: string, body: Record<string, unknown>): Promise<string> {
+  const apiKey = process.env.FAL_API_KEY;
+  if (!apiKey) throw new Error("FAL_API_KEY not configured");
 
-async function generateMiniMaxI2V(avatarImageUrl: string, prompt: string): Promise<string> {
-  const apiKey = process.env.MINIMAX_API_KEY;
-  if (!apiKey) throw new Error("MINIMAX_API_KEY not configured");
-
-  const { task_id } = await withRetry(async () => {
-    const submitResponse = await fetch(`${MINIMAX_API_URL}/v1/video_generation`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ model: "video-01", first_frame_image: avatarImageUrl, prompt }),
-    });
-    if (!submitResponse.ok) {
-      const body = await submitResponse.text();
-      throw new Error(`MiniMax I2V: ${submitResponse.status} ${body.slice(0, 200)}`);
-    }
-    return submitResponse.json() as Promise<{ task_id: string }>;
+  const res = await fetch(`${FAL_QUEUE_BASE}/${modelId}`, {
+    method: "POST",
+    headers: { "Authorization": `Key ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
-
-  return await pollMiniMaxVideo(task_id, apiKey);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`FAL submit: ${res.status} ${text.slice(0, 200)}`);
+  }
+  const data = await res.json() as { request_id: string };
+  return data.request_id;
 }
 
-// ── MiniMax polling ───────────────────────────────────────────────────────────
-
-async function pollMiniMaxVideo(taskId: string, apiKey: string): Promise<string> {
+async function pollFalJob(modelId: string, requestId: string): Promise<string> {
+  const apiKey = process.env.FAL_API_KEY!;
   const MAX_POLLS = 90; // up to 15 minutes
   const POLL_INTERVAL_MS = 10_000;
 
@@ -273,48 +247,44 @@ async function pollMiniMaxVideo(taskId: string, apiKey: string): Promise<string>
 
     const data = await withRetry(async () => {
       const res = await fetch(
-        `${MINIMAX_API_URL}/v1/query/video_generation?task_id=${taskId}`,
-        { headers: { "Authorization": `Bearer ${apiKey}` } }
+        `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}/status`,
+        { headers: { "Authorization": `Key ${apiKey}` } },
       );
       if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`MiniMax poll: ${res.status} ${body.slice(0, 200)}`);
+        const text = await res.text();
+        throw new Error(`FAL poll: ${res.status} ${text.slice(0, 200)}`);
       }
-      return res.json() as Promise<{ task: { status: string; file_id?: string } }>;
+      return res.json() as Promise<FalStatusResponse>;
     });
 
-    if (data.task.status === "Success" && data.task.file_id) {
-      return await retrieveMiniMaxFile(data.task.file_id, apiKey);
+    if (data.status === "COMPLETED" && data.output?.video?.url) {
+      // Download and re-host to stable storage — FAL URLs are temporary signed URLs
+      const videoRes = await withRetry(() => fetch(data.output!.video.url));
+      if (!videoRes.ok) throw new Error(`FAL download failed: ${videoRes.status}`);
+      const buffer = Buffer.from(await videoRes.arrayBuffer());
+      return await uploadVideoToStorage(buffer);
     }
-    if (data.task.status === "Fail") {
-      throw new Error("MiniMax video generation failed");
+    if (data.status === "FAILED") {
+      throw new Error(`FAL video generation failed: ${data.error ?? "unknown error"}`);
     }
-    // status === "Queueing" or "Processing" — keep polling
+    // IN_QUEUE or IN_PROGRESS — keep polling
   }
 
-  throw new Error("MiniMax video generation timed out after 15 minutes");
+  throw new Error("FAL video generation timed out after 15 minutes");
 }
 
-async function retrieveMiniMaxFile(fileId: string, apiKey: string): Promise<string> {
-  const { download_url } = await withRetry(async () => {
-    const res = await fetch(`${MINIMAX_API_URL}/v1/files/${encodeURIComponent(fileId)}`, {
-      method: "GET",
-      headers: { "Authorization": `Bearer ${apiKey}` },
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`MiniMax file retrieve: ${res.status} ${body.slice(0, 200)}`);
-    }
-    const data = await res.json() as { file: { download_url: string } };
-    return { download_url: data.file.download_url };
-  });
+async function generateFalT2V(prompt: string): Promise<string> {
+  const requestId = await withRetry(() =>
+    submitFalJob(FAL_T2V_MODEL, { prompt, duration: "5", aspect_ratio: "16:9" })
+  );
+  return await pollFalJob(FAL_T2V_MODEL, requestId);
+}
 
-  // Download and re-host to our stable storage so Shotstack gets a reliable URL
-  // (MiniMax download_urls are temporary signed URLs that can expire)
-  const videoRes = await withRetry(() => fetch(download_url));
-  if (!videoRes.ok) throw new Error(`MiniMax download failed: ${videoRes.status}`);
-  const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
-  return await uploadVideoToStorage(videoBuffer);
+async function generateFalI2V(avatarImageUrl: string, prompt: string): Promise<string> {
+  const requestId = await withRetry(() =>
+    submitFalJob(FAL_I2V_MODEL, { image_url: avatarImageUrl, prompt, duration: "5" })
+  );
+  return await pollFalJob(FAL_I2V_MODEL, requestId);
 }
 
 // ── Shotstack composition ─────────────────────────────────────────────────────
@@ -332,7 +302,7 @@ async function composeShotstack(opts: ShotstackOptions): Promise<string> {
   if (!apiKey) throw new Error("SHOTSTACK_API_KEY not configured");
 
   const shotstackResolution = opts.resolution === "4k" ? "2160" : "1080";
-  const numSlots = Math.max(1, Math.ceil(opts.duration / MINIMAX_CLIP_DURATION_S));
+  const numSlots = Math.max(1, Math.ceil(opts.duration / FAL_CLIP_DURATION_S));
   const isOverlay = opts.footageUrls.length > 0 && opts.avatarClipUrls.length > 0;
 
   // Build video tracks — avatar on top, footage underneath
@@ -342,8 +312,8 @@ async function composeShotstack(opts: ShotstackOptions): Promise<string> {
   if (opts.avatarClipUrls.length > 0) {
     tracks.push({
       clips: Array.from({ length: numSlots }, (_, i) => {
-        const clipStart = i * MINIMAX_CLIP_DURATION_S;
-        const clipLen = Math.min(MINIMAX_CLIP_DURATION_S, opts.duration - clipStart);
+        const clipStart = i * FAL_CLIP_DURATION_S;
+        const clipLen = Math.min(FAL_CLIP_DURATION_S, opts.duration - clipStart);
         return {
           asset: { type: "video", src: opts.avatarClipUrls[i % opts.avatarClipUrls.length], trim: 0 },
           start: clipStart,
@@ -355,12 +325,12 @@ async function composeShotstack(opts: ShotstackOptions): Promise<string> {
     });
   }
 
-  // Footage track: each clip plays sequentially, covering its 6-second slot
+  // Footage track: each clip plays sequentially, covering its 5-second slot
   if (opts.footageUrls.length > 0) {
     tracks.push({
       clips: opts.footageUrls.map((src, i) => {
-        const clipStart = i * MINIMAX_CLIP_DURATION_S;
-        const clipLen = Math.min(MINIMAX_CLIP_DURATION_S, opts.duration - clipStart);
+        const clipStart = i * FAL_CLIP_DURATION_S;
+        const clipLen = Math.min(FAL_CLIP_DURATION_S, opts.duration - clipStart);
         return {
           asset: { type: "video", src, trim: 0, volume: 0 },
           start: clipStart,
@@ -563,8 +533,8 @@ async function generateFootageClipsT2V(prompts: string[], videoId: number): Prom
   const results: string[] = [];
   for (let i = 0; i < prompts.length; i += CLIP_BATCH_SIZE) {
     const batch = prompts.slice(i, i + CLIP_BATCH_SIZE);
-    logger.info({ videoId, batchStart: i, batchSize: batch.length, totalClips: prompts.length }, "Generating footage batch");
-    const batchUrls = await Promise.all(batch.map(prompt => generateMiniMaxT2V(prompt)));
+    logger.info({ videoId, batchStart: i, batchSize: batch.length, totalClips: prompts.length }, "Generating footage batch (FAL Kling)");
+    const batchUrls = await Promise.all(batch.map(prompt => generateFalT2V(prompt)));
     results.push(...batchUrls);
   }
   return results;
@@ -574,8 +544,8 @@ async function generateAvatarClipsI2V(photoPath: string, prompts: string[], vide
   const results: string[] = [];
   for (let i = 0; i < prompts.length; i += CLIP_BATCH_SIZE) {
     const batch = prompts.slice(i, i + CLIP_BATCH_SIZE);
-    logger.info({ videoId, batchStart: i, batchSize: batch.length, totalClips: prompts.length }, "Generating avatar batch");
-    const batchUrls = await Promise.all(batch.map(prompt => generateMiniMaxI2V(photoPath, prompt)));
+    logger.info({ videoId, batchStart: i, batchSize: batch.length, totalClips: prompts.length }, "Generating avatar batch (FAL Kling I2V)");
+    const batchUrls = await Promise.all(batch.map(prompt => generateFalI2V(photoPath, prompt)));
     results.push(...batchUrls);
   }
   return results;

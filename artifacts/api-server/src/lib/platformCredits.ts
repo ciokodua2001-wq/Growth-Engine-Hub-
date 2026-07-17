@@ -4,10 +4,10 @@ import { eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { logger } from "./logger.js";
 
-export type Provider = "anthropic" | "openai" | "minimax" | "elevenlabs" | "shotstack";
+export type Provider = "anthropic" | "openai" | "minimax" | "fal" | "elevenlabs" | "shotstack";
 
 const MANUAL_BANKS: Array<{ provider: Provider; displayName: string; unit: string }> = [
-  { provider: "minimax",   displayName: "MiniMax (Video)",    unit: "credits" },
+  { provider: "fal",       displayName: "FAL (Video)",        unit: "clips"   },
   { provider: "shotstack", displayName: "Shotstack (Render)", unit: "credits" },
 ];
 
