@@ -15,8 +15,9 @@ const MINIMAX_MINUTES_PER_CLIP = MINIMAX_CLIP_DURATION_S / 60;
 
 // ── API key constants ─────────────────────────────────────────────────────────
 const ELEVENLABS_API_URL = "https://api.elevenlabs.io";
-const MINIMAX_API_URL = "https://api.minimax.io";
-const SHOTSTACK_API_URL = "https://api.shotstack.io/edit/v1";
+const MINIMAX_API_URL = "https://api.minimaxi.com";
+const SHOTSTACK_ENV = process.env.NODE_ENV === "production" ? "production" : "stage";
+const SHOTSTACK_API_URL = `https://api.shotstack.io/edit/${SHOTSTACK_ENV}`;
 const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID ?? "pNInz6obpgDQGcFmaJgB"; // Adam
 
 export type RenderMode = "footage" | "avatar" | "combined";
@@ -243,13 +244,13 @@ async function generateMiniMaxI2V(avatarImageUrl: string, prompt: string): Promi
   if (!apiKey) throw new Error("MINIMAX_API_KEY not configured");
 
   const { task_id } = await withRetry(async () => {
-    const submitResponse = await fetch(`${MINIMAX_API_URL}/v1/image_to_video`, {
+    const submitResponse = await fetch(`${MINIMAX_API_URL}/v1/video_generation`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ model: "video-01-live2d", first_frame_image: avatarImageUrl, prompt }),
+      body: JSON.stringify({ model: "video-01", first_frame_image: avatarImageUrl, prompt }),
     });
     if (!submitResponse.ok) {
       const body = await submitResponse.text();
@@ -296,13 +297,9 @@ async function pollMiniMaxVideo(taskId: string, apiKey: string): Promise<string>
 
 async function retrieveMiniMaxFile(fileId: string, apiKey: string): Promise<string> {
   const { download_url } = await withRetry(async () => {
-    const res = await fetch(`${MINIMAX_API_URL}/v1/files/retrieve`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ file_id: fileId }),
+    const res = await fetch(`${MINIMAX_API_URL}/v1/files/${encodeURIComponent(fileId)}`, {
+      method: "GET",
+      headers: { "Authorization": `Bearer ${apiKey}` },
     });
     if (!res.ok) {
       const body = await res.text();
