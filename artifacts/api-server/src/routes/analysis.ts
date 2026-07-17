@@ -402,6 +402,16 @@ function pdfBody(doc: InstanceType<typeof PDFDocument>, text: string, y: number)
 function buildPdfBuffer(builder: (doc: InstanceType<typeof PDFDocument>) => void): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
     const doc = new PDFDocument({ margin: 60, size: "A4" });
+
+    // Draw dark background on every page so white text is visible
+    const fillBackground = () => {
+      doc.save();
+      doc.rect(0, 0, doc.page.width, doc.page.height).fill(PDF_DARK);
+      doc.restore();
+    };
+    fillBackground(); // initial page
+    doc.on("pageAdded", fillBackground);
+
     const chunks: Buffer[] = [];
     const stream = new PassThrough();
     stream.on("data", (c) => chunks.push(c as Buffer));
