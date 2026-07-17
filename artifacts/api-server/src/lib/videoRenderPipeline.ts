@@ -554,21 +554,19 @@ async function generateAvatarClipsI2V(photoPath: string, prompts: string[], vide
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function uploadAudioToStorage(buffer: Buffer, format: string): Promise<string> {
-  // Store audio in object storage and return a publicly accessible URL.
-  // Uses objectStorageClient (sidecar-authenticated) so this works in production.
-  const { objectStorageClient } = await import("./objectStorage.js");
+  // Upload audio and return a signed URL (4 h TTL) — avoids makePublic() which
+  // fails when the bucket has public-access-prevention enforced.
+  const { objectStorageClient, signObjectURL } = await import("./objectStorage.js");
   const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
   if (!bucketId) throw new Error("DEFAULT_OBJECT_STORAGE_BUCKET_ID not set");
 
   const bucket = objectStorageClient.bucket(bucketId);
-  const filename = `renders/voiceover-${Date.now()}.${format}`;
-  const file = bucket.file(filename);
+  const objectName = `renders/voiceover-${Date.now()}.${format}`;
+  const file = bucket.file(objectName);
 
   await file.save(buffer, { metadata: { contentType: `audio/${format}` } });
-  await file.makePublic();
 
-  const [metadata] = await file.getMetadata();
-  return metadata.mediaLink as string;
+  return signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 14400 });
 }
 
 function sleep(ms: number): Promise<void> {
@@ -603,19 +601,17 @@ function isRetryable(err: unknown): boolean {
 }
 
 async function uploadVideoToStorage(buffer: Buffer): Promise<string> {
-  const { objectStorageClient } = await import("./objectStorage.js");
+  const { objectStorageClient, signObjectURL } = await import("./objectStorage.js");
   const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
   if (!bucketId) throw new Error("DEFAULT_OBJECT_STORAGE_BUCKET_ID not set");
 
   const bucket = objectStorageClient.bucket(bucketId);
-  const filename = `renders/footage-${Date.now()}.mp4`;
-  const file = bucket.file(filename);
+  const objectName = `renders/footage-${Date.now()}.mp4`;
+  const file = bucket.file(objectName);
 
   await file.save(buffer, { metadata: { contentType: "video/mp4" } });
-  await file.makePublic();
 
-  const [metadata] = await file.getMetadata();
-  return metadata.mediaLink as string;
+  return signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 14400 });
 }
 
 // Shotstack type helpers (not exported — internal to pipeline)
