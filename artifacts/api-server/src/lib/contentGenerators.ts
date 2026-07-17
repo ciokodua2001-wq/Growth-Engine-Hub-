@@ -132,21 +132,28 @@ Never return a simple footage plan. Always return a complete cinematic shot list
 
 Respond with ONLY a single JSON object, no prose.`;
 
-// Max videos per AI call — keeps output well under the 8192-token model limit.
-// 9 full cinematic blueprints in one shot truncates the JSON; 3 at a time is safe.
-const VIDEO_BATCH_SIZE = 3;
-
-async function generateVideoBatch(
+async function generateSingleVideoBlueprint(
   ctx: GroundingContext,
-  opts: { count: number; type?: string; prompt?: string; batchIndex: number },
-): Promise<VideoBlueprintResult[]> {
-  const response = await generateJson<{ videos: Array<Omit<VideoBlueprintResult, "cinematicPlan"> & { cinematicPlan: CinematicPlan }> }>({
+  opts: { type?: string; prompt?: string; index: number; total: number },
+): Promise<VideoBlueprintResult> {
+  // Generate exactly ONE video per call to guarantee the JSON response stays
+  // well within the 8192-token output limit regardless of how verbose Claude is.
+  const typeHint = opts.type ? `, of type "${opts.type}"` : (
+    opts.index % 3 === 0 ? ', of type "promo"' :
+    opts.index % 3 === 1 ? ', of type "product"' :
+                           ', of type "social"'
+  );
+  const response = await generateJson<{ videos: [Omit<VideoBlueprintResult, "cinematicPlan"> & { cinematicPlan: CinematicPlan }] }>({
     system: AI_VIDEO_DIRECTOR_SYSTEM,
     prompt: `${renderGroundingBlock(ctx)}
 ${opts.prompt ? `\nAdditional direction from the user: ${opts.prompt}\n` : ""}
-Create exactly ${opts.count} distinct short-form cinematic marketing video blueprint(s) for this specific business${opts.type ? `, of type "${opts.type}"` : " (mix of promo/product/social types as appropriate)"}. This is batch ${opts.batchIndex + 1} — make these feel fresh and distinct from any previously generated videos.
+Create exactly 1 short-form cinematic marketing video blueprint for this business${typeHint}. This is video ${opts.index + 1} of ${opts.total} — make it feel distinct from others in the set.
 
-Each video must have a strong cinematic hook, full voiceover script, and a complete shot-by-shot production blueprint.
+OUTPUT CONSTRAINTS (strictly enforce to avoid truncation):
+- script: max 120 words total — punchy, direct-to-camera, conversational
+- storyboard: max 2 sentences
+- shots array: exactly 4 shots, no more
+- All string fields: max 1 sentence each
 
 Return JSON with this exact structure:
 {
@@ -154,73 +161,57 @@ Return JSON with this exact structure:
     {
       "title": "short punchy title",
       "type": "promo | product | social",
-      "script": "full voiceover script with [HOOK], [SCENE 1], [SCENE 2]... beat markers — conversational, natural pacing, written for direct-to-camera delivery",
-      "storyboard": "brief one-paragraph human-readable overview of the video's visual narrative",
-      "duration": <integer seconds, 15–120>,
+      "script": "voiceover script with [HOOK], [SCENE 1], [SCENE 2], [SCENE 3] beat markers — max 120 words",
+      "storyboard": "2-sentence visual narrative overview",
+      "duration": <integer seconds, 15–60>,
       "hookStrength": <0–100 integer>,
       "engagementPotential": <0–100 integer>,
       "viralPotential": <0–100 integer>,
       "cinematicPlan": {
-        "visualStyle": "one-sentence cinematic style description (e.g. 'Desaturated luxury with warm practicals, anamorphic lens flares')",
-        "characterDescription": "specific appearance — clothing, hair, skin, demeanor",
-        "environment": "precise location and set description",
-        "lighting": "lighting setup description",
-        "cameraLanguage": "primary camera techniques used",
-        "performanceDirection": "acting and movement instructions for the presenter/character",
+        "visualStyle": "one-sentence style description",
+        "characterDescription": "appearance in one sentence",
+        "environment": "location in one sentence",
+        "lighting": "lighting in one sentence",
+        "cameraLanguage": "primary techniques in one sentence",
+        "performanceDirection": "acting direction in one sentence",
         "shots": [
           {
-            "shotNumber": <integer>,
+            "shotNumber": 1,
             "duration": <integer seconds>,
-            "environment": "specific environment for this shot",
-            "subjectAction": "exactly what the subject is doing",
-            "facialExpression": "precise expression",
-            "bodyMovement": "precise movement",
-            "cameraMovement": "e.g. Dolly In, Gimbal Movement, Tracking Shot, Extreme Close Up",
-            "lensStyle": "e.g. 35mm, Macro, Anamorphic Wide",
-            "lighting": "lighting for this specific shot",
-            "visualEffects": "any practical or post effects",
-            "transition": "cut to next shot — e.g. Hard Cut, Match Cut, Dissolve"
+            "environment": "location — one phrase",
+            "subjectAction": "what subject does — one phrase",
+            "facialExpression": "expression — two words",
+            "bodyMovement": "movement — one phrase",
+            "cameraMovement": "e.g. Dolly In",
+            "lensStyle": "e.g. 35mm",
+            "lighting": "lighting — one phrase",
+            "visualEffects": "effects — one phrase or 'none'",
+            "transition": "e.g. Hard Cut"
           }
         ],
-        "voiceoverPlacement": "when/where voiceover starts, any sync notes",
-        "textOverlayPlacement": "when/where on-screen text appears and what it says",
-        "finalHeroShot": "description of the closing hero shot — brand moment"
+        "voiceoverPlacement": "one sentence",
+        "textOverlayPlacement": "one sentence",
+        "finalHeroShot": "one sentence"
       }
     }
   ]
-}
-The "videos" array must contain exactly ${opts.count} items.`,
-    maxTokens: 8192,
+}`,
+    maxTokens: 4096,
   });
-  return response.videos.slice(0, opts.count).map(v => ({
-    ...v,
-    cinematicPlan: JSON.stringify(v.cinematicPlan),
-  }));
+  const v = response.videos[0];
+  return { ...v, cinematicPlan: JSON.stringify(v.cinematicPlan) };
 }
 
 export async function generateVideoBlueprints(
   ctx: GroundingContext,
   opts: { count: number; type?: string; prompt?: string },
 ): Promise<VideoBlueprintResult[]> {
-  // Split into batches of VIDEO_BATCH_SIZE to stay within model output token limits.
-  // Generating 9 blueprints in one call reliably exceeds 8192 tokens and truncates the JSON.
-  const batches: Array<{ count: number; batchIndex: number }> = [];
-  let remaining = opts.count;
-  let batchIndex = 0;
-  while (remaining > 0) {
-    const batchCount = Math.min(remaining, VIDEO_BATCH_SIZE);
-    batches.push({ count: batchCount, batchIndex });
-    remaining -= batchCount;
-    batchIndex++;
-  }
-
-  // Run batches sequentially to avoid rate-limit collisions on large requests
-  const results: VideoBlueprintResult[] = [];
-  for (const batch of batches) {
-    const batchResults = await generateVideoBatch(ctx, { ...opts, count: batch.count, batchIndex: batch.batchIndex });
-    results.push(...batchResults);
-  }
-  return results;
+  // Generate one video per Claude call (fits in 4096 tokens even for verbose output).
+  // Run all in parallel for speed — N concurrent Sonnet calls is fine under normal quota.
+  const jobs = Array.from({ length: opts.count }, (_, i) =>
+    generateSingleVideoBlueprint(ctx, { ...opts, index: i, total: opts.count }),
+  );
+  return Promise.all(jobs);
 }
 
 export interface AdCreativeResult {
