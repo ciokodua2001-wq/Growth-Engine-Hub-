@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "wouter";
 import {
   useListVideos,
@@ -230,6 +230,14 @@ function RenderStatusBadge({ status }: { status: string }) {
 }
 
 // ── Render Panel (shown inside selected video card) ───────────────────────────
+const RENDER_STEPS = [
+  { after: 0,    label: "Starting pipeline…" },
+  { after: 15,   label: "Generating AI voiceover…" },
+  { after: 40,   label: "Submitting clips to FAL Kling…" },
+  { after: 90,   label: "Generating video clips (this takes ~10 min)…" },
+  { after: 600,  label: "Composing final video in Shotstack…" },
+];
+
 function RenderPanel({
   video,
   projectId,
@@ -242,14 +250,19 @@ function RenderPanel({
   isStarterPlan: boolean;
 }) {
   const [resolution, setResolution] = useState<RenderResolution>("1080p");
+  const [locallyStarted, setLocallyStarted] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const queryClient = useQueryClient();
 
   const startRender = useStartVideoRender();
 
-  // Poll render status when in progress
+  // Poll render status when in progress (either from DB or just started locally)
   const renderInProgress =
-    video.renderStatus === "queued" || video.renderStatus === "processing";
+    locallyStarted ||
+    video.renderStatus === "queued" ||
+    video.renderStatus === "processing";
 
-  const { data: renderStatus, refetch: refetchStatus } = useGetVideoRenderStatus(
+  const { data: renderStatus } = useGetVideoRenderStatus(
     projectId,
     video.id,
     {
@@ -261,18 +274,51 @@ function RenderPanel({
     }
   );
 
-  const currentStatus = renderStatus?.renderStatus ?? video.renderStatus ?? "idle";
+  // Elapsed-time ticker so the step label advances meaningfully
+  useEffect(() => {
+    if (!renderInProgress) return;
+    const t = setInterval(() => setElapsedSec((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [renderInProgress]);
+
+  // Sync locallyStarted back off once the DB confirms queued/processing/complete/failed
+  const polledStatus = renderStatus?.renderStatus;
+  useEffect(() => {
+    if (locallyStarted && polledStatus && polledStatus !== "idle") {
+      setLocallyStarted(false);
+    }
+  }, [locallyStarted, polledStatus]);
+
+  const currentStatus = polledStatus ?? video.renderStatus ?? "idle";
   const currentVideoUrl = renderStatus?.videoUrl ?? video.videoUrl;
 
+  // Pick the most descriptive step label based on elapsed time
+  const stepLabel = RENDER_STEPS.reduce(
+    (acc, step) => (elapsedSec >= step.after ? step.label : acc),
+    RENDER_STEPS[0].label,
+  );
+
   const handleRender = () => {
-    startRender.mutate({
-      id: projectId,
-      videoId: video.id,
-      data: {
-        mode: "footage",
-        resolution,
+    setLocallyStarted(true);
+    setElapsedSec(0);
+    startRender.mutate(
+      {
+        id: projectId,
+        videoId: video.id,
+        data: { mode: "footage", resolution },
       },
-    });
+      {
+        onSuccess: () => {
+          // Invalidate the video list so the parent card badge updates
+          void queryClient.invalidateQueries({
+            queryKey: getListVideosQueryKey(projectId),
+          });
+        },
+        onError: () => {
+          setLocallyStarted(false);
+        },
+      },
+    );
   };
 
   if (isTrial) {
@@ -340,26 +386,41 @@ function RenderPanel({
       )}
 
       {/* In-progress indicator */}
-      {(currentStatus === "queued" || currentStatus === "processing") && (
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
-          <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-blue-400">
-              {currentStatus === "queued" ? "Queued for rendering…" : "Rendering your video…"}
-            </p>
-            <p className="text-xs text-white/40 truncate">ElevenLabs → FAL Kling → Shotstack pipeline running</p>
+      {(locallyStarted || currentStatus === "queued" || currentStatus === "processing") && (
+        <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-blue-400">Rendering your video…</p>
+              <p className="text-xs text-white/50 mt-0.5">{stepLabel}</p>
+            </div>
+            <span className="text-[10px] text-white/25 tabular-nums shrink-0">
+              {Math.floor(elapsedSec / 60)}:{String(elapsedSec % 60).padStart(2, "0")}
+            </span>
           </div>
-          <button
-            onClick={() => refetchStatus()}
-            className="p-1.5 rounded-lg hover:bg-white/5 text-white/30 hover:text-white/60 transition-colors"
-          >
-            <RefreshCw className="w-3 h-3" />
-          </button>
+          {/* Progress track */}
+          <div className="space-y-1.5">
+            {RENDER_STEPS.map((step, i) => {
+              const done = elapsedSec >= step.after;
+              const isActive = done && (i === RENDER_STEPS.length - 1 || elapsedSec < RENDER_STEPS[i + 1].after);
+              return (
+                <div key={i} className="flex items-center gap-2">
+                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 transition-all ${
+                    isActive ? "bg-blue-400 scale-125" : done ? "bg-blue-400/50" : "bg-white/10"
+                  }`} />
+                  <span className={`text-[10px] transition-colors ${
+                    isActive ? "text-blue-300 font-semibold" : done ? "text-white/30" : "text-white/15"
+                  }`}>{step.label}</span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-white/25">AI video generation takes 10–15 minutes. You can leave this page and come back.</p>
         </div>
       )}
 
       {/* Render config — only show when not in progress */}
-      {currentStatus !== "queued" && currentStatus !== "processing" && (
+      {!locallyStarted && currentStatus !== "queued" && currentStatus !== "processing" && (
         <>
           {/* Resolution */}
           <div>

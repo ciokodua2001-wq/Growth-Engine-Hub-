@@ -262,18 +262,23 @@ async function pollFalJob(job: FalQueueResponse): Promise<string> {
     });
 
     if (data.status === "COMPLETED") {
-      // Fetch the full result from response_url (status may not include output)
+      // response_url returns the raw output object (not wrapped in { output: ... })
+      // Also check data.output in case the status endpoint already includes it
       const resultRes = await withRetry(() =>
         fetch(job.response_url, { headers: { "Authorization": `Key ${apiKey}` } })
       );
       if (!resultRes.ok) throw new Error(`FAL result fetch: ${resultRes.status}`);
-      const result = await resultRes.json() as FalStatusResponse;
+      const raw = await resultRes.json() as Record<string, unknown>;
+      // Kling v1.6 response shape: { video: { url, content_type, file_size, file_name } }
+      // Fall back to { videos: [{ url }] } or nested output just in case
+      const rawVideo = raw["video"] as { url?: string } | undefined;
+      const rawVideos = raw["videos"] as Array<{ url?: string }> | undefined;
       const videoUrl =
-        result.output?.video?.url ??
-        result.output?.videos?.[0]?.url ??
+        rawVideo?.url ??
+        rawVideos?.[0]?.url ??
         data.output?.video?.url ??
         data.output?.videos?.[0]?.url;
-      if (!videoUrl) throw new Error("FAL completed but no video URL in response");
+      if (!videoUrl) throw new Error(`FAL completed but no video URL — response keys: ${Object.keys(raw).join(", ")}`);
       // Download and re-host — FAL URLs are temporary signed URLs
       const videoRes = await withRetry(() => fetch(videoUrl));
       if (!videoRes.ok) throw new Error(`FAL download: ${videoRes.status}`);
