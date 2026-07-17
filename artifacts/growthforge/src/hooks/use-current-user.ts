@@ -26,8 +26,13 @@ export function useCurrentUser() {
   const query = useQuery<CurrentUser>({
     queryKey: ["/api/auth/me", user?.id],
     queryFn: async () => {
-      const r = await fetch("/api/auth/me", { credentials: "include" });
-      if (!r.ok) throw new Error(`Failed to fetch current user: ${r.status}`);
+      // Use provision (not /me) so the DB row is created automatically on
+      // first load — avoids FK failures when the user skips the plans page.
+      const r = await fetch("/api/auth/provision", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error(`Failed to provision user: ${r.status}`);
       return r.json();
     },
     enabled: isLoaded && !!user,
