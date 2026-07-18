@@ -4,7 +4,7 @@ import * as os from "os";
 import * as path from "path";
 import { db } from "@workspace/db";
 import { videosTable, platformAvatarsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 import pino from "pino";
 import { deductPlatformCredits } from "./platformCredits.js";
 import { objectStorageClient } from "./objectStorage.js";
@@ -539,6 +539,49 @@ async function generateHeyGenVideo(
   return await pollHeyGenVideo(createRes.data.video_id, apiKey);
 }
 
+// ── HeyGen talking photo slot management ─────────────────────────────────────
+
+async function listHeyGenTalkingPhotoIds(apiKey: string): Promise<string[]> {
+  try {
+    const res = await fetch(`${HEYGEN_API_URL}/v2/avatars`, {
+      headers: { "X-Api-Key": apiKey },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) return [];
+    const body = await res.json() as { data?: { talking_photos?: Array<{ talking_photo_id: string }> } };
+    return body.data?.talking_photos?.map(p => p.talking_photo_id) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function deleteHeyGenTalkingPhoto(id: string, apiKey: string): Promise<void> {
+  await fetch(`${HEYGEN_API_URL}/v2/talking_photo/${id}`, {
+    method: "DELETE",
+    headers: { "X-Api-Key": apiKey },
+    signal: AbortSignal.timeout(15_000),
+  });
+}
+
+// Deletes HeyGen talking photos that are NOT cached in our platform_avatars table.
+// Called automatically when hitting the account's photo avatar slot limit (code 401028).
+async function cleanupOrphanedHeyGenTalkingPhotos(apiKey: string): Promise<void> {
+  const heygenIds = await listHeyGenTalkingPhotoIds(apiKey);
+  if (heygenIds.length === 0) return;
+
+  const cached = await db
+    .select({ heygenTalkingPhotoId: platformAvatarsTable.heygenTalkingPhotoId })
+    .from(platformAvatarsTable)
+    .where(isNotNull(platformAvatarsTable.heygenTalkingPhotoId));
+  const cachedSet = new Set(cached.map(r => r.heygenTalkingPhotoId));
+
+  const orphaned = heygenIds.filter(id => !cachedSet.has(id));
+  if (orphaned.length === 0) return;
+
+  await Promise.allSettled(orphaned.map(id => deleteHeyGenTalkingPhoto(id, apiKey)));
+  logger.info({ orphaned }, "Cleaned up orphaned HeyGen talking photos");
+}
+
 // Reads avatar photo bytes from either GCS directly (our proxy URL pattern)
 // or an external HTTP URL — avoids circular self-fetch via the proxy.
 async function readAvatarPhotoBuffer(photoUrl: string): Promise<Buffer> {
@@ -567,25 +610,46 @@ async function readAvatarPhotoBuffer(photoUrl: string): Promise<Buffer> {
 
 async function uploadHeyGenTalkingPhoto(photoUrl: string, apiKey: string): Promise<string> {
   const photoBuf = await readAvatarPhotoBuffer(photoUrl);
+  return uploadHeyGenTalkingPhotoBuffer(photoBuf, apiKey);
+}
 
+// Exported so admin upload can pre-cache HeyGen IDs without going through GCS round-trip.
+export async function uploadHeyGenTalkingPhotoBuffer(photoBuf: Buffer, apiKey: string): Promise<string> {
   // HeyGen talking_photo endpoint lives on upload.heygen.com (not api.heygen.com).
   // It expects a raw binary body with Content-Type: image/jpeg (not multipart).
-  const res = await withRetry(() =>
-    fetch(`${HEYGEN_UPLOAD_URL}/v1/talking_photo`, {
+  const doUpload = async () => {
+    const r = await fetch(`${HEYGEN_UPLOAD_URL}/v1/talking_photo`, {
       method: "POST",
       headers: { "X-Api-Key": apiKey, "Content-Type": "image/jpeg" },
       body: new Uint8Array(photoBuf),
       signal: AbortSignal.timeout(60_000),
-    }).then(async r => {
-      if (!r.ok) {
-        const text = await r.text();
-        throw new Error(`HeyGen talking_photo upload: ${r.status} ${text.slice(0, 300)}`);
+    });
+    if (!r.ok) {
+      const text = await r.text();
+      // 401028 = account has hit its photo avatar slot limit
+      if (text.includes("401028")) {
+        const e = new Error("heygen_limit_exceeded") as Error & { code: number };
+        e.code = 401028;
+        throw e;
       }
-      return r.json() as Promise<{ code: number; data: { talking_photo_id: string } }>;
-    })
-  );
+      throw new Error(`HeyGen talking_photo upload: ${r.status} ${text.slice(0, 300)}`);
+    }
+    return (await r.json()) as { code: number; data: { talking_photo_id: string } };
+  };
 
-  return res.data.talking_photo_id;
+  try {
+    const res = await withRetry(doUpload);
+    return res.data.talking_photo_id;
+  } catch (err) {
+    // If the account slot limit was hit, delete orphaned talking photos then retry once
+    if (err instanceof Error && err.message === "heygen_limit_exceeded") {
+      logger.warn("HeyGen photo avatar slot limit hit — cleaning up orphaned talking photos");
+      await cleanupOrphanedHeyGenTalkingPhotos(apiKey);
+      const res = await doUpload(); // single retry after cleanup (no withRetry — already cleaned)
+      return res.data.talking_photo_id;
+    }
+    throw err;
+  }
 }
 
 async function pollHeyGenVideo(videoId: string, apiKey: string): Promise<string> {

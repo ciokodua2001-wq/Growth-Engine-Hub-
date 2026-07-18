@@ -8,6 +8,7 @@ import type { Request, Response, NextFunction } from "express";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { deductPlatformCredits } from "../lib/platformCredits.js";
 import { objectStorageClient } from "../lib/objectStorage.js";
+import { uploadHeyGenTalkingPhotoBuffer } from "../lib/videoRenderPipeline.js";
 
 const router = Router();
 const upload = multer({
@@ -178,10 +179,22 @@ router.post(
           // Step 2: upload to object storage
           const previewUrl = await uploadToStorage(file.buffer, file.mimetype, bucketId);
 
-          // Step 3: insert into DB
+          // Step 3: pre-upload to HeyGen and get a stable talking_photo_id now,
+          // so renders never hit the slot limit or need to upload at render time.
+          let heygenTalkingPhotoId: string | null = null;
+          const heygenKey = process.env.HEYGEN_API_KEY;
+          if (heygenKey) {
+            try {
+              heygenTalkingPhotoId = await uploadHeyGenTalkingPhotoBuffer(file.buffer, heygenKey);
+            } catch (heyErr) {
+              // Non-fatal — renders will fall back to uploading at render time
+            }
+          }
+
+          // Step 4: insert into DB with cached HeyGen ID
           const [avatar] = await db
             .insert(platformAvatarsTable)
-            .values({ name, gender, archetype, previewUrl, sortOrder: 0 })
+            .values({ name, gender, archetype, previewUrl, heygenTalkingPhotoId, sortOrder: 0 })
             .returning();
 
           return { filename: file.originalname, success: true, avatar };
@@ -247,6 +260,17 @@ router.post(
 
     const previewUrl = await uploadToStorage(req.file.buffer, req.file.mimetype, bucketId);
 
+    // Pre-upload to HeyGen and cache the talking_photo_id immediately.
+    let heygenTalkingPhotoId: string | null = null;
+    const heygenKey = process.env.HEYGEN_API_KEY;
+    if (heygenKey) {
+      try {
+        heygenTalkingPhotoId = await uploadHeyGenTalkingPhotoBuffer(req.file.buffer, heygenKey);
+      } catch {
+        // Non-fatal — renders will fall back to uploading at render time
+      }
+    }
+
     const [avatar] = await db
       .insert(platformAvatarsTable)
       .values({
@@ -254,6 +278,7 @@ router.post(
         gender: gender.trim() || "neutral",
         archetype: archetype.trim() || "presenter",
         previewUrl,
+        heygenTalkingPhotoId,
         sortOrder: sortOrder ? parseInt(sortOrder, 10) : 0,
       })
       .returning();
