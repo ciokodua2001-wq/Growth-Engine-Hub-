@@ -101,8 +101,8 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
       if (platformAvatar.heygenTalkingPhotoId) {
         resolvedHeygenTalkingPhotoId = platformAvatar.heygenTalkingPhotoId;
       } else {
-        // Convert relative proxy URL to absolute so HeyGen can fetch the photo
-        resolvedAvatarPath = toAbsoluteUrl(platformAvatar.previewUrl);
+        // Pass the stored proxy URL as-is; videoRenderPipeline reads GCS directly
+        resolvedAvatarPath = platformAvatar.previewUrl;
       }
     } else if (avatarId) {
       const [avatar] = await db
@@ -113,10 +113,10 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
         res.status(404).json({ error: "Avatar not found in project library" });
         return;
       }
-      resolvedAvatarPath = toAbsoluteUrl(avatar.photoUrl);
+      resolvedAvatarPath = avatar.photoUrl;
       resolvedAvatarInstructions = avatar.instructions;
     } else if (video.avatarPhotoPath) {
-      resolvedAvatarPath = toAbsoluteUrl(video.avatarPhotoPath);
+      resolvedAvatarPath = video.avatarPhotoPath;
     }
     // No photo → null is intentional; pipeline will use HeyGen default avatar
   }

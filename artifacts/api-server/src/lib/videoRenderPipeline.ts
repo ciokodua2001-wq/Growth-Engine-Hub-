@@ -7,6 +7,7 @@ import { videosTable, platformAvatarsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import pino from "pino";
 import { deductPlatformCredits } from "./platformCredits.js";
+import { objectStorageClient } from "./objectStorage.js";
 
 // ffmpeg is declared as a nix system dependency (installSystemDependencies),
 // so it is guaranteed to be on PATH in both dev and production.
@@ -537,13 +538,37 @@ async function generateHeyGenVideo(
   return await pollHeyGenVideo(createRes.data.video_id, apiKey);
 }
 
-async function uploadHeyGenTalkingPhoto(photoUrl: string, apiKey: string): Promise<string> {
+// Reads avatar photo bytes from either GCS directly (our proxy URL pattern)
+// or an external HTTP URL — avoids circular self-fetch via the proxy.
+async function readAvatarPhotoBuffer(photoUrl: string): Promise<Buffer> {
+  // Detect our own proxy URLs: /api/platform-avatars/photo?key=<gcs-path>&bucket=<bucketId>
+  const proxyPrefix = "/api/platform-avatars/photo";
+  if (photoUrl.startsWith(proxyPrefix)) {
+    const params = new URLSearchParams(photoUrl.slice(photoUrl.indexOf("?") + 1));
+    const key = params.get("key");
+    const bucketId = params.get("bucket") ?? process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+    if (!key || !bucketId) throw new Error(`Invalid avatar proxy URL: ${photoUrl}`);
+    const bucket = objectStorageClient.bucket(bucketId);
+    const chunks: Buffer[] = [];
+    await new Promise<void>((resolve, reject) => {
+      bucket.file(key).createReadStream()
+        .on("data", (chunk: Buffer) => chunks.push(chunk))
+        .on("end", resolve)
+        .on("error", reject);
+    });
+    return Buffer.concat(chunks);
+  }
+  // External URL — fetch normally
   const photoRes = await fetch(photoUrl, { signal: AbortSignal.timeout(30_000) });
   if (!photoRes.ok) throw new Error(`Download avatar photo: ${photoRes.status}`);
-  const photoBuf = Buffer.from(await photoRes.arrayBuffer());
+  return Buffer.from(await photoRes.arrayBuffer());
+}
+
+async function uploadHeyGenTalkingPhoto(photoUrl: string, apiKey: string): Promise<string> {
+  const photoBuf = await readAvatarPhotoBuffer(photoUrl);
 
   const formData = new FormData();
-  formData.append("file", new Blob([photoBuf], { type: "image/jpeg" }), "avatar.jpg");
+  formData.append("file", new Blob([new Uint8Array(photoBuf)], { type: "image/jpeg" }), "avatar.jpg");
 
   const res = await withRetry(() =>
     fetch(`${HEYGEN_API_URL}/v1/talking_photo`, {
