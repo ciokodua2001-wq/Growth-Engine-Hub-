@@ -5,7 +5,15 @@ import { videosTable, projectAvatarsTable, platformAvatarsTable } from "@workspa
 import { eq, and } from "drizzle-orm";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
 import { checkRenderRequirements, startVideoRender, type RenderMode, type RenderResolution, type AspectRatio } from "../lib/videoRenderPipeline.js";
-import { Storage } from "@google-cloud/storage";
+import { objectStorageClient } from "../lib/objectStorage.js";
+
+// Convert a relative proxy URL to absolute so external services (HeyGen) can fetch it.
+function toAbsoluteUrl(url: string): string {
+  if (!url.startsWith("/")) return url; // already absolute
+  const domains = (process.env.REPLIT_DOMAINS ?? "").split(",").map(d => d.trim()).filter(Boolean);
+  const host = domains[0] ?? process.env.REPLIT_DEV_DOMAIN ?? "";
+  return host ? `https://${host}${url}` : url;
+}
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -93,7 +101,8 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
       if (platformAvatar.heygenTalkingPhotoId) {
         resolvedHeygenTalkingPhotoId = platformAvatar.heygenTalkingPhotoId;
       } else {
-        resolvedAvatarPath = platformAvatar.previewUrl;
+        // Convert relative proxy URL to absolute so HeyGen can fetch the photo
+        resolvedAvatarPath = toAbsoluteUrl(platformAvatar.previewUrl);
       }
     } else if (avatarId) {
       const [avatar] = await db
@@ -104,10 +113,10 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
         res.status(404).json({ error: "Avatar not found in project library" });
         return;
       }
-      resolvedAvatarPath = avatar.photoUrl;
+      resolvedAvatarPath = toAbsoluteUrl(avatar.photoUrl);
       resolvedAvatarInstructions = avatar.instructions;
     } else if (video.avatarPhotoPath) {
-      resolvedAvatarPath = video.avatarPhotoPath;
+      resolvedAvatarPath = toAbsoluteUrl(video.avatarPhotoPath);
     }
     // No photo → null is intentional; pipeline will use HeyGen default avatar
   }
@@ -211,22 +220,20 @@ router.post(
     const ext = req.file.mimetype.split("/")[1] ?? "jpg";
     const objectPath = `avatars/project-${projectId}/video-${videoId}-${Date.now()}.${ext}`;
 
-    const storage = new Storage();
-    const bucket = storage.bucket(bucketId);
+    const bucket = objectStorageClient.bucket(bucketId);
     const file = bucket.file(objectPath);
 
     await file.save(req.file.buffer, {
       metadata: { contentType: req.file.mimetype },
     });
-    await file.makePublic();
+    // No makePublic() — bucket has public access prevention enforced.
+    // Store a relative proxy URL; render pipeline resolves it to absolute via toAbsoluteUrl().
+    const proxyUrl = `/api/platform-avatars/photo?key=${encodeURIComponent(objectPath)}&bucket=${encodeURIComponent(bucketId)}`;
 
-    const [metadata] = await file.getMetadata();
-    const publicUrl = metadata.mediaLink as string;
-
-    await db.update(videosTable).set({ avatarPhotoPath: publicUrl }).where(eq(videosTable.id, videoId));
+    await db.update(videosTable).set({ avatarPhotoPath: proxyUrl }).where(eq(videosTable.id, videoId));
 
     const [updated] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
-    res.json({ avatarPhotoPath: publicUrl, video: updated });
+    res.json({ avatarPhotoPath: proxyUrl, video: updated });
   }
 );
 

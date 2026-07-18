@@ -19,6 +19,28 @@ router.get("/platform-avatars", async (_req, res): Promise<void> => {
   res.json({ avatars });
 });
 
+// ── Avatar photo proxy (no makePublic — bucket has PAP enforced) ──────────────
+// Streams the image from GCS via the authenticated sidecar client.
+// Public route — these photos are intended to be viewable by all users.
+router.get("/platform-avatars/photo", async (req, res): Promise<void> => {
+  const key = req.query.key as string;
+  const bucketId = (req.query.bucket as string | undefined) || process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+  if (!key || !bucketId) {
+    res.status(400).send("Missing key or bucket");
+    return;
+  }
+  try {
+    const bucket = objectStorageClient.bucket(bucketId);
+    const file = bucket.file(key);
+    const [metadata] = await file.getMetadata();
+    res.setHeader("Content-Type", (metadata.contentType as string) || "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=86400"); // 24 h browser cache
+    file.createReadStream().pipe(res);
+  } catch {
+    res.status(404).send("Not found");
+  }
+});
+
 router.param("id", requireProjectOwnershipParam());
 
 // ── List avatars ──────────────────────────────────────────────────────────────
@@ -68,9 +90,8 @@ router.post(
     const file = bucket.file(objectPath);
 
     await file.save(req.file.buffer, { metadata: { contentType: req.file.mimetype } });
-    await file.makePublic();
-
-    const photoUrl = `https://storage.googleapis.com/${bucketId}/${objectPath}`;
+    // No makePublic() — bucket has public access prevention enforced.
+    const photoUrl = `/api/platform-avatars/photo?key=${encodeURIComponent(objectPath)}&bucket=${encodeURIComponent(bucketId)}`;
 
     const [avatar] = await db
       .insert(projectAvatarsTable)

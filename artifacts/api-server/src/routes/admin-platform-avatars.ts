@@ -99,6 +99,7 @@ Pick archetype from visual cues: suit/formal = exec or professional, business ca
 }
 
 // ── Upload single photo to object storage ─────────────────────────────────────
+// Returns a stable relative proxy URL — no makePublic() needed (PAP enforced).
 async function uploadToStorage(
   buffer: Buffer,
   mimeType: string,
@@ -110,8 +111,9 @@ async function uploadToStorage(
   const bucket = objectStorageClient.bucket(bucketId);
   const file = bucket.file(objectPath);
   await file.save(buffer, { metadata: { contentType: mimeType } });
-  await file.makePublic();
-  return `https://storage.googleapis.com/${bucketId}/${objectPath}`;
+  // Bucket has public access prevention enforced — don't call makePublic().
+  // Store a relative proxy URL; the /api/platform-avatars/photo route streams it.
+  return `/api/platform-avatars/photo?key=${encodeURIComponent(objectPath)}&bucket=${encodeURIComponent(bucketId)}`;
 }
 
 // ── List all platform avatars (admin) ─────────────────────────────────────────
