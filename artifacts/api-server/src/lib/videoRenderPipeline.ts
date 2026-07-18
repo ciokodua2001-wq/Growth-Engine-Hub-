@@ -123,10 +123,7 @@ async function runRenderPipeline(
 
   if (useHeyGen) {
     // ── HeyGen path ───────────────────────────────────────────────────────────
-    if (!photoPath && mode === "avatar") {
-      await markFailed(videoId, "No avatar photo was found. Please upload a photo and try again.");
-      return;
-    }
+    // photoPath may be null — generateHeyGenVideo falls back to the default presenter avatar
     let heyGenVideoUrl: string;
     try {
       heyGenVideoUrl = await generateHeyGenVideo(voiceoverUrl, photoPath, scriptText, aspectRatio, resolution);

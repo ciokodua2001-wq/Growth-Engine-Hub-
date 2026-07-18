@@ -19,7 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Loader2, Video as VideoIcon, Play, Sparkles, Film, Check, X,
   AlertCircle, ChevronDown, Image as ImageIcon, RefreshCw,
-  Lock, Download, ExternalLink, Plus, Trash2, User,
+  Lock, Download, ExternalLink, Plus, Trash2, User, Upload,
 } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 
@@ -254,12 +254,14 @@ function RenderPanel({
   isTrial: boolean;
   isStarterPlan: boolean;
 }) {
-  const [renderMode, setRenderMode] = useState<RenderMode>("avatar");
   const [resolution, setResolution] = useState<RenderResolution>("1080p");
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
   const [locallyStarted, setLocallyStarted] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [actorPhotoUrl, setActorPhotoUrl] = useState<string | null>(video.avatarPhotoPath ?? null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const startRender = useStartVideoRender();
@@ -306,6 +308,31 @@ function RenderPanel({
     RENDER_STEPS[0].label,
   );
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadError(null);
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append("photo", file);
+      const res = await fetch(`/api/projects/${projectId}/videos/${video.id}/avatar`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "Upload failed");
+      }
+      const data = await res.json() as { avatarPhotoPath: string };
+      setActorPhotoUrl(data.avatarPhotoPath);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const handleRender = () => {
     setLocallyStarted(true);
     setElapsedSec(0);
@@ -313,7 +340,7 @@ function RenderPanel({
       {
         id: projectId,
         videoId: video.id,
-        data: { mode: renderMode, resolution, aspectRatio, captionsEnabled },
+        data: { mode: "avatar" as RenderMode, resolution, aspectRatio, captionsEnabled },
       },
       {
         onSuccess: () => {
@@ -430,29 +457,75 @@ function RenderPanel({
       {/* Render config — only show when not in progress */}
       {!locallyStarted && currentStatus !== "queued" && currentStatus !== "processing" && (
         <>
-          {/* Video Style */}
+          {/* Your Actor */}
           <div>
-            <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Video Style</p>
-            <div className="grid grid-cols-3 gap-1.5">
-              {([
-                { value: "avatar",   label: "Presenter", sub: "HeyGen talking head" },
-                { value: "footage",  label: "B-Roll",    sub: "AI scenic clips" },
-                { value: "combined", label: "Combined",  sub: "Presenter + B-Roll" },
-              ] as { value: RenderMode; label: string; sub: string }[]).map((m) => (
-                <button
-                  key={m.value}
-                  onClick={() => setRenderMode(m.value)}
-                  className={`py-2 px-1 rounded-xl border text-center transition-all ${
-                    renderMode === m.value
-                      ? "border-[#00E676]/50 bg-[#00E676]/10 text-[#00E676]"
-                      : "border-white/8 hover:border-white/15 text-white/50"
-                  }`}
-                >
-                  <p className="text-[11px] font-black">{m.label}</p>
-                  <p className="text-[8px] text-white/30 mt-0.5 leading-tight">{m.sub}</p>
-                </button>
-              ))}
-            </div>
+            <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Your Actor</p>
+
+            {/* Photo upload card */}
+            <label
+              className={`relative flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                uploadingPhoto
+                  ? "border-white/10 bg-white/2 opacity-60 cursor-wait"
+                  : actorPhotoUrl
+                  ? "border-[#00E676]/40 bg-[#00E676]/5 hover:border-[#00E676]/60"
+                  : "border-white/10 bg-white/2 hover:border-white/20"
+              }`}
+            >
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                disabled={uploadingPhoto}
+                onChange={handlePhotoUpload}
+              />
+
+              {uploadingPhoto ? (
+                <>
+                  <div className="w-11 h-11 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
+                    <Loader2 className="w-5 h-5 text-white/30 animate-spin" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-white/60">Uploading photo…</p>
+                    <p className="text-[10px] text-white/30 mt-0.5">Your face will become the AI actor</p>
+                  </div>
+                </>
+              ) : actorPhotoUrl ? (
+                <>
+                  <img
+                    src={actorPhotoUrl}
+                    alt="Actor"
+                    className="w-11 h-11 rounded-lg object-cover shrink-0 ring-1 ring-[#00E676]/30"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-white">Photo ready</p>
+                    <p className="text-[10px] text-white/40 mt-0.5">AI will lip-sync this face to your script · tap to change</p>
+                  </div>
+                  <Check className="w-4 h-4 text-[#00E676] shrink-0" />
+                </>
+              ) : (
+                <>
+                  <div className="w-11 h-11 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
+                    <Upload className="w-4 h-4 text-white/30" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-white/70">Upload your photo</p>
+                    <p className="text-[10px] text-white/35 mt-0.5">
+                      Your face, influencer, or reference character — JPEG / PNG / WebP
+                    </p>
+                  </div>
+                </>
+              )}
+            </label>
+
+            {!actorPhotoUrl && !uploadingPhoto && (
+              <p className="text-[10px] text-white/30 mt-1.5 px-0.5">
+                No photo? GrowthForge will cast a professional AI presenter for you.
+              </p>
+            )}
+
+            {uploadError && (
+              <p className="text-[10px] text-red-400 mt-1.5 px-0.5">{uploadError}</p>
+            )}
           </div>
 
           {/* Aspect Ratio */}

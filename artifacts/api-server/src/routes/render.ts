@@ -26,7 +26,7 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
   }
 
   const {
-    mode = "footage",
+    mode = "avatar",
     resolution = "1080p",
     avatarId,
     aspectRatio = "16:9",
@@ -70,7 +70,8 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     return;
   }
 
-  // Resolve avatar for avatar/combined modes
+  // Resolve avatar photo for avatar/combined modes.
+  // If none provided, HeyGen falls back to its default presenter avatar automatically.
   let resolvedAvatarPath: string | null = null;
   let resolvedAvatarInstructions: string | null = null;
 
@@ -88,10 +89,8 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
       resolvedAvatarInstructions = avatar.instructions;
     } else if (video.avatarPhotoPath) {
       resolvedAvatarPath = video.avatarPhotoPath;
-    } else {
-      res.status(422).json({ error: "Select an avatar from your library before rendering in avatar or combined mode" });
-      return;
     }
+    // No photo → null is intentional; pipeline will use HeyGen default avatar
   }
 
   // Check render service API keys
