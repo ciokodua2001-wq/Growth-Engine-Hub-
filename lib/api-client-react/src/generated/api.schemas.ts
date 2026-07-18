@@ -638,6 +638,25 @@ export interface VideoRenderInput {
   captionsEnabled?: boolean;
   /** ID of the avatar from the project avatar library to use for avatar/combined render modes. */
   avatarId?: number;
+  /** ID of the platform avatar from the shared library to use for avatar/combined render modes. */
+  platformAvatarId?: number;
+}
+
+export interface PlatformAvatar {
+  id: number;
+  name: string;
+  gender: string;
+  archetype: string;
+  previewUrl: string;
+  /** @nullable */
+  heygenTalkingPhotoId?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface PlatformAvatarList {
+  avatars: PlatformAvatar[];
 }
 
 export interface ProjectAvatar {

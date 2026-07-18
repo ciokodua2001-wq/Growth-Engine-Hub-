@@ -45,6 +45,8 @@ export * from './metaPageSelectInput';
 export * from './metaPagesResult';
 export * from './metaStatus';
 export * from './metricItem';
+export * from './platformAvatar';
+export * from './platformAvatarList';
 export * from './project';
 export * from './projectAnalytics';
 export * from './projectAvatar';

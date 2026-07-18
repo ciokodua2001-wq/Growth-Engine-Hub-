@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { db } from "@workspace/db";
-import { videosTable, projectAvatarsTable } from "@workspace/db";
+import { videosTable, projectAvatarsTable, platformAvatarsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
 import { checkRenderRequirements, startVideoRender, type RenderMode, type RenderResolution, type AspectRatio } from "../lib/videoRenderPipeline.js";
@@ -29,12 +29,14 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     mode = "combined",
     resolution = "1080p",
     avatarId,
+    platformAvatarId,
     aspectRatio = "16:9",
     captionsEnabled = false,
   } = req.body as {
     mode?: RenderMode;
     resolution?: RenderResolution;
     avatarId?: number;
+    platformAvatarId?: number;
     aspectRatio?: string;
     captionsEnabled?: boolean;
   };
@@ -71,12 +73,29 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
   }
 
   // Resolve avatar photo for avatar/combined modes.
-  // If none provided, HeyGen falls back to its default presenter avatar automatically.
+  // Priority: platformAvatarId > avatarId (project library) > video.avatarPhotoPath > HeyGen default
   let resolvedAvatarPath: string | null = null;
   let resolvedAvatarInstructions: string | null = null;
+  let resolvedPlatformAvatarId: number | null = null;
+  let resolvedHeygenTalkingPhotoId: string | null = null;
 
   if (mode === "avatar" || mode === "combined") {
-    if (avatarId) {
+    if (platformAvatarId) {
+      const [platformAvatar] = await db
+        .select()
+        .from(platformAvatarsTable)
+        .where(and(eq(platformAvatarsTable.id, platformAvatarId), eq(platformAvatarsTable.isActive, true)));
+      if (!platformAvatar) {
+        res.status(404).json({ error: "Platform avatar not found" });
+        return;
+      }
+      resolvedPlatformAvatarId = platformAvatar.id;
+      if (platformAvatar.heygenTalkingPhotoId) {
+        resolvedHeygenTalkingPhotoId = platformAvatar.heygenTalkingPhotoId;
+      } else {
+        resolvedAvatarPath = platformAvatar.previewUrl;
+      }
+    } else if (avatarId) {
       const [avatar] = await db
         .select()
         .from(projectAvatarsTable)
@@ -117,7 +136,7 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
   }).where(eq(videosTable.id, videoId));
 
   // Fire and forget — pipeline runs in background
-  startVideoRender(videoId, mode, resolution, resolvedAvatarPath, resolvedAvatarInstructions, aspectRatio as AspectRatio, captionsEnabled);
+  startVideoRender(videoId, mode, resolution, resolvedAvatarPath, resolvedAvatarInstructions, aspectRatio as AspectRatio, captionsEnabled, resolvedPlatformAvatarId, resolvedHeygenTalkingPhotoId);
 
   const [updated] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
   res.json(updated);

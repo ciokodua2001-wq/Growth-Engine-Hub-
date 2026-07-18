@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { db } from "@workspace/db";
-import { videosTable } from "@workspace/db";
+import { videosTable, platformAvatarsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import pino from "pino";
 import { deductPlatformCredits } from "./platformCredits.js";
@@ -167,8 +167,10 @@ export function startVideoRender(
   avatarInstructions?: string | null,
   aspectRatio: AspectRatio = "16:9",
   captionsEnabled = false,
+  platformAvatarId?: number | null,
+  heygenTalkingPhotoId?: string | null,
 ): void {
-  runRenderPipeline(videoId, mode, resolution, avatarPhotoPath, avatarInstructions, aspectRatio, captionsEnabled).catch((err) => {
+  runRenderPipeline(videoId, mode, resolution, avatarPhotoPath, avatarInstructions, aspectRatio, captionsEnabled, platformAvatarId, heygenTalkingPhotoId).catch((err) => {
     logger.error({ err, videoId }, "Render pipeline unhandled error");
     void markFailed(videoId, "An unexpected error occurred. Please try again — your credits were not charged.");
   });
@@ -190,6 +192,8 @@ async function runRenderPipeline(
   avatarInstructions?: string | null,
   aspectRatio: AspectRatio = "16:9",
   captionsEnabled = false,
+  platformAvatarId?: number | null,
+  heygenTalkingPhotoId?: string | null,
 ): Promise<void> {
   const [video] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
   if (!video) throw new Error(`Video ${videoId} not found`);
@@ -249,7 +253,7 @@ async function runRenderPipeline(
     // photoPath may be null — generateHeyGenVideo falls back to the default presenter avatar
     let heyGenVideoUrl: string;
     try {
-      heyGenVideoUrl = await generateHeyGenVideo(voiceoverUrl, photoPath, scriptText, aspectRatio, resolution);
+      heyGenVideoUrl = await generateHeyGenVideo(voiceoverUrl, photoPath, scriptText, aspectRatio, resolution, platformAvatarId, heygenTalkingPhotoId);
     } catch (err) {
       logger.error({ err, videoId }, "HeyGen generation failed");
       const detail = err instanceof Error ? err.message : String(err);
@@ -468,6 +472,8 @@ async function generateHeyGenVideo(
   _script: string | null | undefined,
   aspectRatio: AspectRatio,
   resolution: RenderResolution,
+  platformAvatarId?: number | null,
+  cachedTalkingPhotoId?: string | null,
 ): Promise<string> {
   const apiKey = process.env.HEYGEN_API_KEY;
   if (!apiKey) throw new Error("HEYGEN_API_KEY not configured");
@@ -479,8 +485,20 @@ async function generateHeyGenVideo(
     | { type: "talking_photo"; talking_photo_id: string };
 
   let character: Character;
-  if (avatarPhotoPath) {
+  if (cachedTalkingPhotoId) {
+    // Use pre-cached HeyGen talking photo ID — no upload needed
+    logger.info({ platformAvatarId, cachedTalkingPhotoId }, "Using cached HeyGen talking photo ID");
+    character = { type: "talking_photo", talking_photo_id: cachedTalkingPhotoId };
+  } else if (avatarPhotoPath) {
     const talkingPhotoId = await uploadHeyGenTalkingPhoto(avatarPhotoPath, apiKey);
+    // Cache the talking photo ID on the platform avatar record for future renders
+    if (platformAvatarId) {
+      db.update(platformAvatarsTable)
+        .set({ heygenTalkingPhotoId: talkingPhotoId })
+        .where(eq(platformAvatarsTable.id, platformAvatarId))
+        .execute()
+        .catch((err: Error) => logger.warn({ err, platformAvatarId }, "Failed to cache HeyGen talking photo ID"));
+    }
     character = { type: "talking_photo", talking_photo_id: talkingPhotoId };
   } else {
     const defaultAvatarId = await resolveDefaultHeyGenAvatar(apiKey);

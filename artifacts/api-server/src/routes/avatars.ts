@@ -1,13 +1,23 @@
 import { Router } from "express";
 import multer from "multer";
 import { db } from "@workspace/db";
-import { projectAvatarsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { projectAvatarsTable, platformAvatarsTable } from "@workspace/db";
+import { eq, and, asc, desc } from "drizzle-orm";
 import { requireProjectOwnershipParam, requireUserId } from "../lib/authz.js";
 import { Storage } from "@google-cloud/storage";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+// ── List active platform avatars (public — any authenticated user) ────────────
+router.get("/platform-avatars", async (_req, res): Promise<void> => {
+  const avatars = await db
+    .select()
+    .from(platformAvatarsTable)
+    .where(eq(platformAvatarsTable.isActive, true))
+    .orderBy(asc(platformAvatarsTable.sortOrder), desc(platformAvatarsTable.createdAt));
+  res.json({ avatars });
+});
 
 router.param("id", requireProjectOwnershipParam());
 

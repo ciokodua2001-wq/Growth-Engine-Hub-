@@ -8,13 +8,14 @@ import {
   useGetVideoRenderStatus,
   useGenerateImage,
   useGetProjectUsage,
+  useListPlatformAvatars,
   getListVideosQueryKey,
   getGetVideoRenderStatusQueryKey,
   getGetProjectQueryKey,
   ImageGenerateInputStyle,
   ImageGenerateInputOrientation,
 } from "@workspace/api-client-react";
-import type { Video as VideoModel } from "@workspace/api-client-react";
+import type { Video as VideoModel, PlatformAvatar } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -265,7 +266,10 @@ function RenderPanel({
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [cancellingRender, setCancellingRender] = useState(false);
+  const [selectedPlatformAvatarId, setSelectedPlatformAvatarId] = useState<number | null>(null);
   const queryClient = useQueryClient();
+
+  const { data: platformAvatarsData } = useListPlatformAvatars();
 
   const startRender = useStartVideoRender();
 
@@ -361,7 +365,13 @@ function RenderPanel({
       {
         id: projectId,
         videoId: video.id,
-        data: { mode: "combined" as RenderMode, resolution, aspectRatio, captionsEnabled },
+        data: {
+          mode: "combined" as RenderMode,
+          resolution,
+          aspectRatio,
+          captionsEnabled,
+          ...(selectedPlatformAvatarId ? { platformAvatarId: selectedPlatformAvatarId } : {}),
+        },
       },
       {
         onSuccess: () => {
@@ -486,11 +496,61 @@ function RenderPanel({
       {/* Render config — only show when not in progress */}
       {!locallyStarted && currentStatus !== "queued" && currentStatus !== "processing" && (
         <>
-          {/* Your Actor */}
+          {/* Choose Presenter */}
           <div>
-            <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Your Actor</p>
+            <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Choose Presenter</p>
 
-            {/* Photo upload card */}
+            {/* Platform avatar picker */}
+            {platformAvatarsData && platformAvatarsData.avatars.length > 0 && (
+              <div className="mb-3">
+                <div className="grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto pr-0.5">
+                  {platformAvatarsData.avatars.map((avatar: PlatformAvatar) => (
+                    <button
+                      key={avatar.id}
+                      onClick={() => {
+                        setSelectedPlatformAvatarId(prev => prev === avatar.id ? null : avatar.id);
+                        if (actorPhotoUrl) setActorPhotoUrl(null);
+                      }}
+                      className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
+                        selectedPlatformAvatarId === avatar.id
+                          ? "border-[#00E676] ring-2 ring-[#00E676]/30"
+                          : "border-white/10 hover:border-white/30"
+                      }`}
+                      title={`${avatar.name} · ${avatar.gender} · ${avatar.archetype}`}
+                    >
+                      <img
+                        src={avatar.previewUrl}
+                        alt={avatar.name}
+                        className="w-full h-full object-cover"
+                      />
+                      {selectedPlatformAvatarId === avatar.id && (
+                        <div className="absolute inset-0 bg-[#00E676]/20 flex items-end justify-end p-1">
+                          <div className="w-4 h-4 rounded-full bg-[#00E676] flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5 text-black" />
+                          </div>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                {selectedPlatformAvatarId && (
+                  <p className="text-[10px] text-[#00E676] mt-1.5 px-0.5">
+                    {platformAvatarsData.avatars.find((a: PlatformAvatar) => a.id === selectedPlatformAvatarId)?.name} selected
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Divider */}
+            {platformAvatarsData && platformAvatarsData.avatars.length > 0 && (
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="flex-1 h-px bg-white/8" />
+                <span className="text-[10px] text-white/30 font-medium">or use your own photo</span>
+                <div className="flex-1 h-px bg-white/8" />
+              </div>
+            )}
+
+            {/* Custom photo upload */}
             <label
               className={`relative flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                 uploadingPhoto
@@ -505,7 +565,10 @@ function RenderPanel({
                 accept="image/jpeg,image/png,image/webp"
                 className="hidden"
                 disabled={uploadingPhoto}
-                onChange={handlePhotoUpload}
+                onChange={(e) => {
+                  setSelectedPlatformAvatarId(null);
+                  void handlePhotoUpload(e);
+                }}
               />
 
               {uploadingPhoto ? (
@@ -526,7 +589,7 @@ function RenderPanel({
                     className="w-11 h-11 rounded-lg object-cover shrink-0 ring-1 ring-[#00E676]/30"
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-white">Photo ready</p>
+                    <p className="text-xs font-semibold text-white">Custom photo ready</p>
                     <p className="text-[10px] text-white/40 mt-0.5">AI will lip-sync this face to your script · tap to change</p>
                   </div>
                   <Check className="w-4 h-4 text-[#00E676] shrink-0" />
@@ -537,18 +600,18 @@ function RenderPanel({
                     <Upload className="w-4 h-4 text-white/30" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-white/70">Upload your photo</p>
+                    <p className="text-xs font-semibold text-white/70">Upload your own photo</p>
                     <p className="text-[10px] text-white/35 mt-0.5">
-                      Your face, influencer, or reference character — JPEG / PNG / WebP
+                      Your face, influencer, or character — JPEG / PNG / WebP
                     </p>
                   </div>
                 </>
               )}
             </label>
 
-            {!actorPhotoUrl && !uploadingPhoto && (
+            {!actorPhotoUrl && !selectedPlatformAvatarId && !uploadingPhoto && (
               <p className="text-[10px] text-white/30 mt-1.5 px-0.5">
-                No photo? GrowthForge will cast a professional AI presenter for you.
+                No presenter selected? GrowthForge will cast a professional AI presenter for you.
               </p>
             )}
 

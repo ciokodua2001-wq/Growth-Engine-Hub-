@@ -22,6 +22,7 @@ import stripeRouter from "./stripe.js";
 import seoRouter from "./seo.js";
 import teamRouter from "./team.js";
 import avatarsRouter from "./avatars.js";
+import adminPlatformAvatarsRouter from "./admin-platform-avatars.js";
 import usageRouter from "./usage.js";
 
 const router: IRouter = Router();
@@ -49,6 +50,7 @@ router.use(stripeRouter);
 router.use(seoRouter);
 router.use(teamRouter);
 router.use(avatarsRouter);
+router.use(adminPlatformAvatarsRouter);
 router.use(usageRouter);
 
 export default router;

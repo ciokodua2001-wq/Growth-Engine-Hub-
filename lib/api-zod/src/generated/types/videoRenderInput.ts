@@ -18,4 +18,6 @@ export interface VideoRenderInput {
   captionsEnabled?: boolean;
   /** ID of the avatar from the project avatar library to use for avatar/combined render modes. */
   avatarId?: number;
+  /** ID of the platform avatar from the shared library to use for avatar/combined render modes. */
+  platformAvatarId?: number;
 }

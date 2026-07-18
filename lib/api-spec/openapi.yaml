@@ -1385,6 +1385,20 @@ paths:
                 items:
                   $ref: "#/components/schemas/AgentMessage"
 
+  # ── Platform Avatar Library ───────────────────────────────────────────────
+  /platform-avatars:
+    get:
+      operationId: listPlatformAvatars
+      tags: [videos]
+      summary: List active platform avatars for the avatar picker
+      responses:
+        "200":
+          description: List of active platform avatars
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformAvatarList"
+
 components:
   schemas:
     HealthStatus:
@@ -2279,6 +2293,41 @@ components:
         avatarId:
           type: integer
           description: ID of the avatar from the project avatar library to use for avatar/combined render modes.
+        platformAvatarId:
+          type: integer
+          description: ID of the platform avatar from the shared library to use for avatar/combined render modes.
+
+    PlatformAvatar:
+      type: object
+      required: [id, name, gender, archetype, previewUrl, isActive, sortOrder, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        gender:
+          type: string
+        archetype:
+          type: string
+        previewUrl:
+          type: string
+        heygenTalkingPhotoId:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+
+    PlatformAvatarList:
+      type: object
+      required: [avatars]
+      properties:
+        avatars:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlatformAvatar"
 
     ProjectAvatar:
       type: object
