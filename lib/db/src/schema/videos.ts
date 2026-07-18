@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { projectsTable } from "./projects";
@@ -31,6 +31,10 @@ export const videosTable = pgTable("videos", {
   renderError: text("render_error"),
   voiceoverUrl: text("voiceover_url"),
   avatarPhotoPath: text("avatar_photo_path"),
+
+  // Composition settings
+  aspectRatio: text("aspect_ratio").notNull().default("16:9"),
+  captionsEnabled: boolean("captions_enabled").notNull().default(false),
 });
 
 export const insertVideoSchema = createInsertSchema(videosTable).omit({ id: true, createdAt: true });

@@ -600,9 +600,26 @@ export const VideoRenderInputResolution = {
   '4k': '4k',
 } as const;
 
+/**
+ * Output aspect ratio for the rendered video.
+ */
+export type VideoRenderInputAspectRatio = typeof VideoRenderInputAspectRatio[keyof typeof VideoRenderInputAspectRatio];
+
+
+export const VideoRenderInputAspectRatio = {
+  '16:9': '16:9',
+  '9:16': '9:16',
+  '1:1': '1:1',
+  '4:5': '4:5',
+} as const;
+
 export interface VideoRenderInput {
   mode?: VideoRenderInputMode;
   resolution?: VideoRenderInputResolution;
+  /** Output aspect ratio for the rendered video. */
+  aspectRatio?: VideoRenderInputAspectRatio;
+  /** When true, bold burned-in captions are embedded in the video. */
+  captionsEnabled?: boolean;
   /** ID of the avatar from the project avatar library to use for avatar/combined render modes. */
   avatarId?: number;
 }

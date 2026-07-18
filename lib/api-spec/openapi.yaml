@@ -2240,6 +2240,15 @@ components:
           type: string
           enum: ["1080p", "4k"]
           default: "1080p"
+        aspectRatio:
+          type: string
+          enum: ["16:9", "9:16", "1:1", "4:5"]
+          default: "16:9"
+          description: Output aspect ratio for the rendered video.
+        captionsEnabled:
+          type: boolean
+          default: false
+          description: When true, bold burned-in captions are embedded in the video.
         avatarId:
           type: integer
           description: ID of the avatar from the project avatar library to use for avatar/combined render modes.

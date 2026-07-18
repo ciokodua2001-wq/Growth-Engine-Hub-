@@ -4,7 +4,7 @@ import { db } from "@workspace/db";
 import { videosTable, projectAvatarsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
-import { checkRenderRequirements, startVideoRender, type RenderMode, type RenderResolution } from "../lib/videoRenderPipeline.js";
+import { checkRenderRequirements, startVideoRender, type RenderMode, type RenderResolution, type AspectRatio } from "../lib/videoRenderPipeline.js";
 import { Storage } from "@google-cloud/storage";
 
 const router = Router();
@@ -25,20 +25,33 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     return;
   }
 
-  const { mode = "footage", resolution = "1080p", avatarId } = req.body as {
+  const {
+    mode = "footage",
+    resolution = "1080p",
+    avatarId,
+    aspectRatio = "16:9",
+    captionsEnabled = false,
+  } = req.body as {
     mode?: RenderMode;
     resolution?: RenderResolution;
     avatarId?: number;
+    aspectRatio?: string;
+    captionsEnabled?: boolean;
   };
 
   const validModes = ["footage", "avatar", "combined"];
   const validResolutions = ["1080p", "4k"];
+  const validAspectRatios = ["16:9", "9:16", "1:1", "4:5"];
   if (!validModes.includes(mode)) {
     res.status(400).json({ error: `mode must be one of: ${validModes.join(", ")}` });
     return;
   }
   if (!validResolutions.includes(resolution)) {
     res.status(400).json({ error: `resolution must be one of: ${validResolutions.join(", ")}` });
+    return;
+  }
+  if (!validAspectRatios.includes(aspectRatio)) {
+    res.status(400).json({ error: `aspectRatio must be one of: ${validAspectRatios.join(", ")}` });
     return;
   }
 
@@ -92,18 +105,20 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     return;
   }
 
-  // Mark queued immediately so polling works
+  // Mark queued immediately so polling works; persist aspect ratio + caption settings
   await db.update(videosTable).set({
     renderStatus: "queued",
     renderMode: mode,
     renderResolution: resolution,
+    aspectRatio,
+    captionsEnabled,
     renderError: null,
     renderJobId: null,
     renderCompletedAt: null,
   }).where(eq(videosTable.id, videoId));
 
   // Fire and forget — pipeline runs in background
-  startVideoRender(videoId, mode, resolution, resolvedAvatarPath, resolvedAvatarInstructions);
+  startVideoRender(videoId, mode, resolution, resolvedAvatarPath, resolvedAvatarInstructions, aspectRatio as AspectRatio, captionsEnabled);
 
   const [updated] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
   res.json(updated);

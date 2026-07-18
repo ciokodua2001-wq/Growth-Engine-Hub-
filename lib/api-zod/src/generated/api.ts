@@ -1100,10 +1100,14 @@ export const StartVideoRenderParams = zod.object({
 
 export const startVideoRenderBodyModeDefault = `footage`;
 export const startVideoRenderBodyResolutionDefault = `1080p`;
+export const startVideoRenderBodyAspectRatioDefault = `16:9`;
+export const startVideoRenderBodyCaptionsEnabledDefault = false;
 
 export const StartVideoRenderBody = zod.object({
   "mode": zod.enum(['footage', 'avatar', 'combined']).default(startVideoRenderBodyModeDefault),
   "resolution": zod.enum(['1080p', '4k']).default(startVideoRenderBodyResolutionDefault),
+  "aspectRatio": zod.enum(['16:9', '9:16', '1:1', '4:5']).default(startVideoRenderBodyAspectRatioDefault).describe('Output aspect ratio for the rendered video.'),
+  "captionsEnabled": zod.boolean().default(startVideoRenderBodyCaptionsEnabledDefault).describe('When true, bold burned-in captions are embedded in the video.'),
   "avatarId": zod.number().optional().describe('ID of the avatar from the project avatar library to use for avatar\/combined render modes.')
 })
 

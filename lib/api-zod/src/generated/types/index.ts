@@ -62,6 +62,7 @@ export * from './uploadUrlResponse';
 export * from './video';
 export * from './videoInput';
 export * from './videoRenderInput';
+export * from './videoRenderInputAspectRatio';
 export * from './videoRenderInputMode';
 export * from './videoRenderInputResolution';
 export * from './videoRenderStatus';

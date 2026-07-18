@@ -24,9 +24,12 @@ import {
 import GenerateModal from "@/components/ui/generate-modal";
 
 // ── Cinematic Plan types ──────────────────────────────────────────────────────
+type AspectRatio = "16:9" | "9:16" | "1:1" | "4:5";
+
 interface CinematicShot {
   shotNumber: number;
   duration: number;
+  dialogue: string; // exact words actor speaks in this shot
   environment: string;
   subjectAction: string;
   facialExpression: string;
@@ -46,7 +49,6 @@ interface CinematicPlan {
   cameraLanguage: string;
   performanceDirection: string;
   shots: CinematicShot[];
-  voiceoverPlacement: string;
   textOverlayPlacement: string;
   finalHeroShot: string;
 }
@@ -108,7 +110,16 @@ function CinematicBlueprintViewer({ plan, script }: { plan: CinematicPlan; scrip
                   <span className="text-[10px] text-white/25 ml-auto truncate">{shot.lensStyle}</span>
                 )}
               </div>
-              <p className="text-xs text-white/75 leading-snug mb-2">{shot.subjectAction}</p>
+              {/* Actor dialogue for this shot */}
+              {shot.dialogue ? (
+                <div className="mb-2.5 rounded-lg bg-[#00E676]/6 border border-[#00E676]/15 px-2.5 py-2">
+                  <p className="text-[9px] font-black text-[#00E676]/50 uppercase tracking-widest mb-1">Actor Line</p>
+                  <p className="text-xs text-white/85 leading-snug italic">"{shot.dialogue}"</p>
+                </div>
+              ) : (
+                <p className="text-[9px] text-white/25 mb-2 italic">Silent — no spoken line</p>
+              )}
+              <p className="text-xs text-white/60 leading-snug mb-2">{shot.subjectAction}</p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                 {([
                   ["Expression", shot.facialExpression],
@@ -137,12 +148,6 @@ function CinematicBlueprintViewer({ plan, script }: { plan: CinematicPlan; scrip
 
       {/* Post-production details */}
       <div className="grid gap-2">
-        {plan.voiceoverPlacement && (
-          <div className="rounded-xl bg-[#00E676]/4 border border-[#00E676]/10 p-2.5">
-            <p className="text-[9px] font-black text-[#00E676]/60 uppercase tracking-widest mb-1">Voiceover Placement</p>
-            <p className="text-[11px] text-white/60 leading-snug">{plan.voiceoverPlacement}</p>
-          </div>
-        )}
         {plan.textOverlayPlacement && (
           <div className="rounded-xl bg-white/2 border border-white/6 p-2.5">
             <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1">Text Overlays</p>
@@ -157,12 +162,12 @@ function CinematicBlueprintViewer({ plan, script }: { plan: CinematicPlan; scrip
         )}
       </div>
 
-      {/* Voiceover Script */}
+      {/* Actor Script */}
       {script && (
         <div>
-          <p className="text-[10px] font-black text-white/35 uppercase tracking-widest mb-2">Voiceover Script</p>
-          <div className="rounded-xl bg-white/2 border border-white/8 p-3">
-            <pre className="text-xs text-white/65 whitespace-pre-wrap leading-relaxed font-sans">{script}</pre>
+          <p className="text-[10px] font-black text-white/35 uppercase tracking-widest mb-2">Actor Script</p>
+          <div className="rounded-xl bg-[#00E676]/4 border border-[#00E676]/12 p-3">
+            <pre className="text-xs text-white/80 whitespace-pre-wrap leading-relaxed font-sans">{script}</pre>
           </div>
         </div>
       )}
@@ -233,9 +238,9 @@ function RenderStatusBadge({ status }: { status: string }) {
 const RENDER_STEPS = [
   { after: 0,    label: "Starting pipeline…" },
   { after: 15,   label: "Generating AI voiceover…" },
-  { after: 40,   label: "Submitting clips to FAL Kling…" },
-  { after: 90,   label: "Generating video clips (this takes ~10 min)…" },
-  { after: 600,  label: "Composing final video in Shotstack…" },
+  { after: 40,   label: "Generating video clips with FAL Kling…" },
+  { after: 90,   label: "AI clip generation in progress (~10 min)…" },
+  { after: 600,  label: "Assembling final video with FFmpeg…" },
 ];
 
 function RenderPanel({
@@ -250,6 +255,8 @@ function RenderPanel({
   isStarterPlan: boolean;
 }) {
   const [resolution, setResolution] = useState<RenderResolution>("1080p");
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
+  const [captionsEnabled, setCaptionsEnabled] = useState(false);
   const [locallyStarted, setLocallyStarted] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const queryClient = useQueryClient();
@@ -305,7 +312,7 @@ function RenderPanel({
       {
         id: projectId,
         videoId: video.id,
-        data: { mode: "footage", resolution },
+        data: { mode: "footage", resolution, aspectRatio, captionsEnabled },
       },
       {
         onSuccess: () => {
@@ -329,7 +336,7 @@ function RenderPanel({
           <span className="text-sm font-bold text-[#00E676]">Video Rendering — Paid Plans Only</span>
         </div>
         <p className="text-xs text-white/50 mb-3">
-          Your trial includes video blueprints (scripts + storyboards). Upgrade to render actual MP4 videos with AI voiceover, FAL Kling footage, and Shotstack composition.
+          Your trial includes video blueprints (actor scripts + storyboards). Upgrade to render actual MP4 videos with AI voiceover, FAL Kling footage, and FFmpeg composition.
         </p>
         <a
           href="/plans"
@@ -422,6 +429,32 @@ function RenderPanel({
       {/* Render config — only show when not in progress */}
       {!locallyStarted && currentStatus !== "queued" && currentStatus !== "processing" && (
         <>
+          {/* Aspect Ratio */}
+          <div>
+            <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Aspect Ratio</p>
+            <div className="grid grid-cols-4 gap-1.5">
+              {([
+                { value: "16:9", label: "16:9", sub: "YouTube / LinkedIn" },
+                { value: "9:16", label: "9:16", sub: "TikTok / Reels" },
+                { value: "1:1",  label: "1:1",  sub: "Instagram Feed" },
+                { value: "4:5",  label: "4:5",  sub: "Portrait" },
+              ] as { value: AspectRatio; label: string; sub: string }[]).map((r) => (
+                <button
+                  key={r.value}
+                  onClick={() => setAspectRatio(r.value)}
+                  className={`py-2 px-1 rounded-xl border text-center transition-all ${
+                    aspectRatio === r.value
+                      ? "border-[#00D4FF]/50 bg-[#00D4FF]/10 text-[#00D4FF]"
+                      : "border-white/8 hover:border-white/15 text-white/50"
+                  }`}
+                >
+                  <p className="text-[11px] font-black">{r.label}</p>
+                  <p className="text-[8px] text-white/30 mt-0.5 leading-tight">{r.sub}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Resolution */}
           <div>
             <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Resolution</p>
@@ -447,6 +480,24 @@ function RenderPanel({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Captions Toggle */}
+          <div className="flex items-center justify-between rounded-xl border border-white/8 bg-white/2 px-3 py-2.5">
+            <div>
+              <p className="text-xs font-semibold text-white/70">Bold Captions</p>
+              <p className="text-[10px] text-white/35 mt-0.5">Burned-in subtitles for social engagement</p>
+            </div>
+            <button
+              onClick={() => setCaptionsEnabled(!captionsEnabled)}
+              className={`relative w-10 h-5.5 rounded-full transition-colors shrink-0 ml-3 ${captionsEnabled ? "bg-[#00E676]" : "bg-white/15"}`}
+              style={{ height: "22px", width: "40px" }}
+            >
+              <span
+                className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform ${captionsEnabled ? "translate-x-[18px]" : "translate-x-0.5"}`}
+                style={{ width: "18px", height: "18px" }}
+              />
+            </button>
           </div>
 
           {/* Render button */}

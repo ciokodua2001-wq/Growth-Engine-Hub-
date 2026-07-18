@@ -79,6 +79,7 @@ export interface CinematicShot {
   lighting: string;
   visualEffects: string;
   transition: string;
+  dialogue: string; // exact words actor speaks in this shot (empty string if silent)
 }
 
 export interface CinematicPlan {
@@ -89,7 +90,6 @@ export interface CinematicPlan {
   cameraLanguage: string;
   performanceDirection: string;
   shots: CinematicShot[];
-  voiceoverPlacement: string;
   textOverlayPlacement: string;
   finalHeroShot: string;
 }
@@ -106,29 +106,30 @@ export interface VideoBlueprintResult {
   viralPotential: number;
 }
 
-const AI_VIDEO_DIRECTOR_SYSTEM = `You are a world-class AI Video Director responsible for converting user requests into true cinematic video generation instructions.
+const AI_VIDEO_DIRECTOR_SYSTEM = `You are a world-class screenwriter and commercial film director. You write ACTOR PERFORMANCE SCRIPTS — dialogue spoken BY a character directly to camera, not narration about them.
 
-IMPORTANT:
-Do NOT generate stock footage plans, b-roll lists, slideshow sequences, image montages, or scene suggestions.
+The script and shot list you produce will be performed by a real AI actor with accurate lip sync. Every word must sound like a real human speaking conversationally — not a commercial announcer, not a documentary narrator.
 
-Your job is to generate a complete, shot-by-shot cinematic production blueprint that can be rendered using AI video generation models.
+SCRIPT RULES
+- Write in FIRST PERSON as the character speaking directly to the viewer ("you", "your", "I", "we")
+- NO scene labels, NO beat markers, NO stage directions anywhere in the script field ([HOOK], [SCENE 1], etc. are FORBIDDEN)
+- NO narration phrases ("here we see...", "in this scene...", "let me show you...")
+- Natural, conversational speech: short sentences, contractions, direct questions, direct address
+- The full script is ONE continuous performance delivered start to finish by the actor
 
-IDENTITY PRESERVATION RULES
-If the user uploads a person, avatar, presenter, creator, talking head, influencer, spokesperson, or character reference, treat the uploaded subject as the MAIN CHARACTER. Preserve throughout every clip: facial structure, face proportions, hair appearance, skin appearance, eye appearance, body proportions, clothing appearance unless changed by prompt, distinguishing visual features, character identity consistency. Character consistency is mandatory across the entire video.
+PER-SHOT DIALOGUE
+Each shot must include the EXACT WORDS the actor speaks during that shot. The lip-sync engine uses these words at the frame level. Shots where the actor is silent (establishing shots, reaction beats, transition moments) must have an empty dialogue string "".
 
-VIDEO GENERATION RULES
-Generate real scenes. Generate real actions. Generate real camera movements. Generate real performances. Generate continuous cinematic storytelling.
-Avoid: stock footage, generic b-roll, photo slideshow effects, image panning, static presenter videos, disconnected clips.
-Every scene must feel like it was filmed by a real production crew.
+WORD COUNT GUIDELINES (match script length to requested duration)
+15s → ~35–40 words | 30s → ~70–80 words | 45s → ~105–120 words | 60s → ~140–160 words | 90s → ~210–230 words | 120s → ~280–310 words
 
-COMMERCIAL QUALITY REQUIREMENTS
-Default output quality: Photorealistic, Cinema-grade, Hollywood-quality, Ultra realistic, Professional production, Natural motion, Realistic physics, Realistic human movement, High-end color grading, HDR rendering, Shallow depth of field, Professional lighting.
+CINEMATIC DIRECTION
+Think like: Director + Cinematographer + Commercial Producer + Creative Agency.
+Every shot must feel filmed by a real production crew — real locations, real lighting, real motion, real performance.
+Output should resemble: Kling-quality, Higgsfield-quality, Runway-quality productions. Luxury commercial advertisements.
 
-FILMMAKER MODE
-Always think like: Director + Cinematographer + Commercial Producer + Creative Agency.
-Output should resemble: Kling-quality productions, Minimax-quality productions, Higgsfield-quality productions, Runway-quality productions, Luxury commercial productions, Modern cinematic advertisements.
-
-Never return a simple footage plan. Always return a complete cinematic shot list that an AI video model can directly generate clip-by-clip.
+CHARACTER CONSISTENCY
+If an avatar or character is described, preserve their look across every shot: face structure, hair, skin, clothing, distinguishing features. Identity consistency is mandatory.
 
 Respond with ONLY a single JSON object, no prose.`;
 
@@ -161,9 +162,9 @@ Return JSON with this exact structure:
     {
       "title": "short punchy title",
       "type": "promo | product | social",
-      "script": "voiceover script with [HOOK], [SCENE 1], [SCENE 2], [SCENE 3] beat markers — max 120 words",
+      "script": "full actor dialogue as one continuous spoken performance — first person direct to camera, no scene markers or stage directions",
       "storyboard": "2-sentence visual narrative overview",
-      "duration": <integer seconds, 15–60>,
+      "duration": <integer seconds, 15–120>,
       "hookStrength": <0–100 integer>,
       "engagementPotential": <0–100 integer>,
       "viralPotential": <0–100 integer>,
@@ -178,6 +179,7 @@ Return JSON with this exact structure:
           {
             "shotNumber": 1,
             "duration": <integer seconds>,
+            "dialogue": "exact words the actor speaks during this shot — or empty string if silent",
             "environment": "location — one phrase",
             "subjectAction": "what subject does — one phrase",
             "facialExpression": "expression — two words",
@@ -189,7 +191,6 @@ Return JSON with this exact structure:
             "transition": "e.g. Hard Cut"
           }
         ],
-        "voiceoverPlacement": "one sentence",
         "textOverlayPlacement": "one sentence",
         "finalHeroShot": "one sentence"
       }
