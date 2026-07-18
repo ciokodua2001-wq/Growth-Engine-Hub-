@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Image as ImageIcon, Upload, Trash2, Pencil, X, Check,
   Loader2, AlertCircle, Users, Eye, EyeOff, Sparkles,
-  CheckCircle2, XCircle, CloudUpload,
+  CheckCircle2, XCircle, CloudUpload, RefreshCw,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/admin-layout";
 
@@ -54,6 +54,13 @@ function badge(label: string, colorClass: string) {
   );
 }
 
+interface SyncResult {
+  synced: number;
+  total: number;
+  results: Array<{ id: number; name: string; ok: boolean; error?: string }>;
+  message?: string;
+}
+
 export default function AdminAvatarLibrary() {
   const queryClient = useQueryClient();
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -62,6 +69,21 @@ export default function AdminAvatarLibrary() {
   const [filterGender, setFilterGender] = useState<string>("all");
   const [filterArchetype, setFilterArchetype] = useState<string>("all");
   const [error, setError] = useState<string | null>(null);
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/platform-avatars/sync-heygen", { method: "POST" });
+      const body = await res.json() as SyncResult & { error?: string };
+      if (!res.ok) throw new Error(body.error ?? "Sync failed");
+      return body;
+    },
+    onSuccess: (data) => {
+      setSyncResult(data);
+      queryClient.invalidateQueries({ queryKey: ["admin-platform-avatars"] });
+    },
+    onError: (err) => setError(err instanceof Error ? err.message : "Sync failed"),
+  });
 
   const { data, isLoading } = useQuery<{ avatars: PlatformAvatar[] }>({
     queryKey: ["admin-platform-avatars"],
@@ -120,14 +142,50 @@ export default function AdminAvatarLibrary() {
               <span className="ml-2 text-white/60">{activeCount} active · {avatars.length} total</span>
             </p>
           </div>
-          <button
-            onClick={() => { setShowUploadModal(true); setError(null); }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-black shrink-0"
-            style={{ background: "#00E676" }}
-          >
-            <CloudUpload className="w-4 h-4" /> Bulk Upload
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => { setSyncResult(null); setError(null); syncMutation.mutate(); }}
+              disabled={syncMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border border-white/15 text-white/70 hover:text-white hover:border-white/30 transition-colors disabled:opacity-40"
+              title="Upload all avatars missing HeyGen talking photo IDs — run after clearing slots in HeyGen dashboard"
+            >
+              {syncMutation.isPending
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <RefreshCw className="w-4 h-4" />}
+              Sync HeyGen
+            </button>
+            <button
+              onClick={() => { setShowUploadModal(true); setError(null); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-black"
+              style={{ background: "#00E676" }}
+            >
+              <CloudUpload className="w-4 h-4" /> Bulk Upload
+            </button>
+          </div>
         </div>
+
+        {syncResult && (
+          <div className={`flex items-start gap-3 p-3 rounded-xl border mb-4 ${
+            syncResult.synced === syncResult.total || syncResult.synced > 0
+              ? "bg-[#00E676]/8 border-[#00E676]/20"
+              : "bg-yellow-500/8 border-yellow-500/20"
+          }`}>
+            {syncResult.synced > 0
+              ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#00E676" }} />
+              : <AlertCircle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-white font-semibold">
+                {syncResult.message ?? `Synced ${syncResult.synced} of ${syncResult.total} avatars to HeyGen`}
+              </p>
+              {syncResult.results?.filter(r => !r.ok).map(r => (
+                <p key={r.id} className="text-xs text-red-400 mt-0.5">{r.name}: {r.error}</p>
+              ))}
+            </div>
+            <button onClick={() => setSyncResult(null)} className="text-white/30 hover:text-white/60">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {error && (
           <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 mb-4">

@@ -265,7 +265,9 @@ async function runRenderPipeline(
         ? detail
         : detail.includes("timed out")
           ? "HeyGen avatar generation timed out. Please try again in a few minutes."
-          : `HeyGen avatar generation failed: ${detail.slice(0, 200)}`;
+          : detail.includes("heygen_limit_exceeded")
+            ? "Avatar rendering is temporarily unavailable — the HeyGen talking photo slot limit has been reached. An admin needs to clear orphaned photos from the HeyGen dashboard (app.heygen.com → Templates → Talking Photos), then run Sync HeyGen in Admin → Avatar Library."
+            : `HeyGen avatar generation failed: ${detail.slice(0, 200)}`;
       await markFailed(videoId, msg);
       return;
     }
@@ -545,7 +547,7 @@ async function listHeyGenTalkingPhotoIds(apiKey: string): Promise<string[]> {
   try {
     const res = await fetch(`${HEYGEN_API_URL}/v2/avatars`, {
       headers: { "X-Api-Key": apiKey },
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(5_000),
     });
     if (!res.ok) {
       logger.warn({ status: res.status }, "HeyGen avatar list returned non-ok status");
