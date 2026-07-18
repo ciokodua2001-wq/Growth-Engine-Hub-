@@ -26,7 +26,7 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
   }
 
   const {
-    mode = "avatar",
+    mode = "combined",
     resolution = "1080p",
     avatarId,
     aspectRatio = "16:9",

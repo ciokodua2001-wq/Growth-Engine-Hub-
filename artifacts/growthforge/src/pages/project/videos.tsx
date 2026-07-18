@@ -340,7 +340,7 @@ function RenderPanel({
       {
         id: projectId,
         videoId: video.id,
-        data: { mode: "avatar" as RenderMode, resolution, aspectRatio, captionsEnabled },
+        data: { mode: "combined" as RenderMode, resolution, aspectRatio, captionsEnabled },
       },
       {
         onSuccess: () => {
