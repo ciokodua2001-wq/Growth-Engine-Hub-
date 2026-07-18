@@ -489,13 +489,35 @@ function RenderPanel({
               <p className="text-[10px] text-white/35 mt-0.5">Burned-in subtitles for social engagement</p>
             </div>
             <button
+              role="switch"
+              aria-checked={captionsEnabled}
               onClick={() => setCaptionsEnabled(!captionsEnabled)}
-              className={`relative w-10 h-5.5 rounded-full transition-colors shrink-0 ml-3 ${captionsEnabled ? "bg-[#00E676]" : "bg-white/15"}`}
-              style={{ height: "22px", width: "40px" }}
+              style={{
+                position: "relative",
+                flexShrink: 0,
+                marginLeft: "12px",
+                width: "44px",
+                height: "24px",
+                borderRadius: "12px",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                backgroundColor: captionsEnabled ? "#00E676" : "rgba(255,255,255,0.15)",
+                transition: "background-color 0.2s",
+              }}
             >
               <span
-                className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform ${captionsEnabled ? "translate-x-[18px]" : "translate-x-0.5"}`}
-                style={{ width: "18px", height: "18px" }}
+                style={{
+                  position: "absolute",
+                  top: "2px",
+                  left: captionsEnabled ? "22px" : "2px",
+                  width: "20px",
+                  height: "20px",
+                  borderRadius: "50%",
+                  backgroundColor: "white",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+                  transition: "left 0.2s",
+                }}
               />
             </button>
           </div>
@@ -711,6 +733,7 @@ export default function ProjectVideos() {
   const projectId = parseInt(params.projectId, 10);
   const [mode, setMode] = useState<"auto" | "prompt">("auto");
   const [targetDuration, setTargetDuration] = useState<15 | 30 | 45 | 60 | 90>(45);
+  const [blueprintCount, setBlueprintCount] = useState(5);
   const [selectedVideo, setSelectedVideo] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [imgModalOpen, setImgModalOpen] = useState(false);
@@ -726,7 +749,7 @@ export default function ProjectVideos() {
   const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       generateVideos.mutate(
-        { id: projectId, data: { mode, count: mode === "auto" ? 9 : 3, targetDuration } },
+        { id: projectId, data: { mode, count: blueprintCount, targetDuration } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) });
@@ -750,35 +773,56 @@ export default function ProjectVideos() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {/* Duration picker */}
-          <div className="flex rounded-xl border border-border overflow-hidden">
-            {([15, 30, 45, 60, 90] as const).map((d) => (
-              <button
-                key={d}
-                onClick={() => setTargetDuration(d)}
-                className={`px-3 py-2 text-sm font-medium transition-colors ${targetDuration === d ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                {d}s
-              </button>
-            ))}
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider px-0.5">Duration</p>
+            <div className="flex rounded-xl border border-border overflow-hidden">
+              {([15, 30, 45, 60, 90] as const).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setTargetDuration(d)}
+                  className={`px-3 py-2 text-sm font-medium transition-colors ${targetDuration === d ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  {d}s
+                </button>
+              ))}
+            </div>
           </div>
-          {/* Auto / Prompt toggle */}
-          <div className="flex rounded-xl border border-border overflow-hidden">
-            {(["auto", "prompt"] as const).map((m) => (
+          {/* Count picker */}
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider px-0.5">Blueprints</p>
+            <div className="flex items-center rounded-xl border border-border overflow-hidden">
               <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                {m === "auto" ? "Auto (9)" : "Prompt"}
-              </button>
-            ))}
+                onClick={() => setBlueprintCount(c => Math.max(1, c - 1))}
+                className="px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors"
+              >−</button>
+              <span className="px-3 py-2 text-sm font-semibold min-w-[2rem] text-center">{blueprintCount}</span>
+              <button
+                onClick={() => setBlueprintCount(c => Math.min(12, c + 1))}
+                className="px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors"
+              >+</button>
+            </div>
+          </div>
+          {/* Mode toggle */}
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider px-0.5">Mode</p>
+            <div className="flex rounded-xl border border-border overflow-hidden">
+              {(["auto", "prompt"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMode(m)}
+                  className={`px-4 py-2 text-sm font-medium transition-colors ${mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  {m === "auto" ? "Auto" : "Prompt"}
+                </button>
+              ))}
+            </div>
           </div>
           <button
             onClick={() => setModalOpen(true)}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-primary/20"
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-primary/20 self-end"
           >
             <Sparkles className="h-4 w-4" />
-            Generate Blueprints
+            Generate {blueprintCount} Blueprint{blueprintCount !== 1 ? "s" : ""}
           </button>
         </div>
       </div>

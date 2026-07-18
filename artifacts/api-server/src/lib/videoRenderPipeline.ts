@@ -8,15 +8,43 @@ import { eq } from "drizzle-orm";
 import pino from "pino";
 import { deductPlatformCredits } from "./platformCredits.js";
 
-// Resolve ffmpeg binary at startup — handles Nix store paths in both dev and prod
+// Resolve ffmpeg binary — production has a minimal PATH so we extend it to cover
+// the Nix store and common system locations before falling back to a store scan.
+const NIX_EXTRA_PATH = [
+  "/run/current-system/sw/bin",
+  "/nix/var/nix/profiles/default/bin",
+  "/usr/local/bin",
+  "/usr/bin",
+  "/bin",
+].join(":");
+
 let FFMPEG_BIN = "ffmpeg";
-try {
-  FFMPEG_BIN = execSync("which ffmpeg", { encoding: "utf8" }).trim() || FFMPEG_BIN;
-} catch {
-  // Keep default; will surface as ENOENT if truly missing
-}
+(function resolveFFmpeg() {
+  // 1. Try `which` with extended PATH
+  try {
+    const extended = [process.env.PATH, NIX_EXTRA_PATH].filter(Boolean).join(":");
+    const bin = execSync("which ffmpeg", { encoding: "utf8", env: { PATH: extended } }).trim();
+    if (bin) { FFMPEG_BIN = bin; return; }
+  } catch { /* continue */ }
+
+  // 2. Find the replit-runtime-path package in the nix store
+  try {
+    const pkg = execSync("ls /nix/store 2>/dev/null | grep -m1 'replit-runtime-path'", { encoding: "utf8" }).trim();
+    if (pkg) {
+      const candidate = `/nix/store/${pkg}/bin/ffmpeg`;
+      if (fs.existsSync(candidate)) { FFMPEG_BIN = candidate; return; }
+    }
+  } catch { /* continue */ }
+
+  // 3. Broad scan of nix store (slow but reliable fallback)
+  try {
+    const found = execSync("find /nix/store -maxdepth 4 -name 'ffmpeg' -type f 2>/dev/null | head -1", { encoding: "utf8" }).trim();
+    if (found) { FFMPEG_BIN = found; return; }
+  } catch { /* keep default */ }
+})();
 
 const logger = pino({ name: "videoRenderPipeline" });
+logger.info({ ffmpegBin: FFMPEG_BIN }, "FFmpeg binary resolved");
 
 // ── Render constants ──────────────────────────────────────────────────────────
 const FAL_CLIP_DURATION_S = 5;     // Kling v1.6 generates 5-second clips
@@ -738,7 +766,10 @@ async function composeHeyGenWithBroll(opts: {
 function runFFmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     logger.info({ args: args.slice(0, 6) }, "Starting FFmpeg");
-    const proc = spawn(FFMPEG_BIN, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawn(FFMPEG_BIN, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, PATH: [process.env.PATH, NIX_EXTRA_PATH].filter(Boolean).join(":") },
+    });
     let stderr = "";
     proc.stderr?.on("data", (d: Buffer) => { stderr += d.toString(); });
 
