@@ -50,28 +50,83 @@ async function resolveDefaultHeyGenAvatar(apiKey: string): Promise<string> {
   return _cachedDefaultAvatarId;
 }
 
-// ElevenLabs voice IDs — used when no ELEVENLABS_VOICE_ID env override is set
+// ElevenLabs voice IDs — fallbacks used only when the account voice list is unavailable
 const VOICE_MALE_DEFAULT   = "pNInz6obpgDQGcFmaJgB"; // Adam   — warm, authoritative male
 const VOICE_FEMALE_DEFAULT = "oWAxZDx7w5VEj9dCyTzz"; // Grace  — calm, confident female
 
+interface ElevenLabsVoice {
+  voice_id: string;
+  name: string;
+  category: string; // "premade" | "cloned" | "generated" | "professional"
+  labels?: Record<string, string>;
+}
+
+// Cache voices per process so we only fetch once
+let _cachedVoices: ElevenLabsVoice[] | null = null;
+
+async function fetchElevenLabsVoices(apiKey: string): Promise<ElevenLabsVoice[]> {
+  if (_cachedVoices) return _cachedVoices;
+  try {
+    const res = await fetch(`${ELEVENLABS_API_URL}/v1/voices`, {
+      headers: { "xi-api-key": apiKey },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { voices: ElevenLabsVoice[] };
+    _cachedVoices = data.voices ?? [];
+    logger.info({ count: _cachedVoices.length }, "ElevenLabs voices fetched");
+    return _cachedVoices;
+  } catch {
+    return [];
+  }
+}
+
 /**
- * Infer the best voice ID from a cinematic character description.
- * Falls back to the env override or the male default when gender is ambiguous.
+ * Resolve the best available ElevenLabs voice ID for the given character description.
+ *
+ * Priority:
+ *  1. ELEVENLABS_VOICE_ID env override
+ *  2. Gender-matched voice from the account's cloned/professional voices (work on free plans)
+ *  3. Gender-matched voice from the account's premade voices (require paid plan)
+ *  4. First available voice in the account
+ *  5. Hardcoded library fallback (will 402 on free accounts — caught by caller)
  */
-function resolveVoiceId(characterDescription?: string | null): string {
+async function resolveVoiceId(apiKey: string, characterDescription?: string | null): Promise<string> {
   if (process.env.ELEVENLABS_VOICE_ID) return process.env.ELEVENLABS_VOICE_ID;
-  if (!characterDescription) return VOICE_MALE_DEFAULT;
 
-  const desc = characterDescription.toLowerCase();
-  const femaleSignals = ["female", "woman", "girl", "she/her", " she ", " her ", "founder", "latina", "asian", "afri"];
-  const maleSignals   = ["male", "man", " guy ", "he/him", " he ", " his ", "gentleman", "dad ", "father"];
+  const voices = await fetchElevenLabsVoices(apiKey);
 
-  const femaleScore = femaleSignals.filter(s => desc.includes(s)).length;
-  const maleScore   = maleSignals.filter(s => desc.includes(s)).length;
+  // Determine gender hint from description
+  let genderHint: "male" | "female" | null = null;
+  if (characterDescription) {
+    const desc = characterDescription.toLowerCase();
+    const femaleScore = ["female", "woman", "girl", "she/her", " she ", " her ", "latina", "asian"].filter(s => desc.includes(s)).length;
+    const maleScore   = ["male", "man", " guy ", "he/him", " he ", " his ", "gentleman", "father"].filter(s => desc.includes(s)).length;
+    if (femaleScore > maleScore) genderHint = "female";
+    else if (maleScore > femaleScore) genderHint = "male";
+  }
 
-  if (femaleScore > maleScore) return VOICE_FEMALE_DEFAULT;
-  if (maleScore   > femaleScore) return VOICE_MALE_DEFAULT;
-  return VOICE_MALE_DEFAULT; // tie → default
+  // Prefer cloned/professional voices (accessible on all plans incl. free)
+  const ownedCategories = ["cloned", "professional", "generated"];
+  const ownedVoices = voices.filter(v => ownedCategories.includes(v.category));
+  const premadeVoices = voices.filter(v => v.category === "premade");
+
+  const pick = (pool: ElevenLabsVoice[]): string | null => {
+    if (!pool.length) return null;
+    if (!genderHint) return pool[0].voice_id;
+    const genderLabels = genderHint === "female"
+      ? ["female", "woman", "girl"]
+      : ["male", "man", "boy", "guy"];
+    const match = pool.find(v =>
+      genderLabels.some(g =>
+        v.name.toLowerCase().includes(g) ||
+        Object.values(v.labels ?? {}).some(l => l.toLowerCase().includes(g))
+      )
+    );
+    return match?.voice_id ?? pool[0].voice_id;
+  };
+
+  return pick(ownedVoices) ?? pick(premadeVoices) ?? (genderHint === "female" ? VOICE_FEMALE_DEFAULT : VOICE_MALE_DEFAULT);
 }
 
 export type RenderMode = "footage" | "avatar" | "combined";
@@ -148,7 +203,8 @@ async function runRenderPipeline(
       characterDescription = plan.characterDescription ?? null;
     } catch { /* malformed JSON — ignore, fall back to default */ }
   }
-  const voiceId = resolveVoiceId(characterDescription);
+  const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY ?? "";
+  const voiceId = await resolveVoiceId(elevenLabsApiKey, characterDescription);
   logger.info({ videoId, voiceId, characterDescription }, "Resolved ElevenLabs voice");
 
   let voiceoverUrl: string;
@@ -317,6 +373,14 @@ async function runRenderPipeline(
 
 // ── ElevenLabs TTS ────────────────────────────────────────────────────────────
 
+/** Thrown when ElevenLabs rejects a request due to plan restrictions (HTTP 402/403). */
+class ElevenLabsPlanError extends Error {
+  constructor(detail: string) {
+    super(detail);
+    this.name = "ElevenLabsPlanError";
+  }
+}
+
 async function generateElevenLabsVoiceover(text: string, voiceId?: string): Promise<string> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY not configured");
@@ -324,31 +388,59 @@ async function generateElevenLabsVoiceover(text: string, voiceId?: string): Prom
   const selectedVoice = voiceId ?? VOICE_MALE_DEFAULT;
   const cappedText = text.length > 800 ? text.slice(0, 800) + "..." : text;
 
-  const audioBuffer = await withRetry(async () => {
-    const response = await fetch(
-      `${ELEVENLABS_API_URL}/v1/text-to-speech/${selectedVoice}?output_format=mp3_44100_128`,
-      {
-        method: "POST",
-        headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: cappedText,
-          model_id: "eleven_turbo_v2_5",
-          voice_settings: { stability: 0.5, similarity_boost: 0.8 },
-        }),
-        signal: AbortSignal.timeout(30_000),
+  // Attempt ElevenLabs TTS.
+  // isRetryable() won't match ElevenLabsPlanError so withRetry propagates it immediately.
+  let elevenLabsBuffer: Buffer | null = null;
+  try {
+    elevenLabsBuffer = await withRetry(async () => {
+      const response = await fetch(
+        `${ELEVENLABS_API_URL}/v1/text-to-speech/${selectedVoice}?output_format=mp3_44100_128`,
+        {
+          method: "POST",
+          headers: {
+            "xi-api-key": apiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: cappedText,
+            model_id: "eleven_turbo_v2_5",
+            voice_settings: { stability: 0.5, similarity_boost: 0.8 },
+          }),
+          signal: AbortSignal.timeout(30_000),
+        }
+      );
+      if (response.status === 402 || response.status === 403) {
+        const body = await response.text();
+        throw new ElevenLabsPlanError(`ElevenLabs plan restriction (${response.status}): ${body.slice(0, 300)}`);
       }
-    );
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`ElevenLabs: ${response.status} ${body.slice(0, 200)}`);
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`ElevenLabs: ${response.status} ${body.slice(0, 200)}`);
+      }
+      return Buffer.from(await response.arrayBuffer());
+    });
+  } catch (err) {
+    if (err instanceof ElevenLabsPlanError) {
+      logger.warn({ msg: err.message }, "ElevenLabs plan restriction — falling back to OpenAI TTS");
+    } else {
+      throw err; // Real TTS failure — propagate to caller
     }
-    return Buffer.from(await response.arrayBuffer());
-  });
+  }
 
-  return await uploadAudioToStorage(audioBuffer, "mp3");
+  if (elevenLabsBuffer) {
+    return await uploadAudioToStorage(elevenLabsBuffer, "mp3");
+  }
+
+  // Fallback: OpenAI gpt-audio TTS via Replit AI Integrations (no extra API key required)
+  const { textToSpeech } = await import("@workspace/integrations-openai-ai-server/audio");
+  // Determine gender from the cached voice list: female → nova, male/neutral → onyx
+  const cachedVoice = _cachedVoices?.find(v => v.voice_id === selectedVoice);
+  const isFemaleVoice = cachedVoice?.labels?.["gender"] === "female"
+    || ["female", "woman", "girl"].some(g => cachedVoice?.name.toLowerCase().includes(g));
+  const openAiVoice = isFemaleVoice ? "nova" : "onyx";
+  logger.info({ openAiVoice }, "Generating voiceover via OpenAI gpt-audio TTS");
+  const wavBuffer = await textToSpeech(cappedText, openAiVoice, "wav");
+  return await uploadAudioToStorage(wavBuffer, "wav");
 }
 
 // ── HeyGen Talking Avatar ──────────────────────────────────────────────────────
