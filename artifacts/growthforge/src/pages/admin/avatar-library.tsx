@@ -100,7 +100,7 @@ export default function AdminAvatarLibrary() {
     },
     onSuccess: (data) => {
       setShowResetConfirm(false);
-      setSyncResult({ synced: 0, total: data.cleared, results: [], message: `Cleared ${data.cleared} stale HeyGen IDs — now click Sync HeyGen to re-upload.` });
+      setSyncResult({ synced: 0, total: data.cleared, results: [], message: `Cleared ${data.cleared} stale HeyGen IDs. Avatars will re-register automatically on next render — no further action needed.` });
       queryClient.invalidateQueries({ queryKey: ["admin-platform-avatars"] });
     },
     onError: (err) => { setShowResetConfirm(false); setError(err instanceof Error ? err.message : "Reset failed"); },
