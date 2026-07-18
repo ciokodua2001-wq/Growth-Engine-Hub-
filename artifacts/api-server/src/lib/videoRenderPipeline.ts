@@ -34,6 +34,7 @@ async function resolveDefaultHeyGenAvatar(apiKey: string): Promise<string> {
 
   const res = await fetch(`${HEYGEN_API_URL}/v2/avatars`, {
     headers: { "X-Api-Key": apiKey },
+    signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) {
     const text = await res.text();
@@ -336,6 +337,7 @@ async function generateElevenLabsVoiceover(text: string, voiceId?: string): Prom
           model_id: "eleven_turbo_v2_5",
           voice_settings: { stability: 0.5, similarity_boost: 0.8 },
         }),
+        signal: AbortSignal.timeout(30_000),
       }
     );
     if (!response.ok) {
@@ -388,6 +390,7 @@ async function generateHeyGenVideo(
       method: "POST",
       headers: { "X-Api-Key": apiKey, "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
     }).then(async r => {
       if (!r.ok) {
         const text = await r.text();
@@ -402,7 +405,7 @@ async function generateHeyGenVideo(
 }
 
 async function uploadHeyGenTalkingPhoto(photoUrl: string, apiKey: string): Promise<string> {
-  const photoRes = await fetch(photoUrl);
+  const photoRes = await fetch(photoUrl, { signal: AbortSignal.timeout(30_000) });
   if (!photoRes.ok) throw new Error(`Download avatar photo: ${photoRes.status}`);
   const photoBuf = Buffer.from(await photoRes.arrayBuffer());
 
@@ -414,6 +417,7 @@ async function uploadHeyGenTalkingPhoto(photoUrl: string, apiKey: string): Promi
       method: "POST",
       headers: { "X-Api-Key": apiKey },
       body: formData,
+      signal: AbortSignal.timeout(60_000),
     }).then(async r => {
       if (!r.ok) {
         const text = await r.text();
@@ -436,7 +440,7 @@ async function pollHeyGenVideo(videoId: string, apiKey: string): Promise<string>
     const data = await withRetry(async () => {
       const res = await fetch(
         `${HEYGEN_API_URL}/v1/video_status.get?video_id=${encodeURIComponent(videoId)}`,
-        { headers: { "X-Api-Key": apiKey } }
+        { headers: { "X-Api-Key": apiKey }, signal: AbortSignal.timeout(15_000) }
       );
       if (!res.ok) {
         const text = await res.text();
@@ -448,7 +452,7 @@ async function pollHeyGenVideo(videoId: string, apiKey: string): Promise<string>
     logger.info({ videoId, status: data.data.status, poll: i }, "HeyGen poll");
 
     if (data.data.status === "completed" && data.data.video_url) {
-      const videoRes = await withRetry(() => fetch(data.data.video_url!));
+      const videoRes = await withRetry(() => fetch(data.data.video_url!, { signal: AbortSignal.timeout(120_000) }));
       if (!videoRes.ok) throw new Error(`HeyGen download: ${videoRes.status}`);
       const buffer = Buffer.from(await videoRes.arrayBuffer());
       return await uploadVideoToStorage(buffer);
@@ -483,6 +487,7 @@ async function submitFalJob(modelId: string, body: Record<string, unknown>): Pro
     method: "POST",
     headers: { "Authorization": `Key ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) {
     const text = await res.text();
@@ -502,6 +507,7 @@ async function pollFalJob(job: FalQueueResponse): Promise<string> {
     const data = await withRetry(async () => {
       const res = await fetch(job.status_url, {
         headers: { "Authorization": `Key ${apiKey}` },
+        signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) {
         const text = await res.text();
@@ -512,7 +518,7 @@ async function pollFalJob(job: FalQueueResponse): Promise<string> {
 
     if (data.status === "COMPLETED") {
       const resultRes = await withRetry(() =>
-        fetch(job.response_url, { headers: { "Authorization": `Key ${apiKey}` } })
+        fetch(job.response_url, { headers: { "Authorization": `Key ${apiKey}` }, signal: AbortSignal.timeout(30_000) })
       );
       if (!resultRes.ok) throw new Error(`FAL result fetch: ${resultRes.status}`);
       const raw = await resultRes.json() as Record<string, unknown>;
@@ -524,7 +530,7 @@ async function pollFalJob(job: FalQueueResponse): Promise<string> {
         data.output?.video?.url ??
         data.output?.videos?.[0]?.url;
       if (!videoUrl) throw new Error(`FAL completed but no video URL — keys: ${Object.keys(raw).join(", ")}`);
-      const videoRes = await withRetry(() => fetch(videoUrl));
+      const videoRes = await withRetry(() => fetch(videoUrl, { signal: AbortSignal.timeout(120_000) }));
       if (!videoRes.ok) throw new Error(`FAL download: ${videoRes.status}`);
       const buffer = Buffer.from(await videoRes.arrayBuffer());
       return await uploadVideoToStorage(buffer);

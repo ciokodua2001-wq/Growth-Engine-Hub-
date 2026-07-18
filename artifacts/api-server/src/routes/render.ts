@@ -211,4 +211,40 @@ router.post(
   }
 );
 
+// ── Cancel / reset a stuck or in-progress render ─────────────────────────────
+router.delete("/projects/:id/videos/:videoId/render", async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  const projectId = parseInt(req.params.id, 10);
+  const videoId = parseInt(req.params.videoId, 10);
+
+  if (isNaN(projectId) || isNaN(videoId)) {
+    res.status(400).json({ error: "Invalid project or video ID" });
+    return;
+  }
+
+  const [video] = await db.select().from(videosTable).where(
+    and(eq(videosTable.id, videoId), eq(videosTable.projectId, projectId))
+  );
+  if (!video) {
+    res.status(404).json({ error: "Video not found" });
+    return;
+  }
+
+  if (video.renderStatus !== "queued" && video.renderStatus !== "processing") {
+    res.status(409).json({ error: "No render in progress to cancel" });
+    return;
+  }
+
+  await db.update(videosTable).set({
+    renderStatus: "failed",
+    renderError: "Render was cancelled.",
+    renderCompletedAt: new Date(),
+  }).where(eq(videosTable.id, videoId));
+
+  const [updated] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
+  res.json(updated);
+});
+
 export default router;

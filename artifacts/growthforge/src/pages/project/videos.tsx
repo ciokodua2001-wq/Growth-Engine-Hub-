@@ -264,6 +264,7 @@ function RenderPanel({
   const [actorPhotoUrl, setActorPhotoUrl] = useState<string | null>(video.avatarPhotoPath ?? null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [cancellingRender, setCancellingRender] = useState(false);
   const queryClient = useQueryClient();
 
   const startRender = useStartVideoRender();
@@ -332,6 +333,24 @@ function RenderPanel({
       setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploadingPhoto(false);
+    }
+  };
+
+  const handleCancelRender = async () => {
+    setCancellingRender(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/videos/${video.id}/render`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "Cancel failed");
+      }
+      setLocallyStarted(false);
+      await queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) });
+      await queryClient.invalidateQueries({ queryKey: getGetVideoRenderStatusQueryKey(projectId, video.id) });
+    } catch (_err) {
+      // ignore — the poll will update status shortly
+    } finally {
+      setCancellingRender(false);
     }
   };
 
@@ -453,6 +472,14 @@ function RenderPanel({
             })}
           </div>
           <p className="text-[10px] text-white/25">AI video generation takes 10–15 minutes. You can leave this page and come back.</p>
+          <button
+            onClick={() => void handleCancelRender()}
+            disabled={cancellingRender}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/40 hover:text-white/60 border border-white/10 transition-colors disabled:opacity-40 w-fit"
+          >
+            <X className="w-3 h-3" />
+            {cancellingRender ? "Cancelling…" : "Cancel Render"}
+          </button>
         </div>
       )}
 
