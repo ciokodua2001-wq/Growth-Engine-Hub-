@@ -6,9 +6,17 @@ import { eq, asc, desc } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { Storage } from "@google-cloud/storage";
 import type { Request, Response, NextFunction } from "express";
+import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { deductPlatformCredits } from "../lib/platformCredits.js";
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 },
+});
+
+const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+type AllowedMime = (typeof ALLOWED_MIME_TYPES)[number];
 
 async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
   const auth = getAuth(req);
@@ -22,6 +30,92 @@ async function requireAdmin(req: Request, res: Response, next: NextFunction): Pr
   next();
 }
 
+// ── AI vision classification ──────────────────────────────────────────────────
+async function classifyAvatarPhoto(
+  buffer: Buffer,
+  mimeType: AllowedMime,
+  fallbackName: string,
+): Promise<{ gender: string; archetype: string; name: string }> {
+  const base64 = buffer.toString("base64");
+
+  const msg = await anthropic.messages.create({
+    model: "claude-haiku-4-5",
+    max_tokens: 256,
+    system: "You are an avatar classifier for a video marketing platform. Analyze portrait photos and return compact JSON.",
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: { type: "base64", media_type: mimeType, data: base64 },
+          },
+          {
+            type: "text",
+            text: `Analyze this portrait photo for a video presenter avatar library. Return ONLY valid JSON (no markdown fences):
+{
+  "gender": "male" | "female" | "neutral",
+  "archetype": "presenter" | "founder" | "exec" | "creative" | "casual" | "educator" | "influencer" | "professional",
+  "name": "<a realistic first name matching this person's apparent look, e.g. Sarah, Marcus, Alex>"
+}
+
+Pick archetype from visual cues: suit/formal = exec or professional, business casual = presenter or founder, casual wear = casual, artistic/bold = creative, camera-ready = influencer, classroom vibe = educator.`,
+          },
+        ],
+      },
+    ],
+  });
+
+  const text = msg.content[0]?.type === "text" ? msg.content[0].text : "";
+  const clean = text.replace(/```json?\s*/g, "").replace(/```/g, "").trim();
+
+  const validGenders = ["male", "female", "neutral"];
+  const validArchetypes = [
+    "presenter", "founder", "exec", "creative",
+    "casual", "educator", "influencer", "professional",
+  ];
+
+  let gender = "neutral";
+  let archetype = "presenter";
+  let name = fallbackName;
+
+  try {
+    const parsed = JSON.parse(clean) as { gender?: string; archetype?: string; name?: string };
+    if (parsed.gender && validGenders.includes(parsed.gender)) gender = parsed.gender;
+    if (parsed.archetype && validArchetypes.includes(parsed.archetype)) archetype = parsed.archetype;
+    if (parsed.name?.trim()) name = parsed.name.trim();
+  } catch {
+    // Fall back to defaults — upload still proceeds
+  }
+
+  // Haiku vision: ~800 in + 50 out tokens ≈ $0.0003 per photo (cheap)
+  deductPlatformCredits(
+    "anthropic",
+    0.0003,
+    `Avatar vision classify (haiku)`,
+  ).catch(() => {});
+
+  return { gender, archetype, name };
+}
+
+// ── Upload single photo to object storage ─────────────────────────────────────
+async function uploadToStorage(
+  buffer: Buffer,
+  mimeType: string,
+  bucketId: string,
+): Promise<string> {
+  const ext = mimeType.split("/")[1] ?? "jpg";
+  const objectId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const objectPath = `avatars/platform/${objectId}.${ext}`;
+  const storage = new Storage();
+  const bucket = storage.bucket(bucketId);
+  const file = bucket.file(objectPath);
+  await file.save(buffer, { metadata: { contentType: mimeType } });
+  await file.makePublic();
+  const [metadata] = await file.getMetadata();
+  return metadata.mediaLink as string;
+}
+
 // ── List all platform avatars (admin) ─────────────────────────────────────────
 router.get("/admin/platform-avatars", requireAdmin, async (_req, res): Promise<void> => {
   const avatars = await db
@@ -31,7 +125,93 @@ router.get("/admin/platform-avatars", requireAdmin, async (_req, res): Promise<v
   res.json({ avatars });
 });
 
-// ── Upload new platform avatar ────────────────────────────────────────────────
+// ── Bulk upload + AI auto-classify (up to 50 photos) ─────────────────────────
+router.post(
+  "/admin/platform-avatars/bulk",
+  requireAdmin,
+  upload.array("photos", 50),
+  async (req, res): Promise<void> => {
+    const files = req.files as Express.Multer.File[] | undefined;
+    if (!files || files.length === 0) {
+      res.status(400).json({ error: "No photos uploaded" });
+      return;
+    }
+
+    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+    if (!bucketId) {
+      res.status(503).json({ error: "Object storage not configured" });
+      return;
+    }
+
+    type BulkResult = {
+      filename: string;
+      success: boolean;
+      avatar?: typeof platformAvatarsTable.$inferSelect;
+      error?: string;
+    };
+
+    // Process in parallel batches of 5 to respect rate limits
+    const BATCH_SIZE = 5;
+    const allResults: BulkResult[] = [];
+
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE);
+
+      const settled = await Promise.allSettled(
+        batch.map(async (file): Promise<BulkResult> => {
+          if (!(ALLOWED_MIME_TYPES as readonly string[]).includes(file.mimetype)) {
+            return { filename: file.originalname, success: false, error: "Invalid type — must be JPEG, PNG, or WebP" };
+          }
+
+          const fallbackName = file.originalname
+            .replace(/\.[^.]+$/, "")
+            .replace(/[-_]/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+
+          // Step 1: AI vision classify
+          const { gender, archetype, name } = await classifyAvatarPhoto(
+            file.buffer,
+            file.mimetype as AllowedMime,
+            fallbackName,
+          );
+
+          // Step 2: upload to object storage
+          const previewUrl = await uploadToStorage(file.buffer, file.mimetype, bucketId);
+
+          // Step 3: insert into DB
+          const [avatar] = await db
+            .insert(platformAvatarsTable)
+            .values({ name, gender, archetype, previewUrl, sortOrder: 0 })
+            .returning();
+
+          return { filename: file.originalname, success: true, avatar };
+        }),
+      );
+
+      for (const result of settled) {
+        if (result.status === "fulfilled") {
+          allResults.push(result.value);
+        } else {
+          const idx = settled.indexOf(result);
+          allResults.push({
+            filename: batch[idx]?.originalname ?? "unknown",
+            success: false,
+            error: result.reason instanceof Error ? result.reason.message : "Upload failed",
+          });
+        }
+      }
+    }
+
+    const successCount = allResults.filter((r) => r.success).length;
+    res.status(201).json({
+      results: allResults,
+      successCount,
+      totalCount: files.length,
+    });
+  },
+);
+
+// ── Upload single platform avatar (kept for backward compat) ──────────────────
 router.post(
   "/admin/platform-avatars",
   requireAdmin,
@@ -42,8 +222,7 @@ router.post(
       return;
     }
 
-    const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp"];
-    if (!allowedMimeTypes.includes(req.file.mimetype)) {
+    if (!(ALLOWED_MIME_TYPES as readonly string[]).includes(req.file.mimetype)) {
       res.status(400).json({ error: "Photo must be JPEG, PNG, or WebP" });
       return;
     }
@@ -66,18 +245,7 @@ router.post(
       return;
     }
 
-    const ext = req.file.mimetype.split("/")[1] ?? "jpg";
-    const objectId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const objectPath = `avatars/platform/${objectId}.${ext}`;
-
-    const storage = new Storage();
-    const bucket = storage.bucket(bucketId);
-    const file = bucket.file(objectPath);
-
-    await file.save(req.file.buffer, { metadata: { contentType: req.file.mimetype } });
-    await file.makePublic();
-    const [metadata] = await file.getMetadata();
-    const previewUrl = metadata.mediaLink as string;
+    const previewUrl = await uploadToStorage(req.file.buffer, req.file.mimetype, bucketId);
 
     const [avatar] = await db
       .insert(platformAvatarsTable)

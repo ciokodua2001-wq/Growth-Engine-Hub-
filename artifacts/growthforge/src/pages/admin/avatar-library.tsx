@@ -2,7 +2,8 @@ import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Image as ImageIcon, Upload, Trash2, Pencil, X, Check,
-  Loader2, AlertCircle, Users, Eye, EyeOff, GripVertical,
+  Loader2, AlertCircle, Users, Eye, EyeOff, Sparkles,
+  CheckCircle2, XCircle, CloudUpload,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/admin-layout";
 
@@ -16,6 +17,13 @@ interface PlatformAvatar {
   isActive: boolean;
   sortOrder: number;
   createdAt: string;
+}
+
+interface BulkResult {
+  filename: string;
+  success: boolean;
+  avatar?: PlatformAvatar;
+  error?: string;
 }
 
 const GENDERS = ["male", "female", "neutral"] as const;
@@ -108,7 +116,7 @@ export default function AdminAvatarLibrary() {
               <h1 className="text-xl font-bold text-white">Avatar Library</h1>
             </div>
             <p className="text-sm text-white/40">
-              Platform-wide presenter avatars that users can select for video rendering.
+              Platform-wide presenter avatars. AI auto-classifies gender, archetype & name on upload.
               <span className="ml-2 text-white/60">{activeCount} active · {avatars.length} total</span>
             </p>
           </div>
@@ -117,7 +125,7 @@ export default function AdminAvatarLibrary() {
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-black shrink-0"
             style={{ background: "#00E676" }}
           >
-            <Upload className="w-4 h-4" /> Upload Avatar
+            <CloudUpload className="w-4 h-4" /> Bulk Upload
           </button>
         </div>
 
@@ -171,7 +179,7 @@ export default function AdminAvatarLibrary() {
             <ImageIcon className="w-10 h-10 text-white/10" />
             <p className="text-white/30 text-sm">
               {avatars.length === 0
-                ? 'No avatars uploaded yet. Click "Upload Avatar" to get started.'
+                ? 'No avatars yet. Click "Bulk Upload" to add photos — AI will auto-categorize them.'
                 : "No avatars match the current filters."}
             </p>
           </div>
@@ -200,7 +208,7 @@ export default function AdminAvatarLibrary() {
       </div>
 
       {showUploadModal && (
-        <UploadModal
+        <BulkUploadModal
           onClose={() => setShowUploadModal(false)}
           onUploaded={() => {
             setShowUploadModal(false);
@@ -212,17 +220,11 @@ export default function AdminAvatarLibrary() {
   );
 }
 
+// ── Avatar card ────────────────────────────────────────────────────────────────
+
 function AvatarCard({
-  avatar,
-  isEditing,
-  isDeleting,
-  onEdit,
-  onCancelEdit,
-  onSaved,
-  onToggleActive,
-  onDeleteRequest,
-  onDeleteCancel,
-  onDeleteConfirm,
+  avatar, isEditing, isDeleting, onEdit, onCancelEdit, onSaved,
+  onToggleActive, onDeleteRequest, onDeleteCancel, onDeleteConfirm,
 }: {
   avatar: PlatformAvatar;
   isEditing: boolean;
@@ -314,8 +316,8 @@ function AvatarCard({
           <img src={avatar.previewUrl} alt={avatar.name} className="w-full h-full object-cover opacity-40" />
         </div>
         <div className="p-2 space-y-1.5">
-          <p className="text-xs text-red-300 font-semibold text-center">Delete "{avatar.name}"?</p>
-          <p className="text-[10px] text-white/40 text-center">This can't be undone.</p>
+          <p className="text-xs text-red-300 font-semibold text-center">Delete &quot;{avatar.name}&quot;?</p>
+          <p className="text-[10px] text-white/40 text-center">This can&apos;t be undone.</p>
           <div className="flex gap-1">
             <button
               onClick={onDeleteConfirm}
@@ -341,31 +343,17 @@ function AvatarCard({
     }`}>
       <div className="aspect-square overflow-hidden bg-white/5 relative">
         <img src={avatar.previewUrl} alt={avatar.name} className="w-full h-full object-cover" />
-        {/* Hover overlay with actions */}
         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-          <button
-            onClick={onEdit}
-            className="p-2 rounded-lg bg-white/15 hover:bg-white/25 text-white transition-colors"
-            title="Edit"
-          >
+          <button onClick={onEdit} className="p-2 rounded-lg bg-white/15 hover:bg-white/25 text-white transition-colors" title="Edit">
             <Pencil className="w-3.5 h-3.5" />
           </button>
-          <button
-            onClick={onToggleActive}
-            className="p-2 rounded-lg bg-white/15 hover:bg-white/25 text-white transition-colors"
-            title={avatar.isActive ? "Deactivate" : "Activate"}
-          >
+          <button onClick={onToggleActive} className="p-2 rounded-lg bg-white/15 hover:bg-white/25 text-white transition-colors" title={avatar.isActive ? "Deactivate" : "Activate"}>
             {avatar.isActive ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
           </button>
-          <button
-            onClick={onDeleteRequest}
-            className="p-2 rounded-lg bg-red-500/30 hover:bg-red-500/50 text-red-300 transition-colors"
-            title="Delete"
-          >
+          <button onClick={onDeleteRequest} className="p-2 rounded-lg bg-red-500/30 hover:bg-red-500/50 text-red-300 transition-colors" title="Delete">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
-        {/* HeyGen cached badge */}
         {avatar.heygenTalkingPhotoId && (
           <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#00E676]" title="HeyGen talking photo cached" />
         )}
@@ -381,143 +369,259 @@ function AvatarCard({
   );
 }
 
-function UploadModal({ onClose, onUploaded }: { onClose: () => void; onUploaded: () => void }) {
+// ── Bulk upload modal ─────────────────────────────────────────────────────────
+
+type UploadPhase = "select" | "uploading" | "done";
+
+interface QueuedFile {
+  id: string;
+  file: File;
+  previewUrl: string;
+}
+
+function BulkUploadModal({
+  onClose,
+  onUploaded,
+}: {
+  onClose: () => void;
+  onUploaded: () => void;
+}) {
+  const [phase, setPhase] = useState<UploadPhase>("select");
   const [dragging, setDragging] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [gender, setGender] = useState<string>("female");
-  const [archetype, setArchetype] = useState<string>("presenter");
-  const [uploading, setUploading] = useState(false);
+  const [queue, setQueue] = useState<QueuedFile[]>([]);
+  const [results, setResults] = useState<BulkResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = (f: File) => {
-    if (!["image/jpeg", "image/png", "image/webp"].includes(f.type)) {
-      setError("Photo must be JPEG, PNG, or WebP");
-      return;
+  const addFiles = useCallback((incoming: File[]) => {
+    const valid = incoming.filter((f) =>
+      ["image/jpeg", "image/png", "image/webp"].includes(f.type) && f.size <= 15 * 1024 * 1024
+    );
+    setQueue((prev) => {
+      const existingNames = new Set(prev.map((q) => q.file.name));
+      const fresh = valid
+        .filter((f) => !existingNames.has(f.name))
+        .map((f) => ({
+          id: `${f.name}-${f.size}`,
+          file: f,
+          previewUrl: URL.createObjectURL(f),
+        }));
+      return [...prev, ...fresh];
+    });
+    const skipped = incoming.length - valid.length;
+    if (skipped > 0) {
+      setError(`${skipped} file${skipped > 1 ? "s" : ""} skipped — must be JPEG/PNG/WebP under 15 MB.`);
+    } else {
+      setError(null);
     }
-    if (f.size > 15 * 1024 * 1024) {
-      setError("Photo must be under 15 MB");
-      return;
-    }
-    setError(null);
-    setFile(f);
-    const url = URL.createObjectURL(f);
-    setPreview(url);
-    if (!name) {
-      setName(f.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
-    }
+  }, []);
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      addFiles(Array.from(e.dataTransfer.files));
+    },
+    [addFiles],
+  );
+
+  const removeFile = (id: string) => {
+    setQueue((prev) => {
+      const item = prev.find((q) => q.id === id);
+      if (item) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter((q) => q.id !== id);
+    });
   };
 
-  const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    const f = e.dataTransfer.files[0];
-    if (f) handleFile(f);
-  }, [name]);
-
   const handleUpload = async () => {
-    if (!file || !name.trim()) return;
-    setUploading(true);
+    if (queue.length === 0) return;
+    setPhase("uploading");
     setError(null);
+
     try {
       const formData = new FormData();
-      formData.append("photo", file);
-      formData.append("name", name.trim());
-      formData.append("gender", gender);
-      formData.append("archetype", archetype);
-      const res = await fetch("/api/admin/platform-avatars", { method: "POST", body: formData });
+      for (const item of queue) {
+        formData.append("photos", item.file);
+      }
+
+      const res = await fetch("/api/admin/platform-avatars/bulk", {
+        method: "POST",
+        body: formData,
+      });
+
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error ?? "Upload failed");
       }
-      onUploaded();
+
+      const data = await res.json() as { results: BulkResult[]; successCount: number; totalCount: number };
+      setResults(data.results);
+      setPhase("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setUploading(false);
+      setPhase("select");
     }
   };
 
+  const successCount = results.filter((r) => r.success).length;
+  const failCount = results.filter((r) => !r.success).length;
+
+  // ── Done screen ──────────────────────────────────────────────────────────────
+  if (phase === "done") {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.8)" }}>
+        <div className="w-full max-w-lg bg-[#0A1628] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
+            <h2 className="font-bold text-white">Upload Complete</h2>
+            <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-4">
+            {/* Summary */}
+            <div className="flex gap-3">
+              {successCount > 0 && (
+                <div className="flex-1 flex items-center gap-2.5 p-3 rounded-xl bg-[#00E676]/10 border border-[#00E676]/20">
+                  <CheckCircle2 className="w-5 h-5 shrink-0" style={{ color: "#00E676" }} />
+                  <div>
+                    <p className="text-sm font-bold text-white">{successCount} uploaded</p>
+                    <p className="text-xs text-white/40">AI-classified & saved</p>
+                  </div>
+                </div>
+              )}
+              {failCount > 0 && (
+                <div className="flex-1 flex items-center gap-2.5 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                  <XCircle className="w-5 h-5 text-red-400 shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-white">{failCount} failed</p>
+                    <p className="text-xs text-white/40">See details below</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Failed list */}
+            {failCount > 0 && (
+              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                {results.filter((r) => !r.success).map((r) => (
+                  <div key={r.filename} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/8 border border-red-500/15">
+                    <XCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-white/70 font-medium truncate">{r.filename}</p>
+                      <p className="text-[10px] text-red-400">{r.error}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Successful avatars preview */}
+            {successCount > 0 && (
+              <div className="grid grid-cols-6 gap-1.5">
+                {results.filter((r) => r.success && r.avatar).slice(0, 12).map((r) => (
+                  <div key={r.avatar!.id} className="aspect-square rounded-lg overflow-hidden bg-white/5">
+                    <img src={r.avatar!.previewUrl} alt={r.avatar!.name} className="w-full h-full object-cover" />
+                  </div>
+                ))}
+                {successCount > 12 && (
+                  <div className="aspect-square rounded-lg bg-white/8 flex items-center justify-center">
+                    <span className="text-xs text-white/40 font-semibold">+{successCount - 12}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="px-6 py-4 border-t border-white/8">
+            <button
+              onClick={onUploaded}
+              className="w-full py-2.5 rounded-xl text-sm font-bold text-black"
+              style={{ background: "#00E676" }}
+            >
+              Done — View Library
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Uploading screen ─────────────────────────────────────────────────────────
+  if (phase === "uploading") {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.8)" }}>
+        <div className="w-full max-w-sm bg-[#0A1628] border border-white/10 rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-5 text-center">
+          <div className="relative w-16 h-16">
+            <div className="absolute inset-0 rounded-full border-2 border-[#00E676]/20" />
+            <div className="absolute inset-0 rounded-full border-t-2 border-[#00E676] animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Sparkles className="w-6 h-6" style={{ color: "#00E676" }} />
+            </div>
+          </div>
+          <div>
+            <p className="font-bold text-white text-lg">Analyzing with AI</p>
+            <p className="text-sm text-white/50 mt-1">
+              Running vision analysis on {queue.length} photo{queue.length !== 1 ? "s" : ""}
+              <br />to detect gender, archetype & name…
+            </p>
+          </div>
+          <p className="text-xs text-white/25">
+            ~{Math.ceil(queue.length / 5) * 3}s estimated · please don&apos;t close this tab
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Select screen ────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)" }}>
-      <div className="w-full max-w-lg bg-[#0A1628] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.8)" }}>
+      <div className="w-full max-w-2xl bg-[#0A1628] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
-          <h2 className="font-bold text-white">Upload Platform Avatar</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/8 shrink-0">
+          <div>
+            <h2 className="font-bold text-white">Bulk Upload Avatars</h2>
+            <p className="text-xs text-white/40 mt-0.5 flex items-center gap-1.5">
+              <Sparkles className="w-3 h-3" style={{ color: "#00E676" }} />
+              AI will auto-detect gender, archetype & name from each photo
+            </p>
+          </div>
           <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto flex-1">
           {/* Drop zone */}
           <div
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop}
             onClick={() => inputRef.current?.click()}
-            className={`relative flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed cursor-pointer transition-all min-h-[160px] ${
-              dragging ? "border-[#00E676] bg-[#00E676]/5" : "border-white/15 hover:border-white/30 bg-white/3"
+            className={`relative flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed cursor-pointer transition-all py-8 ${
+              dragging
+                ? "border-[#00E676] bg-[#00E676]/5"
+                : "border-white/15 hover:border-white/30 bg-white/3"
             }`}
           >
             <input
               ref={inputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp"
+              multiple
               className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+              onChange={(e) => {
+                if (e.target.files) addFiles(Array.from(e.target.files));
+                e.target.value = "";
+              }}
             />
-            {preview ? (
-              <div className="relative w-28 h-28 rounded-xl overflow-hidden border border-white/20">
-                <img src={preview} alt="Preview" className="w-full h-full object-cover" />
-              </div>
-            ) : (
-              <>
-                <div className="w-12 h-12 rounded-full flex items-center justify-center bg-white/8">
-                  <Upload className="w-5 h-5 text-white/50" />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium text-white/70">Drag & drop or click to upload</p>
-                  <p className="text-xs text-white/30 mt-0.5">JPEG · PNG · WebP · max 15 MB</p>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Metadata */}
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-semibold text-white/50 mb-1.5">Display name *</label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Sarah — Professional"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-[#00E676]/50 transition-colors"
-              />
+            <div className="w-12 h-12 rounded-full flex items-center justify-center bg-white/8">
+              <Upload className="w-5 h-5 text-white/50" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-white/50 mb-1.5">Gender</label>
-                <select
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00E676]/50"
-                >
-                  {GENDERS.map((g) => <option key={g} value={g}>{g.charAt(0).toUpperCase() + g.slice(1)}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-white/50 mb-1.5">Archetype</label>
-                <select
-                  value={archetype}
-                  onChange={(e) => setArchetype(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#00E676]/50"
-                >
-                  {ARCHETYPES.map((a) => <option key={a} value={a}>{a.charAt(0).toUpperCase() + a.slice(1)}</option>)}
-                </select>
-              </div>
+            <div className="text-center">
+              <p className="text-sm font-medium text-white/70">Drag & drop photos here, or click to browse</p>
+              <p className="text-xs text-white/30 mt-0.5">JPEG · PNG · WebP · max 15 MB each · up to 50 photos</p>
             </div>
           </div>
 
@@ -527,10 +631,58 @@ function UploadModal({ onClose, onUploaded }: { onClose: () => void; onUploaded:
               <p className="text-xs text-red-300">{error}</p>
             </div>
           )}
+
+          {/* Queue list */}
+          {queue.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-white/60">
+                  {queue.length} photo{queue.length !== 1 ? "s" : ""} queued
+                </p>
+                <button
+                  onClick={() => {
+                    queue.forEach((q) => URL.revokeObjectURL(q.previewUrl));
+                    setQueue([]);
+                  }}
+                  className="text-xs text-white/30 hover:text-white/60 transition-colors"
+                >
+                  Clear all
+                </button>
+              </div>
+
+              <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                {queue.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/4 border border-white/8 group"
+                  >
+                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-white/5 shrink-0">
+                      <img src={item.previewUrl} alt={item.file.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-white truncate">{item.file.name}</p>
+                      <p className="text-[10px] text-white/30">{(item.file.size / 1024).toFixed(0)} KB</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] text-white/30 bg-white/5 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Sparkles className="w-2.5 h-2.5" style={{ color: "#00E676" }} /> AI
+                      </span>
+                      <button
+                        onClick={() => removeFile(item.id)}
+                        className="p-1 rounded-md text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/8 flex gap-3">
+        <div className="px-6 py-4 border-t border-white/8 flex gap-3 shrink-0">
           <button
             onClick={onClose}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white/50 hover:text-white bg-white/5 hover:bg-white/10 transition-colors"
@@ -539,11 +691,14 @@ function UploadModal({ onClose, onUploaded }: { onClose: () => void; onUploaded:
           </button>
           <button
             onClick={handleUpload}
-            disabled={!file || !name.trim() || uploading}
+            disabled={queue.length === 0}
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-black disabled:opacity-40 transition-all"
             style={{ background: "#00E676" }}
           >
-            {uploading ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading…</> : <><Upload className="w-4 h-4" /> Upload Avatar</>}
+            <Sparkles className="w-4 h-4" />
+            {queue.length === 0
+              ? "Select photos first"
+              : `Analyze & Upload ${queue.length} Avatar${queue.length !== 1 ? "s" : ""}`}
           </button>
         </div>
       </div>
