@@ -12,3 +12,4 @@
 - [Babel mixed type import collision](babel-type-import-collision.md) — `type X as Y` inside a mixed value+type import block causes Babel duplicate-identifier error in Vite; always use a separate `import type { X as Y }` statement instead.
 - [google-ads-api esbuild externalization](google-ads-api-esbuild.md) — externalize `google-ads-api`, `google-gax`, `google-auth-library`, `protobufjs`; REST endpoints return HTML 404s, use gRPC SDK.
 - [FFmpeg Nix path resolution in production](ffmpeg-nix-prod-path.md) — prod container PATH is minimal; must use extended PATH + nix store scan; never rely on bare `which ffmpeg` or `"ffmpeg"` binary name alone.
+- [HeyGen + ElevenLabs prod render failures](heygen-elevenlabs-prod-failures.md) — free ElevenLabs plan 402s all library voices (OpenAI gpt-audio fallback); HeyGen /v2/avatars hangs when no studio avatars (return null, 5s timeout, clear error).
