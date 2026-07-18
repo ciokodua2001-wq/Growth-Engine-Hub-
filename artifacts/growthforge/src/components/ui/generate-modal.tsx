@@ -78,7 +78,11 @@ export default function GenerateModal({
     } catch (err: unknown) {
       clearInterval(interval);
       setPhase("error");
-      const msg = err instanceof Error ? err.message : "Generation failed. Please try again.";
+      let msg = "Generation failed. Please try again.";
+      if (err instanceof Error) {
+        // Strip the "HTTP NNN StatusText: " prefix that ApiError prepends
+        msg = err.message.replace(/^HTTP \d+[^:]*:\s*/i, "").trim() || msg;
+      }
       setErrorMsg(msg);
     }
   };

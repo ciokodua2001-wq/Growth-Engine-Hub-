@@ -410,7 +410,7 @@ function RenderPanel({
           <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-red-400">Render failed</p>
-            <p className="text-xs text-white/40 mt-0.5">{video.renderError ?? "An error occurred during rendering. Please try again."}</p>
+            <p className="text-xs text-white/40 mt-0.5">{renderStatus?.renderError ?? video.renderError ?? "An error occurred during rendering. Please try again."}</p>
           </div>
           <button
             onClick={handleRender}

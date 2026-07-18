@@ -324,7 +324,7 @@ async function generateElevenLabsVoiceover(text: string, voiceId?: string): Prom
 
   const audioBuffer = await withRetry(async () => {
     const response = await fetch(
-      `${ELEVENLABS_API_URL}/v1/text-to-speech/${selectedVoice}`,
+      `${ELEVENLABS_API_URL}/v1/text-to-speech/${selectedVoice}?output_format=mp3_44100_128`,
       {
         method: "POST",
         headers: {
@@ -335,7 +335,6 @@ async function generateElevenLabsVoiceover(text: string, voiceId?: string): Prom
           text: cappedText,
           model_id: "eleven_turbo_v2_5",
           voice_settings: { stability: 0.5, similarity_boost: 0.8 },
-          output_format: "mp3_44100_128",
         }),
       }
     );
