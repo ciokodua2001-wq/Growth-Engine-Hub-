@@ -26,8 +26,28 @@ const FAL_T2V_MODEL = "fal-ai/kling-video/v1.6/standard/text-to-video";
 const FAL_I2V_MODEL = "fal-ai/kling-video/v1.6/standard/image-to-video";
 const HEYGEN_API_URL = "https://api.heygen.com";
 
-// HeyGen stock avatar used when no user photo is provided
-const HEYGEN_DEFAULT_AVATAR_ID = "Daisy-inskirt-20220818";
+// Resolved once per process — fetched live from the account's HeyGen avatar library
+let _cachedDefaultAvatarId: string | null = null;
+
+async function resolveDefaultHeyGenAvatar(apiKey: string): Promise<string> {
+  if (_cachedDefaultAvatarId) return _cachedDefaultAvatarId;
+
+  const res = await fetch(`${HEYGEN_API_URL}/v2/avatars`, {
+    headers: { "X-Api-Key": apiKey },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HeyGen avatars list: ${res.status} ${text.slice(0, 200)}`);
+  }
+  const json = await res.json() as {
+    data: { avatars: Array<{ avatar_id: string; avatar_name: string }> };
+  };
+  const first = json.data?.avatars?.[0];
+  if (!first) throw new Error("HeyGen account has no avatars — upload a photo to render");
+  _cachedDefaultAvatarId = first.avatar_id;
+  logger.info({ avatarId: first.avatar_id, avatarName: first.avatar_name }, "HeyGen default avatar resolved");
+  return _cachedDefaultAvatarId;
+}
 
 const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID ?? "pNInz6obpgDQGcFmaJgB"; // Adam
 
@@ -318,7 +338,8 @@ async function generateHeyGenVideo(
     const talkingPhotoId = await uploadHeyGenTalkingPhoto(avatarPhotoPath, apiKey);
     character = { type: "talking_photo", talking_photo_id: talkingPhotoId };
   } else {
-    character = { type: "avatar", avatar_id: HEYGEN_DEFAULT_AVATAR_ID };
+    const defaultAvatarId = await resolveDefaultHeyGenAvatar(apiKey);
+    character = { type: "avatar", avatar_id: defaultAvatarId };
   }
 
   const body = {
