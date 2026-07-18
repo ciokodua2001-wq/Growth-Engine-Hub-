@@ -336,6 +336,28 @@ router.delete("/admin/platform-avatars/:avatarId", requireAdmin, async (req, res
   res.json({ ok: true });
 });
 
+// ── Clear stale HeyGen talking photo IDs from the DB ─────────────────────────
+// Use this after manually deleting talking photos from the HeyGen dashboard.
+// Sets heygenTalkingPhotoId = NULL for all (or one) platform avatar records
+// so Sync HeyGen will re-upload them.
+router.post("/admin/platform-avatars/clear-heygen-ids", requireAdmin, async (req, res): Promise<void> => {
+  const avatarId = (req.body as { avatarId?: number }).avatarId;
+
+  if (avatarId !== undefined) {
+    await db
+      .update(platformAvatarsTable)
+      .set({ heygenTalkingPhotoId: null })
+      .where(eq(platformAvatarsTable.id, avatarId));
+    res.json({ ok: true, cleared: 1 });
+  } else {
+    const result = await db
+      .update(platformAvatarsTable)
+      .set({ heygenTalkingPhotoId: null })
+      .returning({ id: platformAvatarsTable.id });
+    res.json({ ok: true, cleared: result.length });
+  }
+});
+
 // ── Sync existing platform avatars to HeyGen (backfill heygenTalkingPhotoId) ─
 // Call once after uploading avatars to fix any records that are missing the
 // cached HeyGen talking_photo_id. Processes sequentially to stay within rate limits.

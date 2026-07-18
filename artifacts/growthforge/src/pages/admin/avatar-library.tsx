@@ -71,6 +71,8 @@ export default function AdminAvatarLibrary() {
   const [error, setError] = useState<string | null>(null);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
 
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
   const syncMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/admin/platform-avatars/sync-heygen", { method: "POST" });
@@ -83,6 +85,25 @@ export default function AdminAvatarLibrary() {
       queryClient.invalidateQueries({ queryKey: ["admin-platform-avatars"] });
     },
     onError: (err) => setError(err instanceof Error ? err.message : "Sync failed"),
+  });
+
+  const resetIdsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/platform-avatars/clear-heygen-ids", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const body = await res.json() as { ok: boolean; cleared: number; error?: string };
+      if (!res.ok) throw new Error(body.error ?? "Reset failed");
+      return body;
+    },
+    onSuccess: (data) => {
+      setShowResetConfirm(false);
+      setSyncResult({ synced: 0, total: data.cleared, results: [], message: `Cleared ${data.cleared} stale HeyGen IDs — now click Sync HeyGen to re-upload.` });
+      queryClient.invalidateQueries({ queryKey: ["admin-platform-avatars"] });
+    },
+    onError: (err) => { setShowResetConfirm(false); setError(err instanceof Error ? err.message : "Reset failed"); },
   });
 
   const { data, isLoading } = useQuery<{ avatars: PlatformAvatar[] }>({
@@ -143,11 +164,37 @@ export default function AdminAvatarLibrary() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {showResetConfirm ? (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-red-500/40 bg-red-500/10">
+                <span className="text-xs text-red-300 font-semibold">Clear all HeyGen IDs?</span>
+                <button
+                  onClick={() => resetIdsMutation.mutate()}
+                  disabled={resetIdsMutation.isPending}
+                  className="px-2 py-0.5 rounded-lg bg-red-500/30 hover:bg-red-500/50 text-red-200 text-xs font-bold transition-colors disabled:opacity-40"
+                >
+                  {resetIdsMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "Yes, clear"}
+                </button>
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  className="text-white/40 hover:text-white/70"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setSyncResult(null); setError(null); setShowResetConfirm(true); }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border border-white/10 text-white/40 hover:text-red-300 hover:border-red-500/30 transition-colors"
+                title="Use after manually deleting talking photos from HeyGen dashboard — marks all IDs as stale so Sync re-uploads them"
+              >
+                Reset IDs
+              </button>
+            )}
             <button
               onClick={() => { setSyncResult(null); setError(null); syncMutation.mutate(); }}
               disabled={syncMutation.isPending}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border border-white/15 text-white/70 hover:text-white hover:border-white/30 transition-colors disabled:opacity-40"
-              title="Upload all avatars missing HeyGen talking photo IDs — run after clearing slots in HeyGen dashboard"
+              title="Upload all avatars missing HeyGen talking photo IDs — run after Reset IDs"
             >
               {syncMutation.isPending
                 ? <Loader2 className="w-4 h-4 animate-spin" />
