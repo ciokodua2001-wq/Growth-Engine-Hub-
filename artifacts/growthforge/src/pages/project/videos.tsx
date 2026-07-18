@@ -7,6 +7,7 @@ import {
   useStartVideoRender,
   useGetVideoRenderStatus,
   useGenerateImage,
+  useGetProjectUsage,
   getListVideosQueryKey,
   getGetVideoRenderStatusQueryKey,
   getGetProjectQueryKey,
@@ -20,6 +21,7 @@ import {
   Loader2, Video as VideoIcon, Play, Sparkles, Film, Check, X,
   AlertCircle, ChevronDown, Image as ImageIcon, RefreshCw,
   Lock, Download, ExternalLink, Plus, Trash2, User, Upload,
+  Search, Filter, Clock, Archive, BarChart3, RotateCcw,
 } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 
@@ -826,43 +828,325 @@ function ImageStudio({ projectId, isTrial }: { projectId: number; isTrial: boole
   );
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatBatchTime(d: Date): string {
+  const now = new Date();
+  const diffMin = Math.floor((now.getTime() - d.getTime()) / 60000);
+  const diffHr  = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffMin < 2)  return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHr < 24)  return `${diffHr}h ago`;
+  if (diffDay < 7)  return `${diffDay}d ago`;
+  return d.toLocaleDateString();
+}
+
+function groupIntoBatches(vids: VideoModel[]): { anchor: Date; videos: VideoModel[] }[] {
+  if (vids.length === 0) return [];
+  const batches: { anchor: Date; videos: VideoModel[] }[] = [];
+  for (const v of vids) {
+    const t = new Date(v.createdAt).getTime();
+    const last = batches[batches.length - 1];
+    if (last && Math.abs(new Date(last.anchor).getTime() - t) <= 5 * 60 * 1000) {
+      last.videos.push(v);
+    } else {
+      batches.push({ anchor: new Date(v.createdAt), videos: [v] });
+    }
+  }
+  return batches;
+}
+
+// ── VideoCard ─────────────────────────────────────────────────────────────────
+
+function VideoCard({
+  video,
+  index,
+  isSelected,
+  isArchived,
+  onSelect,
+  onArchive,
+  projectId,
+  isTrial,
+  isStarterPlan,
+}: {
+  video: VideoModel;
+  index: number;
+  isSelected: boolean;
+  isArchived: boolean;
+  onSelect: () => void;
+  onArchive: () => void;
+  projectId: number;
+  isTrial: boolean;
+  isStarterPlan: boolean;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.06 }}
+      className={`p-5 rounded-xl bg-card border transition-all ${
+        isSelected ? "border-primary shadow-lg shadow-primary/10" : "border-border hover:border-border/80"
+      }`}
+    >
+      {/* Thumbnail */}
+      <div
+        className="h-36 rounded-lg bg-secondary flex items-center justify-center mb-4 relative overflow-hidden group cursor-pointer"
+        onClick={onSelect}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent" />
+        {video.videoUrl ? (
+          <video src={video.videoUrl} className="absolute inset-0 w-full h-full object-cover" muted />
+        ) : (
+          <Play className="h-10 w-10 text-primary/60 group-hover:text-primary transition-colors" />
+        )}
+        <span className={`absolute top-2 right-2 text-[10px] font-bold px-2 py-1 rounded border ${typeColors[video.type] ?? "bg-secondary text-muted-foreground border-border"}`}>
+          {video.type}
+        </span>
+        <div className="absolute bottom-2 left-2">
+          <RenderStatusBadge status={video.renderStatus ?? "idle"} />
+        </div>
+        {/* Archive / Restore button */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onArchive(); }}
+          title={isArchived ? "Restore from archive" : "Archive this blueprint"}
+          className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white/60 hover:text-white"
+        >
+          {isArchived ? <RotateCcw className="w-3 h-3" /> : <Archive className="w-3 h-3" />}
+        </button>
+      </div>
+
+      {/* Title + meta */}
+      <div className="flex items-start justify-between gap-2 cursor-pointer" onClick={onSelect}>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold text-sm leading-snug">{video.title}</h3>
+          {video.duration && (
+            <p className="text-xs text-muted-foreground mt-0.5">{video.duration}s · {video.status}</p>
+          )}
+        </div>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform mt-0.5 ${isSelected ? "rotate-180" : ""}`} />
+      </div>
+
+      {/* Score bars */}
+      <div className="space-y-2 mt-3">
+        <ScoreBar label="Hook Strength"   value={video.hookStrength}       color="bg-violet-500" />
+        <ScoreBar label="Engagement"      value={video.engagementPotential} color="bg-cyan-500" />
+        <ScoreBar label="Viral Potential" value={video.viralPotential}     color="bg-pink-500" />
+      </div>
+
+      {/* Expanded content */}
+      <AnimatePresence>
+        {isSelected && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            {(() => {
+              const plan = parseCinematicPlan(video.cinematicPlan);
+              if (plan) return <CinematicBlueprintViewer plan={plan} script={video.script} />;
+              return video.script ? (
+                <div className="mt-4 pt-4 border-t border-border space-y-3">
+                  <div>
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Script</div>
+                    <pre className="text-xs text-foreground whitespace-pre-wrap leading-relaxed font-sans">{video.script}</pre>
+                  </div>
+                  {video.storyboard && (
+                    <div>
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Storyboard</div>
+                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed font-sans">{video.storyboard}</pre>
+                    </div>
+                  )}
+                </div>
+              ) : null;
+            })()}
+            <RenderPanel video={video} projectId={projectId} isTrial={isTrial} isStarterPlan={isStarterPlan} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// ── Usage Panel ───────────────────────────────────────────────────────────────
+
+const PLAN_LABEL: Record<string, string> = {
+  trial:       "Trial",
+  starter:     "Starter",
+  "get-going": "Get-Going",
+};
+const PLAN_COLOR: Record<string, string> = {
+  trial:       "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
+  starter:     "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  "get-going": "bg-[#00E676]/15 text-[#00E676] border-[#00E676]/30",
+};
+
+function UsagePanel({ projectId, plan }: { projectId: number; plan: string }) {
+  const { data: usageData, isLoading } = useGetProjectUsage(projectId);
+
+  if (isLoading || !usageData) return null;
+
+  const isTrial = plan === "trial";
+  const { usage, periodStart } = usageData;
+
+  const metrics: { label: string; feature: string; icon: string }[] = [
+    { label: "Video Blueprints",   feature: "video_blueprints",  icon: "🎬" },
+    { label: "Social Posts",       feature: "social_posts",      icon: "📱" },
+    { label: "Email Campaigns",    feature: "email_campaigns",   icon: "📧" },
+    { label: "AI Agent Messages",  feature: "agent_messages",    icon: "🤖" },
+  ];
+
+  const resetDate = periodStart
+    ? new Date(new Date(periodStart).setMonth(new Date(periodStart).getMonth() + 1)).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    : null;
+
+  return (
+    <div className="mb-6 rounded-2xl border border-white/8 bg-white/2 p-4">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 text-[#00D4FF]" />
+          <span className="text-sm font-bold text-white/70">
+            {isTrial ? "Trial Usage" : "Monthly Usage"}
+          </span>
+          {!isTrial && resetDate && (
+            <span className="text-[10px] text-white/25">resets {resetDate}</span>
+          )}
+        </div>
+        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${PLAN_COLOR[plan] ?? "bg-white/10 text-white/60 border-white/20"}`}>
+          {PLAN_LABEL[plan] ?? plan}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {metrics.map(({ label, feature, icon }) => {
+          const entry = usage[feature];
+          if (!entry) return null;
+          const pct = entry.limit != null ? Math.min(100, (entry.used / entry.limit) * 100) : null;
+          const remaining = entry.limit != null ? entry.limit - entry.used : null;
+          const warn = pct != null && pct >= 80;
+          return (
+            <div key={feature} className="rounded-xl bg-white/3 border border-white/6 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-white/40 leading-snug">{label}</span>
+                <span className="text-[10px]">{icon}</span>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-xl font-black text-white">{entry.used}</span>
+                {entry.limit != null && (
+                  <span className="text-xs text-white/30">/ {entry.limit}</span>
+                )}
+              </div>
+              {pct != null ? (
+                <div className="space-y-1">
+                  <div className="h-1 bg-white/8 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${warn ? "bg-orange-400" : "bg-[#00E676]"}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  {remaining != null && (
+                    <p className={`text-[9px] font-medium ${warn ? "text-orange-400" : "text-white/30"}`}>
+                      {remaining} remaining
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[9px] text-white/30">Unlimited</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
+
 export default function ProjectVideos() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
-  const [mode, setMode] = useState<"auto" | "prompt">("auto");
+
+  // Generation controls
+  const [mode, setMode]                   = useState<"auto" | "prompt">("auto");
   const [targetDuration, setTargetDuration] = useState<15 | 30 | 45 | 60 | 90>(45);
   const [blueprintCount, setBlueprintCount] = useState(5);
+  const [modalOpen, setModalOpen]         = useState(false);
+  const [imgModalOpen, setImgModalOpen]   = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<number | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [imgModalOpen, setImgModalOpen] = useState(false);
+
+  // Organisation state
+  const [searchQuery,   setSearchQuery]   = useState("");
+  const [filterType,    setFilterType]    = useState<"all" | "promo" | "product" | "social">("all");
+  const [filterStatus,  setFilterStatus]  = useState<"all" | "rendered" | "not_rendered" | "failed">("all");
+  const [sortBy,        setSortBy]        = useState<"newest" | "hookStrength" | "engagement">("newest");
+  const [showHistory,   setShowHistory]   = useState(false);
+  const [showArchived,  setShowArchived]  = useState(false);
+  const [archivedIds,   setArchivedIds]   = useState<Set<number>>(() => {
+    try {
+      const raw = localStorage.getItem(`gf-archived-${projectId}`);
+      return raw ? new Set(JSON.parse(raw) as number[]) : new Set<number>();
+    } catch { return new Set<number>(); }
+  });
 
   const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
   const { data: videos, isLoading } = useListVideos(projectId, { query: { queryKey: getListVideosQueryKey(projectId), enabled: !!projectId } });
   const generateVideos = useGenerateVideos();
   const queryClient = useQueryClient();
 
-  const isTrial = project?.plan === "trial";
+  const isTrial      = project?.plan === "trial";
   const isStarterPlan = project?.plan === "starter";
+  const plan          = project?.plan ?? "starter";
 
-  const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      generateVideos.mutate(
-        { id: projectId, data: { mode, count: blueprintCount, targetDuration } },
-        {
-          onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) });
-            resolve();
-          },
-          onError: reject,
-        }
-      );
+  const toggleArchive = (videoId: number) => {
+    setArchivedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(videoId)) next.delete(videoId); else next.add(videoId);
+      try { localStorage.setItem(`gf-archived-${projectId}`, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
     });
   };
 
+  const handleSubmit = (_url: string, _instructions: string): Promise<void> =>
+    new Promise((resolve, reject) => {
+      generateVideos.mutate(
+        { id: projectId, data: { mode, count: blueprintCount, targetDuration } },
+        {
+          onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) }); resolve(); },
+          onError: reject,
+        },
+      );
+    });
+
+  const allVideos     = videos ?? [];
+  const activeVideos  = allVideos.filter(v => !archivedIds.has(v.id));
+  const archivedVideos = allVideos.filter(v => archivedIds.has(v.id));
+
+  const filteredVideos = activeVideos
+    .filter(v => filterType === "all" || v.type === filterType)
+    .filter(v => {
+      if (filterStatus === "rendered")     return v.renderStatus === "complete";
+      if (filterStatus === "not_rendered") return !v.renderStatus || v.renderStatus === "idle";
+      if (filterStatus === "failed")       return v.renderStatus === "failed";
+      return true;
+    })
+    .filter(v => !searchQuery || v.title.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === "hookStrength") return (b.hookStrength ?? 0) - (a.hookStrength ?? 0);
+      if (sortBy === "engagement")   return (b.engagementPotential ?? 0) - (a.engagementPotential ?? 0);
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+  const batches      = groupIntoBatches(filteredVideos);
+  const activeBatch  = batches[0] ?? null;
+  const historyBatches = batches.slice(1);
+  const hasFilters   = !!(searchQuery || filterType !== "all" || filterStatus !== "all" || sortBy !== "newest");
+
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full">
-      {/* Header */}
+
+      {/* ── Page header ── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-black tracking-tight">Video Studio</h1>
@@ -871,46 +1155,31 @@ export default function ProjectVideos() {
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Duration picker */}
           <div className="flex flex-col gap-0.5">
             <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider px-0.5">Duration</p>
             <div className="flex rounded-xl border border-border overflow-hidden">
               {([15, 30, 45, 60, 90] as const).map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setTargetDuration(d)}
-                  className={`px-3 py-2 text-sm font-medium transition-colors ${targetDuration === d ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                >
+                <button key={d} onClick={() => setTargetDuration(d)}
+                  className={`px-3 py-2 text-sm font-medium transition-colors ${targetDuration === d ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
                   {d}s
                 </button>
               ))}
             </div>
           </div>
-          {/* Count picker */}
           <div className="flex flex-col gap-0.5">
             <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider px-0.5">Blueprints</p>
             <div className="flex items-center rounded-xl border border-border overflow-hidden">
-              <button
-                onClick={() => setBlueprintCount(c => Math.max(1, c - 1))}
-                className="px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors"
-              >−</button>
+              <button onClick={() => setBlueprintCount(c => Math.max(1, c - 1))} className="px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors">−</button>
               <span className="px-3 py-2 text-sm font-semibold min-w-[2rem] text-center">{blueprintCount}</span>
-              <button
-                onClick={() => setBlueprintCount(c => Math.min(12, c + 1))}
-                className="px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors"
-              >+</button>
+              <button onClick={() => setBlueprintCount(c => Math.min(12, c + 1))} className="px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors">+</button>
             </div>
           </div>
-          {/* Mode toggle */}
           <div className="flex flex-col gap-0.5">
             <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider px-0.5">Mode</p>
             <div className="flex rounded-xl border border-border overflow-hidden">
               {(["auto", "prompt"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setMode(m)}
-                  className={`px-4 py-2 text-sm font-medium transition-colors ${mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                >
+                <button key={m} onClick={() => setMode(m)}
+                  className={`px-4 py-2 text-sm font-medium transition-colors ${mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
                   {m === "auto" ? "Auto" : "Prompt"}
                 </button>
               ))}
@@ -926,116 +1195,210 @@ export default function ProjectVideos() {
         </div>
       </div>
 
-      {/* Blueprint cards */}
+      {/* ── Usage panel ── */}
+      <UsagePanel projectId={projectId} plan={plan} />
+
+      {/* ── Blueprint library ── */}
       {isLoading ? (
         <div className="flex items-center justify-center py-32">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : videos && videos.length > 0 ? (
-        <div className="grid lg:grid-cols-2 gap-4">
-          {videos.map((video, i) => {
-            const isSelected = selectedVideo === video.id;
-            return (
-              <motion.div
-                key={video.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.07 }}
-                className={`p-5 rounded-xl bg-card border transition-all ${
-                  isSelected ? "border-primary shadow-lg shadow-primary/10" : "border-border hover:border-border/80"
-                }`}
+      ) : allVideos.length > 0 ? (
+        <div>
+          {/* Filter / Sort / Search bar */}
+          <div className="flex flex-col sm:flex-row gap-2 mb-6 flex-wrap">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[180px] max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search blueprints…"
+                className="w-full pl-8 pr-8 py-2 rounded-xl bg-white/4 border border-white/8 text-xs text-white placeholder:text-white/25 focus:outline-none focus:border-white/20 transition-colors"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Type filter */}
+            <div className="flex rounded-xl border border-white/8 overflow-hidden shrink-0">
+              {(["all", "promo", "product", "social"] as const).map((t) => (
+                <button key={t} onClick={() => setFilterType(t)}
+                  className={`px-3 py-2 text-xs font-medium transition-colors ${filterType === t ? "bg-white/12 text-white" : "text-white/40 hover:text-white/60"}`}>
+                  {t === "all" ? "All" : t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {/* Status filter */}
+            <div className="flex rounded-xl border border-white/8 overflow-hidden shrink-0">
+              {([
+                { v: "all",         l: "All" },
+                { v: "rendered",    l: "Rendered" },
+                { v: "not_rendered",l: "Pending" },
+                { v: "failed",      l: "Failed" },
+              ] as const).map((s) => (
+                <button key={s.v} onClick={() => setFilterStatus(s.v)}
+                  className={`px-3 py-2 text-xs font-medium transition-colors ${filterStatus === s.v ? "bg-white/12 text-white" : "text-white/40 hover:text-white/60"}`}>
+                  {s.l}
+                </button>
+              ))}
+            </div>
+
+            {/* Sort */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+              className="px-3 py-2 rounded-xl bg-white/4 border border-white/8 text-xs text-white/60 focus:outline-none focus:border-white/20 transition-colors shrink-0"
+            >
+              <option value="newest">Newest first</option>
+              <option value="hookStrength">Hook Strength</option>
+              <option value="engagement">Engagement</option>
+            </select>
+
+            {hasFilters && (
+              <button
+                onClick={() => { setSearchQuery(""); setFilterType("all"); setFilterStatus("all"); setSortBy("newest"); }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/8 text-xs text-white/40 hover:text-white/60 transition-colors shrink-0"
               >
-                {/* Thumbnail */}
-                <div
-                  className="h-36 rounded-lg bg-secondary flex items-center justify-center mb-4 relative overflow-hidden group cursor-pointer"
-                  onClick={() => setSelectedVideo(isSelected ? null : video.id)}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent" />
-                  {video.videoUrl ? (
-                    <video
-                      src={video.videoUrl}
-                      className="absolute inset-0 w-full h-full object-cover"
-                      muted
-                    />
-                  ) : (
-                    <Play className="h-10 w-10 text-primary/60 group-hover:text-primary transition-colors" />
-                  )}
-                  <span className={`absolute top-2 right-2 text-[10px] font-bold px-2 py-1 rounded border ${typeColors[video.type] ?? "bg-secondary text-muted-foreground border-border"}`}>
-                    {video.type}
-                  </span>
-                  <div className="absolute bottom-2 left-2">
-                    <RenderStatusBadge status={video.renderStatus ?? "idle"} />
+                <X className="w-3 h-3" /> Clear
+              </button>
+            )}
+          </div>
+
+          {filteredVideos.length === 0 ? (
+            <div className="text-center py-20">
+              <Filter className="w-10 h-10 text-white/15 mx-auto mb-3" />
+              <p className="text-sm text-white/40">No blueprints match your filters</p>
+              <button
+                onClick={() => { setSearchQuery(""); setFilterType("all"); setFilterStatus("all"); setSortBy("newest"); }}
+                className="mt-3 text-xs text-[#00E676] hover:text-[#00E676]/80 transition-colors"
+              >
+                Clear filters
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* ── Active Workspace — latest generation batch ── */}
+              {activeBatch && (
+                <div className="mb-10">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#00E676] animate-pulse" />
+                    <h2 className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Active Workspace</h2>
+                    <span className="text-[10px] text-white/25">
+                      {formatBatchTime(activeBatch.anchor)} · {activeBatch.videos.length} blueprint{activeBatch.videos.length !== 1 ? "s" : ""}
+                    </span>
                   </div>
-                </div>
-
-                {/* Title + meta */}
-                <div
-                  className="flex items-start justify-between gap-2 cursor-pointer"
-                  onClick={() => setSelectedVideo(isSelected ? null : video.id)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-sm leading-snug">{video.title}</h3>
-                    {video.duration && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{video.duration}s · {video.status}</p>
-                    )}
-                  </div>
-                  <ChevronDown
-                    className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform mt-0.5 ${isSelected ? "rotate-180" : ""}`}
-                  />
-                </div>
-
-                {/* Score bars */}
-                <div className="space-y-2 mt-3">
-                  <ScoreBar label="Hook Strength" value={video.hookStrength} color="bg-violet-500" />
-                  <ScoreBar label="Engagement" value={video.engagementPotential} color="bg-cyan-500" />
-                  <ScoreBar label="Viral Potential" value={video.viralPotential} color="bg-pink-500" />
-                </div>
-
-                {/* Expanded content */}
-                <AnimatePresence>
-                  {isSelected && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden"
-                    >
-                      {/* Cinematic Blueprint or legacy Script/Storyboard */}
-                      {(() => {
-                        const plan = parseCinematicPlan(video.cinematicPlan);
-                        if (plan) {
-                          return <CinematicBlueprintViewer plan={plan} script={video.script} />;
-                        }
-                        // Fallback for older blueprints that pre-date cinematic plans
-                        return video.script ? (
-                          <div className="mt-4 pt-4 border-t border-border space-y-3">
-                            <div>
-                              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Script</div>
-                              <pre className="text-xs text-foreground whitespace-pre-wrap leading-relaxed font-sans">{video.script}</pre>
-                            </div>
-                            {video.storyboard && (
-                              <div>
-                                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Storyboard</div>
-                                <pre className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed font-sans">{video.storyboard}</pre>
-                              </div>
-                            )}
-                          </div>
-                        ) : null;
-                      })()}
-
-                      {/* Render panel */}
-                      <RenderPanel
-                        video={video}
-                        projectId={projectId}
-                        isTrial={isTrial}
-                        isStarterPlan={isStarterPlan}
+                  <div className="grid lg:grid-cols-2 gap-4">
+                    {activeBatch.videos.map((video, i) => (
+                      <VideoCard
+                        key={video.id} video={video} index={i}
+                        isSelected={selectedVideo === video.id}
+                        isArchived={archivedIds.has(video.id)}
+                        onSelect={() => setSelectedVideo(selectedVideo === video.id ? null : video.id)}
+                        onArchive={() => toggleArchive(video.id)}
+                        projectId={projectId} isTrial={isTrial} isStarterPlan={isStarterPlan}
                       />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            );
-          })}
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── History — older generation batches ── */}
+              {historyBatches.length > 0 && (
+                <div className="pt-6 border-t border-white/6">
+                  <button
+                    onClick={() => setShowHistory(!showHistory)}
+                    className="flex items-center gap-2 mb-4 w-full text-xs text-white/40 hover:text-white/60 transition-colors"
+                  >
+                    <Clock className="w-3.5 h-3.5 shrink-0" />
+                    <span className="font-bold uppercase tracking-widest">History</span>
+                    <span className="text-white/25">
+                      {historyBatches.reduce((s, b) => s + b.videos.length, 0)} blueprints across {historyBatches.length} generation{historyBatches.length !== 1 ? "s" : ""}
+                    </span>
+                    <ChevronDown className={`w-3.5 h-3.5 ml-auto shrink-0 transition-transform ${showHistory ? "rotate-180" : ""}`} />
+                  </button>
+
+                  <AnimatePresence>
+                    {showHistory && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden space-y-8"
+                      >
+                        {historyBatches.map((batch, bi) => (
+                          <div key={bi}>
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">
+                                {formatBatchTime(batch.anchor)}
+                              </span>
+                              <span className="text-[10px] text-white/20">
+                                · {batch.videos.length} blueprint{batch.videos.length !== 1 ? "s" : ""}
+                              </span>
+                            </div>
+                            <div className="grid lg:grid-cols-2 gap-4">
+                              {batch.videos.map((video, i) => (
+                                <VideoCard
+                                  key={video.id} video={video} index={i}
+                                  isSelected={selectedVideo === video.id}
+                                  isArchived={archivedIds.has(video.id)}
+                                  onSelect={() => setSelectedVideo(selectedVideo === video.id ? null : video.id)}
+                                  onArchive={() => toggleArchive(video.id)}
+                                  projectId={projectId} isTrial={isTrial} isStarterPlan={isStarterPlan}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Archived blueprints ── */}
+          {archivedVideos.length > 0 && (
+            <div className="mt-8 pt-6 border-t border-white/6">
+              <button
+                onClick={() => setShowArchived(!showArchived)}
+                className="flex items-center gap-2 mb-4 w-full text-xs text-white/25 hover:text-white/45 transition-colors"
+              >
+                <Archive className="w-3.5 h-3.5 shrink-0" />
+                <span className="font-bold uppercase tracking-widest">Archived</span>
+                <span className="text-white/20">{archivedVideos.length} blueprint{archivedVideos.length !== 1 ? "s" : ""}</span>
+                <ChevronDown className={`w-3.5 h-3.5 ml-auto shrink-0 transition-transform ${showArchived ? "rotate-180" : ""}`} />
+              </button>
+              <AnimatePresence>
+                {showArchived && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="grid lg:grid-cols-2 gap-4 opacity-55">
+                      {archivedVideos.map((video, i) => (
+                        <VideoCard
+                          key={video.id} video={video} index={i}
+                          isSelected={selectedVideo === video.id}
+                          isArchived={true}
+                          onSelect={() => setSelectedVideo(selectedVideo === video.id ? null : video.id)}
+                          onArchive={() => toggleArchive(video.id)}
+                          projectId={projectId} isTrial={isTrial} isStarterPlan={isStarterPlan}
+                        />
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-32 text-center">
@@ -1054,10 +1417,10 @@ export default function ProjectVideos() {
         </div>
       )}
 
-      {/* AI Image Studio */}
+      {/* ── AI Image Studio ── */}
       <ImageStudio projectId={projectId} isTrial={isTrial} />
 
-      {/* Modals */}
+      {/* ── Modals ── */}
       <GenerateModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -1069,7 +1432,6 @@ export default function ProjectVideos() {
         onSubmit={handleSubmit}
         ctaLabel={`Generate ${blueprintCount} Blueprint${blueprintCount !== 1 ? "s" : ""}`}
       />
-
       <GenerateModal
         isOpen={imgModalOpen}
         onClose={() => setImgModalOpen(false)}

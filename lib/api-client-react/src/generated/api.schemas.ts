@@ -730,6 +730,19 @@ export interface UploadUrlResponse {
   metadata?: UploadUrlRequest;
 }
 
+export type ProjectUsageUsage = {[key: string]: {
+  used: number;
+  /** @nullable */
+  limit?: number | null;
+}};
+
+export interface ProjectUsage {
+  plan: string;
+  /** @nullable */
+  periodStart?: string | null;
+  usage: ProjectUsageUsage;
+}
+
 export interface ErrorEnvelope {
   error: string;
 }

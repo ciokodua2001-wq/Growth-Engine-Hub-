@@ -1532,6 +1532,23 @@ export const AgentChatResponse = zod.object({
 
 
 /**
+ * @summary Get quota usage for a project (trial or paid plan)
+ */
+export const GetProjectUsageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetProjectUsageResponse = zod.object({
+  "plan": zod.string(),
+  "periodStart": zod.string().nullish(),
+  "usage": zod.record(zod.string(), zod.object({
+  "used": zod.number(),
+  "limit": zod.number().nullish()
+}))
+})
+
+
+/**
  * @summary Get AI agent conversation history
  */
 export const GetAgentHistoryParams = zod.object({

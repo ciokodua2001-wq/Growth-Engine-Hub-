@@ -50,6 +50,8 @@ export * from './projectAnalytics';
 export * from './projectAvatar';
 export * from './projectInput';
 export * from './projectUpdate';
+export * from './projectUsage';
+export * from './projectUsageUsage';
 export * from './publishSocialInput';
 export * from './publishSocialInputPlatform';
 export * from './report';
