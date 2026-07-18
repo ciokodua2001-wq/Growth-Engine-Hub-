@@ -547,10 +547,27 @@ async function listHeyGenTalkingPhotoIds(apiKey: string): Promise<string[]> {
       headers: { "X-Api-Key": apiKey },
       signal: AbortSignal.timeout(15_000),
     });
-    if (!res.ok) return [];
-    const body = await res.json() as { data?: { talking_photos?: Array<{ talking_photo_id: string }> } };
-    return body.data?.talking_photos?.map(p => p.talking_photo_id) ?? [];
-  } catch {
+    if (!res.ok) {
+      logger.warn({ status: res.status }, "HeyGen avatar list returned non-ok status");
+      return [];
+    }
+    const body = await res.json() as {
+      data?: {
+        talking_photos?: Array<{ talking_photo_id: string }>;
+        avatars?: Array<{ avatar_id: string; type?: string }>;
+      };
+    };
+    // HeyGen may surface talking photos in EITHER data.talking_photos OR data.avatars
+    // (with type === "talking_photo"). Check both to be safe.
+    const fromTalkingPhotos = (body.data?.talking_photos ?? []).map(p => p.talking_photo_id);
+    const fromAvatars = (body.data?.avatars ?? [])
+      .filter(a => a.type === "talking_photo")
+      .map(a => a.avatar_id);
+    const ids = [...new Set([...fromTalkingPhotos, ...fromAvatars])];
+    logger.info({ fromTalkingPhotos, fromAvatars, total: ids.length }, "Listed HeyGen talking photos");
+    return ids;
+  } catch (err) {
+    logger.warn({ err }, "Failed to list HeyGen talking photos");
     return [];
   }
 }
@@ -645,11 +662,42 @@ export async function uploadHeyGenTalkingPhotoBuffer(photoBuf: Buffer, apiKey: s
     if (err instanceof Error && err.message === "heygen_limit_exceeded") {
       logger.warn("HeyGen photo avatar slot limit hit — cleaning up orphaned talking photos");
       await cleanupOrphanedHeyGenTalkingPhotos(apiKey);
-      const res = await doUpload(); // single retry after cleanup (no withRetry — already cleaned)
+      // Brief pause — HeyGen may need a moment to reflect the deleted slots
+      await sleep(2_000);
+      const res = await doUpload();
       return res.data.talking_photo_id;
     }
     throw err;
   }
+}
+
+// Exported for admin sync endpoint — reads a GCS proxy URL and uploads to HeyGen.
+export async function syncAvatarToHeyGen(
+  previewUrl: string,
+  apiKey: string,
+): Promise<string> {
+  const buf = await (async () => {
+    const proxyPrefix = "/api/platform-avatars/photo";
+    if (previewUrl.startsWith(proxyPrefix)) {
+      const params = new URLSearchParams(previewUrl.slice(previewUrl.indexOf("?") + 1));
+      const key = params.get("key");
+      const bucketId = params.get("bucket") ?? process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+      if (!key || !bucketId) throw new Error(`Invalid proxy URL: ${previewUrl}`);
+      const bucket = objectStorageClient.bucket(bucketId);
+      const chunks: Buffer[] = [];
+      await new Promise<void>((resolve, reject) => {
+        bucket.file(key).createReadStream()
+          .on("data", (c: Buffer) => chunks.push(c))
+          .on("end", resolve)
+          .on("error", reject);
+      });
+      return Buffer.concat(chunks);
+    }
+    const r = await fetch(previewUrl, { signal: AbortSignal.timeout(30_000) });
+    if (!r.ok) throw new Error(`Download avatar photo: ${r.status}`);
+    return Buffer.from(await r.arrayBuffer());
+  })();
+  return uploadHeyGenTalkingPhotoBuffer(buf, apiKey);
 }
 
 async function pollHeyGenVideo(videoId: string, apiKey: string): Promise<string> {

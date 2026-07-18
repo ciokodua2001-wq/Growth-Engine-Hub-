@@ -8,7 +8,7 @@ import type { Request, Response, NextFunction } from "express";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { deductPlatformCredits } from "../lib/platformCredits.js";
 import { objectStorageClient } from "../lib/objectStorage.js";
-import { uploadHeyGenTalkingPhotoBuffer } from "../lib/videoRenderPipeline.js";
+import { uploadHeyGenTalkingPhotoBuffer, syncAvatarToHeyGen } from "../lib/videoRenderPipeline.js";
 
 const router = Router();
 const upload = multer({
@@ -334,6 +334,50 @@ router.delete("/admin/platform-avatars/:avatarId", requireAdmin, async (req, res
 
   if (!deleted) { res.status(404).json({ error: "Avatar not found" }); return; }
   res.json({ ok: true });
+});
+
+// ── Sync existing platform avatars to HeyGen (backfill heygenTalkingPhotoId) ─
+// Call once after uploading avatars to fix any records that are missing the
+// cached HeyGen talking_photo_id. Processes sequentially to stay within rate limits.
+router.post("/admin/platform-avatars/sync-heygen", requireAdmin, async (_req, res): Promise<void> => {
+  const heygenKey = process.env.HEYGEN_API_KEY;
+  if (!heygenKey) {
+    res.status(503).json({ error: "HEYGEN_API_KEY not configured" });
+    return;
+  }
+
+  const avatars = await db
+    .select()
+    .from(platformAvatarsTable)
+    .where(eq(platformAvatarsTable.heygenTalkingPhotoId, null as unknown as string));
+
+  if (avatars.length === 0) {
+    res.json({ synced: 0, message: "All avatars already have a HeyGen talking_photo_id" });
+    return;
+  }
+
+  const results: Array<{ id: number; name: string; ok: boolean; error?: string }> = [];
+
+  for (const avatar of avatars) {
+    try {
+      const talkingPhotoId = await syncAvatarToHeyGen(avatar.previewUrl, heygenKey);
+      await db
+        .update(platformAvatarsTable)
+        .set({ heygenTalkingPhotoId: talkingPhotoId })
+        .where(eq(platformAvatarsTable.id, avatar.id));
+      results.push({ id: avatar.id, name: avatar.name, ok: true });
+    } catch (err) {
+      results.push({
+        id: avatar.id,
+        name: avatar.name,
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  const synced = results.filter(r => r.ok).length;
+  res.json({ synced, total: avatars.length, results });
 });
 
 export default router;
