@@ -155,8 +155,9 @@ async function runRenderPipeline(
   try {
     voiceoverUrl = await generateElevenLabsVoiceover(scriptText ?? "", voiceId);
   } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
     logger.error({ err, videoId }, "ElevenLabs TTS failed");
-    await markFailed(videoId, "Voiceover generation hit a temporary issue. Please try again — your credits were not charged.");
+    await markFailed(videoId, `Voiceover failed: ${detail}`);
     return;
   }
   const ttsChars = Math.min((scriptText ?? "").length, 800);
