@@ -1,25 +1,22 @@
 ---
 name: FFmpeg Nix path resolution in production
-description: Production Replit containers have a minimal PATH — which ffmpeg fails; must use extended PATH + nix store scan to find the binary reliably.
+description: ffmpeg must be declared as a nix system dependency — not relied upon as a transitive dep of replit-runtime-path — so it is on PATH in both dev and production.
 ---
 
 ## Rule
-Never rely on bare `which ffmpeg` (or just `"ffmpeg"`) in production. The prod container PATH does not include Nix store entries. Resolution strategy (in order):
+Declare ffmpeg (and any other system binary the server needs) as an explicit nix
+system dependency using `installSystemDependencies({ packages: ["ffmpeg"] })`.
 
-1. Run `which ffmpeg` with an extended PATH that includes:
-   `/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin`
-2. If that fails, find the `replit-runtime-path` package in the nix store:
-   `ls /nix/store | grep -m1 'replit-runtime-path'` → `/nix/store/<pkg>/bin/ffmpeg`
-3. Final fallback: `find /nix/store -maxdepth 4 -name 'ffmpeg' -type f | head -1`
-4. Also pass the extended PATH to every `spawn()` call's `env` so the binary is
-   findable even if FFMPEG_BIN stays as the bare name.
+Once declared, use `"ffmpeg"` as the binary name everywhere — no path guessing,
+no `execSync("which ffmpeg")`, no nix-store scanning.
 
-Add a startup log (`logger.info({ ffmpegBin: FFMPEG_BIN }, "FFmpeg binary resolved")`)
-so production deployments can confirm which path was found.
+**Why:** The production container PATH is minimal. ffmpeg was only available in
+dev because `replit-runtime-path` bundle happened to include it and the dev shell
+inherits the full nix environment. Production starts with a stripped PATH, so
+the binary was never found there regardless of any path manipulation at runtime.
+The fix is to make the dependency explicit at the nix level, not to paper over
+the gap with runtime heuristics.
 
-**Why:** Production containers start with a stripped PATH (no Nix store dirs).
-Dev works because the nix-shell or similar sets PATH at shell launch, but the
-production process doesn't get that environment setup.
-
-**How to apply:** Any server-side binary that lives in the Nix store (ffmpeg,
-ImageMagick, etc.) must use this pattern instead of a bare binary name.
+**How to apply:** Any system binary the server calls (ffmpeg, imagemagick, etc.)
+must be installed via `installSystemDependencies` in the package-management skill.
+Never rely on transitive nix store deps being on PATH in production.
