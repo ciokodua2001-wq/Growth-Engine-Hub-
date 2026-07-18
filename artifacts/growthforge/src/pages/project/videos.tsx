@@ -254,6 +254,7 @@ function RenderPanel({
   isTrial: boolean;
   isStarterPlan: boolean;
 }) {
+  const [renderMode, setRenderMode] = useState<RenderMode>("avatar");
   const [resolution, setResolution] = useState<RenderResolution>("1080p");
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
@@ -312,7 +313,7 @@ function RenderPanel({
       {
         id: projectId,
         videoId: video.id,
-        data: { mode: "footage", resolution, aspectRatio, captionsEnabled },
+        data: { mode: renderMode, resolution, aspectRatio, captionsEnabled },
       },
       {
         onSuccess: () => {
@@ -336,7 +337,7 @@ function RenderPanel({
           <span className="text-sm font-bold text-[#00E676]">Video Rendering — Paid Plans Only</span>
         </div>
         <p className="text-xs text-white/50 mb-3">
-          Your trial includes video blueprints (actor scripts + storyboards). Upgrade to render actual MP4 videos with AI voiceover, FAL Kling footage, and FFmpeg composition.
+          Your trial includes video blueprints (actor scripts + storyboards). Upgrade to render actual MP4 videos with AI voiceover, HeyGen presenter, and B-roll footage.
         </p>
         <a
           href="/plans"
@@ -429,6 +430,31 @@ function RenderPanel({
       {/* Render config — only show when not in progress */}
       {!locallyStarted && currentStatus !== "queued" && currentStatus !== "processing" && (
         <>
+          {/* Video Style */}
+          <div>
+            <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Video Style</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {([
+                { value: "avatar",   label: "Presenter", sub: "HeyGen talking head" },
+                { value: "footage",  label: "B-Roll",    sub: "AI scenic clips" },
+                { value: "combined", label: "Combined",  sub: "Presenter + B-Roll" },
+              ] as { value: RenderMode; label: string; sub: string }[]).map((m) => (
+                <button
+                  key={m.value}
+                  onClick={() => setRenderMode(m.value)}
+                  className={`py-2 px-1 rounded-xl border text-center transition-all ${
+                    renderMode === m.value
+                      ? "border-[#00E676]/50 bg-[#00E676]/10 text-[#00E676]"
+                      : "border-white/8 hover:border-white/15 text-white/50"
+                  }`}
+                >
+                  <p className="text-[11px] font-black">{m.label}</p>
+                  <p className="text-[8px] text-white/30 mt-0.5 leading-tight">{m.sub}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Aspect Ratio */}
           <div>
             <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Aspect Ratio</p>
@@ -962,13 +988,13 @@ export default function ProjectVideos() {
       <GenerateModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={`Generate ${mode === "auto" ? "9 Marketing Videos" : "Prompt-Based Videos"}`}
-        subtitle="AI will write scripts, storyboards, and production notes for each video"
+        title={`Generate ${blueprintCount} Blueprint${blueprintCount !== 1 ? "s" : ""}`}
+        subtitle="AI will write actor scripts, storyboards, and production notes for each video"
         defaultWebsiteUrl={project?.websiteUrl ?? ""}
         instructionsPlaceholder={`Examples:\n• Focus on product demo videos\n• Create viral TikTok hooks\n• Target founder pain points\n• Include customer testimonial style`}
         processingSteps={VIDEO_STEPS}
         onSubmit={handleSubmit}
-        ctaLabel={`Generate ${mode === "auto" ? "9 Videos" : "3 Videos"}`}
+        ctaLabel={`Generate ${blueprintCount} Blueprint${blueprintCount !== 1 ? "s" : ""}`}
       />
 
       <GenerateModal
