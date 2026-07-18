@@ -49,7 +49,29 @@ async function resolveDefaultHeyGenAvatar(apiKey: string): Promise<string> {
   return _cachedDefaultAvatarId;
 }
 
-const DEFAULT_VOICE_ID = process.env.ELEVENLABS_VOICE_ID ?? "pNInz6obpgDQGcFmaJgB"; // Adam
+// ElevenLabs voice IDs — used when no ELEVENLABS_VOICE_ID env override is set
+const VOICE_MALE_DEFAULT   = "pNInz6obpgDQGcFmaJgB"; // Adam   — warm, authoritative male
+const VOICE_FEMALE_DEFAULT = "oWAxZDx7w5VEj9dCyTzz"; // Grace  — calm, confident female
+
+/**
+ * Infer the best voice ID from a cinematic character description.
+ * Falls back to the env override or the male default when gender is ambiguous.
+ */
+function resolveVoiceId(characterDescription?: string | null): string {
+  if (process.env.ELEVENLABS_VOICE_ID) return process.env.ELEVENLABS_VOICE_ID;
+  if (!characterDescription) return VOICE_MALE_DEFAULT;
+
+  const desc = characterDescription.toLowerCase();
+  const femaleSignals = ["female", "woman", "girl", "she/her", " she ", " her ", "founder", "latina", "asian", "afri"];
+  const maleSignals   = ["male", "man", " guy ", "he/him", " he ", " his ", "gentleman", "dad ", "father"];
+
+  const femaleScore = femaleSignals.filter(s => desc.includes(s)).length;
+  const maleScore   = maleSignals.filter(s => desc.includes(s)).length;
+
+  if (femaleScore > maleScore) return VOICE_FEMALE_DEFAULT;
+  if (maleScore   > femaleScore) return VOICE_MALE_DEFAULT;
+  return VOICE_MALE_DEFAULT; // tie → default
+}
 
 export type RenderMode = "footage" | "avatar" | "combined";
 export type RenderResolution = "1080p" | "4k";
@@ -117,9 +139,20 @@ async function runRenderPipeline(
   const rawScript = video.voiceover ?? video.script ?? video.title;
   const scriptText = rawScript.replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
 
+  // Resolve the right voice gender from the cinematic plan's character description
+  let characterDescription: string | null = null;
+  if (video.cinematicPlan) {
+    try {
+      const plan = JSON.parse(video.cinematicPlan) as { characterDescription?: string };
+      characterDescription = plan.characterDescription ?? null;
+    } catch { /* malformed JSON — ignore, fall back to default */ }
+  }
+  const voiceId = resolveVoiceId(characterDescription);
+  logger.info({ videoId, voiceId, characterDescription }, "Resolved ElevenLabs voice");
+
   let voiceoverUrl: string;
   try {
-    voiceoverUrl = await generateElevenLabsVoiceover(scriptText ?? "");
+    voiceoverUrl = await generateElevenLabsVoiceover(scriptText ?? "", voiceId);
   } catch (err) {
     logger.error({ err, videoId }, "ElevenLabs TTS failed");
     await markFailed(videoId, "Voiceover generation hit a temporary issue. Please try again — your credits were not charged.");
@@ -282,15 +315,16 @@ async function runRenderPipeline(
 
 // ── ElevenLabs TTS ────────────────────────────────────────────────────────────
 
-async function generateElevenLabsVoiceover(text: string): Promise<string> {
+async function generateElevenLabsVoiceover(text: string, voiceId?: string): Promise<string> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) throw new Error("ELEVENLABS_API_KEY not configured");
 
+  const selectedVoice = voiceId ?? VOICE_MALE_DEFAULT;
   const cappedText = text.length > 800 ? text.slice(0, 800) + "..." : text;
 
   const audioBuffer = await withRetry(async () => {
     const response = await fetch(
-      `${ELEVENLABS_API_URL}/v1/text-to-speech/${DEFAULT_VOICE_ID}`,
+      `${ELEVENLABS_API_URL}/v1/text-to-speech/${selectedVoice}`,
       {
         method: "POST",
         headers: {

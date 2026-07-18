@@ -1,0 +1,125 @@
+Production Brief
+
+Visual Style
+
+Clean, high-contrast SaaS product demo aesthetic with cinematic close-ups — think Apple meets Y Combinator pitch deck
+
+Environment
+
+Minimal modern home office — white walls, one large monitor, a single potted plant, warm afternoon light through a frosted window
+
+Lighting
+
+Soft directional key light from screen left simulating window light, subtle fill bounce from right, screen glow providing cool accent on face
+
+Camera Language
+
+Tight close-ups on face and hands, quick smash cut to screen UI, final slow push into glowing dashboard
+
+Character
+
+Late-20s female founder, sharp jawline, natural makeup, wearing a fitted black crewneck, dark hair pulled back, radiating calm confidence
+
+Performance Direction
+
+Understated and direct — she speaks like she's letting a friend in on a secret, no performance, just conviction
+
+Shot List · 4 Shots
+
+SHOT 1
+4s
+Slow Push In
+50mm
+Actor Line
+
+"No marketing team. No agency. Just paste your URL —"
+
+faces camera directly, holds up one finger as she counts off each point
+
+Expression:
+composed, certain
+Body:
+slight lean forward toward lens
+Lighting:
+Warm window key light, cool monitor fill
+Transition:
+Hard Cut
+Minimal home office desk, large monitor behind her
+
+SHOT 2
+3s
+Static
+85mm macro
+Actor Line
+
+"and GrowthForge builds your entire marketing department in minutes."
+
+fingers type URL into the platform, hand lifts to hit Enter
+
+Expression:
+focused, deliberate
+Body:
+single decisive keystroke
+Lighting:
+Screen glow dominant, shallow depth of field
+Transition:
+Smash Cut
+Monitor screen extreme close-up, URL being typed into GrowthForge input field
+
+✦ Subtle glow pulse on Enter key press
+
+SHOT 3
+5s
+Dolly Back to reveal both face and screen
+35mm
+Actor Line
+
+"Competitors, campaigns, assets. All of it."
+
+sits back, arms cross loosely, watching the screen load results with a quiet smile
+
+Expression:
+satisfied, relaxed
+Body:
+slow lean back into chair
+Lighting:
+Screen glow illuminates face from side, warm ambient fill
+Transition:
+Hard Cut
+GrowthForge dashboard filling screen — competitor cards, campaign briefs, asset tiles appearing in sequence
+
+✦ Dashboard cards animate in with staggered reveal
+
+SHOT 4
+3s
+Static
+50mm
+Actor Line
+
+"Try it free."
+
+looks straight into lens, delivers final line with a slight nod
+
+Expression:
+confident, inviting
+Body:
+shoulders square to camera, still
+Lighting:
+Even, clean — monitor glow halo behind head
+Transition:
+Fade to Black
+Direct to camera, monitor glow behind her
+
+✦ Lower-third text overlay: 'usegrowthforge.com' fades in on final word
+
+Text Overlays
+
+Brand URL 'usegrowthforge.com' appears as a clean lower-third in the final shot, fading in on the word 'free'
+
+Final Hero Shot
+
+Founder faces camera dead-center, monitor glowing behind her with a fully populated GrowthForge dashboard, tagline 'Paste your URL. Get your marketing department.' appears below the URL
+
+Actor Script
+
+No marketing team. No agency. Just paste your URL — and GrowthForge builds your entire marketing department in minutes. Competitors, campaigns, assets. All of it. Try it free.
