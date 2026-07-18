@@ -26,6 +26,7 @@ const FAL_QUEUE_BASE = "https://queue.fal.run";
 const FAL_T2V_MODEL = "fal-ai/kling-video/v1.6/standard/text-to-video";
 const FAL_I2V_MODEL = "fal-ai/kling-video/v1.6/standard/image-to-video";
 const HEYGEN_API_URL = "https://api.heygen.com";
+const HEYGEN_UPLOAD_URL = "https://upload.heygen.com"; // separate upload subdomain
 
 // Resolved once per process — fetched live from the account's HeyGen avatar library.
 // Returns null when the account has no studio avatars (endpoint may hang or 403).
@@ -567,21 +568,20 @@ async function readAvatarPhotoBuffer(photoUrl: string): Promise<Buffer> {
 async function uploadHeyGenTalkingPhoto(photoUrl: string, apiKey: string): Promise<string> {
   const photoBuf = await readAvatarPhotoBuffer(photoUrl);
 
-  const formData = new FormData();
-  formData.append("file", new Blob([new Uint8Array(photoBuf)], { type: "image/jpeg" }), "avatar.jpg");
-
+  // HeyGen talking_photo endpoint lives on upload.heygen.com (not api.heygen.com).
+  // It expects a raw binary body with Content-Type: image/jpeg (not multipart).
   const res = await withRetry(() =>
-    fetch(`${HEYGEN_API_URL}/v1/talking_photo`, {
+    fetch(`${HEYGEN_UPLOAD_URL}/v1/talking_photo`, {
       method: "POST",
-      headers: { "X-Api-Key": apiKey },
-      body: formData,
+      headers: { "X-Api-Key": apiKey, "Content-Type": "image/jpeg" },
+      body: new Uint8Array(photoBuf),
       signal: AbortSignal.timeout(60_000),
     }).then(async r => {
       if (!r.ok) {
         const text = await r.text();
         throw new Error(`HeyGen talking_photo upload: ${r.status} ${text.slice(0, 300)}`);
       }
-      return r.json() as Promise<{ data: { talking_photo_id: string } }>;
+      return r.json() as Promise<{ code: number; data: { talking_photo_id: string } }>;
     })
   );
 
