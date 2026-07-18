@@ -238,9 +238,9 @@ function RenderStatusBadge({ status }: { status: string }) {
 const RENDER_STEPS = [
   { after: 0,    label: "Starting pipeline…" },
   { after: 15,   label: "Generating AI voiceover…" },
-  { after: 40,   label: "Generating video clips with FAL Kling…" },
-  { after: 90,   label: "AI clip generation in progress (~10 min)…" },
-  { after: 600,  label: "Assembling final video with FFmpeg…" },
+  { after: 40,   label: "Generating video scenes…" },
+  { after: 90,   label: "AI video generation in progress (~10 min)…" },
+  { after: 600,  label: "Assembling your video…" },
 ];
 
 function RenderPanel({
@@ -710,6 +710,7 @@ export default function ProjectVideos() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
   const [mode, setMode] = useState<"auto" | "prompt">("auto");
+  const [targetDuration, setTargetDuration] = useState<15 | 30 | 45 | 60 | 90>(45);
   const [selectedVideo, setSelectedVideo] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [imgModalOpen, setImgModalOpen] = useState(false);
@@ -725,7 +726,7 @@ export default function ProjectVideos() {
   const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       generateVideos.mutate(
-        { id: projectId, data: { mode, count: mode === "auto" ? 9 : 3 } },
+        { id: projectId, data: { mode, count: mode === "auto" ? 9 : 3, targetDuration } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) });
@@ -748,6 +749,19 @@ export default function ProjectVideos() {
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          {/* Duration picker */}
+          <div className="flex rounded-xl border border-border overflow-hidden">
+            {([15, 30, 45, 60, 90] as const).map((d) => (
+              <button
+                key={d}
+                onClick={() => setTargetDuration(d)}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${targetDuration === d ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {d}s
+              </button>
+            ))}
+          </div>
+          {/* Auto / Prompt toggle */}
           <div className="flex rounded-xl border border-border overflow-hidden">
             {(["auto", "prompt"] as const).map((m) => (
               <button
@@ -755,7 +769,7 @@ export default function ProjectVideos() {
                 onClick={() => setMode(m)}
                 className={`px-4 py-2 text-sm font-medium transition-colors ${mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
               >
-                {m === "auto" ? "Auto (9 Blueprints)" : "Prompt-Based"}
+                {m === "auto" ? "Auto (9)" : "Prompt"}
               </button>
             ))}
           </div>

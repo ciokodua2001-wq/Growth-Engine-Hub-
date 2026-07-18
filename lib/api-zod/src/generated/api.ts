@@ -974,7 +974,8 @@ export const GenerateVideosBody = zod.object({
   "mode": zod.string(),
   "type": zod.string().optional(),
   "count": zod.number().optional(),
-  "prompt": zod.string().optional()
+  "prompt": zod.string().optional(),
+  "targetDuration": zod.union([zod.literal(15),zod.literal(30),zod.literal(45),zod.literal(60),zod.literal(90)]).optional().describe('Target video duration in seconds. AI will write scripts and shots to match.')
 })
 
 export const GenerateVideosResponseItem = zod.object({

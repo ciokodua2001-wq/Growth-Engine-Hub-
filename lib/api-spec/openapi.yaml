@@ -1972,6 +1972,10 @@ components:
           type: integer
         prompt:
           type: string
+        targetDuration:
+          type: integer
+          enum: [15, 30, 45, 60, 90]
+          description: Target video duration in seconds. AI will write scripts and shots to match.
 
     Video:
       type: object

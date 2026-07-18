@@ -135,7 +135,7 @@ Respond with ONLY a single JSON object, no prose.`;
 
 async function generateSingleVideoBlueprint(
   ctx: GroundingContext,
-  opts: { type?: string; prompt?: string; index: number; total: number },
+  opts: { type?: string; prompt?: string; index: number; total: number; targetDuration?: number },
 ): Promise<VideoBlueprintResult> {
   // Generate exactly ONE video per call to guarantee the JSON response stays
   // well within the 8192-token output limit regardless of how verbose Claude is.
@@ -144,16 +144,19 @@ async function generateSingleVideoBlueprint(
     opts.index % 3 === 1 ? ', of type "product"' :
                            ', of type "social"'
   );
+  const durationTarget = opts.targetDuration ?? 45;
   const response = await generateJson<{ videos: [Omit<VideoBlueprintResult, "cinematicPlan"> & { cinematicPlan: CinematicPlan }] }>({
     system: AI_VIDEO_DIRECTOR_SYSTEM,
     prompt: `${renderGroundingBlock(ctx)}
 ${opts.prompt ? `\nAdditional direction from the user: ${opts.prompt}\n` : ""}
 Create exactly 1 short-form cinematic marketing video blueprint for this business${typeHint}. This is video ${opts.index + 1} of ${opts.total} — make it feel distinct from others in the set.
 
+TARGET DURATION: ${durationTarget} seconds. The "duration" field MUST be exactly ${durationTarget}. Script word count must match the duration guideline in the system prompt. Shot durations must sum to exactly ${durationTarget}s.
+
 OUTPUT CONSTRAINTS (strictly enforce to avoid truncation):
-- script: max 120 words total — punchy, direct-to-camera, conversational
+- script: write exactly enough words to fill ${durationTarget}s of spoken delivery (see word count guidelines above)
 - storyboard: max 2 sentences
-- shots array: exactly 4 shots, no more
+- shots array: exactly 4 shots, no more; shot durations must sum to ${durationTarget}
 - All string fields: max 1 sentence each
 
 Return JSON with this exact structure:
@@ -164,7 +167,7 @@ Return JSON with this exact structure:
       "type": "promo | product | social",
       "script": "full actor dialogue as one continuous spoken performance — first person direct to camera, no scene markers or stage directions",
       "storyboard": "2-sentence visual narrative overview",
-      "duration": <integer seconds, 15–120>,
+      "duration": ${durationTarget},
       "hookStrength": <0–100 integer>,
       "engagementPotential": <0–100 integer>,
       "viralPotential": <0–100 integer>,
@@ -205,12 +208,12 @@ Return JSON with this exact structure:
 
 export async function generateVideoBlueprints(
   ctx: GroundingContext,
-  opts: { count: number; type?: string; prompt?: string },
+  opts: { count: number; type?: string; prompt?: string; targetDuration?: number },
 ): Promise<VideoBlueprintResult[]> {
   // Generate one video per Claude call (fits in 4096 tokens even for verbose output).
   // Run all in parallel for speed — N concurrent Sonnet calls is fine under normal quota.
   const jobs = Array.from({ length: opts.count }, (_, i) =>
-    generateSingleVideoBlueprint(ctx, { ...opts, index: i, total: opts.count }),
+    generateSingleVideoBlueprint(ctx, { ...opts, index: i, total: opts.count, targetDuration: opts.targetDuration }),
   );
   return Promise.all(jobs);
 }

@@ -5,10 +5,13 @@
  * GrowthForge AI API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { VideoInputTargetDuration } from './videoInputTargetDuration';
 
 export interface VideoInput {
   mode: string;
   type?: string;
   count?: number;
   prompt?: string;
+  /** Target video duration in seconds. AI will write scripts and shots to match. */
+  targetDuration?: VideoInputTargetDuration;
 }

@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { spawn, execSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -7,6 +7,14 @@ import { videosTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import pino from "pino";
 import { deductPlatformCredits } from "./platformCredits.js";
+
+// Resolve ffmpeg binary at startup — handles Nix store paths in both dev and prod
+let FFMPEG_BIN = "ffmpeg";
+try {
+  FFMPEG_BIN = execSync("which ffmpeg", { encoding: "utf8" }).trim() || FFMPEG_BIN;
+} catch {
+  // Keep default; will surface as ENOENT if truly missing
+}
 
 const logger = pino({ name: "videoRenderPipeline" });
 
@@ -730,7 +738,7 @@ async function composeHeyGenWithBroll(opts: {
 function runFFmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     logger.info({ args: args.slice(0, 6) }, "Starting FFmpeg");
-    const proc = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawn(FFMPEG_BIN, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stderr = "";
     proc.stderr?.on("data", (d: Buffer) => { stderr += d.toString(); });
 

@@ -411,11 +411,27 @@ export interface AdCreative {
   createdAt: string;
 }
 
+/**
+ * Target video duration in seconds. AI will write scripts and shots to match.
+ */
+export type VideoInputTargetDuration = typeof VideoInputTargetDuration[keyof typeof VideoInputTargetDuration];
+
+
+export const VideoInputTargetDuration = {
+  NUMBER_15: 15,
+  NUMBER_30: 30,
+  NUMBER_45: 45,
+  NUMBER_60: 60,
+  NUMBER_90: 90,
+} as const;
+
 export interface VideoInput {
   mode: string;
   type?: string;
   count?: number;
   prompt?: string;
+  /** Target video duration in seconds. AI will write scripts and shots to match. */
+  targetDuration?: VideoInputTargetDuration;
 }
 
 export interface Video {

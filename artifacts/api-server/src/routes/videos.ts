@@ -62,7 +62,7 @@ router.post("/projects/:id/videos", requireActiveSubscription, async (req, res):
 
   let videoResults: VideoBlueprintResult[];
   try {
-    videoResults = await generateVideoBlueprints(ctx, { count, type: parsed.data.type, prompt: parsed.data.prompt });
+    videoResults = await generateVideoBlueprints(ctx, { count, type: parsed.data.type, prompt: parsed.data.prompt, targetDuration: parsed.data.targetDuration });
   } catch (err) {
     req.log.error({ err }, "Video blueprint generation failed");
     res.status(502).json({ error: "Failed to generate video blueprints" });
