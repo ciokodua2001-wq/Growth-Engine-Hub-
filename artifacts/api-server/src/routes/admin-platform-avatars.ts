@@ -4,10 +4,10 @@ import { db } from "@workspace/db";
 import { platformAvatarsTable, usersTable } from "@workspace/db";
 import { eq, asc, desc } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
-import { Storage } from "@google-cloud/storage";
 import type { Request, Response, NextFunction } from "express";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { deductPlatformCredits } from "../lib/platformCredits.js";
+import { objectStorageClient } from "../lib/objectStorage.js";
 
 const router = Router();
 const upload = multer({
@@ -107,13 +107,11 @@ async function uploadToStorage(
   const ext = mimeType.split("/")[1] ?? "jpg";
   const objectId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const objectPath = `avatars/platform/${objectId}.${ext}`;
-  const storage = new Storage();
-  const bucket = storage.bucket(bucketId);
+  const bucket = objectStorageClient.bucket(bucketId);
   const file = bucket.file(objectPath);
   await file.save(buffer, { metadata: { contentType: mimeType } });
   await file.makePublic();
-  const [metadata] = await file.getMetadata();
-  return metadata.mediaLink as string;
+  return `https://storage.googleapis.com/${bucketId}/${objectPath}`;
 }
 
 // ── List all platform avatars (admin) ─────────────────────────────────────────

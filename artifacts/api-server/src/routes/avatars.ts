@@ -4,7 +4,7 @@ import { db } from "@workspace/db";
 import { projectAvatarsTable, platformAvatarsTable } from "@workspace/db";
 import { eq, and, asc, desc } from "drizzle-orm";
 import { requireProjectOwnershipParam, requireUserId } from "../lib/authz.js";
-import { Storage } from "@google-cloud/storage";
+import { objectStorageClient } from "../lib/objectStorage.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -64,15 +64,13 @@ router.post(
     const ext = req.file.mimetype.split("/")[1] ?? "jpg";
     const objectPath = `avatars/project-${projectId}/${Date.now()}.${ext}`;
 
-    const storage = new Storage();
-    const bucket = storage.bucket(bucketId);
+    const bucket = objectStorageClient.bucket(bucketId);
     const file = bucket.file(objectPath);
 
     await file.save(req.file.buffer, { metadata: { contentType: req.file.mimetype } });
     await file.makePublic();
 
-    const [metadata] = await file.getMetadata();
-    const photoUrl = metadata.mediaLink as string;
+    const photoUrl = `https://storage.googleapis.com/${bucketId}/${objectPath}`;
 
     const [avatar] = await db
       .insert(projectAvatarsTable)
