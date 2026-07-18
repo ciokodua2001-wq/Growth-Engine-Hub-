@@ -494,7 +494,7 @@ async function generateHeyGenVideo(
     logger.info({ platformAvatarId, cachedTalkingPhotoId }, "Using cached HeyGen talking photo ID");
     character = { type: "talking_photo", talking_photo_id: cachedTalkingPhotoId };
   } else if (avatarPhotoPath) {
-    const talkingPhotoId = await uploadHeyGenTalkingPhoto(avatarPhotoPath, apiKey);
+    const talkingPhotoId = await uploadHeyGenTalkingPhoto(avatarPhotoPath, apiKey, platformAvatarId);
     // Cache the talking photo ID on the platform avatar record for future renders
     if (platformAvatarId) {
       db.update(platformAvatarsTable)
@@ -582,23 +582,54 @@ async function deleteHeyGenTalkingPhoto(id: string, apiKey: string): Promise<voi
   });
 }
 
-// Deletes HeyGen talking photos that are NOT cached in our platform_avatars table.
-// Called automatically when hitting the account's photo avatar slot limit (code 401028).
-async function cleanupOrphanedHeyGenTalkingPhotos(apiKey: string): Promise<void> {
-  const heygenIds = await listHeyGenTalkingPhotoIds(apiKey);
-  if (heygenIds.length === 0) return;
-
-  const cached = await db
-    .select({ heygenTalkingPhotoId: platformAvatarsTable.heygenTalkingPhotoId })
+// Evicts the oldest cached HeyGen talking photo slot when the account limit is hit.
+// Prefers avatars other than `excludeAvatarId` (the one currently being rendered).
+// Attempts a targeted DELETE on HeyGen (fast — no LIST call needed) and always
+// clears the ID from our DB so the slot is treated as freed regardless of network.
+async function evictOldestTalkingPhotoSlot(
+  apiKey: string,
+  excludeAvatarId?: number | null,
+): Promise<void> {
+  // Fetch the two oldest cached IDs so we can skip the current avatar if needed
+  const rows = await db
+    .select({ id: platformAvatarsTable.id, heygenId: platformAvatarsTable.heygenTalkingPhotoId })
     .from(platformAvatarsTable)
-    .where(isNotNull(platformAvatarsTable.heygenTalkingPhotoId));
-  const cachedSet = new Set(cached.map(r => r.heygenTalkingPhotoId));
+    .where(isNotNull(platformAvatarsTable.heygenTalkingPhotoId))
+    .orderBy(platformAvatarsTable.createdAt)
+    .limit(2);
 
-  const orphaned = heygenIds.filter(id => !cachedSet.has(id));
-  if (orphaned.length === 0) return;
+  const toEvict = rows.find(r => r.id !== excludeAvatarId) ?? rows[0];
+  if (!toEvict?.heygenId) {
+    logger.warn("No cached HeyGen talking photos available to evict");
+    return;
+  }
 
-  await Promise.allSettled(orphaned.map(id => deleteHeyGenTalkingPhoto(id, apiKey)));
-  logger.info({ orphaned }, "Cleaned up orphaned HeyGen talking photos");
+  // Attempt DELETE — lightweight (no response body) unlike the list call.
+  // api.heygen.com may still time out in some environments; that's OK — we clear
+  // the DB record regardless so the slot is treated as freed on our side and the
+  // photo will be re-uploaded fresh on next render for that avatar.
+  try {
+    const r = await fetch(`${HEYGEN_API_URL}/v2/talking_photo/${toEvict.heygenId}`, {
+      method: "DELETE",
+      headers: { "X-Api-Key": apiKey },
+      signal: AbortSignal.timeout(10_000),
+    });
+    logger.info(
+      { avatarId: toEvict.id, heygenId: toEvict.heygenId, status: r.status },
+      "Evicted HeyGen talking photo slot",
+    );
+  } catch (err) {
+    logger.warn(
+      { err, heygenId: toEvict.heygenId },
+      "HeyGen DELETE timed out — slot cleared in DB; may need manual HeyGen cleanup if still full",
+    );
+  }
+
+  // Always clear from DB — this avatar will re-upload on its next render
+  await db
+    .update(platformAvatarsTable)
+    .set({ heygenTalkingPhotoId: null })
+    .where(eq(platformAvatarsTable.id, toEvict.id));
 }
 
 // Reads avatar photo bytes from either GCS directly (our proxy URL pattern)
@@ -627,13 +658,22 @@ async function readAvatarPhotoBuffer(photoUrl: string): Promise<Buffer> {
   return Buffer.from(await photoRes.arrayBuffer());
 }
 
-async function uploadHeyGenTalkingPhoto(photoUrl: string, apiKey: string): Promise<string> {
+async function uploadHeyGenTalkingPhoto(
+  photoUrl: string,
+  apiKey: string,
+  platformAvatarId?: number | null,
+): Promise<string> {
   const photoBuf = await readAvatarPhotoBuffer(photoUrl);
-  return uploadHeyGenTalkingPhotoBuffer(photoBuf, apiKey);
+  return uploadHeyGenTalkingPhotoBuffer(photoBuf, apiKey, platformAvatarId);
 }
 
-// Exported so admin upload can pre-cache HeyGen IDs without going through GCS round-trip.
-export async function uploadHeyGenTalkingPhotoBuffer(photoBuf: Buffer, apiKey: string): Promise<string> {
+// Exported so admin upload/sync can pre-cache HeyGen IDs without a GCS round-trip.
+// platformAvatarId is used to avoid evicting the current avatar's own slot when full.
+export async function uploadHeyGenTalkingPhotoBuffer(
+  photoBuf: Buffer,
+  apiKey: string,
+  platformAvatarId?: number | null,
+): Promise<string> {
   // HeyGen talking_photo endpoint lives on upload.heygen.com (not api.heygen.com).
   // It expects a raw binary body with Content-Type: image/jpeg (not multipart).
   const doUpload = async () => {
@@ -660,11 +700,11 @@ export async function uploadHeyGenTalkingPhotoBuffer(photoBuf: Buffer, apiKey: s
     const res = await withRetry(doUpload);
     return res.data.talking_photo_id;
   } catch (err) {
-    // If the account slot limit was hit, delete orphaned talking photos then retry once
+    // Slot limit hit — evict the oldest cached slot (targeted DELETE, no list call)
+    // then retry once. Works on any plan size: the system self-manages the rotation.
     if (err instanceof Error && err.message === "heygen_limit_exceeded") {
-      logger.warn("HeyGen photo avatar slot limit hit — cleaning up orphaned talking photos");
-      await cleanupOrphanedHeyGenTalkingPhotos(apiKey);
-      // Brief pause — HeyGen may need a moment to reflect the deleted slots
+      logger.warn({ platformAvatarId }, "HeyGen slot limit hit — evicting oldest cached slot");
+      await evictOldestTalkingPhotoSlot(apiKey, platformAvatarId);
       await sleep(2_000);
       const res = await doUpload();
       return res.data.talking_photo_id;
@@ -677,6 +717,7 @@ export async function uploadHeyGenTalkingPhotoBuffer(photoBuf: Buffer, apiKey: s
 export async function syncAvatarToHeyGen(
   previewUrl: string,
   apiKey: string,
+  platformAvatarId?: number | null,
 ): Promise<string> {
   const buf = await (async () => {
     const proxyPrefix = "/api/platform-avatars/photo";
@@ -699,7 +740,7 @@ export async function syncAvatarToHeyGen(
     if (!r.ok) throw new Error(`Download avatar photo: ${r.status}`);
     return Buffer.from(await r.arrayBuffer());
   })();
-  return uploadHeyGenTalkingPhotoBuffer(buf, apiKey);
+  return uploadHeyGenTalkingPhotoBuffer(buf, apiKey, platformAvatarId);
 }
 
 async function pollHeyGenVideo(videoId: string, apiKey: string): Promise<string> {

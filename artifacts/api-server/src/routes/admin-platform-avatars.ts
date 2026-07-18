@@ -382,7 +382,7 @@ router.post("/admin/platform-avatars/sync-heygen", requireAdmin, async (_req, re
 
   for (const avatar of avatars) {
     try {
-      const talkingPhotoId = await syncAvatarToHeyGen(avatar.previewUrl, heygenKey);
+      const talkingPhotoId = await syncAvatarToHeyGen(avatar.previewUrl, heygenKey, avatar.id);
       await db
         .update(platformAvatarsTable)
         .set({ heygenTalkingPhotoId: talkingPhotoId })
