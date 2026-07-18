@@ -1541,6 +1541,8 @@ export const GetProjectUsageParams = zod.object({
 export const GetProjectUsageResponse = zod.object({
   "plan": zod.string(),
   "periodStart": zod.string().nullish(),
+  "renderedVideoSeconds": zod.number().optional().describe('Total seconds of video successfully rendered for this project'),
+  "renderedVideoSecondsLimit": zod.number().nullish().describe('Per-plan cap on rendered video seconds (null = unlimited)'),
   "usage": zod.record(zod.string(), zod.object({
   "used": zod.number(),
   "limit": zod.number().nullish()

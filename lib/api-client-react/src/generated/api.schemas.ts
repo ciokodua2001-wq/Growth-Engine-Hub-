@@ -740,6 +740,13 @@ export interface ProjectUsage {
   plan: string;
   /** @nullable */
   periodStart?: string | null;
+  /** Total seconds of video successfully rendered for this project */
+  renderedVideoSeconds?: number;
+  /**
+     * Per-plan cap on rendered video seconds (null = unlimited)
+     * @nullable
+     */
+  renderedVideoSecondsLimit?: number | null;
   usage: ProjectUsageUsage;
 }
 

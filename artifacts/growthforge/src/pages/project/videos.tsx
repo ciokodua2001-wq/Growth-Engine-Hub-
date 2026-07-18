@@ -990,6 +990,15 @@ function UsagePanel({ projectId, plan }: { projectId: number; plan: string }) {
   const isTrial = plan === "trial";
   const { usage, periodStart } = usageData;
 
+  const renderedMin      = Math.floor((usageData.renderedVideoSeconds ?? 0) / 60);
+  const renderedMinLimit = usageData.renderedVideoSecondsLimit != null
+    ? Math.floor(usageData.renderedVideoSecondsLimit / 60)
+    : null;
+  const minPct  = renderedMinLimit != null
+    ? Math.min(100, (renderedMin / renderedMinLimit) * 100)
+    : null;
+  const minWarn = minPct != null && minPct >= 80;
+
   const metrics: { label: string; feature: string; icon: string }[] = [
     { label: "Video Blueprints",   feature: "video_blueprints",  icon: "🎬" },
     { label: "Social Posts",       feature: "social_posts",      icon: "📱" },
@@ -1019,6 +1028,40 @@ function UsagePanel({ projectId, plan }: { projectId: number; plan: string }) {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {/* Video Minutes — computed from rendered durations */}
+        <div className="rounded-xl bg-white/3 border border-white/6 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-white/40 leading-snug">Video Minutes</span>
+            <span className="text-[10px]">⏱️</span>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <span className="text-xl font-black text-white">{renderedMin}</span>
+            {renderedMinLimit != null && (
+              <span className="text-xs text-white/30">/ {renderedMinLimit} min</span>
+            )}
+            {renderedMinLimit == null && (
+              <span className="text-xs text-white/30">min</span>
+            )}
+          </div>
+          {minPct != null ? (
+            <div className="space-y-1">
+              <div className="h-1 bg-white/8 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${minWarn ? "bg-orange-400" : "bg-[#00D4FF]"}`}
+                  style={{ width: `${minPct}%` }}
+                />
+              </div>
+              {renderedMinLimit != null && (
+                <p className={`text-[9px] font-medium ${minWarn ? "text-orange-400" : "text-white/30"}`}>
+                  {renderedMinLimit - renderedMin} min remaining
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-[9px] text-white/30">Unlimited</p>
+          )}
+        </div>
+
         {metrics.map(({ label, feature, icon }) => {
           const entry = usage[feature];
           if (!entry) return null;

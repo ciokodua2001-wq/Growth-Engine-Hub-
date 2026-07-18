@@ -1,6 +1,6 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, sum } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { projectsTable, planUsageTable, trialUsageTable } from "@workspace/db";
+import { projectsTable, planUsageTable, trialUsageTable, videosTable } from "@workspace/db";
 import { consumeTrialQuota, TRIAL_LIMITS, type TrialFeature } from "./trialLimits.js";
 
 export type PlanFeature = TrialFeature;
@@ -195,15 +195,30 @@ export async function consumeQuota(
 }
 
 /**
+ * Soft display cap (seconds) for rendered video minutes per plan.
+ * Not enforced as a hard quota — purely informational for the usage dashboard.
+ */
+const VIDEO_SECONDS_DISPLAY_LIMIT: Record<string, number | null> = {
+  trial:       3 * 60,   // 3 min
+  starter:     10 * 60,  // 10 min
+  "get-going": 30 * 60,  // 30 min
+  growth:      60 * 60,  // 60 min
+  agency:      null,     // unlimited
+};
+
+/**
  * Returns quota usage for a project — used by the frontend to display
  * usage bars and remaining quota.
  *
  * - trial projects: lifetime usage from trialUsageTable, limits from TRIAL_LIMITS
  * - paid projects:  current-month usage from planUsageTable, limits from PLAN_LIMITS
+ * Also returns renderedVideoSeconds (sum of duration for completed renders).
  */
 export async function getQuotaUsage(projectId: number): Promise<{
   plan: string;
   periodStart: Date | null;
+  renderedVideoSeconds: number;
+  renderedVideoSecondsLimit: number | null;
   usage: Record<string, { used: number; limit: number | null }>;
 } | null> {
   const [project] = await db
@@ -217,23 +232,34 @@ export async function getQuotaUsage(projectId: number): Promise<{
   const isTrial = plan === "trial";
   const periodStart = isTrial ? null : currentPeriodStart();
 
-  const rows: { feature: string; count: number }[] = isTrial
-    ? await db
-        .select({ feature: trialUsageTable.feature, count: trialUsageTable.count })
-        .from(trialUsageTable)
-        .where(eq(trialUsageTable.projectId, projectId))
-    : await db
-        .select({ feature: planUsageTable.feature, count: planUsageTable.count })
-        .from(planUsageTable)
-        .where(
-          and(
-            eq(planUsageTable.projectId, projectId),
-            eq(planUsageTable.periodStart, periodStart!),
+  const [quotaRows, videoSecRow] = await Promise.all([
+    isTrial
+      ? db
+          .select({ feature: trialUsageTable.feature, count: trialUsageTable.count })
+          .from(trialUsageTable)
+          .where(eq(trialUsageTable.projectId, projectId))
+      : db
+          .select({ feature: planUsageTable.feature, count: planUsageTable.count })
+          .from(planUsageTable)
+          .where(
+            and(
+              eq(planUsageTable.projectId, projectId),
+              eq(planUsageTable.periodStart, periodStart!),
+            ),
           ),
-        );
+    db
+      .select({ total: sum(videosTable.duration) })
+      .from(videosTable)
+      .where(
+        and(
+          eq(videosTable.projectId, projectId),
+          eq(videosTable.renderStatus, "complete"),
+        ),
+      ),
+  ]);
 
   const usageMap: Record<string, number> = {};
-  for (const row of rows) usageMap[row.feature] = row.count;
+  for (const row of quotaRows) usageMap[row.feature] = row.count;
 
   const limits: Record<string, number | null> = isTrial
     ? TRIAL_LIMITS
@@ -244,5 +270,8 @@ export async function getQuotaUsage(projectId: number): Promise<{
     usage[feat] = { used: usageMap[feat] ?? 0, limit: limit as number | null };
   }
 
-  return { plan, periodStart, usage };
+  const renderedVideoSeconds = parseInt(videoSecRow[0]?.total ?? "0", 10) || 0;
+  const renderedVideoSecondsLimit = VIDEO_SECONDS_DISPLAY_LIMIT[plan] ?? null;
+
+  return { plan, periodStart, renderedVideoSeconds, renderedVideoSecondsLimit, usage };
 }
