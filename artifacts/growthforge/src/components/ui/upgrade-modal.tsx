@@ -13,7 +13,7 @@ interface UpgradeModalProps {
 const UPGRADE_HIGHLIGHTS = [
   "Unlimited analyses & competitor reports",
   "Unlimited social posts & email campaigns",
-  "Unlimited Promotional Videos",
+  "Up to 200 Promotional Videos / month",
   "Unlimited Forge AI messages",
   "Multiple projects",
   "Advanced analytics & reporting",
