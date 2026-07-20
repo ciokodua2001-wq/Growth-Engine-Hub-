@@ -381,10 +381,19 @@ export default function CommercialProductionProgress({ video, projectId, caption
 
         setAssemblies(data.assemblies);
 
-        // Advance simulated sub-stages every 2 polls
+        // Advance simulated sub-stages each poll, marking previous ones complete
         if (data.overallStatus === "processing") {
-          const next = assemblySubStages[Math.min(subStageIdx, assemblySubStages.length - 1)]!;
-          setCurrentStage(next);
+          const currentSub = assemblySubStages[Math.min(subStageIdx, assemblySubStages.length - 1)]!;
+          setCurrentStage(currentSub);
+          if (subStageIdx > 0) {
+            setCompletedStages(prev => {
+              const updated = new Set(prev);
+              for (let i = 0; i < subStageIdx; i++) {
+                updated.add(assemblySubStages[i]! as StageId);
+              }
+              return updated;
+            });
+          }
           subStageIdx = Math.min(subStageIdx + 1, assemblySubStages.length - 1);
         }
 
@@ -622,6 +631,7 @@ export default function CommercialProductionProgress({ video, projectId, caption
 
   // ── Error state ────────────────────────────────────────────────────────────
   if (phase === "error") {
+    const scenesAllDone = scenes.length > 0 && scenes.every(s => s.status === "succeed");
     return (
       <div className="mt-4 pt-4 border-t border-white/8 space-y-3">
         <div className="rounded-xl bg-red-500/8 border border-red-500/25 p-4">
@@ -632,12 +642,27 @@ export default function CommercialProductionProgress({ video, projectId, caption
               <p className="text-[10px] text-white/45 mt-0.5 break-words">{error ?? "Something went wrong on our end. Give it another try."}</p>
             </div>
           </div>
-          <button
-            onClick={() => { startedRef.current = false; setPhase("idle"); setError(null); setCompletedStages(new Set()); setScenes([]); setAssemblies([]); setElapsedSec(0); }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/25 transition-colors"
-          >
-            <RefreshCw className="w-3 h-3" /> Try Again
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            {scenesAllDone && (
+              <button
+                onClick={() => {
+                  setError(null);
+                  setAssemblies([]);
+                  setPhase("assembling");
+                  void startAssembly();
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-[#00D4FF]/15 hover:bg-[#00D4FF]/25 text-[#00D4FF] border border-[#00D4FF]/25 transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" /> Retry Assembly
+              </button>
+            )}
+            <button
+              onClick={() => { startedRef.current = false; setPhase("idle"); setError(null); setCompletedStages(new Set()); setScenes([]); setAssemblies([]); setElapsedSec(0); }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/25 transition-colors"
+            >
+              <RefreshCw className="w-3 h-3" /> {scenesAllDone ? "Restart from Scratch" : "Try Again"}
+            </button>
+          </div>
         </div>
       </div>
     );

@@ -8,7 +8,8 @@ import { startScheduledPublisher } from "./lib/scheduledPublisher.js";
 import { startRenderMonitor } from "./lib/renderMonitor.js";
 import { checkEncryptionKey, isEncryptedFormat, decryptToken } from "./lib/tokenCrypto.js";
 import { db } from "@workspace/db";
-import { metaConnectionsTable } from "@workspace/db";
+import { metaConnectionsTable, commercialAssembliesTable } from "@workspace/db";
+import { eq, and, lt } from "drizzle-orm";
 
 // Startup key check — surface missing/invalid TOKEN_ENCRYPTION_KEY before any user
 // hits a publish failure.  We check the dedicated key specifically (not the
@@ -104,6 +105,33 @@ async function initStripe(): Promise<void> {
   }
 }
 
+async function recoverStuckAssemblies(): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - 15 * 60 * 1000);
+    const result = await db
+      .update(commercialAssembliesTable)
+      .set({
+        status: "failed",
+        errorMessage: "Assembly was interrupted by a server restart. Click 'Retry Assembly' to re-stitch your scenes.",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(commercialAssembliesTable.status, "processing"),
+          lt(commercialAssembliesTable.updatedAt, cutoff),
+        ),
+      )
+      .returning({ id: commercialAssembliesTable.id });
+    if (result.length > 0) {
+      logger.warn({ count: result.length }, "Startup recovery: reset stuck assemblies to failed");
+    } else {
+      logger.info("Startup recovery: no stuck assemblies found");
+    }
+  } catch (err) {
+    logger.warn({ err }, "Startup recovery: stuck assembly check failed (non-fatal)");
+  }
+}
+
 app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -116,4 +144,5 @@ app.listen(port, (err) => {
   startRenderMonitor();
   void runMetaTokenHealthCheck();
   void initStripe();
+  void recoverStuckAssemblies();
 });
