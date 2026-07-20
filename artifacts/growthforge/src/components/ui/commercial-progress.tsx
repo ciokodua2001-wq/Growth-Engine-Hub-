@@ -17,7 +17,7 @@ import {
   Check, AlertCircle, RefreshCw, Download, ExternalLink,
   Loader2, Clock, Film, Music, Sparkles, BarChart2,
   Target, FileText, Clapperboard, MessageSquare, Play,
-  RotateCcw, X, Lock as LockIcon,
+  RotateCcw, X, Lock as LockIcon, Upload, Trash2,
 } from "lucide-react";
 
 // ── API types ─────────────────────────────────────────────────────────────────
@@ -240,6 +240,10 @@ export default function CommercialProductionProgress({ video, projectId, caption
   const [error, setError] = useState<string | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [retryingScene, setRetryingScene] = useState<number | null>(null);
+  const [musicUrl, setMusicUrl] = useState<string | null>(null);
+  const [musicFileName, setMusicFileName] = useState<string | null>(null);
+  const [uploadingMusic, setUploadingMusic] = useState(false);
+  const musicInputRef = useRef<HTMLInputElement>(null);
   const startedRef = useRef(false);
   const mountedRef = useRef(true);
 
@@ -340,6 +344,26 @@ export default function CommercialProductionProgress({ video, projectId, caption
   }, [apiBase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Assembly trigger ───────────────────────────────────────────────────────
+  const handleMusicUpload = useCallback(async (file: File) => {
+    setUploadingMusic(true);
+    try {
+      const form = new FormData();
+      form.append("music", file);
+      const r = await fetch(`${apiBase}/music`, { method: "POST", body: form });
+      if (!r.ok) {
+        const b = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(b.error ?? `Upload failed (${r.status})`);
+      }
+      const { url, name } = (await r.json()) as { url: string; name: string };
+      setMusicUrl(url);
+      setMusicFileName(name);
+    } catch (err) {
+      toast({ title: "Music upload failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setUploadingMusic(false);
+    }
+  }, [apiBase, toast]);
+
   const startAssembly = useCallback(async (force = false) => {
     try {
       const r = await fetch(`${apiBase}/assemble`, {
@@ -350,6 +374,7 @@ export default function CommercialProductionProgress({ video, projectId, caption
           captionsEnabled,
           transitionType: "fade",
           transitionDuration: 0.5,
+          ...(musicUrl ? { backgroundMusicUrl: musicUrl } : {}),
           ...(force ? { force: true } : {}),
         }),
       });
@@ -586,6 +611,41 @@ export default function CommercialProductionProgress({ video, projectId, caption
               ))}
             </div>
           )}
+
+          {/* ── Music upload ───────────────────────────────────────────────── */}
+          <div className="mb-3">
+            <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-1.5">Background Music</p>
+            <input
+              ref={musicInputRef}
+              type="file"
+              accept="audio/mp3,audio/mpeg,audio/wav,audio/aac,audio/m4a,audio/ogg,.mp3,.wav,.aac,.m4a,.ogg"
+              className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) void handleMusicUpload(f); e.target.value = ""; }}
+            />
+            {musicUrl && musicFileName ? (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#00E676]/8 border border-[#00E676]/20">
+                <Music className="w-3.5 h-3.5 text-[#00E676] shrink-0" />
+                <span className="text-xs text-[#00E676] font-medium flex-1 truncate">{musicFileName}</span>
+                <button
+                  onClick={() => { setMusicUrl(null); setMusicFileName(null); }}
+                  className="text-white/30 hover:text-red-400 transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => musicInputRef.current?.click()}
+                disabled={uploadingMusic}
+                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-white/15 text-[11px] font-semibold text-white/40 hover:border-white/30 hover:text-white/60 transition-colors disabled:opacity-40"
+              >
+                {uploadingMusic
+                  ? <><Loader2 className="w-3 h-3 animate-spin" /> Uploading…</>
+                  : <><Upload className="w-3 h-3" /> Upload your music (MP3 / WAV / AAC) — or we'll use our ambient track</>
+                }
+              </button>
+            )}
+          </div>
 
           <button
             disabled={!hasBlueprint}

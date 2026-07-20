@@ -18,8 +18,9 @@
  *   Returns: { assembly }
  */
 
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { Router } from "express";
+import multer from "multer";
 import { db } from "@workspace/db";
 import {
   videosTable,
@@ -28,6 +29,7 @@ import {
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
+import { objectStorageClient, signObjectURL } from "../lib/objectStorage.js";
 import {
   getAssembler,
   checkAssemblerRequirements,
@@ -410,6 +412,68 @@ router.get("/projects/:id/videos/:videoId/assemblies/:assemblyId", async (req, r
 
   res.json({ assembly: formatAssembly(assembly) });
 });
+
+// ── POST /projects/:id/videos/:videoId/music ──────────────────────────────────
+// Accepts a multipart audio upload (MP3 / WAV / AAC / M4A, max 80 MB),
+// stores it in object storage, and returns a 24-hour signed URL that the
+// frontend passes back as backgroundMusicUrl when starting assembly.
+
+const musicUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 80 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = /^audio\//i.test(file.mimetype) ||
+      /\.(mp3|wav|aac|m4a|ogg|flac)$/i.test(file.originalname);
+    cb(null, ok);
+  },
+});
+
+router.post(
+  "/projects/:id/videos/:videoId/music",
+  musicUpload.single("music"),
+  async (req, res) => {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
+    const projectId = parseInt(String(req.params.id), 10);
+    const videoId   = parseInt(String(req.params.videoId), 10);
+    if (isNaN(projectId) || isNaN(videoId)) {
+      res.status(400).json({ error: "Invalid project or video ID" });
+      return;
+    }
+
+    if (!req.file) {
+      res.status(400).json({ error: "No audio file provided" });
+      return;
+    }
+
+    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+    if (!bucketId) {
+      res.status(503).json({ error: "Object storage not configured" });
+      return;
+    }
+
+    // Determine extension from original filename or MIME type
+    const mimeExt: Record<string, string> = {
+      "audio/mpeg": "mp3", "audio/mp3": "mp3",
+      "audio/wav": "wav", "audio/x-wav": "wav",
+      "audio/aac": "aac", "audio/m4a": "m4a",
+      "audio/mp4": "m4a", "audio/ogg": "ogg",
+      "audio/flac": "flac",
+    };
+    const ext = mimeExt[req.file.mimetype.toLowerCase()] ??
+      req.file.originalname.split(".").pop()?.toLowerCase() ?? "mp3";
+
+    const objectName = `renders/music/project-${projectId}/video-${videoId}-${randomUUID()}.${ext}`;
+    const bucket = objectStorageClient.bucket(bucketId);
+    await bucket.file(objectName).save(req.file.buffer, {
+      metadata: { contentType: req.file.mimetype || `audio/${ext}` },
+    });
+
+    const url = await signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 86_400 });
+    res.json({ url, bytes: req.file.size, name: req.file.originalname });
+  },
+);
 
 // ── Response formatter ────────────────────────────────────────────────────────
 
