@@ -139,6 +139,8 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
     ? Math.min(Math.max(body.logoOpacity, 0), 1)
     : 0.85;
 
+  const forceReassemble = body.force === true;
+
   const options: AssemblyOptions = {
     outputFormats: requestedFormats,
     transitionType: transitionType as AssemblyOptions["transitionType"],
@@ -171,23 +173,28 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
   // ── Deduplication: check for existing complete assemblies ──────────────────
   // If a complete assembly exists for each requested format with the same options
   // fingerprint, return it immediately — no FFmpeg needed.
-  const existingAssemblies = await db
-    .select()
-    .from(commercialAssembliesTable)
-    .where(
-      and(
-        eq(commercialAssembliesTable.videoId, videoId),
-        eq(commercialAssembliesTable.status, "complete"),
-        inArray(commercialAssembliesTable.outputFormat, requestedFormats),
-      ),
-    );
+  // Skip entirely when force=true (re-assemble request from the UI).
+  type AssemblyRow = typeof commercialAssembliesTable.$inferSelect;
+  const cachedByFormat = new Map<OutputFormat, AssemblyRow>();
 
-  // Build a map: format → existing complete assembly with matching fingerprint
-  const cachedByFormat = new Map<OutputFormat, typeof existingAssemblies[0]>();
-  for (const a of existingAssemblies) {
-    const opts = a.options as Record<string, unknown> | null;
-    if (opts?.optionsFingerprint === optionsFingerprint) {
-      cachedByFormat.set(a.outputFormat as OutputFormat, a);
+  if (!forceReassemble) {
+    const existingAssemblies = await db
+      .select()
+      .from(commercialAssembliesTable)
+      .where(
+        and(
+          eq(commercialAssembliesTable.videoId, videoId),
+          eq(commercialAssembliesTable.status, "complete"),
+          inArray(commercialAssembliesTable.outputFormat, requestedFormats),
+        ),
+      );
+
+    // Build a map: format → existing complete assembly with matching fingerprint
+    for (const a of existingAssemblies) {
+      const opts = a.options as Record<string, unknown> | null;
+      if (opts?.optionsFingerprint === optionsFingerprint) {
+        cachedByFormat.set(a.outputFormat as OutputFormat, a);
+      }
     }
   }
 
