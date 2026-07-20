@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check, AlertCircle, RefreshCw, Download, ExternalLink,
@@ -124,6 +125,7 @@ function formatElapsed(sec: number): string {
 
 const SCENE_ETA_MINUTES = 8;
 const ASSEMBLY_ETA_MINUTES = 4;
+const MAX_SCENE_RETRIES = 10;
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -142,6 +144,7 @@ function SceneTile({
   const isFailed = scene.status === "failed";
   const isPending = scene.status === "pending";
   const isRetrying = retrying === scene.id;
+  const isRetryCapped = isFailed && scene.retryCount >= MAX_SCENE_RETRIES;
 
   return (
     <div className={`relative rounded-xl border p-2.5 transition-all duration-500 ${
@@ -182,16 +185,20 @@ function SceneTile({
 
       {/* Retry button */}
       {isFailed && (
-        <button
-          onClick={() => onRetry(scene.id)}
-          disabled={isRetrying}
-          className="mt-1.5 w-full flex items-center justify-center gap-1 px-1.5 py-1 rounded-lg text-[8px] font-bold bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/25 transition-colors disabled:opacity-50"
-        >
-          {isRetrying
-            ? <Loader2 className="w-2 h-2 animate-spin" />
-            : <RotateCcw className="w-2 h-2" />}
-          {isRetrying ? "…" : "Retry"}
-        </button>
+        isRetryCapped ? (
+          <p className="mt-1.5 text-[8px] text-red-400/60 text-center">Limit reached</p>
+        ) : (
+          <button
+            onClick={() => onRetry(scene.id)}
+            disabled={isRetrying}
+            className="mt-1.5 w-full flex items-center justify-center gap-1 px-1.5 py-1 rounded-lg text-[8px] font-bold bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/25 transition-colors disabled:opacity-50"
+          >
+            {isRetrying
+              ? <Loader2 className="w-2 h-2 animate-spin" />
+              : <RotateCcw className="w-2 h-2" />}
+            {isRetrying ? "…" : `Retry${scene.retryCount > 0 ? ` (${scene.retryCount}/${MAX_SCENE_RETRIES})` : ""}`}
+          </button>
+        )
       )}
     </div>
   );
@@ -225,6 +232,7 @@ export default function CommercialProductionProgress({ video, projectId, caption
   // ── State ──────────────────────────────────────────────────────────────────
   const [phase, setPhase] = useState<Phase>("idle");
   const [completedStages, setCompletedStages] = useState<Set<StageId>>(new Set());
+  const { toast } = useToast();
   const [currentStage, setCurrentStage] = useState<StageId>("analysis");
   const [scenes, setScenes] = useState<SceneRecord[]>([]);
   const [assemblies, setAssemblies] = useState<AssemblyRecord[]>([]);
@@ -452,15 +460,24 @@ export default function CommercialProductionProgress({ video, projectId, caption
     setRetryingScene(sceneId);
     try {
       const r = await fetch(`${apiBase}/scenes/${sceneId}/retry`, { method: "POST" });
-      if (!r.ok) throw new Error(`Retry failed (${r.status})`);
+      if (!r.ok) {
+        let msg = `Retry failed (${r.status})`;
+        try {
+          const body = await r.json() as { error?: string; message?: string };
+          msg = body.error ?? body.message ?? msg;
+        } catch { /* ignore parse error */ }
+        toast({ title: "Scene retry failed", description: msg, variant: "destructive" });
+        return;
+      }
       // Optimistically update status to pending in local state
       setScenes(prev => prev.map(s => s.id === sceneId ? { ...s, status: "pending" as const } : s));
-    } catch {
-      // Ignore — polling will update state
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Network error — please try again";
+      toast({ title: "Scene retry failed", description: msg, variant: "destructive" });
     } finally {
       setRetryingScene(null);
     }
-  }, [apiBase]);
+  }, [apiBase, toast]);
 
   // ── Progress calculation ───────────────────────────────────────────────────
   const sceneProgressPct = scenes.length > 0

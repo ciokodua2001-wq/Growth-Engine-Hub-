@@ -25,7 +25,7 @@ const KLING_NEGATIVE_PROMPT =
  * Hard cap on per-scene user-initiated retries via the /retry route.
  * Automatic recovery by RenderMonitor uses its own separate counter check.
  */
-const MAX_USER_RETRIES = 3;
+const MAX_USER_RETRIES = 10;
 
 // ── 6-Scene commercial structure ──────────────────────────────────────────────
 export const COMMERCIAL_SCENE_STRUCTURE: Array<{
