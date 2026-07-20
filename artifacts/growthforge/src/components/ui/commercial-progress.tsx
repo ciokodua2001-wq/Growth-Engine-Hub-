@@ -369,10 +369,21 @@ export default function CommercialProductionProgress({ video, projectId, caption
   // ── Assembly polling with simulated sub-stages ─────────────────────────────
   const pollAssembly = useCallback(async () => {
     const INTERVAL = 6_000;
+    const MAX_WAIT_MS = 8 * 60 * 1000; // 8 minutes — generous even for slow presets
     const assemblySubStages: StageId[] = ["rendering", "music", "captions", "finalizing"];
     let subStageIdx = 0;
+    const startedAt = Date.now();
 
     while (mountedRef.current) {
+      // Hard timeout: if assembly hasn't finished in MAX_WAIT_MS, surface an error
+      // so the user sees "Retry Assembly" instead of an infinite spinner.
+      if (Date.now() - startedAt > MAX_WAIT_MS) {
+        if (!mountedRef.current) return;
+        setError("Assembly is taking too long — the server may have been restarted mid-encode. Tap 'Retry Assembly' to re-stitch your scenes.");
+        setPhase("error");
+        return;
+      }
+
       try {
         const r = await fetch(`${apiBase}/assemblies`);
         if (!r.ok) throw new Error(`/assemblies HTTP ${r.status}`);
@@ -418,6 +429,13 @@ export default function CommercialProductionProgress({ video, projectId, caption
           const firstError = data.assemblies.find(a => a.errorMessage)?.errorMessage;
           throw new Error(firstError ?? "Assembly failed");
         }
+
+        // "idle" means no assembly row exists for this video — unexpected after POST /assemble.
+        // Surface it as an error rather than spinning forever.
+        if (data.overallStatus === "idle") {
+          throw new Error("Assembly record not found. Tap 'Retry Assembly' to restart stitching.");
+        }
+
       } catch (err) {
         if (!mountedRef.current) return;
         const msg = err instanceof Error ? err.message : "Assembly error";
