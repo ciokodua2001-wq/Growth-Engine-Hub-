@@ -831,7 +831,7 @@ export default function AdminCredits() {
             <p>🧠 <span className="text-white/55">Anthropic (Claude)</span> — Billed by Replit. We track estimated spend from token counts automatically — no action needed.</p>
             <p>🖼️ <span className="text-white/55">OpenAI</span> — Live API check. Balance shown if you're on a prepaid plan; pay-as-you-go shows key status only.</p>
             <p>🎙️ <span className="text-white/55">ElevenLabs</span> — Live character usage and monthly limit pulled directly from their API.</p>
-            <p>🎬 <span className="text-white/55">FAL.ai (Kling v1.6)</span> — Credit balance tracked manually. Top up at fal.ai/dashboard after purchasing; the system tracks clips and video count per generation.</p>
+            <p>🎬 <span className="text-white/55">Kling AI v1.6 (via FAL.ai)</span> — Credit balance tracked manually. Top up at fal.ai/dashboard after purchasing; the system tracks clips and video count per generation.</p>
             <p>⚙️ <span className="text-white/55">Shotstack</span> — Credits are the primary unit. Supports both Pay-As-You-Go and Subscription. Top up after purchasing; renders are tracked with minutes and video count automatically.</p>
           </div>
         </div>

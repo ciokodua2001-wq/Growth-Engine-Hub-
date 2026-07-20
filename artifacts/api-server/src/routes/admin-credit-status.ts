@@ -177,7 +177,7 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
       },
       fal: {
         type: "bank",
-        displayName: "FAL.ai (Video — Kling v1.6)", icon: "🎬",
+        displayName: "Kling AI (Video — via FAL.ai)", icon: "🎬",
         keyConfigured: falKey.keyConfigured,
         keyValid:      falKey.keyValid,
         balance:               falBank?.balance              ?? null,
