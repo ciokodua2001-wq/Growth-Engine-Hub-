@@ -24,6 +24,7 @@ import {
   Search, Filter, Clock, Archive, BarChart3, RotateCcw,
 } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
+import CommercialProductionProgress from "@/components/ui/commercial-progress";
 
 // ── Cinematic Plan types ──────────────────────────────────────────────────────
 type AspectRatio = "16:9" | "9:16" | "1:1" | "4:5";
@@ -888,7 +889,7 @@ function VideoCard({
                 </div>
               ) : null;
             })()}
-            <RenderPanel video={video} projectId={projectId} isTrial={isTrial} isStarterPlan={isStarterPlan} />
+            <CommercialProductionProgress video={video} projectId={projectId} isTrial={isTrial} />
           </motion.div>
         )}
       </AnimatePresence>
