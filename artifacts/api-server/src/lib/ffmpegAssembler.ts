@@ -443,13 +443,14 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   args.push("-map", "[vout]");
   args.push("-map", "[aout]");
 
-  // Video codec — H.264 High profile, CRF 18 (very high quality), yuv420p
-  // veryfast preset: 5-8x faster than slow on constrained servers, negligible quality difference for web delivery
+  // Video codec — H.264, CRF 18 quality, ultrafast preset + zerolatency tune
+  // ultrafast disables all compression analysis; zerolatency removes buffering overhead.
+  // Together they give maximum encode speed at the cost of ~20% larger file — fine for web delivery.
+  // NOTE: ultrafast forces baseline profile so we drop -profile:v high and -level here.
   args.push("-c:v", "libx264");
-  args.push("-preset", "veryfast");
+  args.push("-preset", "ultrafast");
+  args.push("-tune", "zerolatency");
   args.push("-crf", "18");
-  args.push("-profile:v", "high");
-  args.push("-level", "4.0");
   args.push("-pix_fmt", "yuv420p");
 
   // Audio codec — AAC 128kbps stereo
