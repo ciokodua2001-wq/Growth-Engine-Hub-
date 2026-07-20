@@ -66,20 +66,16 @@ async function fetchOpenAIStatus() {
   }
 }
 
-async function fetchFalKeyValid() {
-  const key = process.env["FAL_API_KEY"];
+async function fetchKlingKeyValid() {
+  const key = process.env["KLING_API_KEY"];
   if (!key) return { keyConfigured: false, keyValid: null };
   try {
-    // Probe FAL with an empty POST — a 422/400/401 response means the endpoint is reachable;
-    // only a 401 "unauthorized" means the key is invalid.
-    const r = await fetch("https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video", {
-      method: "POST",
-      headers: { Authorization: `Key ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: "test", duration: "5" }),
+    // Probe Kling with a GET to /v1/videos/text2video — 401 means bad key,
+    // 200/404/400 all mean the key is valid and the endpoint is reachable.
+    const r = await fetch("https://api-singapore.klingai.com/v1/videos/text2video", {
+      headers: { Authorization: `Bearer ${key}` },
       signal: AbortSignal.timeout(10000),
     });
-    // 200 (queued) or 422 (validation error) both mean the key is valid
-    // 401 means invalid key
     return { keyConfigured: true, keyValid: r.status !== 401 };
   } catch {
     return { keyConfigured: true, keyValid: null };
@@ -106,14 +102,14 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
   try {
     await seedManualBanks();
 
-    const [elevenLabsLive, openAILive, falKey, shotstackKey, banks, anthropicSpend] =
+    const [elevenLabsLive, openAILive, klingKey, shotstackKey, banks, anthropicSpend] =
       await Promise.all([
         fetchElevenLabsStatus(),
         fetchOpenAIStatus(),
-        fetchFalKeyValid(),
+        fetchKlingKeyValid(),
         fetchShotstackKeyValid(),
         db.select().from(platformCreditBanksTable)
-          .where(sql`${platformCreditBanksTable.provider} IN ('fal','shotstack')`),
+          .where(sql`${platformCreditBanksTable.provider} IN ('kling','shotstack')`),
         db.select({
           total:   sql<number>`COALESCE(SUM(${platformCreditTransactionsTable.amount}), 0)`,
           monthly: sql<number>`COALESCE(SUM(CASE WHEN ${platformCreditTransactionsTable.createdAt} >= date_trunc('month', now()) THEN ${platformCreditTransactionsTable.amount} ELSE 0 END), 0)`,
@@ -126,15 +122,15 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
       ]);
 
     const bankMap = Object.fromEntries(banks.map((b) => [b.provider, b]));
-    const falBank = bankMap["fal"]       ?? null;
-    const ssBank  = bankMap["shotstack"] ?? null;
-    const falPct  = falBank && falBank.peakBalance > 0 ? Math.round((falBank.balance / falBank.peakBalance) * 100) : null;
-    const ssPct   = ssBank && ssBank.peakBalance > 0 ? Math.round((ssBank.balance / ssBank.peakBalance) * 100) : null;
-    const spend   = anthropicSpend[0] ?? { total: 0, monthly: 0 };
+    const klingBank = bankMap["kling"]     ?? null;
+    const ssBank    = bankMap["shotstack"] ?? null;
+    const klingPct  = klingBank && klingBank.peakBalance > 0 ? Math.round((klingBank.balance / klingBank.peakBalance) * 100) : null;
+    const ssPct     = ssBank && ssBank.peakBalance > 0 ? Math.round((ssBank.balance / ssBank.peakBalance) * 100) : null;
+    const spend     = anthropicSpend[0] ?? { total: 0, monthly: 0 };
 
-    const falCostPerClip = falBank && falBank.totalAdded > 0 && (falBank.totalUsdSpent ?? 0) > 0
-      ? falBank.totalUsdSpent! / falBank.totalAdded
-      : 0.045; // default: ~$0.045/clip (Kling v1.6 Standard 5s)
+    const klingCostPerClip = klingBank && klingBank.totalAdded > 0 && (klingBank.totalUsdSpent ?? 0) > 0
+      ? klingBank.totalUsdSpent! / klingBank.totalAdded
+      : 0.045; // default: ~$0.045/clip (Kling v2.6 Standard 5s)
     const ssCostPerCredit = ssBank && ssBank.totalAdded > 0 && (ssBank.totalUsdSpent ?? 0) > 0
       ? ssBank.totalUsdSpent! / ssBank.totalAdded
       : 0.2; // default: ~$0.20/credit (Shotstack pay-as-you-go estimate)
@@ -175,30 +171,30 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
         note: null,
         dashboardUrl: "https://elevenlabs.io/subscription",
       },
-      fal: {
+      kling: {
         type: "bank",
-        displayName: "Kling AI (Video — via FAL.ai)", icon: "🎬",
-        keyConfigured: falKey.keyConfigured,
-        keyValid:      falKey.keyValid,
-        balance:               falBank?.balance              ?? null,
-        peakBalance:           falBank?.peakBalance          ?? null,
-        totalAdded:            falBank?.totalAdded           ?? null,
-        totalCreditsConsumed:  falBank?.totalCreditsConsumed ?? null,
-        totalUsdSpent:         falBank?.totalUsdSpent        ?? null,
-        totalVideosGenerated:  falBank?.totalVideosGenerated ?? null,
-        totalMinutesGenerated: falBank?.totalMinutesGenerated ?? null,
-        costPerCredit:         falCostPerClip,
-        billingModel:          falBank?.billingModel         ?? "payg",
-        subscriptionPlan:      falBank?.subscriptionPlan     ?? null,
-        subscriptionCostUsd:   falBank?.subscriptionCostUsd  ?? null,
-        monthlyCredits:        falBank?.monthlyCredits       ?? null,
-        pct:           falPct,
+        displayName: "Kling AI (Video — Direct API)", icon: "🎬",
+        keyConfigured: klingKey.keyConfigured,
+        keyValid:      klingKey.keyValid,
+        balance:               klingBank?.balance              ?? null,
+        peakBalance:           klingBank?.peakBalance          ?? null,
+        totalAdded:            klingBank?.totalAdded           ?? null,
+        totalCreditsConsumed:  klingBank?.totalCreditsConsumed ?? null,
+        totalUsdSpent:         klingBank?.totalUsdSpent        ?? null,
+        totalVideosGenerated:  klingBank?.totalVideosGenerated ?? null,
+        totalMinutesGenerated: klingBank?.totalMinutesGenerated ?? null,
+        costPerCredit:         klingCostPerClip,
+        billingModel:          klingBank?.billingModel         ?? "payg",
+        subscriptionPlan:      klingBank?.subscriptionPlan     ?? null,
+        subscriptionCostUsd:   klingBank?.subscriptionCostUsd  ?? null,
+        monthlyCredits:        klingBank?.monthlyCredits       ?? null,
+        pct:           klingPct,
         unit:          "clips",
-        alertThresholdPct: falBank?.alertThresholdPct ?? 30,
-        alertEmail:    falBank?.alertEmail            ?? null,
-        alertEnabled:  falBank?.alertEnabled          ?? true,
-        dashboardUrl: "https://fal.ai/dashboard",
-        note: "FAL does not expose a live balance via API. Top up at fal.ai/dashboard after purchasing credits.",
+        alertThresholdPct: klingBank?.alertThresholdPct ?? 30,
+        alertEmail:    klingBank?.alertEmail            ?? null,
+        alertEnabled:  klingBank?.alertEnabled          ?? true,
+        dashboardUrl: "https://klingai.com/",
+        note: "Kling does not expose a live balance via API. Track usage at klingai.com after purchasing credits.",
       },
       shotstack: {
         type: "bank",
@@ -237,8 +233,8 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
 router.post("/admin/credits/bank/:provider/topup", requireAdmin, async (req, res): Promise<void> => {
   try {
     const { provider } = req.params as { provider: string };
-    if (!["fal", "shotstack"].includes(provider)) {
-      res.status(400).json({ error: "Top-up only supported for fal and shotstack" }); return;
+    if (!["kling", "shotstack"].includes(provider)) {
+      res.status(400).json({ error: "Top-up only supported for kling and shotstack" }); return;
     }
 
     const body = req.body as { credits?: number; amount?: number; purchaseCostUsd?: number; notes?: string };
@@ -336,8 +332,8 @@ router.get("/admin/credits/transactions/:provider", requireAdmin, async (req, re
 router.get("/admin/credits/reports/:provider", requireAdmin, async (req, res): Promise<void> => {
   try {
     const { provider } = req.params as { provider: string };
-    if (!["fal", "shotstack"].includes(provider)) {
-      res.status(400).json({ error: "Reports only supported for fal and shotstack" }); return;
+    if (!["kling", "shotstack"].includes(provider)) {
+      res.status(400).json({ error: "Reports only supported for kling and shotstack" }); return;
     }
 
     const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };

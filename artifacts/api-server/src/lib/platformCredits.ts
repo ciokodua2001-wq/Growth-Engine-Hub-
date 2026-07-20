@@ -4,11 +4,11 @@ import { eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { logger } from "./logger.js";
 
-export type Provider = "anthropic" | "openai" | "minimax" | "fal" | "elevenlabs" | "heygen";
+export type Provider = "anthropic" | "openai" | "minimax" | "kling" | "elevenlabs" | "heygen";
 
 const MANUAL_BANKS: Array<{ provider: Provider; displayName: string; unit: string }> = [
-  { provider: "fal",    displayName: "FAL (Video)",        unit: "clips"   },
-  { provider: "heygen", displayName: "HeyGen (Avatar)",    unit: "videos"  },
+  { provider: "kling",  displayName: "Kling AI (Video)",  unit: "clips"   },
+  { provider: "heygen", displayName: "HeyGen (Avatar)",   unit: "videos"  },
 ];
 
 export async function seedManualBanks(): Promise<void> {
@@ -68,8 +68,8 @@ export async function deductPlatformCredits(
           updatedAt: new Date(),
         };
 
-        // Track production totals for manually-managed banks (FAL, HeyGen)
-        if (provider === "fal" || provider === "minimax" || provider === "heygen") {
+        // Track production totals for manually-managed banks (Kling, HeyGen)
+        if (provider === "kling" || provider === "minimax" || provider === "heygen") {
           bankUpdate.totalCreditsConsumed = (bank.totalCreditsConsumed ?? 0) + amount;
           if (meta.videosCount) {
             bankUpdate.totalVideosGenerated = (bank.totalVideosGenerated ?? 0) + meta.videosCount;

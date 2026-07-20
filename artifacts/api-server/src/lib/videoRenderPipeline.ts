@@ -13,13 +13,16 @@ const FFMPEG_BIN = "ffmpeg";
 const logger = pino({ name: "videoRenderPipeline" });
 
 // ── Render constants ──────────────────────────────────────────────────────────
-const FAL_CLIP_DURATION_S = 5;
+const KLING_CLIP_DURATION_S = 5;
 const CLIP_BATCH_SIZE = 5;
 
 // ── API constants ─────────────────────────────────────────────────────────────
 const ELEVENLABS_API_URL = "https://api.elevenlabs.io";
-const FAL_QUEUE_BASE = "https://queue.fal.run";
-const FAL_T2V_MODEL = "fal-ai/kling-video/v1.6/standard/text-to-video";
+const KLING_BASE_URL = "https://api-singapore.klingai.com";
+const KLING_DEFAULT_MODEL = "kling-v2-6";
+const KLING_MODE = "std";
+const KLING_NEGATIVE_PROMPT =
+  "blurry, low quality, distorted, ugly, pixelated, amateur, watermark, text overlay";
 
 // ── ElevenLabs voice resolution ───────────────────────────────────────────────
 
@@ -101,7 +104,7 @@ export interface RenderRequirementsResult {
 export function checkRenderRequirements(): RenderRequirementsResult {
   const missing: string[] = [];
   if (!process.env.ELEVENLABS_API_KEY) missing.push("ELEVENLABS_API_KEY");
-  if (!process.env.FAL_API_KEY) missing.push("FAL_API_KEY");
+  if (!process.env.KLING_API_KEY) missing.push("KLING_API_KEY");
   return { ready: missing.length === 0, missing };
 }
 
@@ -176,8 +179,8 @@ async function runRenderPipeline(
 
   const duration = video.duration ?? 60;
 
-  // Step 2: FAL Kling T2V — generate cinematic footage from blueprint scenes
-  const numClips = Math.max(1, Math.ceil(duration / FAL_CLIP_DURATION_S));
+  // Step 2: Kling T2V — generate cinematic footage from blueprint scenes
+  const numClips = Math.max(1, Math.ceil(duration / KLING_CLIP_DURATION_S));
   const scenePrompts = buildScenePrompts(video.title, video.storyboard ?? "", numClips, video.cinematicPlan);
 
   let footageUrls: string[] = [];
@@ -192,8 +195,8 @@ async function runRenderPipeline(
     return;
   }
 
-  deductPlatformCredits("fal", footageUrls.length, `AI clips (${footageUrls.length}) — video #${videoId}`, {
-    minutesGenerated: (FAL_CLIP_DURATION_S / 60) * footageUrls.length,
+  deductPlatformCredits("kling", footageUrls.length, `AI clips (${footageUrls.length}) — video #${videoId}`, {
+    minutesGenerated: (KLING_CLIP_DURATION_S / 60) * footageUrls.length,
     videosCount: footageUrls.length,
     projectId: video.projectId,
     videoId: String(videoId),
@@ -294,94 +297,99 @@ async function generateElevenLabsVoiceover(text: string, voiceId?: string): Prom
   return await uploadAudioToStorage(wavBuffer, "wav");
 }
 
-// ── FAL.ai Kling v1.6 ─────────────────────────────────────────────────────────
+// ── Kling AI Direct API (api-singapore.klingai.com) ───────────────────────────
 
-interface FalQueueResponse {
-  request_id: string;
-  status_url: string;
-  response_url: string;
+interface KlingTaskData {
+  task_id: string;
+  task_status: "submitted" | "processing" | "succeed" | "failed";
+  task_status_msg?: string;
+  task_result?: { videos?: Array<{ id: string; url: string; duration: string }> };
 }
 
-interface FalStatusResponse {
-  status: "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
-  output?: { video?: { url: string }; videos?: Array<{ url: string }> };
-  error?: string;
+interface KlingApiResponse {
+  code: number;
+  message: string;
+  request_id?: string;
+  data: KlingTaskData;
 }
 
-async function submitFalJob(modelId: string, body: Record<string, unknown>): Promise<FalQueueResponse> {
-  const apiKey = process.env.FAL_API_KEY;
-  if (!apiKey) throw new Error("FAL_API_KEY not configured");
+function klingAspectRatio(ar: AspectRatio): string {
+  if (ar === "4:5") return "9:16";
+  return ar;
+}
 
-  const res = await fetch(`${FAL_QUEUE_BASE}/${modelId}`, {
+async function submitKlingT2V(prompt: string, aspectRatio: AspectRatio): Promise<string> {
+  const apiKey = process.env.KLING_API_KEY;
+  if (!apiKey) throw new Error("KLING_API_KEY not configured");
+
+  const res = await fetch(`${KLING_BASE_URL}/v1/videos/text2video`, {
     method: "POST",
-    headers: { "Authorization": `Key ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model_name: KLING_DEFAULT_MODEL,
+      prompt,
+      negative_prompt: KLING_NEGATIVE_PROMPT,
+      duration: "5",
+      mode: KLING_MODE,
+      aspect_ratio: klingAspectRatio(aspectRatio),
+      sound: "off",
+    }),
     signal: AbortSignal.timeout(30_000),
   });
+
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`FAL submit: ${res.status} ${text.slice(0, 200)}`);
+    throw new Error(`Kling submit HTTP ${res.status}: ${text.slice(0, 300)}`);
   }
-  return res.json() as Promise<FalQueueResponse>;
+  const json = (await res.json()) as KlingApiResponse;
+  if (json.code !== 0) throw new Error(`Kling submit error (code=${json.code}): ${json.message}`);
+  return json.data.task_id;
 }
 
-async function pollFalJob(job: FalQueueResponse): Promise<string> {
-  const apiKey = process.env.FAL_API_KEY!;
+async function pollKlingTask(taskId: string): Promise<string> {
+  const apiKey = process.env.KLING_API_KEY!;
   const MAX_POLLS = 90;
   const POLL_INTERVAL_MS = 10_000;
 
   for (let i = 0; i < MAX_POLLS; i++) {
     await sleep(POLL_INTERVAL_MS);
 
-    const data = await withRetry(async () => {
-      const res = await fetch(job.status_url, {
-        headers: { "Authorization": `Key ${apiKey}` },
+    const taskData = await withRetry(async () => {
+      const res = await fetch(`${KLING_BASE_URL}/v1/videos/text2video/${taskId}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
         signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(`FAL poll: ${res.status} ${text.slice(0, 200)}`);
+        throw new Error(`Kling poll HTTP ${res.status}: ${text.slice(0, 200)}`);
       }
-      return res.json() as Promise<FalStatusResponse>;
+      const json = (await res.json()) as KlingApiResponse;
+      if (json.code !== 0) throw new Error(`Kling poll error (code=${json.code}): ${json.message}`);
+      return json.data;
     });
 
-    if (data.status === "COMPLETED") {
-      const resultRes = await withRetry(() =>
-        fetch(job.response_url, { headers: { "Authorization": `Key ${apiKey}` }, signal: AbortSignal.timeout(30_000) })
-      );
-      if (!resultRes.ok) throw new Error(`FAL result fetch: ${resultRes.status}`);
-      const raw = await resultRes.json() as Record<string, unknown>;
-      const rawVideo = raw["video"] as { url?: string } | undefined;
-      const rawVideos = raw["videos"] as Array<{ url?: string }> | undefined;
-      const videoUrl =
-        rawVideo?.url ??
-        rawVideos?.[0]?.url ??
-        data.output?.video?.url ??
-        data.output?.videos?.[0]?.url;
-      if (!videoUrl) throw new Error(`FAL completed but no video URL — keys: ${Object.keys(raw).join(", ")}`);
+    if (taskData.task_status === "succeed") {
+      const videoUrl = taskData.task_result?.videos?.[0]?.url;
+      if (!videoUrl) throw new Error(`Kling returned succeed but no video URL (task=${taskId})`);
       const videoRes = await withRetry(() => fetch(videoUrl, { signal: AbortSignal.timeout(120_000) }));
-      if (!videoRes.ok) throw new Error(`FAL download: ${videoRes.status}`);
+      if (!videoRes.ok) throw new Error(`Kling video download HTTP ${videoRes.status}`);
       const buffer = Buffer.from(await videoRes.arrayBuffer());
       return await uploadVideoToStorage(buffer);
     }
-    if (data.status === "FAILED") {
-      throw new Error(`FAL generation failed: ${data.error ?? "unknown"}`);
+    if (taskData.task_status === "failed") {
+      throw new Error(`Kling generation failed: ${taskData.task_status_msg ?? "unknown"}`);
     }
   }
 
-  throw new Error("FAL video generation timed out after 15 minutes");
+  throw new Error("Kling video generation timed out after 15 minutes");
 }
 
-function falAspectRatio(ar: AspectRatio): string {
-  if (ar === "4:5") return "9:16";
-  return ar;
-}
-
-async function generateFalT2V(prompt: string, aspectRatio: AspectRatio = "16:9"): Promise<string> {
-  const job = await withRetry(() =>
-    submitFalJob(FAL_T2V_MODEL, { prompt, duration: "5", aspect_ratio: falAspectRatio(aspectRatio) })
-  );
-  return await pollFalJob(job);
+async function generateKlingT2V(prompt: string, aspectRatio: AspectRatio = "16:9"): Promise<string> {
+  const taskId = await withRetry(() => submitKlingT2V(prompt, aspectRatio));
+  return await pollKlingTask(taskId);
 }
 
 // ── FFmpeg Composition ────────────────────────────────────────────────────────
@@ -399,7 +407,7 @@ interface FFmpegComposeOptions {
 async function composeWithFFmpeg(opts: FFmpegComposeOptions): Promise<string> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "render-"));
   try {
-    const numSlots = Math.max(1, Math.ceil(opts.duration / FAL_CLIP_DURATION_S));
+    const numSlots = Math.max(1, Math.ceil(opts.duration / KLING_CLIP_DURATION_S));
     const orderedClipUrls: string[] = Array.from({ length: numSlots }, (_, i) =>
       opts.footageUrls[i % opts.footageUrls.length]!
     );
@@ -628,8 +636,8 @@ async function generateFootageClipsT2V(prompts: string[], videoId: number, aspec
   const results: string[] = [];
   for (let i = 0; i < prompts.length; i += CLIP_BATCH_SIZE) {
     const batch = prompts.slice(i, i + CLIP_BATCH_SIZE);
-    logger.info({ videoId, batchStart: i, batchSize: batch.length, totalClips: prompts.length }, "Generating footage batch (FAL Kling)");
-    const batchUrls = await Promise.all(batch.map(prompt => generateFalT2V(prompt, aspectRatio)));
+    logger.info({ videoId, batchStart: i, batchSize: batch.length, totalClips: prompts.length }, "Generating footage batch (Kling direct)");
+    const batchUrls = await Promise.all(batch.map(prompt => generateKlingT2V(prompt, aspectRatio)));
     results.push(...batchUrls);
   }
   return results;

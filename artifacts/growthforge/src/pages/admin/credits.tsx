@@ -43,7 +43,7 @@ interface UnifiedData {
   anthropic:  SpendProvider;
   openai:     LiveProvider;
   elevenlabs: LiveProvider;
-  fal:        BankProvider;
+  kling:      BankProvider;
   shotstack:  BankProvider;
 }
 interface Transaction {
@@ -69,7 +69,7 @@ interface BankReport {
 
 const COLORS: Record<string, string> = {
   anthropic: "#a78bfa", openai: "#00D4FF", elevenlabs: "#f59e0b",
-  fal: "#00E676", shotstack: "#14F195",
+  kling: "#00E676", shotstack: "#14F195",
 };
 
 function fmtUsd(n: number) {
@@ -135,7 +135,7 @@ function StatBox({ label, value, sub, icon: Icon, color }: {
 /* ─── Transaction list ───────────────────────────────────────── */
 
 function TxnList({ provider }: { provider: string }) {
-  const isBank = provider === "fal" || provider === "shotstack";
+  const isBank = provider === "kling" || provider === "shotstack";
   const { data, isLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/admin/credits/transactions", provider],
     queryFn: async () => {
@@ -174,7 +174,7 @@ function TxnList({ provider }: { provider: string }) {
   );
 }
 
-/* ─── Credit bank top-up modal (FAL + Shotstack) ────────────── */
+/* ─── Credit bank top-up modal (Kling + Shotstack) ──────────── */
 
 function BankTopUpModal({ provider, displayName, onClose, onDone }: {
   provider: string; displayName: string; onClose: () => void; onDone: () => void;
@@ -217,11 +217,11 @@ function BankTopUpModal({ provider, displayName, onClose, onDone }: {
         <div>
           <label className="text-white/50 text-xs uppercase tracking-widest block mb-1.5">Credits Added <span className="text-red-400">*</span></label>
           <input type="number" min="0" step="1" value={credits} onChange={(e) => setCredits(e.target.value)}
-            placeholder={provider === "fal" ? "e.g. 100" : "e.g. 1000"}
+            placeholder={provider === "kling" ? "e.g. 100" : "e.g. 1000"}
             className="w-full px-4 py-3 rounded-xl text-white text-sm outline-none border border-white/10 focus:border-[#00E676]/50 transition-all"
             style={{ background: "rgba(255,255,255,0.06)" }} />
           <p className="text-white/25 text-[11px] mt-1">
-            {provider === "fal"
+            {provider === "kling"
               ? "Enter number of clips purchased (or use 1 credit = $0.10 as a proxy unit)"
               : "Enter exact credits shown on Shotstack receipt"}
           </p>
@@ -608,7 +608,7 @@ function LiveCard({ p, provider }: { p: LiveProvider; provider: string }) {
   );
 }
 
-/* ─── Card: FAL / Shotstack (manual bank) ────────────────────── */
+/* ─── Card: Kling / Shotstack (manual bank) ─────────────────── */
 
 function BankCard({ p, provider, onRefresh }: { p: BankProvider; provider: string; onRefresh: () => void }) {
   const [showTopUp,   setShowTopUp]   = useState(false);
@@ -765,18 +765,18 @@ export default function AdminCredits() {
         { key: "anthropic",  p: data.anthropic  },
         { key: "openai",     p: data.openai     },
         { key: "elevenlabs", p: data.elevenlabs },
-        { key: "fal",        p: data.fal        },
+        { key: "kling",      p: data.kling      },
         { key: "shotstack",  p: data.shotstack  },
       ]
     : [];
 
   const alerts = data ? [
     data.elevenlabs.pct !== null && data.elevenlabs.pct <= 30 ? "ElevenLabs characters nearly exhausted" : null,
-    data.fal.pct       !== null && data.fal.pct       <= data.fal.alertThresholdPct        ? "FAL credits low" : null,
+    data.kling.pct     !== null && data.kling.pct     <= data.kling.alertThresholdPct      ? "Kling credits low" : null,
     data.shotstack.pct !== null && data.shotstack.pct <= data.shotstack.alertThresholdPct ? "Shotstack credits low" : null,
     data.openai.keyValid === false   ? "OpenAI API key invalid" : null,
     data.elevenlabs.keyValid === false ? "ElevenLabs API key invalid" : null,
-    data.fal.keyValid === false       ? "FAL API key invalid" : null,
+    data.kling.keyValid === false     ? "Kling API key invalid" : null,
     data.shotstack.keyValid === false ? "Shotstack API key invalid" : null,
   ].filter(Boolean) : [];
 
@@ -831,7 +831,7 @@ export default function AdminCredits() {
             <p>🧠 <span className="text-white/55">Anthropic (Claude)</span> — Billed by Replit. We track estimated spend from token counts automatically — no action needed.</p>
             <p>🖼️ <span className="text-white/55">OpenAI</span> — Live API check. Balance shown if you're on a prepaid plan; pay-as-you-go shows key status only.</p>
             <p>🎙️ <span className="text-white/55">ElevenLabs</span> — Live character usage and monthly limit pulled directly from their API.</p>
-            <p>🎬 <span className="text-white/55">Kling AI v1.6 (via FAL.ai)</span> — Credit balance tracked manually. Top up at fal.ai/dashboard after purchasing; the system tracks clips and video count per generation.</p>
+            <p>🎬 <span className="text-white/55">Kling AI (Direct API)</span> — Credit balance tracked manually. Top up at klingai.com after purchasing; the system tracks clips and video count per generation.</p>
             <p>⚙️ <span className="text-white/55">Shotstack</span> — Credits are the primary unit. Supports both Pay-As-You-Go and Subscription. Top up after purchasing; renders are tracked with minutes and video count automatically.</p>
           </div>
         </div>
