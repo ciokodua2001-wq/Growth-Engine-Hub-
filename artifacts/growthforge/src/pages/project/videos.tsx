@@ -185,11 +185,11 @@ const typeColors: Record<string, string> = {
 };
 
 const VIDEO_STEPS = [
-  "Analyzing brand story...",
-  "Writing video scripts...",
-  "Creating storyboards...",
-  "Optimizing hooks for virality...",
-  "Finalizing video production pack...",
+  "Studying your brand and audience...",
+  "Writing high-converting scripts...",
+  "Designing cinematic storyboards...",
+  "Engineering hooks for maximum attention...",
+  "Assembling your commercial production pack...",
 ];
 
 const IMAGE_STEPS = [
@@ -222,11 +222,11 @@ function ScoreBar({ label, value, color }: { label: string; value: number | null
 
 function RenderStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
-    idle:       { label: "Not Rendered", cls: "bg-white/5 text-white/30 border-white/10" },
-    queued:     { label: "Queued",       cls: "bg-yellow-500/15 text-yellow-400 border-yellow-500/20" },
-    processing: { label: "Rendering…",  cls: "bg-blue-500/15 text-blue-400 border-blue-500/20" },
-    complete:   { label: "Done",         cls: "bg-[#00E676]/15 text-[#00E676] border-[#00E676]/20" },
-    failed:     { label: "Failed",       cls: "bg-red-500/15 text-red-400 border-red-500/20" },
+    idle:       { label: "Ready to Produce", cls: "bg-white/5 text-white/30 border-white/10" },
+    queued:     { label: "In Queue",         cls: "bg-yellow-500/15 text-yellow-400 border-yellow-500/20" },
+    processing: { label: "Producing…",       cls: "bg-blue-500/15 text-blue-400 border-blue-500/20" },
+    complete:   { label: "Delivered",         cls: "bg-[#00E676]/15 text-[#00E676] border-[#00E676]/20" },
+    failed:     { label: "Needs Attention",  cls: "bg-red-500/15 text-red-400 border-red-500/20" },
   };
   const { label, cls } = map[status] ?? map["idle"];
   return (
@@ -238,11 +238,11 @@ function RenderStatusBadge({ status }: { status: string }) {
 
 // ── Render Panel (shown inside selected video card) ───────────────────────────
 const RENDER_STEPS = [
-  { after: 0,    label: "Starting pipeline…" },
-  { after: 15,   label: "Generating AI voiceover…" },
-  { after: 40,   label: "Generating video scenes…" },
-  { after: 90,   label: "AI video generation in progress (~10 min)…" },
-  { after: 600,  label: "Assembling your video…" },
+  { after: 0,    label: "Preparing your production…" },
+  { after: 15,   label: "Recording AI voiceover…" },
+  { after: 40,   label: "Filming AI video scenes…" },
+  { after: 90,   label: "Scene production in progress (~10 min)…" },
+  { after: 600,  label: "Assembling your final commercial…" },
 ];
 
 function RenderPanel({
@@ -354,16 +354,16 @@ function RenderPanel({
       <div className="mt-4 pt-4 border-t border-border rounded-xl bg-[#00E676]/5 border border-[#00E676]/20 p-4">
         <div className="flex items-center gap-2 mb-2">
           <Lock className="w-4 h-4 text-[#00E676]" />
-          <span className="text-sm font-bold text-[#00E676]">Video Rendering — Paid Plans Only</span>
+          <span className="text-sm font-bold text-[#00E676]">Commercial Production — Paid Plans Only</span>
         </div>
         <p className="text-xs text-white/50 mb-3">
-          Your trial includes Commercial Blueprints (scripts, storyboards, and production notes). Upgrade to produce actual MP4 commercials with AI voiceover and cinematic AI footage.
+          Your trial includes full Commercial Blueprints — scripts, storyboards, and scene direction. Upgrade to produce broadcast-ready MP4 commercials with AI voiceover and cinematic footage.
         </p>
         <a
           href="/plans"
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-black bg-[#00E676] hover:bg-[#00E676]/90 transition-colors"
         >
-          <Sparkles className="w-3 h-3" /> Upgrade to Render
+          <Sparkles className="w-3 h-3" /> Upgrade to Produce
         </a>
       </div>
     );
@@ -400,8 +400,8 @@ function RenderPanel({
         <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
           <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-red-400">Render failed</p>
-            <p className="text-xs text-white/40 mt-0.5">{renderStatus?.renderError ?? video.renderError ?? "An error occurred during rendering. Please try again."}</p>
+            <p className="text-xs font-semibold text-red-400">Production failed</p>
+            <p className="text-xs text-white/40 mt-0.5">{renderStatus?.renderError ?? video.renderError ?? "Something went wrong during production. Please try again."}</p>
           </div>
           <button
             onClick={handleRender}
@@ -419,7 +419,7 @@ function RenderPanel({
           <div className="flex items-center gap-3">
             <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-blue-400">Rendering your video…</p>
+              <p className="text-xs font-bold text-blue-400">Producing your commercial…</p>
               <p className="text-xs text-white/50 mt-0.5">{stepLabel}</p>
             </div>
             <span className="text-[10px] text-white/25 tabular-nums shrink-0">
@@ -443,14 +443,14 @@ function RenderPanel({
               );
             })}
           </div>
-          <p className="text-[10px] text-white/25">AI video generation takes 10–15 minutes. You can leave this page and come back.</p>
+          <p className="text-[10px] text-white/25">AI scene production takes 10–15 minutes. You can safely leave this page — your commercial keeps running.</p>
           <button
             onClick={() => void handleCancelRender()}
             disabled={cancellingRender}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/40 hover:text-white/60 border border-white/10 transition-colors disabled:opacity-40 w-fit"
           >
             <X className="w-3 h-3" />
-            {cancellingRender ? "Cancelling…" : "Cancel Render"}
+            {cancellingRender ? "Cancelling…" : "Cancel Production"}
           </button>
         </div>
       )}
@@ -559,7 +559,7 @@ function RenderPanel({
             style={{ background: "#00E676", color: "#040B14" }}
           >
             {startRender.isPending ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Starting render…</>
+              <><Loader2 className="w-4 h-4 animate-spin" /> Starting production…</>
             ) : (
               <><Film className="w-4 h-4" /> Produce My Commercial</>
             )}
@@ -568,7 +568,7 @@ function RenderPanel({
           {startRender.isError && (
             <p className="text-xs text-red-400 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />
-              {(startRender.error as { message?: string })?.message ?? "Failed to start render"}
+              {(startRender.error as { message?: string })?.message ?? "Couldn't start production — please try again"}
             </p>
           )}
         </>
@@ -621,8 +621,8 @@ function ImageStudio({ projectId, isTrial }: { projectId: number; isTrial: boole
           <ImageIcon className="w-4 h-4 text-[#00D4FF]" />
         </div>
         <div>
-          <h2 className="text-lg font-black">AI Image Studio</h2>
-          <p className="text-xs text-muted-foreground">Generate marketing visuals grounded in your business</p>
+          <h2 className="text-lg font-black">Creative Image Studio</h2>
+          <p className="text-xs text-muted-foreground">AI-generated marketing visuals rooted in your brand story</p>
         </div>
         {isTrial && (
           <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#00E676]/15 text-[#00E676] border border-[#00E676]/20">
@@ -1122,7 +1122,7 @@ export default function ProjectVideos() {
         <div>
           <h1 className="text-3xl font-black tracking-tight">GrowthForge Commercial Studio</h1>
           <p className="text-muted-foreground mt-1">
-            AI-generated blueprints · Real video rendering · Marketing image generation
+            Commercial briefs · AI-produced video · Brand image creation
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
@@ -1161,7 +1161,7 @@ export default function ProjectVideos() {
             className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-primary/20 self-end"
           >
             <Sparkles className="h-4 w-4" />
-            Generate {blueprintCount} Blueprint{blueprintCount !== 1 ? "s" : ""}
+            Create {blueprintCount} Commercial Brief{blueprintCount !== 1 ? "s" : ""}
           </button>
         </div>
       </div>
@@ -1208,9 +1208,9 @@ export default function ProjectVideos() {
             <div className="flex rounded-xl border border-white/8 overflow-hidden shrink-0">
               {([
                 { v: "all",         l: "All" },
-                { v: "rendered",    l: "Rendered" },
-                { v: "not_rendered",l: "Pending" },
-                { v: "failed",      l: "Failed" },
+                { v: "rendered",    l: "Delivered" },
+                { v: "not_rendered",l: "Ready to Produce" },
+                { v: "failed",      l: "Needs Attention" },
               ] as const).map((s) => (
                 <button key={s.v} onClick={() => setFilterStatus(s.v)}
                   className={`px-3 py-2 text-xs font-medium transition-colors ${filterStatus === s.v ? "bg-white/12 text-white" : "text-white/40 hover:text-white/60"}`}>
@@ -1374,9 +1374,9 @@ export default function ProjectVideos() {
       ) : (
         <div className="flex flex-col items-center justify-center py-32 text-center">
           <VideoIcon className="h-16 w-16 text-primary/30 mb-6" />
-          <h2 className="text-2xl font-bold mb-3">No Blueprints Yet</h2>
+          <h2 className="text-2xl font-bold mb-3">Your Studio is Ready</h2>
           <p className="text-muted-foreground mb-8 max-w-sm">
-            Generate video blueprints — scripts, storyboards, and production notes for promos, product demos, and social shorts.
+            Create commercial briefs — fully written scripts, cinematic storyboards, and scene-by-scene production notes tailored to your brand.
           </p>
           <button
             onClick={() => setModalOpen(true)}

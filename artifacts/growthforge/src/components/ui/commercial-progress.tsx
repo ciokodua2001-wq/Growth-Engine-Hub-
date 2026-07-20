@@ -67,21 +67,21 @@ interface Stage {
 }
 
 const STAGES: Stage[] = [
-  { id: "analysis",   label: "Analyzing Business",            detail: "Grounding your commercial in real business intelligence and market context…",       icon: BarChart2,     weight: 3 },
-  { id: "strategy",   label: "Building Marketing Strategy",   detail: "Identifying the strongest messaging angles and target audience for this commercial…", icon: Target,        weight: 3 },
-  { id: "script",     label: "Writing Commercial Script",     detail: "Crafting a high-converting 30-second script with Hook → CTA structure…",             icon: FileText,      weight: 3 },
-  { id: "blueprint",  label: "Creating Scene Blueprint",      detail: "Designing 6 cinematic scenes with camera movements, lighting, and mood direction…",   icon: Clapperboard,  weight: 3 },
-  { id: "scene_0",    label: "Generating Scene 1 — Hook",     detail: "Creating the opening hook that grabs attention in the first 3 seconds…",             icon: Film,          weight: 10 },
-  { id: "scene_1",    label: "Generating Scene 2 — Problem",  detail: "Visualizing the viewer's pain point in a relatable, empathetic way…",                icon: Film,          weight: 10 },
-  { id: "scene_2",    label: "Generating Scene 3 — Solution", detail: "Introducing your product as the clear, effortless answer…",                          icon: Film,          weight: 10 },
-  { id: "scene_3",    label: "Generating Scene 4 — Benefits", detail: "Showcasing the 3 most compelling benefits visually…",                                 icon: Film,          weight: 10 },
-  { id: "scene_4",    label: "Generating Scene 5 — Proof",    detail: "Building trust with social proof and transformation moments…",                        icon: Film,          weight: 10 },
-  { id: "scene_5",    label: "Generating Scene 6 — CTA",      detail: "Driving immediate action with brand confidence and urgency…",                         icon: Film,          weight: 10 },
-  { id: "rendering",  label: "Rendering Commercial",          detail: "Merging all 6 scenes with xfade transitions and color normalization…",                icon: Film,          weight: 5 },
-  { id: "music",      label: "Adding Music",                  detail: "Mixing background music at 15% volume — never overpowering the narration…",           icon: Music,         weight: 5 },
-  { id: "captions",   label: "Generating Captions",           detail: "Burning in scene-name captions synchronized to your commercial's timeline…",          icon: MessageSquare, weight: 5 },
-  { id: "finalizing", label: "Finalizing Commercial",         detail: "Web-optimizing the final MP4 with H.264 High profile and faststart for instant play…", icon: Sparkles,     weight: 5 },
-  { id: "complete",   label: "Commercial Ready",              detail: "Your 30-second commercial is ready to download and publish.",                          icon: Check,         weight: 0 },
+  { id: "analysis",   label: "Reading Your Brand",            detail: "Immersing in your business, audience, and competitive landscape to ground every frame…", icon: BarChart2,     weight: 3 },
+  { id: "strategy",   label: "Crafting the Message",          detail: "Identifying the sharpest angles, emotional hooks, and calls-to-action for your audience…", icon: Target,        weight: 3 },
+  { id: "script",     label: "Writing the Script",            detail: "Building a high-converting 30-second narrative with a proven Hook → Problem → CTA arc…",   icon: FileText,      weight: 3 },
+  { id: "blueprint",  label: "Designing the Production",      detail: "Laying out 6 cinematic scenes with camera language, lighting mood, and performance notes…", icon: Clapperboard,  weight: 3 },
+  { id: "scene_0",    label: "Filming Scene 1 — Hook",        detail: "Producing the opening moment that stops the scroll and demands attention in 3 seconds…",   icon: Film,          weight: 10 },
+  { id: "scene_1",    label: "Filming Scene 2 — Problem",     detail: "Capturing the viewer's challenge with empathy and visual authenticity…",                    icon: Film,          weight: 10 },
+  { id: "scene_2",    label: "Filming Scene 3 — Solution",    detail: "Revealing your product as the elegant, obvious answer to what they've been missing…",       icon: Film,          weight: 10 },
+  { id: "scene_3",    label: "Filming Scene 4 — Benefits",    detail: "Bringing the three most powerful benefits to life through cinematic storytelling…",          icon: Film,          weight: 10 },
+  { id: "scene_4",    label: "Filming Scene 5 — Proof",       detail: "Instilling confidence with transformation moments and social proof that converts…",         icon: Film,          weight: 10 },
+  { id: "scene_5",    label: "Filming Scene 6 — Call to Act", detail: "Closing with brand authority and urgency that drives immediate viewer response…",           icon: Film,          weight: 10 },
+  { id: "rendering",  label: "Assembling Your Commercial",    detail: "Joining all 6 scenes with cinematic crossfades and professional color normalization…",      icon: Film,          weight: 5 },
+  { id: "music",      label: "Adding the Score",              detail: "Weaving in background music at the perfect volume — supporting tone without distraction…",  icon: Music,         weight: 5 },
+  { id: "captions",   label: "Adding Captions",               detail: "Burning in clean, bold captions frame-synced to your commercial's timeline…",               icon: MessageSquare, weight: 5 },
+  { id: "finalizing", label: "Preparing for Delivery",        detail: "Encoding to H.264 High Profile with faststart — instant playback on every platform…",      icon: Sparkles,      weight: 5 },
+  { id: "complete",   label: "Commercial Delivered",          detail: "Your commercial is ready to publish, share, and drive results.",                            icon: Check,         weight: 0 },
 ];
 
 const TOTAL_WEIGHT = STAGES.reduce((s, st) => s + st.weight, 0);
@@ -499,17 +499,17 @@ export default function CommercialProductionProgress({ video, projectId, caption
           <div className="rounded-xl bg-[#00E676]/5 border border-[#00E676]/20 p-4">
             <div className="flex items-center gap-2 mb-2">
               <LockIcon className="w-4 h-4 text-[#00E676]" />
-              <span className="text-sm font-bold text-[#00E676]">Video Rendering — Paid Plans Only</span>
+              <span className="text-sm font-bold text-[#00E676]">Commercial Production — Paid Plans Only</span>
             </div>
             <p className="text-xs text-white/50 mb-3">
-              Your trial includes Commercial Blueprints — scripts, storyboards, and full scene production notes.
-              Upgrade to render actual MP4 commercials with AI-generated scenes, narration, and cinematic transitions.
+              Your trial includes full Commercial Blueprints — scripts, storyboards, and scene-by-scene production notes.
+              Upgrade to produce broadcast-ready MP4 commercials with AI-generated scenes, narration, and cinematic transitions.
             </p>
             <a
               href="/plans"
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-black bg-[#00E676] hover:bg-[#00E676]/90 transition-colors"
             >
-              <Sparkles className="w-3 h-3" /> Upgrade to Render
+              <Sparkles className="w-3 h-3" /> Upgrade to Produce
             </a>
           </div>
         </div>
@@ -525,18 +525,18 @@ export default function CommercialProductionProgress({ video, projectId, caption
             </div>
             <div>
               <p className="text-sm font-bold text-white">GrowthForge Commercial Studio</p>
-              <p className="text-[10px] text-white/40">30-second AI commercial · 6 cinematic scenes</p>
+              <p className="text-[10px] text-white/40">30-second commercial · 6 cinematic scenes · AI-produced</p>
             </div>
           </div>
 
           {!hasBlueprint ? (
             <div className="rounded-lg bg-yellow-500/8 border border-yellow-500/20 p-3 mb-3">
-              <p className="text-xs text-yellow-400 font-medium">Blueprint required</p>
-              <p className="text-[10px] text-white/45 mt-0.5">Generate a Commercial Blueprint first, then come back to produce your commercial.</p>
+              <p className="text-xs text-yellow-400 font-medium">Create a brief first</p>
+              <p className="text-[10px] text-white/45 mt-0.5">Generate a Commercial Brief first — we'll use it as the production blueprint for your commercial.</p>
             </div>
           ) : (
             <div className="flex flex-wrap gap-1.5 mb-3">
-              {(["AI Scene Generation", "xFade Transitions", "Scene Captions", "Web-Optimized MP4"] as const).map(tag => (
+              {(["AI Scene Filming", "Cinematic Transitions", "Scene Captions", "Web-Ready MP4"] as const).map(tag => (
                 <span key={tag} className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/50">{tag}</span>
               ))}
             </div>
@@ -570,8 +570,8 @@ export default function CommercialProductionProgress({ video, projectId, caption
         </div>
         <div className="flex items-center gap-2">
           <div className="flex-1 rounded-xl bg-[#00E676]/8 border border-[#00E676]/20 px-3 py-2.5">
-            <p className="text-xs font-bold text-[#00E676]">Commercial Ready</p>
-            <p className="text-[10px] text-white/40 mt-0.5">30-second commercial · Landscape 1920×1080 · H.264</p>
+            <p className="text-xs font-bold text-[#00E676]">Commercial Delivered</p>
+            <p className="text-[10px] text-white/40 mt-0.5">30-second commercial · Landscape 1920×1080 · H.264 · Ready to publish</p>
           </div>
           <a
             href={finalVideoUrl}
@@ -597,8 +597,8 @@ export default function CommercialProductionProgress({ video, projectId, caption
   if (phase === "complete" && !finalVideoUrl) {
     return (
       <div className="mt-4 pt-4 border-t border-white/8 p-4 rounded-xl bg-[#00E676]/6 border border-[#00E676]/20">
-        <p className="text-sm font-bold text-[#00E676]">Commercial complete</p>
-        <p className="text-xs text-white/50 mt-1">Refresh the page to see your video.</p>
+        <p className="text-sm font-bold text-[#00E676]">Commercial delivered</p>
+        <p className="text-xs text-white/50 mt-1">Refresh the page to view and download your commercial.</p>
       </div>
     );
   }
@@ -611,8 +611,8 @@ export default function CommercialProductionProgress({ video, projectId, caption
           <div className="flex items-start gap-2 mb-3">
             <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-bold text-red-400">Production failed</p>
-              <p className="text-[10px] text-white/45 mt-0.5 break-words">{error ?? "An unexpected error occurred."}</p>
+              <p className="text-xs font-bold text-red-400">Production couldn't complete</p>
+              <p className="text-[10px] text-white/45 mt-0.5 break-words">{error ?? "Something went wrong on our end. Give it another try."}</p>
             </div>
           </div>
           <button
@@ -678,13 +678,13 @@ export default function CommercialProductionProgress({ video, projectId, caption
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] font-bold text-white/35 uppercase tracking-wider">
-              Scenes · {scenes.filter(s => s.status === "succeed").length}/{scenes.length} complete
+              Scenes in Production · {scenes.filter(s => s.status === "succeed").length}/{scenes.length} filmed
             </p>
             {activeSceneCount > 0 && (
-              <span className="text-[9px] text-[#00D4FF]/70">{activeSceneCount} generating in parallel</span>
+              <span className="text-[9px] text-[#00D4FF]/70">{activeSceneCount} filming in parallel</span>
             )}
             {hasFailedScene && !allScenesSucceeded && (
-              <span className="text-[9px] text-red-400/70">Some scenes failed — retry individually</span>
+              <span className="text-[9px] text-red-400/70">Some scenes need attention — retry individually</span>
             )}
           </div>
           <div className="grid grid-cols-6 gap-1.5">
@@ -777,7 +777,7 @@ export default function CommercialProductionProgress({ video, projectId, caption
 
       {/* Footer note */}
       <p className="text-[10px] text-white/20 text-center">
-        AI scene generation takes 8–15 min per scene. You can leave this page — your commercial will keep rendering.
+        AI scene production takes 8–15 min per scene. You can safely leave this page — your commercial keeps running in the background.
       </p>
     </div>
   );
