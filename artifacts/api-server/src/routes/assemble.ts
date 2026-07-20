@@ -7,6 +7,10 @@
  *              captionsEnabled }
  *   Returns: { assemblyIds, assemblies[] }
  *
+ *   Deduplication: if a "complete" assembly already exists for a requested format
+ *   with the same options fingerprint, it is returned immediately without re-running
+ *   FFmpeg — preventing redundant CPU/storage spend when users click assemble twice.
+ *
  * GET /projects/:id/videos/:videoId/assemblies
  *   Returns: { assemblies[], overallStatus, progress }
  *
@@ -14,6 +18,7 @@
  *   Returns: { assembly }
  */
 
+import { createHash } from "crypto";
 import { Router } from "express";
 import { db } from "@workspace/db";
 import {
@@ -146,6 +151,73 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
     captionsEnabled: body.captionsEnabled !== false,
   };
 
+  // ── Options fingerprint — used for assembly deduplication ──────────────────
+  // We fingerprint the options that materially affect the output file.
+  // Dynamic URLs (logoUrl, narrationUrl, musicUrl) are intentionally excluded
+  // because they are signed URLs that change per-request even for the same asset.
+  const optionsFingerprint = createHash("sha256")
+    .update(JSON.stringify({
+      transitionType: options.transitionType,
+      transitionDuration: options.transitionDuration,
+      logoPosition: options.logoPosition,
+      logoOpacity: options.logoOpacity,
+      captionsEnabled: options.captionsEnabled,
+      hasLogo: !!options.logoUrl,
+      hasNarration: !!options.narrationUrl,
+      hasMusic: !!options.backgroundMusicUrl,
+    }))
+    .digest("hex");
+
+  // ── Deduplication: check for existing complete assemblies ──────────────────
+  // If a complete assembly exists for each requested format with the same options
+  // fingerprint, return it immediately — no FFmpeg needed.
+  const existingAssemblies = await db
+    .select()
+    .from(commercialAssembliesTable)
+    .where(
+      and(
+        eq(commercialAssembliesTable.videoId, videoId),
+        eq(commercialAssembliesTable.status, "complete"),
+        inArray(commercialAssembliesTable.outputFormat, requestedFormats),
+      ),
+    );
+
+  // Build a map: format → existing complete assembly with matching fingerprint
+  const cachedByFormat = new Map<OutputFormat, typeof existingAssemblies[0]>();
+  for (const a of existingAssemblies) {
+    const opts = a.options as Record<string, unknown> | null;
+    if (opts?.optionsFingerprint === optionsFingerprint) {
+      cachedByFormat.set(a.outputFormat as OutputFormat, a);
+    }
+  }
+
+  const formatsNeedingRender = requestedFormats.filter(f => !cachedByFormat.has(f));
+  const formatsServedFromCache = requestedFormats.filter(f => cachedByFormat.has(f));
+
+  if (formatsServedFromCache.length > 0) {
+    logger.info(
+      { videoId, cached: formatsServedFromCache, toRender: formatsNeedingRender, optionsFingerprint: optionsFingerprint.slice(0, 8) },
+      "[assemble] Returning cached assemblies for some formats",
+    );
+  }
+
+  // If ALL formats are cached, skip FFmpeg entirely
+  if (formatsNeedingRender.length === 0) {
+    logger.info(
+      { videoId, formats: requestedFormats },
+      "[assemble] All formats already assembled with same options — returning cached",
+    );
+    res.status(200).json({
+      message: "Assemblies already complete — returning cached results",
+      videoId,
+      formats: requestedFormats,
+      cached: true,
+      assemblyIds: [...cachedByFormat.values()].map(a => a.id),
+      assemblies: [...cachedByFormat.values()].map(formatAssembly),
+    });
+    return;
+  }
+
   // ── Cancel any in-flight assemblies for this video (re-render request) ─────
   await db
     .update(commercialAssembliesTable)
@@ -157,15 +229,16 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
       ),
     );
 
-  // ── Create one assembly record per requested format ────────────────────────
+  // ── Create one assembly record per format that needs rendering ─────────────
   const assemblyRows = await db
     .insert(commercialAssembliesTable)
     .values(
-      requestedFormats.map(format => ({
+      formatsNeedingRender.map(format => ({
         videoId,
         outputFormat: format,
         status: "pending" as const,
-        options: options as unknown as Record<string, unknown>,
+        // Store the fingerprint in options so future dedup checks can match it
+        options: { ...options as unknown as Record<string, unknown>, optionsFingerprint },
       })),
     )
     .returning();
@@ -173,7 +246,7 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
   const assemblyIds = assemblyRows.map(r => r.id);
 
   logger.info(
-    { videoId, formats: requestedFormats, assemblyIds },
+    { videoId, formats: formatsNeedingRender, assemblyIds, optionsFingerprint: optionsFingerprint.slice(0, 8) },
     "[assemble] Assembly jobs created — starting pipeline",
   );
 
@@ -185,11 +258,10 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
 
   // Fire-and-forget assembly pipeline
   getAssembler()
-    .assemble(videoId, assemblyIds, requestedFormats, options)
+    .assemble(videoId, assemblyIds, formatsNeedingRender, options)
     .catch(err => {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error({ err, videoId }, "[assemble] Pipeline unhandled error");
-      // Mark all pending assemblies as failed
       void db
         .update(commercialAssembliesTable)
         .set({
@@ -210,12 +282,19 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
         .where(eq(videosTable.id, videoId));
     });
 
+  // Include any cached assemblies in the response alongside the newly queued ones
+  const allAssemblies = [
+    ...assemblyRows.map(formatAssembly),
+    ...[...cachedByFormat.values()].map(formatAssembly),
+  ];
+
   res.status(202).json({
     message: "Assembly pipeline started",
     videoId,
     formats: requestedFormats,
     assemblyIds,
-    assemblies: assemblyRows.map(formatAssembly),
+    cached: formatsServedFromCache,
+    assemblies: allAssemblies,
     options: {
       transitionType,
       transitionDuration,

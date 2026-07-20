@@ -4,6 +4,7 @@ import { videosTable, klingSceneJobsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
 import { getSceneManager, checkSceneManagerRequirements, COMMERCIAL_SCENE_STRUCTURE } from "../lib/sceneManager.js";
+import { getRenderQueue } from "../lib/renderQueue.js";
 import pino from "pino";
 
 const router = Router();
@@ -14,7 +15,14 @@ router.param("id", requireProjectOwnershipParam());
 // ── POST /projects/:id/videos/:videoId/scenes/generate ────────────────────────
 // Decomposes the video's Commercial Blueprint into 6 cinematic scenes using AI,
 // stores them in the DB, and starts independent background rendering for each.
-// If scenes already exist for this video they are replaced (re-generate).
+//
+// Idempotency:
+//   • If a decomposition is already in flight for this video (same server process),
+//     returns 409 so the client knows to poll the existing scene list instead.
+//   • If all 6 scenes exist with the same blueprint fingerprint and none failed,
+//     SceneManager returns cached scenes without calling Claude.
+//   • If scenes are already submitted/processing, returns 409 with current progress
+//     so clients know not to re-trigger.
 router.post("/projects/:id/videos/:videoId/scenes/generate", async (req, res) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
@@ -57,19 +65,70 @@ router.post("/projects/:id/videos/:videoId/scenes/generate", async (req, res) =>
     return;
   }
 
+  const queue = getRenderQueue();
+
+  // ── In-flight guard (in-process lock) ─────────────────────────────────────
+  // Prevents two simultaneous requests from both calling Claude and overwriting
+  // each other's scene records.
+  if (queue.isDecompositionInFlight(videoId)) {
+    logger.info({ projectId, videoId, userId }, "[scenes] Decomposition already in flight — returning 409");
+
+    const existingScenes = await getSceneManager().getVideoScenes(videoId);
+    const statusCounts = buildStatusCounts(existingScenes);
+
+    res.status(409).json({
+      error: "Scene generation already in progress",
+      message: "A decomposition is already running for this video. Poll GET /scenes to track progress.",
+      videoId,
+      progress: buildProgress(existingScenes, statusCounts),
+      scenes: existingScenes.map(formatScene),
+    });
+    return;
+  }
+
+  // ── Active scenes guard (DB state) ────────────────────────────────────────
+  // After a server restart the in-process lock is gone, but scenes in
+  // "submitted"/"processing" are still running on Kling's side. Don't restart.
+  const existingScenes = await getSceneManager().getVideoScenes(videoId);
+  const activeStatuses = existingScenes.filter(s =>
+    s.status === "submitted" || s.status === "processing",
+  );
+
+  if (activeStatuses.length > 0) {
+    logger.info(
+      { projectId, videoId, activeCount: activeStatuses.length },
+      "[scenes] Active Kling scenes — refusing re-generation",
+    );
+    const statusCounts = buildStatusCounts(existingScenes);
+    res.status(409).json({
+      error: "Scenes are already rendering",
+      message: `${activeStatuses.length} scene(s) are actively rendering. Poll GET /scenes to track progress.`,
+      videoId,
+      progress: buildProgress(existingScenes, statusCounts),
+      scenes: existingScenes.map(formatScene),
+    });
+    return;
+  }
+
   logger.info({ projectId, videoId, userId }, "[scenes] Starting blueprint decomposition");
 
   const manager = getSceneManager();
 
+  // Acquire the per-video decomposition lock before calling Claude
+  const releaseLock = await queue.acquireDecompositionLock(videoId);
+
   let scenes;
   try {
-    // AI decomposition — synchronous (creates scene records, returns them)
+    // AI decomposition — synchronous (creates scene records, returns them).
+    // Returns cached scenes if the blueprint hasn't changed.
     scenes = await manager.decomposeBlueprint(videoId, projectId);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Scene decomposition failed";
     logger.error({ err, videoId }, "[scenes] Blueprint decomposition failed");
     res.status(500).json({ error: "Failed to decompose blueprint into scenes", detail: msg });
     return;
+  } finally {
+    releaseLock();
   }
 
   // Update video render status to show scene generation is underway
@@ -78,7 +137,8 @@ router.post("/projects/:id/videos/:videoId/scenes/generate", async (req, res) =>
     .set({ renderStatus: "processing", renderStartedAt: new Date(), renderError: null })
     .where(eq(videosTable.id, videoId));
 
-  // Fire-and-forget: submit each scene to Kling independently in the background
+  // Fire-and-forget: submit each pending scene to Kling independently.
+  // The global render queue caps concurrent submissions across all users.
   manager.startSceneRendering(videoId);
 
   logger.info({ videoId, sceneCount: scenes.length }, "[scenes] Scenes created — rendering started");
@@ -116,39 +176,20 @@ router.get("/projects/:id/videos/:videoId/scenes", async (req, res) => {
   }
 
   const scenes = await getSceneManager().getVideoScenes(videoId);
-
-  const statusCounts = scenes.reduce(
-    (acc, s) => {
-      const key = s.status as string;
-      acc[key] = (acc[key] ?? 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
-
-  const totalScenes = scenes.length;
-  const completedScenes = statusCounts["succeed"] ?? 0;
-  const failedScenes = statusCounts["failed"] ?? 0;
-  const inProgressScenes = (statusCounts["submitted"] ?? 0) + (statusCounts["processing"] ?? 0);
-  const pendingScenes = statusCounts["pending"] ?? 0;
+  const statusCounts = buildStatusCounts(scenes);
 
   res.json({
     videoId,
-    totalScenes,
-    progress: {
-      completed: completedScenes,
-      inProgress: inProgressScenes,
-      pending: pendingScenes,
-      failed: failedScenes,
-      percentComplete: totalScenes > 0 ? Math.round((completedScenes / totalScenes) * 100) : 0,
-    },
-    allComplete: totalScenes > 0 && completedScenes === totalScenes,
+    totalScenes: scenes.length,
+    progress: buildProgress(scenes, statusCounts),
+    allComplete: scenes.length > 0 && (statusCounts["succeed"] ?? 0) === scenes.length,
     scenes: scenes.map(formatScene),
   });
 });
 
 // ── POST /projects/:id/videos/:videoId/scenes/:sceneId/retry ─────────────────
 // Retries a single failed scene. Never touches successful scenes.
+// Enforces a hard cap of 3 user-initiated retries per scene.
 router.post("/projects/:id/videos/:videoId/scenes/:sceneId/retry", async (req, res) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
@@ -207,12 +248,15 @@ router.post("/projects/:id/videos/:videoId/scenes/:sceneId/retry", async (req, r
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Retry failed";
     logger.error({ err, sceneId }, "[scenes] Retry failed");
-    res.status(500).json({ error: "Failed to retry scene", detail: msg });
+
+    // Distinguish retry cap errors (409) from unexpected errors (500)
+    const status = msg.includes("maximum") ? 409 : 500;
+    res.status(status).json({ error: msg });
   }
 });
 
 // ── GET /projects/:id/videos/:videoId/scenes/structure ───────────────────────
-// Returns the canonical 6-scene commercial structure (no auth required for this).
+// Returns the canonical 6-scene commercial structure.
 router.get("/projects/:id/videos/:videoId/scenes/structure", async (req, res) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
@@ -224,6 +268,31 @@ router.get("/projects/:id/videos/:videoId/scenes/structure", async (req, res) =>
     sceneDurationSec: 5,
   });
 });
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function buildStatusCounts(scenes: (typeof klingSceneJobsTable.$inferSelect)[]): Record<string, number> {
+  return scenes.reduce((acc, s) => {
+    const key = s.status as string;
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+}
+
+function buildProgress(
+  scenes: (typeof klingSceneJobsTable.$inferSelect)[],
+  statusCounts: Record<string, number>,
+) {
+  const totalScenes = scenes.length;
+  const completedScenes = statusCounts["succeed"] ?? 0;
+  return {
+    completed: completedScenes,
+    inProgress: (statusCounts["submitted"] ?? 0) + (statusCounts["processing"] ?? 0),
+    pending: statusCounts["pending"] ?? 0,
+    failed: statusCounts["failed"] ?? 0,
+    percentComplete: totalScenes > 0 ? Math.round((completedScenes / totalScenes) * 100) : 0,
+  };
+}
 
 // ── Response formatter ────────────────────────────────────────────────────────
 

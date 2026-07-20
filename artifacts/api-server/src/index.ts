@@ -5,6 +5,7 @@ import { getStripeSync } from "./stripeClient.js";
 import { startArchivalJob } from "./lib/archivalJob.js";
 import { startStuckPublishRecovery } from "./lib/stuckPublishRecovery.js";
 import { startScheduledPublisher } from "./lib/scheduledPublisher.js";
+import { startRenderMonitor } from "./lib/renderMonitor.js";
 import { checkEncryptionKey, isEncryptedFormat, decryptToken } from "./lib/tokenCrypto.js";
 import { db } from "@workspace/db";
 import { metaConnectionsTable } from "@workspace/db";
@@ -112,6 +113,7 @@ app.listen(port, (err) => {
   startArchivalJob();
   startStuckPublishRecovery();
   startScheduledPublisher();
+  startRenderMonitor();
   void runMetaTokenHealthCheck();
   void initStripe();
 });

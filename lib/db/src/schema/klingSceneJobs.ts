@@ -41,6 +41,11 @@ export const klingSceneJobsTable = pgTable("kling_scene_jobs", {
   durationSec: integer("duration_sec"),
   errorMessage: text("error_message"),
 
+  // ── Prompt fingerprint — SHA-256 of (script+storyboard+cinematicPlan) ────
+  // Allows decomposeBlueprint to skip the Claude AI call when the blueprint
+  // hasn't changed since the last decomposition.
+  promptHash: text("prompt_hash"),
+
   // ── Retry tracking ────────────────────────────────────────────────────────
   retryCount: integer("retry_count").notNull().default(0),
   lastRetryAt: timestamp("last_retry_at", { withTimezone: true }),

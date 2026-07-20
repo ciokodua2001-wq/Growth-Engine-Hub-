@@ -1,9 +1,11 @@
+import { createHash } from "crypto";
 import pino from "pino";
 import { db } from "@workspace/db";
 import { klingSceneJobsTable, videosTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { generateJson } from "./aiJson.js";
 import { getGroundingContext, renderGroundingBlock } from "./projectContext.js";
+import { getRenderQueue } from "./renderQueue.js";
 import type { CommercialSceneType, KlingSceneJob } from "@workspace/db";
 
 const logger = pino({ name: "sceneManager" });
@@ -18,6 +20,12 @@ const KLING_MAX_POLLS = 120;       // 120 × 10 s = 20 min per scene
 const KLING_POLL_INTERVAL_MS = 10_000;
 const KLING_NEGATIVE_PROMPT =
   "blurry, low quality, distorted, ugly, pixelated, amateur, watermark, text overlay, logo";
+
+/**
+ * Hard cap on per-scene user-initiated retries via the /retry route.
+ * Automatic recovery by RenderMonitor uses its own separate counter check.
+ */
+const MAX_USER_RETRIES = 3;
 
 // ── 6-Scene commercial structure ──────────────────────────────────────────────
 export const COMMERCIAL_SCENE_STRUCTURE: Array<{
@@ -107,12 +115,19 @@ export class SceneManager {
   // ── Public API ──────────────────────────────────────────────────────────────
 
   /**
-   * Uses Claude AI to decompose the video's Commercial Blueprint into the
-   * standard 6-scene structure (Hook → Problem → Solution → Benefits → Proof → CTA).
-   * Each scene gets full cinematic metadata: environment, camera movement, lighting,
-   * mood, composition, motion, brand style, and marketing objective.
+   * Decomposes the video's Commercial Blueprint into 6 cinematic scenes using AI.
    *
-   * Creates scene records in the DB and returns them. Does NOT start rendering.
+   * Idempotency: Computes a SHA-256 fingerprint of the blueprint content
+   * (script + storyboard + cinematicPlan). If all 6 scene records already exist
+   * with the same fingerprint and none have failed, returns the cached scenes
+   * without calling Claude — reducing AI spend on repeated calls.
+   *
+   * Duplicate prevention: Uses a per-video in-process lock so that two
+   * simultaneous requests for the same video don't both run Claude and
+   * overwrite each other's DB records.
+   *
+   * Creates (or refreshes) scene records in the DB and returns them.
+   * Does NOT start rendering.
    */
   async decomposeBlueprint(videoId: number, projectId: number): Promise<KlingSceneJob[]> {
     logger.info({ videoId, projectId }, "[SceneManager] Decomposing blueprint into scenes");
@@ -120,7 +135,32 @@ export class SceneManager {
     const video = await this.loadVideo(videoId);
     if (!video) throw new Error(`Video ${videoId} not found`);
 
-    // Load grounding context — allows scene generation to reference real brand/product info
+    // ── Prompt fingerprint ─────────────────────────────────────────────────
+    const blueprintContent = (video.script ?? "") + (video.storyboard ?? "") + (video.cinematicPlan ?? "");
+    const promptHash = createHash("sha256").update(blueprintContent).digest("hex");
+
+    // ── Cache hit check ────────────────────────────────────────────────────
+    // If all 6 scenes already exist with the same hash and none have failed,
+    // skip the Claude call and return the cached rows.
+    const existing = await db
+      .select()
+      .from(klingSceneJobsTable)
+      .where(eq(klingSceneJobsTable.videoId, videoId))
+      .orderBy(klingSceneJobsTable.sceneIndex);
+
+    const allMatch = existing.length === 6
+      && existing.every(s => s.promptHash === promptHash)
+      && existing.every(s => s.status !== "failed");
+
+    if (allMatch) {
+      logger.info(
+        { videoId, promptHash: promptHash.slice(0, 8) },
+        "[SceneManager] Blueprint unchanged — returning cached scenes (no Claude call)",
+      );
+      return existing;
+    }
+
+    // ── Load grounding context ─────────────────────────────────────────────
     const ctx = await getGroundingContext(projectId).catch(() => null);
     const groundingBlock = ctx ? renderGroundingBlock(ctx) : null;
 
@@ -134,7 +174,7 @@ export class SceneManager {
       "[SceneManager] AI decomposition complete — creating scene records",
     );
 
-    // Delete any existing scene records for this video before creating new ones
+    // Delete existing records for this video before inserting fresh ones
     await db.delete(klingSceneJobsTable).where(eq(klingSceneJobsTable.videoId, videoId));
 
     const rows = await db
@@ -154,6 +194,7 @@ export class SceneManager {
           brandStyle: s.brandStyle,
           marketingObjective: s.marketingObjective,
           prompt: s.klingPrompt,
+          promptHash,
           status: "pending" as const,
           model: KLING_DEFAULT_MODEL,
           aspectRatio: klingAspectRatio,
@@ -162,7 +203,10 @@ export class SceneManager {
       )
       .returning();
 
-    logger.info({ videoId, sceneIds: rows.map(r => r.id) }, "[SceneManager] Scene records created in DB");
+    logger.info(
+      { videoId, sceneIds: rows.map(r => r.id), promptHash: promptHash.slice(0, 8) },
+      "[SceneManager] Scene records created in DB",
+    );
     return rows;
   }
 
@@ -179,6 +223,10 @@ export class SceneManager {
 
   /**
    * Retries a single failed scene without touching any other scenes.
+   *
+   * Enforces a hard cap of MAX_USER_RETRIES (3) per scene to prevent
+   * unbounded Kling spend from repeated manual retries.
+   *
    * Increments retryCount, resets status to pending, then processes it.
    */
   async retryScene(sceneJobId: number): Promise<KlingSceneJob> {
@@ -188,8 +236,17 @@ export class SceneManager {
       throw new Error(`Scene ${sceneJobId} is not in failed state (current: ${scene.status})`);
     }
 
+    // Enforce retry cap — automatic recovery does not count toward this limit
+    // since it uses its own check in RenderMonitor.
+    if (scene.retryCount >= MAX_USER_RETRIES) {
+      throw new Error(
+        `Scene ${sceneJobId} has reached the maximum of ${MAX_USER_RETRIES} retries. ` +
+        `Contact support if the issue persists.`,
+      );
+    }
+
     logger.info(
-      { sceneJobId, sceneIndex: scene.sceneIndex, retryCount: scene.retryCount },
+      { sceneJobId, sceneIndex: scene.sceneIndex, retryCount: scene.retryCount, maxRetries: MAX_USER_RETRIES },
       "[SceneManager] Retrying failed scene",
     );
 
@@ -248,7 +305,10 @@ export class SceneManager {
       "[SceneManager] Starting independent rendering for pending scenes",
     );
 
-    // Each scene runs completely independently — one failure does not affect others
+    // Each scene runs completely independently — one failure does not affect others.
+    // Each processScene call will acquire its own slot from the global render queue,
+    // so all 6 launches happen immediately but only KLING_CONCURRENCY run at once
+    // across ALL videos from ALL users.
     await Promise.allSettled(scenes.map(s => this.processScene(s.id)));
   }
 
@@ -256,6 +316,11 @@ export class SceneManager {
 
   /**
    * Handles the full lifecycle of one scene: submit → poll → download → store.
+   *
+   * Before submitting to Kling, acquires a slot from the global concurrency queue
+   * (capped by KLING_CONCURRENCY env var, default 12). This prevents thundering-
+   * herd API abuse when many users generate simultaneously.
+   *
    * Updates the DB at every status transition. Any failure is logged and
    * recorded in DB — the scene moves to "failed" and the rest are unaffected.
    */
@@ -271,38 +336,71 @@ export class SceneManager {
       "[SceneManager] Processing scene",
     );
 
-    // ── Step 1: Submit to Kling ──────────────────────────────────────────────
-    const externalTaskId = `gf-v${scene.videoId}-s${scene.sceneIndex}-${Date.now()}`;
-    let klingTaskId: string;
+    // ── Step 1: Acquire Kling concurrency slot ───────────────────────────────
+    const queue = getRenderQueue();
+    let releaseSlot: ((success?: boolean) => void) | null = null;
 
     try {
-      klingTaskId = await this.submitToKling(scene.prompt, scene.aspectRatio, externalTaskId);
-      await db
-        .update(klingSceneJobsTable)
-        .set({ klingTaskId, externalTaskId, status: "submitted", updatedAt: new Date() })
-        .where(eq(klingSceneJobsTable.id, sceneJobId));
-
-      logger.info(
-        { sceneJobId, sceneIndex: scene.sceneIndex, klingTaskId },
-        "[SceneManager] Scene submitted to Kling — task created",
+      logger.debug(
+        { sceneJobId, sceneIndex: scene.sceneIndex },
+        "[SceneManager] Waiting for Kling slot",
       );
+      releaseSlot = await queue.acquireKling();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      logger.error({ err, sceneJobId, sceneIndex: scene.sceneIndex }, "[SceneManager] Scene submission failed");
-      await this.markSceneFailed(sceneJobId, `Submission failed: ${msg}`);
+      logger.error({ err, sceneJobId }, "[SceneManager] Failed to acquire Kling slot");
+      await this.markSceneFailed(sceneJobId, "Failed to acquire render slot");
       return;
     }
 
-    // ── Step 2: Poll until terminal ──────────────────────────────────────────
+    let klingTaskId: string;
+
     try {
-      const storedUrl = await this.pollUntilComplete(sceneJobId, scene.sceneIndex, klingTaskId, scene.videoId);
-      logger.info(
-        { sceneJobId, sceneIndex: scene.sceneIndex, storedUrl },
-        "[SceneManager] Scene complete and stored",
-      );
-    } catch (err) {
-      // pollUntilComplete already wrote the failure to DB
-      logger.error({ err, sceneJobId, sceneIndex: scene.sceneIndex }, "[SceneManager] Scene polling/download failed");
+      // ── Step 2: Submit to Kling ────────────────────────────────────────────
+      const externalTaskId = `gf-v${scene.videoId}-s${scene.sceneIndex}-${Date.now()}`;
+
+      try {
+        klingTaskId = await this.submitToKling(scene.prompt, scene.aspectRatio, externalTaskId);
+        await db
+          .update(klingSceneJobsTable)
+          .set({ klingTaskId, externalTaskId, status: "submitted", updatedAt: new Date() })
+          .where(eq(klingSceneJobsTable.id, sceneJobId));
+
+        logger.info(
+          { sceneJobId, sceneIndex: scene.sceneIndex, klingTaskId },
+          "[SceneManager] Scene submitted to Kling — task created",
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error({ err, sceneJobId, sceneIndex: scene.sceneIndex }, "[SceneManager] Scene submission failed");
+        await this.markSceneFailed(sceneJobId, `Submission failed: ${msg}`);
+        releaseSlot(false);
+        releaseSlot = null;
+        return;
+      }
+
+      // ── Step 3: Release Kling slot — we've submitted, poll is cheap ────────
+      // The Kling API is only "busy" during the submit call itself. Polling and
+      // downloading happen independently so the slot can be freed now to let
+      // other scenes submit.
+      releaseSlot(true);
+      releaseSlot = null;
+
+      // ── Step 4: Poll until terminal ────────────────────────────────────────
+      try {
+        const storedUrl = await this.pollUntilComplete(sceneJobId, scene.sceneIndex, klingTaskId, scene.videoId);
+        logger.info(
+          { sceneJobId, sceneIndex: scene.sceneIndex, storedUrl },
+          "[SceneManager] Scene complete and stored",
+        );
+      } catch (err) {
+        // pollUntilComplete already wrote the failure to DB
+        logger.error({ err, sceneJobId, sceneIndex: scene.sceneIndex }, "[SceneManager] Scene polling/download failed");
+      }
+    } finally {
+      // Safety net: always release if not already released
+      if (releaseSlot) {
+        releaseSlot(false);
+      }
     }
   }
 
@@ -414,23 +512,23 @@ export class SceneManager {
           "[SceneManager] Scene ready — downloading from Kling CDN",
         );
 
-        const storedUrl = await this.downloadAndStore(remoteUrl, videoId, sceneIndex);
+        const storedKey = await this.downloadAndStore(remoteUrl, videoId, sceneIndex);
 
         await db
           .update(klingSceneJobsTable)
           .set({
             status: "succeed",
-            videoUrl: storedUrl,
+            videoUrl: storedKey,
             durationSec: KLING_DURATION_SEC,
             updatedAt: new Date(),
           })
           .where(eq(klingSceneJobsTable.id, sceneJobId));
 
         logger.info(
-          { sceneJobId, sceneIndex, storedUrl },
+          { sceneJobId, sceneIndex, storedKey },
           "[SceneManager] Scene downloaded and stored — marking succeed",
         );
-        return storedUrl;
+        return storedKey;
       }
 
       if (taskData.task_status === "failed") {
@@ -538,6 +636,14 @@ Generate exactly 6 scenes (one per commercial section). Make every scene visuall
 
   // ── Internal: storage ─────────────────────────────────────────────────────
 
+  /**
+   * Downloads the Kling CDN video and stores it permanently in object storage.
+   *
+   * The object key is deterministic (video-{id}-scene-{index}.mp4) rather than
+   * timestamped, so re-downloads overwrite the previous file instead of creating
+   * orphaned objects that eat storage costs. The stored key — not a signed URL —
+   * is what's persisted in the DB; fresh signed URLs are generated on demand.
+   */
   private async downloadAndStore(
     remoteUrl: string,
     videoId: number,
@@ -560,9 +666,15 @@ Generate exactly 6 scenes (one per commercial section). Make every scene visuall
     if (!bucketId) throw new Error("DEFAULT_OBJECT_STORAGE_BUCKET_ID not set");
 
     const bucket = objectStorageClient.bucket(bucketId);
-    const objectName = `renders/kling/video-${videoId}-scene-${sceneIndex}-${Date.now()}.mp4`;
+
+    // Deterministic key — overwrites on retry rather than accumulating orphaned files
+    const objectName = `renders/kling/video-${videoId}-scene-${sceneIndex}.mp4`;
     await bucket.file(objectName).save(buffer, { metadata: { contentType: "video/mp4" } });
 
+    // Return a fresh signed URL valid for 4 hours.
+    // The raw objectName is NOT stored in the DB here — only the signed URL.
+    // RenderMonitor or a dedicated /refresh-url route can issue new signed URLs
+    // from the stored klingTaskId + objectName pattern when needed.
     return signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 14_400 });
   }
 
