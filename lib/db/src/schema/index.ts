@@ -17,3 +17,4 @@ export * from "./seo";
 export * from "./team";
 export * from "./avatars";
 export * from "./klingSceneJobs";
+export * from "./commercialAssemblies";

@@ -23,6 +23,7 @@ import seoRouter from "./seo.js";
 import teamRouter from "./team.js";
 import usageRouter from "./usage.js";
 import scenesRouter from "./scenes.js";
+import assembleRouter from "./assemble.js";
 
 const router: IRouter = Router();
 
@@ -50,5 +51,6 @@ router.use(seoRouter);
 router.use(teamRouter);
 router.use(usageRouter);
 router.use(scenesRouter);
+router.use(assembleRouter);
 
 export default router;
