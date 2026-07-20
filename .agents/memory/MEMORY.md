@@ -13,3 +13,4 @@
 - [google-ads-api esbuild externalization](google-ads-api-esbuild.md) — externalize `google-ads-api`, `google-gax`, `google-auth-library`, `protobufjs`; REST endpoints return HTML 404s, use gRPC SDK.
 - [FFmpeg Nix path resolution in production](ffmpeg-nix-prod-path.md) — prod container PATH is minimal; must use extended PATH + nix store scan; never rely on bare `which ffmpeg` or `"ffmpeg"` binary name alone.
 - [HeyGen + ElevenLabs prod render failures](heygen-elevenlabs-prod-failures.md) — free ElevenLabs plan 402s all library voices (OpenAI gpt-audio fallback); HeyGen /v2/avatars hangs when no studio avatars (return null, 5s timeout, clear error).
+- [Kling AI Developer API](kling-api-integration.md) — official REST API (Singapore endpoint), Bearer auth, T2V request/response shape, 4:5→9:16 mapping, always store CDN assets immediately (30-day auto-purge).
