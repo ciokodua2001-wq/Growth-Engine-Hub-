@@ -183,11 +183,13 @@ export class CommercialAssembler {
         if (!scene.videoUrl) throw new Error(`Scene #${scene.sceneIndex} has no video URL`);
 
         const filePath = path.join(tmpDir, `scene${i}.mp4`);
+        // Always re-sign the stored GCS URL — it may have expired (4-hour TTL).
+        const freshSceneUrl = await refreshSignedUrl(scene.videoUrl);
         logger.info(
-          { sceneIndex: scene.sceneIndex, url: scene.videoUrl.slice(0, 80) },
+          { sceneIndex: scene.sceneIndex, url: freshSceneUrl.slice(0, 80) },
           "[Assembler] Downloading scene video",
         );
-        await downloadFile(scene.videoUrl, filePath);
+        await downloadFile(freshSceneUrl, filePath);
         sceneFiles.push(filePath);
       }
 
@@ -740,6 +742,30 @@ function runFFmpeg(args: string[]): Promise<void> {
       reject(new Error(`FFmpeg spawn error: ${err.message}`));
     });
   });
+}
+
+// ── Signed URL refresh ────────────────────────────────────────────────────────
+// Kling scene videos are stored in GCS with a short-lived signed URL (4 h TTL).
+// By the time the user triggers assembly (especially after a failed first attempt)
+// the URL may have expired → HTTP 400.  We re-sign it from the embedded GCS path
+// so the assembler always has a fresh URL regardless of when it runs.
+
+async function refreshSignedUrl(storedUrl: string): Promise<string> {
+  if (!storedUrl.startsWith("https://storage.googleapis.com/")) return storedUrl;
+  try {
+    const u = new URL(storedUrl);
+    // pathname = "/{bucketName}/{objectName...}"
+    const parts = u.pathname.split("/").filter(Boolean);
+    if (parts.length < 2) return storedUrl;
+    const bucketName = parts[0]!;
+    const objectName = parts.slice(1).join("/");
+    const fresh = await signObjectURL({ bucketName, objectName, method: "GET", ttlSec: 86_400 });
+    logger.debug({ objectName }, "[Assembler] Re-signed expired GCS URL");
+    return fresh;
+  } catch (err) {
+    logger.warn({ err }, "[Assembler] Failed to re-sign GCS URL — falling back to stored URL");
+    return storedUrl;
+  }
 }
 
 // ── File download helper ──────────────────────────────────────────────────────
