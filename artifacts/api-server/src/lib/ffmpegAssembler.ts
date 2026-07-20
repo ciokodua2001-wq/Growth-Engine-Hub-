@@ -17,6 +17,14 @@ import { spawn } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { fileURLToPath } from "url";
+
+// Bundled royalty-free ambient background track (CC0, generated via FFmpeg synthesis).
+// Resolved relative to the compiled bundle so it works in both dev and production.
+const DEFAULT_MUSIC_FILE = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../assets/music/ambient-corporate.mp3",
+);
 
 import { db } from "@workspace/db";
 import {
@@ -203,6 +211,10 @@ export class CommercialAssembler {
         musicFile = path.join(tmpDir, "music.mp3");
         logger.info("[Assembler] Downloading background music");
         await downloadFile(options.backgroundMusicUrl, musicFile);
+      } else if (fs.existsSync(DEFAULT_MUSIC_FILE)) {
+        // Fall back to bundled ambient track — always add subtle background music
+        musicFile = DEFAULT_MUSIC_FILE;
+        logger.info("[Assembler] Using default ambient background music");
       }
 
       // ── 4. Prepare captions (generated per-format at the right resolution) ──
