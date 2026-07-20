@@ -444,8 +444,9 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   args.push("-map", "[aout]");
 
   // Video codec — H.264 High profile, CRF 18 (very high quality), yuv420p
+  // veryfast preset: 5-8x faster than slow on constrained servers, negligible quality difference for web delivery
   args.push("-c:v", "libx264");
-  args.push("-preset", "slow");
+  args.push("-preset", "veryfast");
   args.push("-crf", "18");
   args.push("-profile:v", "high");
   args.push("-level", "4.0");
