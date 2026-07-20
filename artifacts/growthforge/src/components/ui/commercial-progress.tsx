@@ -657,10 +657,24 @@ export default function CommercialProductionProgress({ video, projectId, caption
               </button>
             )}
             <button
-              onClick={() => { startedRef.current = false; setPhase("idle"); setError(null); setCompletedStages(new Set()); setScenes([]); setAssemblies([]); setElapsedSec(0); }}
+              onClick={() => {
+                if (scenesAllDone) {
+                  const confirmed = window.confirm(
+                    "This will discard your 6 filmed scenes and generate brand-new ones using Kling AI credits. This cannot be undone.\n\nAre you sure? Use \"Retry Assembly\" instead if you just want to re-stitch the existing footage."
+                  );
+                  if (!confirmed) return;
+                }
+                startedRef.current = false;
+                setPhase("idle");
+                setError(null);
+                setCompletedStages(new Set());
+                setScenes([]);
+                setAssemblies([]);
+                setElapsedSec(0);
+              }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/25 transition-colors"
             >
-              <RefreshCw className="w-3 h-3" /> {scenesAllDone ? "Regenerate All Scenes (uses Kling credits)" : "Try Again"}
+              <RefreshCw className="w-3 h-3" /> {scenesAllDone ? "Regenerate All Scenes…" : "Try Again"}
             </button>
           </div>
         </div>
