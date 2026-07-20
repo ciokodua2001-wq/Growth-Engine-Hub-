@@ -660,7 +660,7 @@ export default function CommercialProductionProgress({ video, projectId, caption
               onClick={() => { startedRef.current = false; setPhase("idle"); setError(null); setCompletedStages(new Set()); setScenes([]); setAssemblies([]); setElapsedSec(0); }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/25 transition-colors"
             >
-              <RefreshCw className="w-3 h-3" /> {scenesAllDone ? "Restart from Scratch" : "Try Again"}
+              <RefreshCw className="w-3 h-3" /> {scenesAllDone ? "Regenerate All Scenes (uses Kling credits)" : "Try Again"}
             </button>
           </div>
         </div>
