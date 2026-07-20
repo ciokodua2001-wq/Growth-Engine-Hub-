@@ -24,6 +24,7 @@ import teamRouter from "./team.js";
 import usageRouter from "./usage.js";
 import scenesRouter from "./scenes.js";
 import assembleRouter from "./assemble.js";
+import narrationRouter from "./narration.js";
 
 const router: IRouter = Router();
 
@@ -52,5 +53,6 @@ router.use(teamRouter);
 router.use(usageRouter);
 router.use(scenesRouter);
 router.use(assembleRouter);
+router.use(narrationRouter);
 
 export default router;

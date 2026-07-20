@@ -33,6 +33,9 @@ export const videosTable = pgTable("videos", {
   // Composition settings
   aspectRatio: text("aspect_ratio").notNull().default("16:9"),
   captionsEnabled: boolean("captions_enabled").notNull().default(false),
+
+  // Narration
+  narrationVoiceStyle: text("narration_voice_style"),
 });
 
 export const insertVideoSchema = createInsertSchema(videosTable).omit({ id: true, createdAt: true });
