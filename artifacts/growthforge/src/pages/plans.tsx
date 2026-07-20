@@ -50,7 +50,7 @@ const PLANS: Plan[] = [
     description: "For solo founders and small businesses",
     stats: [
       { value: "1", label: "Project" },
-      { value: "8 min", label: "Video / mo" },
+      { value: "10", label: "Promo Videos / mo" },
       { value: "50", label: "Posts / mo" },
     ],
     groups: [
@@ -80,8 +80,8 @@ const PLANS: Plan[] = [
         highlight: true,
         items: [
           "AI Video Generation",
-          "8 min 1080p / month",
-          "↳ Up to 32 × 15-sec or 8 × 1-min",
+          "Up to 10 Promotional Videos / month",
+          "1080p HD · AI-rendered commercials",
         ],
       },
       {
@@ -105,7 +105,7 @@ const PLANS: Plan[] = [
     description: "For growing creators ready to scale",
     stats: [
       { value: "3", label: "Projects" },
-      { value: "16+2 min", label: "1080p+4K / mo" },
+      { value: "25", label: "Promo Videos / mo" },
       { value: "100", label: "Posts / mo" },
     ],
     groups: [
@@ -135,8 +135,8 @@ const PLANS: Plan[] = [
         highlight: true,
         items: [
           "AI Video Generation",
-          "16 min 1080p — up to 64 × 15-sec",
-          "2 min 4K — up to 8 × 15-sec premium",
+          "Up to 25 Promotional Videos / month",
+          "1080p HD · AI-rendered commercials",
         ],
       },
       {
@@ -163,7 +163,7 @@ const PLANS: Plan[] = [
     description: "For teams serious about growth",
     stats: [
       { value: "6", label: "Projects" },
-      { value: "50+8 min", label: "1080p+4K / mo" },
+      { value: "75", label: "Promo Videos / mo" },
       { value: "200", label: "Posts / mo" },
     ],
     groups: [
@@ -193,8 +193,8 @@ const PLANS: Plan[] = [
         highlight: true,
         items: [
           "AI Video Generation",
-          "50 min 1080p — up to 200 × 15-sec",
-          "8 min 4K — up to 32 × 15-sec premium",
+          "Up to 75 Promotional Videos / month",
+          "1080p HD · AI-rendered commercials",
         ],
       },
       {
@@ -224,7 +224,7 @@ const PLANS: Plan[] = [
     description: "For agencies managing multiple clients",
     stats: [
       { value: "20", label: "Projects" },
-      { value: "120+20 min", label: "1080p+4K / mo" },
+      { value: "200", label: "Promo Videos / mo" },
       { value: "400", label: "Posts / mo" },
     ],
     groups: [
@@ -254,8 +254,8 @@ const PLANS: Plan[] = [
         highlight: true,
         items: [
           "AI Video Generation",
-          "120 min 1080p — up to 480 × 15-sec",
-          "20 min 4K — up to 80 × 15-sec premium",
+          "Up to 200 Promotional Videos / month",
+          "1080p HD · AI-rendered commercials",
         ],
       },
       {

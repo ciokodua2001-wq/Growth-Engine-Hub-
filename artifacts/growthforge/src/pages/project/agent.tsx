@@ -20,7 +20,7 @@ const EXAMPLE_PROMPTS = [
   { label: "Discover my top 3 competitors.", icon: "🏆" },
   { label: "Create a marketing strategy.", icon: "📈" },
   { label: "Generate 5 social media posts.", icon: "💬" },
-  { label: "Build a video blueprint.", icon: "🎬" },
+  { label: "Produce a Promotional Video.", icon: "🎬" },
 ];
 
 const QUICK_CHIPS = [
@@ -28,7 +28,7 @@ const QUICK_CHIPS = [
   "Discover competitors.",
   "Generate social posts.",
   "Create email campaign.",
-  "Build video blueprint.",
+  "Produce a Promotional Video.",
 ];
 
 const CAPABILITIES = [
@@ -36,7 +36,7 @@ const CAPABILITIES = [
   "Discover Competitors",
   "Create Marketing Strategies",
   "Generate Content",
-  "Create Video Blueprints",
+  "Create Promotional Videos",
   "Build Campaign Ideas",
 ];
 
