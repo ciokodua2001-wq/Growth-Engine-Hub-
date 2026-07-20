@@ -1,0 +1,119 @@
+First, I want to say that after reviewing the latest rendered commercial, I believe we are moving in the right direction.
+
+After thinking through the overall product vision for GrowthForge, I've decided that I want to simplify the entire Commercial Studio rather than continue pursuing talking-head avatars.
+
+The cinematic commercial generated through Kling is actually much closer to the premium experience I want GrowthForge to deliver. The visual quality is excellent, and I believe this approach is more scalable, more reliable, and much easier to maintain than trying to build an avatar-based system.
+
+So let's officially commit to this direction.
+
+Our objective is now:
+
+GrowthForge Commercial Studio automatically produces high-quality cinematic marketing commercials using Kling AI.
+
+I no longer want to build the product around talking-head avatars or avatar libraries.
+
+Instead, let's focus on perfecting the cinematic commercial workflow.
+
+That said, I noticed a few issues that we now need to solve before this feature is production-ready.
+
+Issue 1 – No Audio
+
+The rendered commercial has no narration or background music.
+
+We need to integrate professional audio.
+
+Requirements:
+
+ElevenLabs should generate professional English narration from the approved script.
+Background music should be added automatically.
+FFmpeg should synchronize narration, music, and the video.
+The finished commercial should feel complete and ready to publish.
+Issue 2 – No Captions
+
+The generated commercial contains no captions.
+
+Requirements:
+
+Automatically generate English captions from the narration.
+Burn captions directly into the commercial.
+Keep captions professionally styled and readable.
+Position captions for social media viewing without covering important visuals.
+Issue 3 – Incorrect Duration
+
+The requested commercial length was 15 seconds.
+
+The rendered output is approximately 27 seconds.
+
+Please investigate why the requested duration is not being respected.
+
+I want the production pipeline to honor the selected commercial length.
+
+For example:
+
+15-second commercial
+30-second commercial
+45-second commercial
+60-second commercial
+
+The final output should stay as close as possible to the requested duration.
+
+Issue 4 – Foreign Language Text
+
+Some scenes display random foreign-language text or characters.
+
+GrowthForge is an English-language marketing platform.
+
+Requirements:
+
+All visible text generated inside scenes must be English only.
+If Kling generates unwanted embedded text, investigate prompt engineering or post-processing techniques to minimize or eliminate it.
+If the model cannot reliably generate English signage or labels, avoid requesting visible text inside the generated imagery and instead overlay our own English text using FFmpeg.
+Overall Direction
+
+Please keep the architecture simple.
+
+Do not reintroduce avatar systems or talking-head workflows.
+
+Continue building around:
+
+GrowthForge Website Analysis
+
+↓
+
+Marketing Strategy
+
+↓
+
+Commercial Blueprint
+
+↓
+
+Kling Scene Generation
+
+↓
+
+ElevenLabs Narration
+
+↓
+
+FFmpeg Assembly
+
+↓
+
+Captions
+
+↓
+
+Music
+
+↓
+
+Logo
+
+↓
+
+Final Commercial
+
+I believe this is the simplest, most scalable, and most premium direction for GrowthForge Commercial Studio.
+
+Let's focus on making this workflow exceptional rather than adding unnecessary complexity.
