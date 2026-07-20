@@ -17,6 +17,8 @@ export interface CommercialRenderJob {
 export interface CommercialRenderResult {
   videoUrl: string;
   durationSec?: number;
+  sceneUrls?: string[];
+  sceneJobIds?: number[];
 }
 
 export interface CommercialRendererCapabilities {

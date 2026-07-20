@@ -16,3 +16,4 @@ export * from "./meta";
 export * from "./seo";
 export * from "./team";
 export * from "./avatars";
+export * from "./klingSceneJobs";
