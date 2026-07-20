@@ -638,32 +638,44 @@ function ImageStudio({ projectId, isTrial }: { projectId: number; isTrial: boole
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-3">
             <div>
               <label className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-1.5 block">Orientation</label>
-              <select
-                value={orientation}
-                onChange={(e) => setOrientation(e.target.value as ImageGenerateInputOrientation)}
-                className="w-full px-3 py-2.5 rounded-xl bg-white/4 border border-white/8 text-sm text-white focus:outline-none"
-              >
-                <option value={ImageGenerateInputOrientation.landscape}>Landscape</option>
-                <option value={ImageGenerateInputOrientation.portrait}>Portrait</option>
-                <option value={ImageGenerateInputOrientation.square}>Square</option>
-              </select>
+              <div className="flex gap-1.5">
+                {(["landscape", "portrait", "square"] as const).map((o) => (
+                  <button
+                    key={o}
+                    onClick={() => setOrientation(o as ImageGenerateInputOrientation)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all border capitalize ${
+                      orientation === o
+                        ? "border-[#00D4FF]/50 bg-[#00D4FF]/10 text-[#00D4FF]"
+                        : "border-white/8 text-white/50 hover:border-white/20 hover:text-white/70"
+                    }`}
+                  >
+                    {o}
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <label className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-1.5 block">
-                Count {isTrial && <span className="text-white/25 normal-case font-normal">(max {Math.min(count, 4)})</span>}
+                Count {isTrial && <span className="text-white/25 normal-case font-normal">(max 4 on trial)</span>}
               </label>
-              <select
-                value={count}
-                onChange={(e) => setCount(parseInt(e.target.value))}
-                className="w-full px-3 py-2.5 rounded-xl bg-white/4 border border-white/8 text-sm text-white focus:outline-none"
-              >
+              <div className="flex gap-1.5">
                 {[1, 2, 3, 4].map((n) => (
-                  <option key={n} value={n}>{n} image{n > 1 ? "s" : ""}</option>
+                  <button
+                    key={n}
+                    onClick={() => setCount(n)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all border ${
+                      count === n
+                        ? "border-[#00D4FF]/50 bg-[#00D4FF]/10 text-[#00D4FF]"
+                        : "border-white/8 text-white/50 hover:border-white/20 hover:text-white/70"
+                    }`}
+                  >
+                    {n}
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
           </div>
 
