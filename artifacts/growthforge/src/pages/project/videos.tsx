@@ -199,7 +199,7 @@ const IMAGE_STEPS = [
   "Finalizing output...",
 ];
 
-type RenderResolution = "1080p" | "4k";
+type RenderResolution = "1080p";
 
 function ScoreBar({ label, value, color }: { label: string; value: number | null | undefined; color: string }) {
   return (
@@ -256,7 +256,6 @@ function RenderPanel({
   isTrial: boolean;
   isStarterPlan: boolean;
 }) {
-  const [resolution, setResolution] = useState<RenderResolution>("1080p");
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
   const [locallyStarted, setLocallyStarted] = useState(false);
@@ -333,7 +332,7 @@ function RenderPanel({
       {
         id: projectId,
         videoId: video.id,
-        data: { resolution, aspectRatio, captionsEnabled },
+        data: { resolution: "1080p" as const, aspectRatio, captionsEnabled },
       },
       {
         onSuccess: () => {
@@ -479,33 +478,6 @@ function RenderPanel({
                 >
                   <p className="text-[11px] font-black">{r.label}</p>
                   <p className="text-[8px] text-white/30 mt-0.5 leading-tight">{r.sub}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Resolution */}
-          <div>
-            <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Resolution</p>
-            <div className="flex gap-2">
-              {([
-                { value: "1080p", label: "1080p HD", available: true },
-                { value: "4k", label: "4K Ultra HD", available: !isStarterPlan },
-              ] as { value: RenderResolution; label: string; available: boolean }[]).map((r) => (
-                <button
-                  key={r.value}
-                  onClick={() => r.available && setResolution(r.value)}
-                  disabled={!r.available}
-                  className={`flex-1 py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
-                    !r.available
-                      ? "border-white/5 text-white/20 bg-white/2 cursor-not-allowed"
-                      : resolution === r.value
-                        ? "border-[#00E676]/50 bg-[#00E676]/10 text-[#00E676]"
-                        : "border-white/8 hover:border-white/15 text-white/60"
-                  }`}
-                >
-                  {r.label}
-                  {!r.available && <span className="ml-1 text-[9px] text-white/20">(Get-Going+)</span>}
                 </button>
               ))}
             </div>
@@ -903,11 +875,15 @@ const PLAN_LABEL: Record<string, string> = {
   trial:       "Trial",
   starter:     "Starter",
   "get-going": "Get-Going",
+  growth:      "Growth",
+  agency:      "Agency",
 };
 const PLAN_COLOR: Record<string, string> = {
   trial:       "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
   starter:     "bg-blue-500/15 text-blue-400 border-blue-500/30",
   "get-going": "bg-[#00E676]/15 text-[#00E676] border-[#00E676]/30",
+  growth:      "bg-violet-500/15 text-violet-400 border-violet-500/30",
+  agency:      "bg-orange-500/15 text-orange-400 border-orange-500/30",
 };
 
 function UsagePanel({ projectId, plan }: { projectId: number; plan: string }) {
@@ -918,17 +894,8 @@ function UsagePanel({ projectId, plan }: { projectId: number; plan: string }) {
   const isTrial = plan === "trial";
   const { usage, periodStart } = usageData;
 
-  const renderedMin      = Math.floor((usageData.renderedVideoSeconds ?? 0) / 60);
-  const renderedMinLimit = usageData.renderedVideoSecondsLimit != null
-    ? Math.floor(usageData.renderedVideoSecondsLimit / 60)
-    : null;
-  const minPct  = renderedMinLimit != null
-    ? Math.min(100, (renderedMin / renderedMinLimit) * 100)
-    : null;
-  const minWarn = minPct != null && minPct >= 80;
-
   const metrics: { label: string; feature: string; icon: string }[] = [
-    { label: "Video Blueprints",   feature: "video_blueprints",  icon: "🎬" },
+    { label: "Promotional Videos", feature: "video_blueprints",  icon: "🎬" },
     { label: "Social Posts",       feature: "social_posts",      icon: "📱" },
     { label: "Email Campaigns",    feature: "email_campaigns",   icon: "📧" },
     { label: "AI Agent Messages",  feature: "agent_messages",    icon: "🤖" },
@@ -956,40 +923,6 @@ function UsagePanel({ projectId, plan }: { projectId: number; plan: string }) {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {/* Video Minutes — computed from rendered durations */}
-        <div className="rounded-xl bg-white/3 border border-white/6 p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-white/40 leading-snug">Video Minutes</span>
-            <span className="text-[10px]">⏱️</span>
-          </div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-xl font-black text-white">{renderedMin}</span>
-            {renderedMinLimit != null && (
-              <span className="text-xs text-white/30">/ {renderedMinLimit} min</span>
-            )}
-            {renderedMinLimit == null && (
-              <span className="text-xs text-white/30">min</span>
-            )}
-          </div>
-          {minPct != null ? (
-            <div className="space-y-1">
-              <div className="h-1 bg-white/8 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${minWarn ? "bg-orange-400" : "bg-[#00D4FF]"}`}
-                  style={{ width: `${minPct}%` }}
-                />
-              </div>
-              {renderedMinLimit != null && (
-                <p className={`text-[9px] font-medium ${minWarn ? "text-orange-400" : "text-white/30"}`}>
-                  {renderedMinLimit - renderedMin} min remaining
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="text-[9px] text-white/30">Unlimited</p>
-          )}
-        </div>
-
         {metrics.map(({ label, feature, icon }) => {
           const entry = usage[feature];
           if (!entry) return null;

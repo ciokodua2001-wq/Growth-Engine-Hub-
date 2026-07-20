@@ -12,7 +12,7 @@ const logger = pino({ name: "sceneManager" });
 
 // ── Official Kling API ────────────────────────────────────────────────────────
 const KLING_BASE_URL = "https://api-singapore.klingai.com";
-const KLING_DEFAULT_MODEL = "kling-v2-6";
+const KLING_DEFAULT_MODEL = "kling-v2-5-turbo";
 const KLING_DURATION = "5";
 const KLING_DURATION_SEC = 5;
 const KLING_MODE = "std";

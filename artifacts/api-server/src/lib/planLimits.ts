@@ -36,7 +36,7 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     social_posts: 100,
     email_campaigns: 30,
     ads: 30,
-    video_blueprints: 30,
+    video_blueprints: 25,
     agent_messages: 600,
     image_generation: 30,
     seo_strategy: 3,
@@ -51,7 +51,7 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     social_posts: 200,
     email_campaigns: 60,
     ads: 60,
-    video_blueprints: 60,
+    video_blueprints: 75,
     agent_messages: 1000,
     image_generation: 60,
     seo_strategy: 6,
@@ -66,7 +66,7 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     social_posts: 400,
     email_campaigns: 120,
     ads: 120,
-    video_blueprints: 120,
+    video_blueprints: 200,
     agent_messages: 4000,
     image_generation: 120,
     seo_strategy: 20,
@@ -91,7 +91,7 @@ const FEATURE_LABELS: Record<PlanFeature, string> = {
   competitor_report: "competitor report generation",
   social_posts: "social post generation",
   email_campaigns: "email campaign generation",
-  video_blueprints: "video blueprint generation",
+  video_blueprints: "promotional video production",
   ads: "ad creative generation",
   agent_messages: "Forge AI messages",
   image_generation: "AI image generation",
@@ -194,17 +194,8 @@ export async function consumeQuota(
   });
 }
 
-/**
- * Soft display cap (seconds) for rendered video minutes per plan.
- * Not enforced as a hard quota — purely informational for the usage dashboard.
- */
-const VIDEO_SECONDS_DISPLAY_LIMIT: Record<string, number | null> = {
-  trial:       3 * 60,   // 3 min
-  starter:     10 * 60,  // 10 min
-  "get-going": 30 * 60,  // 30 min
-  growth:      60 * 60,  // 60 min
-  agency:      null,     // unlimited
-};
+// Video minutes display was removed — Promotional Videos (video_blueprints) is the
+// public-facing metric. renderedVideoSecondsLimit always returns null (not displayed).
 
 /**
  * Returns quota usage for a project — used by the frontend to display
@@ -271,7 +262,6 @@ export async function getQuotaUsage(projectId: number): Promise<{
   }
 
   const renderedVideoSeconds = parseInt(videoSecRow[0]?.total ?? "0", 10) || 0;
-  const renderedVideoSecondsLimit = VIDEO_SECONDS_DISPLAY_LIMIT[plan] ?? null;
 
-  return { plan, periodStart, renderedVideoSeconds, renderedVideoSecondsLimit, usage };
+  return { plan, periodStart, renderedVideoSeconds, renderedVideoSecondsLimit: null, usage };
 }

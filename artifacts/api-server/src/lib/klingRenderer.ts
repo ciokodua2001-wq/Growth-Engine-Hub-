@@ -15,7 +15,7 @@ const logger = pino({ name: "klingRenderer" });
 // Docs: https://kling.ai/document-api
 // Non-China base URL (for servers outside mainland China)
 const KLING_BASE_URL = "https://api-singapore.klingai.com";
-const KLING_DEFAULT_MODEL = "kling-v2-6";
+const KLING_DEFAULT_MODEL = "kling-v2-5-turbo";
 const KLING_SCENE_DURATION_STR = "5";   // "5" or "10" — string per API spec
 const KLING_SCENE_DURATION_SEC = 5;
 const KLING_MODE = "std";               // "std" or "pro"

@@ -19,7 +19,7 @@ const CLIP_BATCH_SIZE = 5;
 // ── API constants ─────────────────────────────────────────────────────────────
 const ELEVENLABS_API_URL = "https://api.elevenlabs.io";
 const KLING_BASE_URL = "https://api-singapore.klingai.com";
-const KLING_DEFAULT_MODEL = "kling-v2-6";
+const KLING_DEFAULT_MODEL = "kling-v2-5-turbo";
 const KLING_MODE = "std";
 const KLING_NEGATIVE_PROMPT =
   "blurry, low quality, distorted, ugly, pixelated, amateur, watermark, text overlay";
