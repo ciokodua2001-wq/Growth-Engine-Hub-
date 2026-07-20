@@ -37,7 +37,7 @@ const navGroups = [
       { label: "Social Media", path: "social", icon: Share2 },
       { label: "Email", path: "email", icon: Mail },
       { label: "Ad Creatives", path: "ads", icon: Rss },
-      { label: "Video Studio", path: "videos", icon: Video },
+      { label: "Commercial Studio", path: "videos", icon: Video },
     ],
   },
   {

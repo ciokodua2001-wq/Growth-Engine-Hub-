@@ -22,7 +22,6 @@ const NAV = [
   { label: "Analytics",     href: "/admin/analytics",    icon: BarChart2 },
   { label: "Feature Flags", href: "/admin/features",     icon: ToggleLeft },
   { label: "Announcements", href: "/admin/announcements",icon: Megaphone },
-  { label: "Avatar Library", href: "/admin/avatar-library", icon: Users },
   { label: "Activity",      href: "/admin/activity",     icon: Activity },
   { label: "Audit Log",     href: "/admin/audit",        icon: Shield },
   { label: "Settings",      href: "/admin/settings",     icon: Settings },

@@ -23,14 +23,12 @@ export const videosTable = pgTable("videos", {
 
   // Render pipeline columns
   renderStatus: text("render_status").notNull().default("idle"),
-  renderMode: text("render_mode"),
   renderResolution: text("render_resolution"),
   renderJobId: text("render_job_id"),
   renderStartedAt: timestamp("render_started_at", { withTimezone: true }),
   renderCompletedAt: timestamp("render_completed_at", { withTimezone: true }),
   renderError: text("render_error"),
   voiceoverUrl: text("voiceover_url"),
-  avatarPhotoPath: text("avatar_photo_path"),
 
   // Composition settings
   aspectRatio: text("aspect_ratio").notNull().default("16:9"),

@@ -3,79 +3,36 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { db } from "@workspace/db";
-import { videosTable, platformAvatarsTable } from "@workspace/db";
-import { eq, isNotNull } from "drizzle-orm";
+import { videosTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import pino from "pino";
 import { deductPlatformCredits } from "./platformCredits.js";
-import { objectStorageClient } from "./objectStorage.js";
 
-// ffmpeg is declared as a nix system dependency (installSystemDependencies),
-// so it is guaranteed to be on PATH in both dev and production.
 const FFMPEG_BIN = "ffmpeg";
 
 const logger = pino({ name: "videoRenderPipeline" });
 
 // ── Render constants ──────────────────────────────────────────────────────────
-const FAL_CLIP_DURATION_S = 5;     // Kling v1.6 generates 5-second clips
-const CLIP_BATCH_SIZE = 5;          // max concurrent FAL requests per batch
-const AVATAR_UNIQUE_CLIPS = 3;      // unique avatar clips generated; cycled to fill duration
+const FAL_CLIP_DURATION_S = 5;
+const CLIP_BATCH_SIZE = 5;
 
 // ── API constants ─────────────────────────────────────────────────────────────
 const ELEVENLABS_API_URL = "https://api.elevenlabs.io";
 const FAL_QUEUE_BASE = "https://queue.fal.run";
 const FAL_T2V_MODEL = "fal-ai/kling-video/v1.6/standard/text-to-video";
-const FAL_I2V_MODEL = "fal-ai/kling-video/v1.6/standard/image-to-video";
-const HEYGEN_API_URL = "https://api.heygen.com";
-const HEYGEN_UPLOAD_URL = "https://upload.heygen.com"; // separate upload subdomain
 
-// Resolved once per process — fetched live from the account's HeyGen avatar library.
-// Returns null when the account has no studio avatars (endpoint may hang or 403).
-let _cachedDefaultAvatarId: string | null | undefined = undefined; // undefined = not yet fetched
+// ── ElevenLabs voice resolution ───────────────────────────────────────────────
 
-async function resolveDefaultHeyGenAvatar(apiKey: string): Promise<string | null> {
-  if (_cachedDefaultAvatarId !== undefined) return _cachedDefaultAvatarId;
-
-  try {
-    const res = await fetch(`${HEYGEN_API_URL}/v2/avatars`, {
-      headers: { "X-Api-Key": apiKey },
-      signal: AbortSignal.timeout(5_000), // short — hangs when account has no avatars
-    });
-    if (!res.ok) {
-      logger.warn({ status: res.status }, "HeyGen avatar list returned error — account has no studio avatars");
-      _cachedDefaultAvatarId = null;
-      return null;
-    }
-    const json = await res.json() as {
-      data: { avatars: Array<{ avatar_id: string; avatar_name: string }> };
-    };
-    const first = json.data?.avatars?.[0];
-    if (!first) {
-      logger.warn("HeyGen avatar list empty — account has no studio avatars");
-      _cachedDefaultAvatarId = null;
-      return null;
-    }
-    _cachedDefaultAvatarId = first.avatar_id;
-    logger.info({ avatarId: first.avatar_id, avatarName: first.avatar_name }, "HeyGen default avatar resolved");
-    return _cachedDefaultAvatarId;
-  } catch {
-    logger.warn("HeyGen avatar list timed out or failed — account has no studio avatars");
-    _cachedDefaultAvatarId = null;
-    return null;
-  }
-}
-
-// ElevenLabs voice IDs — fallbacks used only when the account voice list is unavailable
-const VOICE_MALE_DEFAULT   = "pNInz6obpgDQGcFmaJgB"; // Adam   — warm, authoritative male
-const VOICE_FEMALE_DEFAULT = "oWAxZDx7w5VEj9dCyTzz"; // Grace  — calm, confident female
+const VOICE_MALE_DEFAULT   = "pNInz6obpgDQGcFmaJgB";
+const VOICE_FEMALE_DEFAULT = "oWAxZDx7w5VEj9dCyTzz";
 
 interface ElevenLabsVoice {
   voice_id: string;
   name: string;
-  category: string; // "premade" | "cloned" | "generated" | "professional"
+  category: string;
   labels?: Record<string, string>;
 }
 
-// Cache voices per process so we only fetch once
 let _cachedVoices: ElevenLabsVoice[] | null = null;
 
 async function fetchElevenLabsVoices(apiKey: string): Promise<ElevenLabsVoice[]> {
@@ -95,22 +52,11 @@ async function fetchElevenLabsVoices(apiKey: string): Promise<ElevenLabsVoice[]>
   }
 }
 
-/**
- * Resolve the best available ElevenLabs voice ID for the given character description.
- *
- * Priority:
- *  1. ELEVENLABS_VOICE_ID env override
- *  2. Gender-matched voice from the account's cloned/professional voices (work on free plans)
- *  3. Gender-matched voice from the account's premade voices (require paid plan)
- *  4. First available voice in the account
- *  5. Hardcoded library fallback (will 402 on free accounts — caught by caller)
- */
 async function resolveVoiceId(apiKey: string, characterDescription?: string | null): Promise<string> {
   if (process.env.ELEVENLABS_VOICE_ID) return process.env.ELEVENLABS_VOICE_ID;
 
   const voices = await fetchElevenLabsVoices(apiKey);
 
-  // Determine gender hint from description
   let genderHint: "male" | "female" | null = null;
   if (characterDescription) {
     const desc = characterDescription.toLowerCase();
@@ -120,7 +66,6 @@ async function resolveVoiceId(apiKey: string, characterDescription?: string | nu
     else if (maleScore > femaleScore) genderHint = "male";
   }
 
-  // Prefer cloned/professional voices (accessible on all plans incl. free)
   const ownedCategories = ["cloned", "professional", "generated"];
   const ownedVoices = voices.filter(v => ownedCategories.includes(v.category));
   const premadeVoices = voices.filter(v => v.category === "premade");
@@ -143,7 +88,8 @@ async function resolveVoiceId(apiKey: string, characterDescription?: string | nu
   return pick(ownedVoices) ?? pick(premadeVoices) ?? (genderHint === "female" ? VOICE_FEMALE_DEFAULT : VOICE_MALE_DEFAULT);
 }
 
-export type RenderMode = "footage" | "avatar" | "combined";
+// ── Public types ──────────────────────────────────────────────────────────────
+
 export type RenderResolution = "1080p" | "4k";
 export type AspectRatio = "16:9" | "9:16" | "1:1" | "4:5";
 
@@ -156,23 +102,18 @@ export function checkRenderRequirements(): RenderRequirementsResult {
   const missing: string[] = [];
   if (!process.env.ELEVENLABS_API_KEY) missing.push("ELEVENLABS_API_KEY");
   if (!process.env.FAL_API_KEY) missing.push("FAL_API_KEY");
-  // HEYGEN_API_KEY and SHOTSTACK_API_KEY are optional — HeyGen upgrades quality
-  // but FAL + FFmpeg render a complete video without it
   return { ready: missing.length === 0, missing };
 }
 
+// ── Public entry point ────────────────────────────────────────────────────────
+
 export function startVideoRender(
   videoId: number,
-  mode: RenderMode,
   resolution: RenderResolution,
-  avatarPhotoPath?: string | null,
-  avatarInstructions?: string | null,
   aspectRatio: AspectRatio = "16:9",
   captionsEnabled = false,
-  platformAvatarId?: number | null,
-  heygenTalkingPhotoId?: string | null,
 ): void {
-  runRenderPipeline(videoId, mode, resolution, avatarPhotoPath, avatarInstructions, aspectRatio, captionsEnabled, platformAvatarId, heygenTalkingPhotoId).catch((err) => {
+  runRenderPipeline(videoId, resolution, aspectRatio, captionsEnabled).catch((err) => {
     logger.error({ err, videoId }, "Render pipeline unhandled error");
     void markFailed(videoId, "An unexpected error occurred. Please try again — your credits were not charged.");
   });
@@ -186,41 +127,36 @@ async function markFailed(videoId: number, error: string): Promise<void> {
   }).where(eq(videosTable.id, videoId));
 }
 
+// ── Core render pipeline ──────────────────────────────────────────────────────
+
 async function runRenderPipeline(
   videoId: number,
-  mode: RenderMode,
   resolution: RenderResolution,
-  avatarPhotoPath?: string | null,
-  avatarInstructions?: string | null,
   aspectRatio: AspectRatio = "16:9",
   captionsEnabled = false,
-  platformAvatarId?: number | null,
-  heygenTalkingPhotoId?: string | null,
 ): Promise<void> {
   const [video] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
   if (!video) throw new Error(`Video ${videoId} not found`);
 
   await db.update(videosTable).set({
     renderStatus: "processing",
-    renderMode: mode,
     renderResolution: resolution,
     renderStartedAt: new Date(),
     renderError: null,
   }).where(eq(videosTable.id, videoId));
 
-  // Step 1: ElevenLabs TTS — generate voiceover from the actor script
-  // Strip any residual [HOOK]/[SCENE N] markers that may exist in legacy blueprints
+  // Step 1: ElevenLabs TTS
   const rawScript = video.voiceover ?? video.script ?? video.title;
   const scriptText = rawScript.replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
 
-  // Resolve the right voice gender from the cinematic plan's character description
   let characterDescription: string | null = null;
   if (video.cinematicPlan) {
     try {
       const plan = JSON.parse(video.cinematicPlan) as { characterDescription?: string };
       characterDescription = plan.characterDescription ?? null;
-    } catch { /* malformed JSON — ignore, fall back to default */ }
+    } catch { /* ignore */ }
   }
+
   const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY ?? "";
   const voiceId = await resolveVoiceId(elevenLabsApiKey, characterDescription);
   logger.info({ videoId, voiceId, characterDescription }, "Resolved ElevenLabs voice");
@@ -236,157 +172,52 @@ async function runRenderPipeline(
   }
   const ttsChars = Math.min((scriptText ?? "").length, 800);
   deductPlatformCredits("elevenlabs", ttsChars, `TTS voiceover — video #${videoId}`).catch(() => {});
-
   await db.update(videosTable).set({ voiceoverUrl }).where(eq(videosTable.id, videoId));
 
   const duration = video.duration ?? 60;
-  const photoPath = avatarPhotoPath ?? video.avatarPhotoPath;
-  const heyGenKey = process.env.HEYGEN_API_KEY;
 
-  // Step 2: Video clip generation
-  // With HEYGEN_API_KEY + avatar/combined: HeyGen produces one lip-synced presenter video
-  // Without HeyGen (or footage-only): FAL Kling produces B-roll clips
+  // Step 2: FAL Kling T2V — generate cinematic footage from blueprint scenes
+  const numClips = Math.max(1, Math.ceil(duration / FAL_CLIP_DURATION_S));
+  const scenePrompts = buildScenePrompts(video.title, video.storyboard ?? "", numClips, video.cinematicPlan);
+
+  let footageUrls: string[] = [];
+  try {
+    footageUrls = await generateFootageClipsT2V(scenePrompts, videoId, aspectRatio);
+  } catch (err) {
+    logger.error({ err, videoId }, "FAL clip generation failed");
+    const msg = err instanceof Error && err.message.includes("timed out")
+      ? "AI video generation is taking longer than expected. Please try again in a few minutes."
+      : "AI video generation hit a temporary issue. Please try again — your credits were not charged.";
+    await markFailed(videoId, msg);
+    return;
+  }
+
+  deductPlatformCredits("fal", footageUrls.length, `AI clips (${footageUrls.length}) — video #${videoId}`, {
+    minutesGenerated: (FAL_CLIP_DURATION_S / 60) * footageUrls.length,
+    videosCount: footageUrls.length,
+    projectId: video.projectId,
+    videoId: String(videoId),
+  }).catch(() => {});
+
+  // Step 3: FFmpeg composition — stitch footage with voiceover (+ optional captions)
   let finalUrl: string;
-
-  const useHeyGen = !!heyGenKey && (mode === "avatar" || mode === "combined");
-
-  if (useHeyGen) {
-    // ── HeyGen path ───────────────────────────────────────────────────────────
-    // photoPath may be null — generateHeyGenVideo falls back to the default presenter avatar
-    let heyGenVideoUrl: string;
-    try {
-      heyGenVideoUrl = await generateHeyGenVideo(voiceoverUrl, photoPath, scriptText, aspectRatio, resolution, platformAvatarId, heygenTalkingPhotoId);
-    } catch (err) {
-      logger.error({ err, videoId }, "HeyGen generation failed");
-      const detail = err instanceof Error ? err.message : String(err);
-      // Surface clear user-facing errors directly; use generic fallback for transient issues
-      const isUserFacing = detail.includes("No presenter photo") || detail.includes("upload");
-      const msg = isUserFacing
-        ? detail
-        : detail.includes("timed out")
-          ? "HeyGen avatar generation timed out. Please try again in a few minutes."
-          : detail.includes("heygen_limit_exceeded")
-            ? "Avatar rendering is temporarily unavailable — the HeyGen talking photo slot limit has been reached. An admin needs to clear orphaned photos from the HeyGen dashboard (app.heygen.com → Templates → Talking Photos), then run Sync HeyGen in Admin → Avatar Library."
-            : `HeyGen avatar generation failed: ${detail.slice(0, 200)}`;
-      await markFailed(videoId, msg);
-      return;
-    }
-
-    // For combined mode, also generate B-roll via FAL (runs in background alongside HeyGen)
-    if (mode === "combined" && process.env.FAL_API_KEY) {
-      const numClips = Math.max(1, Math.ceil(duration / FAL_CLIP_DURATION_S));
-      const scenePrompts = buildScenePrompts(video.title, video.storyboard ?? "", numClips, video.cinematicPlan);
-      let brollUrls: string[] = [];
-      try {
-        brollUrls = await generateFootageClipsT2V(scenePrompts, videoId, aspectRatio);
-      } catch (err) {
-        logger.warn({ err, videoId }, "FAL B-roll failed in combined mode — continuing with HeyGen presenter only");
-        // Don't fail the whole render — HeyGen presenter is enough
-      }
-
-      if (brollUrls.length > 0) {
-        // Compose: HeyGen presenter overlaid on B-roll using FFmpeg
-        try {
-          finalUrl = await composeHeyGenWithBroll({
-            heyGenVideoUrl,
-            brollUrls,
-            voiceoverUrl,
-            duration,
-            resolution,
-            aspectRatio,
-            captionsEnabled,
-            script: scriptText,
-          });
-        } catch (err) {
-          logger.warn({ err, videoId }, "FFmpeg combined compose failed — using HeyGen presenter only");
-          finalUrl = heyGenVideoUrl;
-        }
-      } else {
-        finalUrl = captionsEnabled
-          ? await burnCaptionsFFmpeg(heyGenVideoUrl, scriptText, duration, resolution, aspectRatio)
-          : heyGenVideoUrl;
-      }
-    } else {
-      // Avatar-only: burn captions if requested
-      finalUrl = captionsEnabled
-        ? await burnCaptionsFFmpeg(heyGenVideoUrl, scriptText, duration, resolution, aspectRatio)
-        : heyGenVideoUrl;
-    }
-
-    deductPlatformCredits("heygen", 1, `HeyGen avatar — video #${videoId}`, {
-      minutesGenerated: duration / 60,
-      videosCount: 1,
-      projectId: video.projectId,
-      videoId: String(videoId),
-    }).catch(() => {});
-
-  } else {
-    // ── FAL Kling path (no HeyGen or footage-only mode) ──────────────────────
-    const numClips = Math.max(1, Math.ceil(duration / FAL_CLIP_DURATION_S));
-    const scenePrompts = buildScenePrompts(video.title, video.storyboard ?? "", numClips, video.cinematicPlan);
-
-    let footageUrls: string[] = [];
-    let avatarClipUrls: string[] = [];
-
-    if (mode === "avatar" || mode === "combined") {
-      if (!photoPath) {
-        await markFailed(videoId, "No avatar photo was found. Please re-upload your photo and try again.");
-        return;
-      }
-    }
-
-    try {
-      if (mode === "combined") {
-        const avatarCount = Math.min(AVATAR_UNIQUE_CLIPS, numClips);
-        const avatarPrompts = buildAvatarPrompts(video.title, video.storyboard ?? "", avatarCount, avatarInstructions, video.cinematicPlan);
-        [footageUrls, avatarClipUrls] = await Promise.all([
-          generateFootageClipsT2V(scenePrompts, videoId, aspectRatio),
-          generateAvatarClipsI2V(photoPath!, avatarPrompts, videoId),
-        ]);
-      } else if (mode === "footage") {
-        footageUrls = await generateFootageClipsT2V(scenePrompts, videoId, aspectRatio);
-      } else {
-        const avatarCount = Math.min(AVATAR_UNIQUE_CLIPS, numClips);
-        const avatarPrompts = buildAvatarPrompts(video.title, video.storyboard ?? "", avatarCount, avatarInstructions, video.cinematicPlan);
-        avatarClipUrls = await generateAvatarClipsI2V(photoPath!, avatarPrompts, videoId);
-      }
-    } catch (err) {
-      logger.error({ err, videoId }, "FAL clip generation failed");
-      const msg = err instanceof Error && err.message.includes("timed out")
-        ? "AI video generation is taking longer than expected. Please try again in a few minutes."
-        : "AI video generation hit a temporary issue. Please try again — your credits were not charged.";
-      await markFailed(videoId, msg);
-      return;
-    }
-
-    const totalClips = footageUrls.length + avatarClipUrls.length;
-    deductPlatformCredits("fal", totalClips, `AI clips (${totalClips}) — video #${videoId}`, {
-      minutesGenerated: (FAL_CLIP_DURATION_S / 60) * totalClips,
-      videosCount: totalClips,
-      projectId: video.projectId,
-      videoId: String(videoId),
-    }).catch(() => {});
-
-    // Step 3: FFmpeg composition — replaces Shotstack
-    try {
-      finalUrl = await composeWithFFmpeg({
-        voiceoverUrl,
-        footageUrls,
-        avatarClipUrls,
-        duration,
-        resolution,
-        aspectRatio,
-        captionsEnabled,
-        script: scriptText,
-      });
-    } catch (err) {
-      logger.error({ err, videoId }, "FFmpeg composition failed");
-      const msg = err instanceof Error && err.message.includes("timed out")
-        ? "Video assembly is taking longer than expected. Please try again in a few minutes."
-        : "Final video assembly hit a temporary issue. Please try again — your credits were not charged.";
-      await markFailed(videoId, msg);
-      return;
-    }
+  try {
+    finalUrl = await composeWithFFmpeg({
+      voiceoverUrl,
+      footageUrls,
+      duration,
+      resolution,
+      aspectRatio,
+      captionsEnabled,
+      script: scriptText,
+    });
+  } catch (err) {
+    logger.error({ err, videoId }, "FFmpeg composition failed");
+    const msg = err instanceof Error && err.message.includes("timed out")
+      ? "Video assembly is taking longer than expected. Please try again in a few minutes."
+      : "Final video assembly hit a temporary issue. Please try again — your credits were not charged.";
+    await markFailed(videoId, msg);
+    return;
   }
 
   await db.update(videosTable).set({
@@ -398,7 +229,6 @@ async function runRenderPipeline(
 
 // ── ElevenLabs TTS ────────────────────────────────────────────────────────────
 
-/** Thrown when ElevenLabs rejects a request due to plan restrictions (HTTP 402/403). */
 class ElevenLabsPlanError extends Error {
   constructor(detail: string) {
     super(detail);
@@ -413,8 +243,6 @@ async function generateElevenLabsVoiceover(text: string, voiceId?: string): Prom
   const selectedVoice = voiceId ?? VOICE_MALE_DEFAULT;
   const cappedText = text.length > 800 ? text.slice(0, 800) + "..." : text;
 
-  // Attempt ElevenLabs TTS.
-  // isRetryable() won't match ElevenLabsPlanError so withRetry propagates it immediately.
   let elevenLabsBuffer: Buffer | null = null;
   try {
     elevenLabsBuffer = await withRetry(async () => {
@@ -448,7 +276,7 @@ async function generateElevenLabsVoiceover(text: string, voiceId?: string): Prom
     if (err instanceof ElevenLabsPlanError) {
       logger.warn({ msg: err.message }, "ElevenLabs plan restriction — falling back to OpenAI TTS");
     } else {
-      throw err; // Real TTS failure — propagate to caller
+      throw err;
     }
   }
 
@@ -456,9 +284,7 @@ async function generateElevenLabsVoiceover(text: string, voiceId?: string): Prom
     return await uploadAudioToStorage(elevenLabsBuffer, "mp3");
   }
 
-  // Fallback: OpenAI gpt-audio TTS via Replit AI Integrations (no extra API key required)
   const { textToSpeech } = await import("@workspace/integrations-openai-ai-server/audio");
-  // Determine gender from the cached voice list: female → nova, male/neutral → onyx
   const cachedVoice = _cachedVoices?.find(v => v.voice_id === selectedVoice);
   const isFemaleVoice = cachedVoice?.labels?.["gender"] === "female"
     || ["female", "woman", "girl"].some(g => cachedVoice?.name.toLowerCase().includes(g));
@@ -466,316 +292,6 @@ async function generateElevenLabsVoiceover(text: string, voiceId?: string): Prom
   logger.info({ openAiVoice }, "Generating voiceover via OpenAI gpt-audio TTS");
   const wavBuffer = await textToSpeech(cappedText, openAiVoice, "wav");
   return await uploadAudioToStorage(wavBuffer, "wav");
-}
-
-// ── HeyGen Talking Avatar ──────────────────────────────────────────────────────
-
-async function generateHeyGenVideo(
-  voiceoverUrl: string,
-  avatarPhotoPath: string | null | undefined,
-  _script: string | null | undefined,
-  aspectRatio: AspectRatio,
-  resolution: RenderResolution,
-  platformAvatarId?: number | null,
-  cachedTalkingPhotoId?: string | null,
-): Promise<string> {
-  const apiKey = process.env.HEYGEN_API_KEY;
-  if (!apiKey) throw new Error("HEYGEN_API_KEY not configured");
-
-  const { width, height } = getOutputDimensions(resolution, aspectRatio);
-
-  type Character =
-    | { type: "avatar"; avatar_id: string }
-    | { type: "talking_photo"; talking_photo_id: string };
-
-  let character: Character;
-  if (cachedTalkingPhotoId) {
-    // Use pre-cached HeyGen talking photo ID — no upload needed
-    logger.info({ platformAvatarId, cachedTalkingPhotoId }, "Using cached HeyGen talking photo ID");
-    character = { type: "talking_photo", talking_photo_id: cachedTalkingPhotoId };
-  } else if (avatarPhotoPath) {
-    const talkingPhotoId = await uploadHeyGenTalkingPhoto(avatarPhotoPath, apiKey, platformAvatarId);
-    // Cache the talking photo ID on the platform avatar record for future renders
-    if (platformAvatarId) {
-      db.update(platformAvatarsTable)
-        .set({ heygenTalkingPhotoId: talkingPhotoId })
-        .where(eq(platformAvatarsTable.id, platformAvatarId))
-        .execute()
-        .catch((err: Error) => logger.warn({ err, platformAvatarId }, "Failed to cache HeyGen talking photo ID"));
-    }
-    character = { type: "talking_photo", talking_photo_id: talkingPhotoId };
-  } else {
-    const defaultAvatarId = await resolveDefaultHeyGenAvatar(apiKey);
-    if (!defaultAvatarId) {
-      throw new Error(
-        "No presenter photo uploaded. Please upload your photo in the \"Your Actor\" section below to generate an avatar video."
-      );
-    }
-    character = { type: "avatar", avatar_id: defaultAvatarId };
-  }
-
-  const body = {
-    video_inputs: [{
-      character,
-      voice: { type: "audio", audio_url: voiceoverUrl },
-    }],
-    dimension: { width, height },
-  };
-
-  const createRes = await withRetry(() =>
-    fetch(`${HEYGEN_API_URL}/v2/video/generate`, {
-      method: "POST",
-      headers: { "X-Api-Key": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(30_000),
-    }).then(async r => {
-      if (!r.ok) {
-        const text = await r.text();
-        throw new Error(`HeyGen generate: ${r.status} ${text.slice(0, 300)}`);
-      }
-      return r.json() as Promise<{ data: { video_id: string } }>;
-    })
-  );
-
-  logger.info({ videoId: createRes.data.video_id }, "HeyGen video created — polling");
-  return await pollHeyGenVideo(createRes.data.video_id, apiKey);
-}
-
-// ── HeyGen talking photo slot management ─────────────────────────────────────
-
-async function listHeyGenTalkingPhotoIds(apiKey: string): Promise<string[]> {
-  try {
-    const res = await fetch(`${HEYGEN_API_URL}/v2/avatars`, {
-      headers: { "X-Api-Key": apiKey },
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (!res.ok) {
-      logger.warn({ status: res.status }, "HeyGen avatar list returned non-ok status");
-      return [];
-    }
-    const body = await res.json() as {
-      data?: {
-        talking_photos?: Array<{ talking_photo_id: string }>;
-        avatars?: Array<{ avatar_id: string; type?: string }>;
-      };
-    };
-    // HeyGen may surface talking photos in EITHER data.talking_photos OR data.avatars
-    // (with type === "talking_photo"). Check both to be safe.
-    const fromTalkingPhotos = (body.data?.talking_photos ?? []).map(p => p.talking_photo_id);
-    const fromAvatars = (body.data?.avatars ?? [])
-      .filter(a => a.type === "talking_photo")
-      .map(a => a.avatar_id);
-    const ids = [...new Set([...fromTalkingPhotos, ...fromAvatars])];
-    logger.info({ fromTalkingPhotos, fromAvatars, total: ids.length }, "Listed HeyGen talking photos");
-    return ids;
-  } catch (err) {
-    logger.warn({ err }, "Failed to list HeyGen talking photos");
-    return [];
-  }
-}
-
-async function deleteHeyGenTalkingPhoto(id: string, apiKey: string): Promise<void> {
-  await fetch(`${HEYGEN_API_URL}/v2/talking_photo/${id}`, {
-    method: "DELETE",
-    headers: { "X-Api-Key": apiKey },
-    signal: AbortSignal.timeout(15_000),
-  });
-}
-
-// Evicts the oldest cached HeyGen talking photo slot when the account limit is hit.
-// Prefers avatars other than `excludeAvatarId` (the one currently being rendered).
-// Attempts a targeted DELETE on HeyGen (fast — no LIST call needed) and always
-// clears the ID from our DB so the slot is treated as freed regardless of network.
-async function evictOldestTalkingPhotoSlot(
-  apiKey: string,
-  excludeAvatarId?: number | null,
-): Promise<void> {
-  // Fetch the two oldest cached IDs so we can skip the current avatar if needed
-  const rows = await db
-    .select({ id: platformAvatarsTable.id, heygenId: platformAvatarsTable.heygenTalkingPhotoId })
-    .from(platformAvatarsTable)
-    .where(isNotNull(platformAvatarsTable.heygenTalkingPhotoId))
-    .orderBy(platformAvatarsTable.createdAt)
-    .limit(2);
-
-  const toEvict = rows.find(r => r.id !== excludeAvatarId) ?? rows[0];
-  if (!toEvict?.heygenId) {
-    logger.warn("No cached HeyGen talking photos available to evict");
-    return;
-  }
-
-  // Attempt DELETE — lightweight (no response body) unlike the list call.
-  // api.heygen.com may still time out in some environments; that's OK — we clear
-  // the DB record regardless so the slot is treated as freed on our side and the
-  // photo will be re-uploaded fresh on next render for that avatar.
-  try {
-    const r = await fetch(`${HEYGEN_API_URL}/v2/talking_photo/${toEvict.heygenId}`, {
-      method: "DELETE",
-      headers: { "X-Api-Key": apiKey },
-      signal: AbortSignal.timeout(10_000),
-    });
-    logger.info(
-      { avatarId: toEvict.id, heygenId: toEvict.heygenId, status: r.status },
-      "Evicted HeyGen talking photo slot",
-    );
-  } catch (err) {
-    logger.warn(
-      { err, heygenId: toEvict.heygenId },
-      "HeyGen DELETE timed out — slot cleared in DB; may need manual HeyGen cleanup if still full",
-    );
-  }
-
-  // Always clear from DB — this avatar will re-upload on its next render
-  await db
-    .update(platformAvatarsTable)
-    .set({ heygenTalkingPhotoId: null })
-    .where(eq(platformAvatarsTable.id, toEvict.id));
-}
-
-// Reads avatar photo bytes from either GCS directly (our proxy URL pattern)
-// or an external HTTP URL — avoids circular self-fetch via the proxy.
-async function readAvatarPhotoBuffer(photoUrl: string): Promise<Buffer> {
-  // Detect our own proxy URLs: /api/platform-avatars/photo?key=<gcs-path>&bucket=<bucketId>
-  const proxyPrefix = "/api/platform-avatars/photo";
-  if (photoUrl.startsWith(proxyPrefix)) {
-    const params = new URLSearchParams(photoUrl.slice(photoUrl.indexOf("?") + 1));
-    const key = params.get("key");
-    const bucketId = params.get("bucket") ?? process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-    if (!key || !bucketId) throw new Error(`Invalid avatar proxy URL: ${photoUrl}`);
-    const bucket = objectStorageClient.bucket(bucketId);
-    const chunks: Buffer[] = [];
-    await new Promise<void>((resolve, reject) => {
-      bucket.file(key).createReadStream()
-        .on("data", (chunk: Buffer) => chunks.push(chunk))
-        .on("end", resolve)
-        .on("error", reject);
-    });
-    return Buffer.concat(chunks);
-  }
-  // External URL — fetch normally
-  const photoRes = await fetch(photoUrl, { signal: AbortSignal.timeout(30_000) });
-  if (!photoRes.ok) throw new Error(`Download avatar photo: ${photoRes.status}`);
-  return Buffer.from(await photoRes.arrayBuffer());
-}
-
-async function uploadHeyGenTalkingPhoto(
-  photoUrl: string,
-  apiKey: string,
-  platformAvatarId?: number | null,
-): Promise<string> {
-  const photoBuf = await readAvatarPhotoBuffer(photoUrl);
-  return uploadHeyGenTalkingPhotoBuffer(photoBuf, apiKey, platformAvatarId);
-}
-
-// Exported so admin upload/sync can pre-cache HeyGen IDs without a GCS round-trip.
-// platformAvatarId is used to avoid evicting the current avatar's own slot when full.
-export async function uploadHeyGenTalkingPhotoBuffer(
-  photoBuf: Buffer,
-  apiKey: string,
-  platformAvatarId?: number | null,
-): Promise<string> {
-  // HeyGen talking_photo endpoint lives on upload.heygen.com (not api.heygen.com).
-  // It expects a raw binary body with Content-Type: image/jpeg (not multipart).
-  const doUpload = async () => {
-    const r = await fetch(`${HEYGEN_UPLOAD_URL}/v1/talking_photo`, {
-      method: "POST",
-      headers: { "X-Api-Key": apiKey, "Content-Type": "image/jpeg" },
-      body: new Uint8Array(photoBuf),
-      signal: AbortSignal.timeout(60_000),
-    });
-    if (!r.ok) {
-      const text = await r.text();
-      // 401028 = account has hit its photo avatar slot limit
-      if (text.includes("401028")) {
-        const e = new Error("heygen_limit_exceeded") as Error & { code: number };
-        e.code = 401028;
-        throw e;
-      }
-      throw new Error(`HeyGen talking_photo upload: ${r.status} ${text.slice(0, 300)}`);
-    }
-    return (await r.json()) as { code: number; data: { talking_photo_id: string } };
-  };
-
-  try {
-    const res = await withRetry(doUpload);
-    return res.data.talking_photo_id;
-  } catch (err) {
-    // Slot limit hit — evict the oldest cached slot (targeted DELETE, no list call)
-    // then retry once. Works on any plan size: the system self-manages the rotation.
-    if (err instanceof Error && err.message === "heygen_limit_exceeded") {
-      logger.warn({ platformAvatarId }, "HeyGen slot limit hit — evicting oldest cached slot");
-      await evictOldestTalkingPhotoSlot(apiKey, platformAvatarId);
-      await sleep(2_000);
-      const res = await doUpload();
-      return res.data.talking_photo_id;
-    }
-    throw err;
-  }
-}
-
-// Exported for admin sync endpoint — reads a GCS proxy URL and uploads to HeyGen.
-export async function syncAvatarToHeyGen(
-  previewUrl: string,
-  apiKey: string,
-  platformAvatarId?: number | null,
-): Promise<string> {
-  const buf = await (async () => {
-    const proxyPrefix = "/api/platform-avatars/photo";
-    if (previewUrl.startsWith(proxyPrefix)) {
-      const params = new URLSearchParams(previewUrl.slice(previewUrl.indexOf("?") + 1));
-      const key = params.get("key");
-      const bucketId = params.get("bucket") ?? process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-      if (!key || !bucketId) throw new Error(`Invalid proxy URL: ${previewUrl}`);
-      const bucket = objectStorageClient.bucket(bucketId);
-      const chunks: Buffer[] = [];
-      await new Promise<void>((resolve, reject) => {
-        bucket.file(key).createReadStream()
-          .on("data", (c: Buffer) => chunks.push(c))
-          .on("end", resolve)
-          .on("error", reject);
-      });
-      return Buffer.concat(chunks);
-    }
-    const r = await fetch(previewUrl, { signal: AbortSignal.timeout(30_000) });
-    if (!r.ok) throw new Error(`Download avatar photo: ${r.status}`);
-    return Buffer.from(await r.arrayBuffer());
-  })();
-  return uploadHeyGenTalkingPhotoBuffer(buf, apiKey, platformAvatarId);
-}
-
-async function pollHeyGenVideo(videoId: string, apiKey: string): Promise<string> {
-  const MAX_POLLS = 120; // up to 20 minutes
-  const POLL_INTERVAL_MS = 10_000;
-
-  for (let i = 0; i < MAX_POLLS; i++) {
-    await sleep(POLL_INTERVAL_MS);
-
-    const data = await withRetry(async () => {
-      const res = await fetch(
-        `${HEYGEN_API_URL}/v1/video_status.get?video_id=${encodeURIComponent(videoId)}`,
-        { headers: { "X-Api-Key": apiKey }, signal: AbortSignal.timeout(15_000) }
-      );
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HeyGen poll: ${res.status} ${text.slice(0, 200)}`);
-      }
-      return res.json() as Promise<{ data: { status: string; video_url?: string; error?: string } }>;
-    });
-
-    logger.info({ videoId, status: data.data.status, poll: i }, "HeyGen poll");
-
-    if (data.data.status === "completed" && data.data.video_url) {
-      const videoRes = await withRetry(() => fetch(data.data.video_url!, { signal: AbortSignal.timeout(120_000) }));
-      if (!videoRes.ok) throw new Error(`HeyGen download: ${videoRes.status}`);
-      const buffer = Buffer.from(await videoRes.arrayBuffer());
-      return await uploadVideoToStorage(buffer);
-    }
-    if (data.data.status === "failed") {
-      throw new Error(`HeyGen generation failed: ${data.data.error ?? "unknown"}`);
-    }
-  }
-
-  throw new Error("HeyGen video generation timed out after 20 minutes");
 }
 
 // ── FAL.ai Kling v1.6 ─────────────────────────────────────────────────────────
@@ -811,7 +327,7 @@ async function submitFalJob(modelId: string, body: Record<string, unknown>): Pro
 
 async function pollFalJob(job: FalQueueResponse): Promise<string> {
   const apiKey = process.env.FAL_API_KEY!;
-  const MAX_POLLS = 90; // up to 15 minutes
+  const MAX_POLLS = 90;
   const POLL_INTERVAL_MS = 10_000;
 
   for (let i = 0; i < MAX_POLLS; i++) {
@@ -856,7 +372,6 @@ async function pollFalJob(job: FalQueueResponse): Promise<string> {
   throw new Error("FAL video generation timed out after 15 minutes");
 }
 
-// Map 4:5 → 9:16 since Kling doesn't support 4:5 natively; FFmpeg crops to 4:5 in post
 function falAspectRatio(ar: AspectRatio): string {
   if (ar === "4:5") return "9:16";
   return ar;
@@ -869,19 +384,11 @@ async function generateFalT2V(prompt: string, aspectRatio: AspectRatio = "16:9")
   return await pollFalJob(job);
 }
 
-async function generateFalI2V(avatarImageUrl: string, prompt: string): Promise<string> {
-  const job = await withRetry(() =>
-    submitFalJob(FAL_I2V_MODEL, { image_url: avatarImageUrl, prompt, duration: "5" })
-  );
-  return await pollFalJob(job);
-}
-
 // ── FFmpeg Composition ────────────────────────────────────────────────────────
 
 interface FFmpegComposeOptions {
   voiceoverUrl: string;
   footageUrls: string[];
-  avatarClipUrls: string[];
   duration: number;
   resolution: RenderResolution;
   aspectRatio: AspectRatio;
@@ -892,28 +399,11 @@ interface FFmpegComposeOptions {
 async function composeWithFFmpeg(opts: FFmpegComposeOptions): Promise<string> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "render-"));
   try {
-    // Build the ordered clip list: avatar clips interleaved with footage (avatar on top)
     const numSlots = Math.max(1, Math.ceil(opts.duration / FAL_CLIP_DURATION_S));
-    const orderedClipUrls: string[] = [];
-    const isOverlay = opts.footageUrls.length > 0 && opts.avatarClipUrls.length > 0;
+    const orderedClipUrls: string[] = Array.from({ length: numSlots }, (_, i) =>
+      opts.footageUrls[i % opts.footageUrls.length]!
+    );
 
-    if (isOverlay) {
-      // Combined mode: alternate footage + avatar per slot — FFmpeg overlay handled via filter
-      // For simplicity in concat mode, use footage as base track; avatar overlaid
-      for (let i = 0; i < numSlots; i++) {
-        orderedClipUrls.push(opts.footageUrls[i % opts.footageUrls.length]!);
-      }
-    } else if (opts.avatarClipUrls.length > 0) {
-      for (let i = 0; i < numSlots; i++) {
-        orderedClipUrls.push(opts.avatarClipUrls[i % opts.avatarClipUrls.length]!);
-      }
-    } else {
-      for (let i = 0; i < opts.footageUrls.length; i++) {
-        orderedClipUrls.push(opts.footageUrls[i]!);
-      }
-    }
-
-    // Download all clips
     const clipPaths: string[] = [];
     for (let i = 0; i < orderedClipUrls.length; i++) {
       const res = await fetch(orderedClipUrls[i]!);
@@ -924,14 +414,12 @@ async function composeWithFFmpeg(opts: FFmpegComposeOptions): Promise<string> {
       clipPaths.push(p);
     }
 
-    // Download voiceover
     const audioRes = await fetch(opts.voiceoverUrl);
     if (!audioRes.ok) throw new Error(`Download voiceover: HTTP ${audioRes.status}`);
     const audioBuf = Buffer.from(await audioRes.arrayBuffer());
     const audioPath = path.join(tmpDir, "voiceover.mp3");
     fs.writeFileSync(audioPath, audioBuf);
 
-    // Write concat list
     const concatPath = path.join(tmpDir, "concat.txt");
     fs.writeFileSync(
       concatPath,
@@ -947,7 +435,6 @@ async function composeWithFFmpeg(opts: FFmpegComposeOptions): Promise<string> {
     if (opts.captionsEnabled && opts.script) {
       const assPath = path.join(tmpDir, "captions.ass");
       fs.writeFileSync(assPath, generateASS(opts.script, opts.duration, width, height));
-      // Escape ASS path for FFmpeg filter (colons must be escaped)
       const assEscaped = assPath.replace(/\\/g, "\\\\").replace(/:/g, "\\:").replace(/'/g, "\\'");
       filterComplex = `[0:v]${scaleFilter},ass='${assEscaped}'[vout]`;
     } else {
@@ -961,131 +448,6 @@ async function composeWithFFmpeg(opts: FFmpegComposeOptions): Promise<string> {
       "-filter_complex", filterComplex,
       "-map", "[vout]",
       "-map", "1:a",
-      "-c:v", "libx264", "-preset", "fast", "-crf", crf,
-      "-c:a", "aac", "-b:a", "192k",
-      "-shortest", "-movflags", "+faststart",
-      outputPath,
-    ]);
-
-    const outBuf = fs.readFileSync(outputPath);
-    return await uploadVideoToStorage(outBuf);
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-}
-
-// Burn captions onto an existing video (used for HeyGen output)
-async function burnCaptionsFFmpeg(
-  videoUrl: string,
-  script: string,
-  duration: number,
-  resolution: RenderResolution,
-  aspectRatio: AspectRatio,
-): Promise<string> {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "captions-"));
-  try {
-    const videoRes = await fetch(videoUrl);
-    if (!videoRes.ok) throw new Error(`Download video for captions: HTTP ${videoRes.status}`);
-    const videoBuf = Buffer.from(await videoRes.arrayBuffer());
-    const videoPath = path.join(tmpDir, "input.mp4");
-    fs.writeFileSync(videoPath, videoBuf);
-
-    const { width, height } = getOutputDimensions(resolution, aspectRatio);
-    const assPath = path.join(tmpDir, "captions.ass");
-    fs.writeFileSync(assPath, generateASS(script, duration, width, height));
-    const assEscaped = assPath.replace(/\\/g, "\\\\").replace(/:/g, "\\:").replace(/'/g, "\\'");
-    const outputPath = path.join(tmpDir, "output.mp4");
-
-    await runFFmpeg([
-      "-y", "-i", videoPath,
-      "-vf", `ass='${assEscaped}'`,
-      "-c:v", "libx264", "-preset", "fast", "-crf", resolution === "4k" ? "18" : "23",
-      "-c:a", "copy",
-      "-movflags", "+faststart",
-      outputPath,
-    ]);
-
-    const outBuf = fs.readFileSync(outputPath);
-    return await uploadVideoToStorage(outBuf);
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
-}
-
-// Compose HeyGen presenter on top of B-roll clips using FFmpeg overlay
-async function composeHeyGenWithBroll(opts: {
-  heyGenVideoUrl: string;
-  brollUrls: string[];
-  voiceoverUrl: string;
-  duration: number;
-  resolution: RenderResolution;
-  aspectRatio: AspectRatio;
-  captionsEnabled: boolean;
-  script?: string;
-}): Promise<string> {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "combined-"));
-  try {
-    // Download HeyGen presenter video
-    const presenterRes = await fetch(opts.heyGenVideoUrl);
-    if (!presenterRes.ok) throw new Error(`Download presenter: HTTP ${presenterRes.status}`);
-    const presenterPath = path.join(tmpDir, "presenter.mp4");
-    fs.writeFileSync(presenterPath, Buffer.from(await presenterRes.arrayBuffer()));
-
-    // Download B-roll clips
-    const brollPaths: string[] = [];
-    for (let i = 0; i < opts.brollUrls.length; i++) {
-      const res = await fetch(opts.brollUrls[i]!);
-      if (!res.ok) throw new Error(`Download b-roll ${i}: HTTP ${res.status}`);
-      const p = path.join(tmpDir, `broll${i}.mp4`);
-      fs.writeFileSync(p, Buffer.from(await res.arrayBuffer()));
-      brollPaths.push(p);
-    }
-
-    // Download voiceover
-    const audioRes = await fetch(opts.voiceoverUrl);
-    if (!audioRes.ok) throw new Error(`Download voiceover: HTTP ${audioRes.status}`);
-    const audioPath = path.join(tmpDir, "voiceover.mp3");
-    fs.writeFileSync(audioPath, Buffer.from(await audioRes.arrayBuffer()));
-
-    const numSlots = Math.max(1, Math.ceil(opts.duration / FAL_CLIP_DURATION_S));
-    const concatPath = path.join(tmpDir, "broll.txt");
-    const orderedBroll = Array.from({ length: numSlots }, (_, i) =>
-      brollPaths[i % brollPaths.length]!
-    );
-    fs.writeFileSync(concatPath, orderedBroll.map(p => `file '${p.replace(/'/g, "'\\''")}'`).join("\n") + "\n");
-
-    const { width, height } = getOutputDimensions(opts.resolution, opts.aspectRatio);
-    const crf = opts.resolution === "4k" ? "18" : "23";
-    const outputPath = path.join(tmpDir, "output.mp4");
-
-    // Presenter is scaled to 35% width, bottom-right corner
-    const presenterW = Math.round(width * 0.35);
-    const presenterX = width - presenterW - Math.round(width * 0.02);
-    const presenterY = height - Math.round(presenterW * (16 / 9)) - Math.round(height * 0.02);
-
-    let filterComplex = [
-      `[0:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black[broll]`,
-      `[1:v]scale=${presenterW}:-1[pres]`,
-      `[broll][pres]overlay=${presenterX}:${presenterY}[combined]`,
-    ];
-    let lastLabel = "combined";
-
-    if (opts.captionsEnabled && opts.script) {
-      const assPath = path.join(tmpDir, "captions.ass");
-      fs.writeFileSync(assPath, generateASS(opts.script, opts.duration, width, height));
-      const assEscaped = assPath.replace(/\\/g, "\\\\").replace(/:/g, "\\:").replace(/'/g, "\\'");
-      filterComplex.push(`[combined]ass='${assEscaped}'[vout]`);
-      lastLabel = "vout";
-    }
-
-    await runFFmpeg([
-      "-y",
-      "-f", "concat", "-safe", "0", "-i", concatPath, // 0: broll
-      "-i", presenterPath,                              // 1: presenter
-      "-i", audioPath,                                  // 2: voiceover
-      "-filter_complex", filterComplex.join(";"),
-      "-map", `[${lastLabel}]`,
-      "-map", "2:a",
       "-c:v", "libx264", "-preset", "fast", "-crf", crf,
       "-c:a", "aac", "-b:a", "192k",
       "-shortest", "-movflags", "+faststart",
@@ -1142,12 +504,11 @@ function getOutputDimensions(resolution: RenderResolution, aspectRatio: AspectRa
 // ── ASS Caption generator ──────────────────────────────────────────────────────
 
 function generateASS(script: string, durationSec: number, width: number, height: number): string {
-  // Strip any residual [MARKER] tags from legacy blueprints
   const clean = script.replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
   const words = clean.split(/\s+/).filter(Boolean);
 
-  const WORDS_PER_SEC = 2.5; // average conversational speaking rate
-  const WORDS_PER_CHUNK = 6;  // words per caption line
+  const WORDS_PER_SEC = 2.5;
+  const WORDS_PER_CHUNK = 6;
 
   const chunks: Array<{ text: string; start: number; end: number }> = [];
   for (let i = 0; i < words.length; i += WORDS_PER_CHUNK) {
@@ -1167,8 +528,8 @@ function generateASS(script: string, durationSec: number, width: number, height:
     return `${h}:${String(m).padStart(2, "0")}:${String(Math.floor(s)).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
   }
 
-  const fontSize = Math.max(36, Math.round(width * 0.042)); // ~80px at 1920w
-  const marginV = Math.max(30, Math.round(height * 0.075)); // 7.5% from bottom
+  const fontSize = Math.max(36, Math.round(width * 0.042));
+  const marginV = Math.max(30, Math.round(height * 0.075));
   const outline = Math.max(2, Math.round(fontSize * 0.05));
   const shadow = Math.max(1, Math.round(fontSize * 0.025));
 
@@ -1194,7 +555,7 @@ function generateASS(script: string, durationSec: number, width: number, height:
   return `${header}\n${events}\n`;
 }
 
-// ── Cinematic plan type (mirrors contentGenerators) ───────────────────────────
+// ── Cinematic plan types ───────────────────────────────────────────────────────
 
 interface CinematicShot {
   shotNumber: number;
@@ -1263,67 +624,12 @@ function buildScenePrompts(title: string, storyboard: string, count: number, cin
   });
 }
 
-function buildAvatarPrompts(
-  title: string,
-  storyboard: string,
-  count: number,
-  instructions: string | null | undefined,
-  cinematicPlan?: string | null,
-): string[] {
-  const plan = parseCinematicPlan(cinematicPlan);
-
-  const instructionLine = instructions?.trim()
-    ? `Animate this person naturally. ${instructions.trim()}.`
-    : plan?.performanceDirection
-      ? `Animate this person naturally. ${plan.performanceDirection}.`
-      : "Animate this person naturally as a confident professional presenter, speaking directly to camera with clear, engaging energy.";
-
-  if (plan?.shots?.length) {
-    const charDesc = plan.characterDescription ? `Character: ${plan.characterDescription}. ` : "";
-    return Array.from({ length: count }, (_, i) => {
-      const shot = plan.shots[i % plan.shots.length]!;
-      const parts = [
-        instructionLine,
-        charDesc,
-        shot.environment ? `Setting: ${shot.environment}.` : "",
-        shot.subjectAction ? `${shot.subjectAction}.` : "",
-        shot.facialExpression ? `Expression: ${shot.facialExpression}.` : "",
-        shot.bodyMovement ? `Movement: ${shot.bodyMovement}.` : "",
-        shot.cameraMovement ? `Camera: ${shot.cameraMovement}.` : "",
-        shot.lighting ? `Lighting: ${shot.lighting}.` : "",
-      ].filter(Boolean).join(" ");
-      return parts.slice(0, 500);
-    });
-  }
-
-  const scenes = storyboard
-    .split("\n")
-    .map(l => l.replace(/^scene\s*\d+[:.]\s*/i, "").trim())
-    .filter(l => l.length > 5);
-  const base = scenes.length > 0 ? scenes : [`Marketing video for: ${title}`];
-  return Array.from({ length: count }, (_, i) => {
-    const scene = base[i % base.length] ?? title;
-    return `${instructionLine} Scene context: ${scene.replace(/^b-roll[:\s]*/i, "").slice(0, 300)}`;
-  });
-}
-
 async function generateFootageClipsT2V(prompts: string[], videoId: number, aspectRatio: AspectRatio = "16:9"): Promise<string[]> {
   const results: string[] = [];
   for (let i = 0; i < prompts.length; i += CLIP_BATCH_SIZE) {
     const batch = prompts.slice(i, i + CLIP_BATCH_SIZE);
     logger.info({ videoId, batchStart: i, batchSize: batch.length, totalClips: prompts.length }, "Generating footage batch (FAL Kling)");
     const batchUrls = await Promise.all(batch.map(prompt => generateFalT2V(prompt, aspectRatio)));
-    results.push(...batchUrls);
-  }
-  return results;
-}
-
-async function generateAvatarClipsI2V(photoPath: string, prompts: string[], videoId: number): Promise<string[]> {
-  const results: string[] = [];
-  for (let i = 0; i < prompts.length; i += CLIP_BATCH_SIZE) {
-    const batch = prompts.slice(i, i + CLIP_BATCH_SIZE);
-    logger.info({ videoId, batchStart: i, batchSize: batch.length, totalClips: prompts.length }, "Generating avatar batch (FAL Kling I2V)");
-    const batchUrls = await Promise.all(batch.map(prompt => generateFalI2V(photoPath, prompt)));
     results.push(...batchUrls);
   }
   return results;

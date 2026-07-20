@@ -38,8 +38,6 @@ export interface Video {
   createdAt: string;
   renderStatus?: string;
   /** @nullable */
-  renderMode?: string | null;
-  /** @nullable */
   renderResolution?: string | null;
   /** @nullable */
   renderJobId?: string | null;
@@ -51,6 +49,4 @@ export interface Video {
   renderError?: string | null;
   /** @nullable */
   voiceoverUrl?: string | null;
-  /** @nullable */
-  avatarPhotoPath?: string | null;
 }

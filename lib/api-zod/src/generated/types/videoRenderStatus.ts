@@ -10,8 +10,6 @@ export interface VideoRenderStatus {
   videoId: number;
   renderStatus: string;
   /** @nullable */
-  renderMode?: string | null;
-  /** @nullable */
   renderResolution?: string | null;
   /** @nullable */
   renderStartedAt?: string | null;

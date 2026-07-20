@@ -51,7 +51,6 @@ import type {
   MetaPageSelectInput,
   MetaPagesResult,
   MetaStatus,
-  PlatformAvatarList,
   Project,
   ProjectAnalytics,
   ProjectInput,
@@ -4595,83 +4594,6 @@ export function useGetAgentHistory<TData = Awaited<ReturnType<typeof getAgentHis
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetAgentHistoryQueryOptions(id,options)
-
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-
-export const getListPlatformAvatarsUrl = () => {
-
-
-
-
-  return `/api/platform-avatars`
-}
-
-/**
- * @summary List active platform avatars for the avatar picker
- */
-export const listPlatformAvatars = async ( options?: RequestInit): Promise<PlatformAvatarList> => {
-
-  return customFetch<PlatformAvatarList>(getListPlatformAvatarsUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-
-
-
-export const getListPlatformAvatarsQueryKey = () => {
-    return [
-    `/api/platform-avatars`
-    ] as const;
-    }
-
-
-export const getListPlatformAvatarsQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformAvatars>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPlatformAvatars>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getListPlatformAvatarsQueryKey();
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformAvatars>>> = ({ signal }) => listPlatformAvatars({ signal, ...requestOptions });
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformAvatars>>, TError, TData> & { queryKey: QueryKey }
-}
-
-export type ListPlatformAvatarsQueryResult = NonNullable<Awaited<ReturnType<typeof listPlatformAvatars>>>
-export type ListPlatformAvatarsQueryError = ErrorType<unknown>
-
-
-/**
- * @summary List active platform avatars for the avatar picker
- */
-
-export function useListPlatformAvatars<TData = Awaited<ReturnType<typeof listPlatformAvatars>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPlatformAvatars>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-
-  const queryOptions = getListPlatformAvatarsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -988,8 +988,6 @@ paths:
                 $ref: "#/components/schemas/Video"
         "409":
           description: Render already in progress
-        "422":
-          description: Avatar photo missing for avatar/combined mode
         "503":
           description: Render services not yet configured
     get:
@@ -1384,20 +1382,6 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AgentMessage"
-
-  # ── Platform Avatar Library ───────────────────────────────────────────────
-  /platform-avatars:
-    get:
-      operationId: listPlatformAvatars
-      tags: [videos]
-      summary: List active platform avatars for the avatar picker
-      responses:
-        "200":
-          description: List of active platform avatars
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PlatformAvatarList"
 
 components:
   schemas:
@@ -2053,8 +2037,6 @@ components:
           type: string
         renderStatus:
           type: string
-        renderMode:
-          type: ["string", "null"]
         renderResolution:
           type: ["string", "null"]
         renderJobId:
@@ -2066,8 +2048,6 @@ components:
         renderError:
           type: ["string", "null"]
         voiceoverUrl:
-          type: ["string", "null"]
-        avatarPhotoPath:
           type: ["string", "null"]
 
     VideoUpdate:
@@ -2273,10 +2253,6 @@ components:
     VideoRenderInput:
       type: object
       properties:
-        mode:
-          type: string
-          enum: [footage, avatar, combined]
-          default: footage
         resolution:
           type: string
           enum: ["1080p", "4k"]
@@ -2290,63 +2266,6 @@ components:
           type: boolean
           default: false
           description: When true, bold burned-in captions are embedded in the video.
-        avatarId:
-          type: integer
-          description: ID of the avatar from the project avatar library to use for avatar/combined render modes.
-        platformAvatarId:
-          type: integer
-          description: ID of the platform avatar from the shared library to use for avatar/combined render modes.
-
-    PlatformAvatar:
-      type: object
-      required: [id, name, gender, archetype, previewUrl, isActive, sortOrder, createdAt]
-      properties:
-        id:
-          type: integer
-        name:
-          type: string
-        gender:
-          type: string
-        archetype:
-          type: string
-        previewUrl:
-          type: string
-        heygenTalkingPhotoId:
-          type: ["string", "null"]
-        isActive:
-          type: boolean
-        sortOrder:
-          type: integer
-        createdAt:
-          type: string
-
-    PlatformAvatarList:
-      type: object
-      required: [avatars]
-      properties:
-        avatars:
-          type: array
-          items:
-            $ref: "#/components/schemas/PlatformAvatar"
-
-    ProjectAvatar:
-      type: object
-      required: [id, projectId, name, photoUrl, isDefault, createdAt]
-      properties:
-        id:
-          type: integer
-        projectId:
-          type: integer
-        name:
-          type: string
-        photoUrl:
-          type: string
-        instructions:
-          type: ["string", "null"]
-        isDefault:
-          type: boolean
-        createdAt:
-          type: string
 
     VideoRenderStatus:
       type: object
@@ -2356,8 +2275,6 @@ components:
           type: integer
         renderStatus:
           type: string
-        renderMode:
-          type: ["string", "null"]
         renderResolution:
           type: ["string", "null"]
         renderStartedAt:
@@ -2370,15 +2287,6 @@ components:
           type: ["string", "null"]
         voiceoverUrl:
           type: ["string", "null"]
-
-    AvatarUploadResponse:
-      type: object
-      required: [avatarPhotoPath]
-      properties:
-        avatarPhotoPath:
-          type: string
-        video:
-          $ref: "#/components/schemas/Video"
 
     # ── Images ───────────────────────────────────────────────────────────────
     ImageGenerateInput:

@@ -6,18 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { VideoRenderInputAspectRatio } from './videoRenderInputAspectRatio';
-import type { VideoRenderInputMode } from './videoRenderInputMode';
 import type { VideoRenderInputResolution } from './videoRenderInputResolution';
 
 export interface VideoRenderInput {
-  mode?: VideoRenderInputMode;
   resolution?: VideoRenderInputResolution;
   /** Output aspect ratio for the rendered video. */
   aspectRatio?: VideoRenderInputAspectRatio;
   /** When true, bold burned-in captions are embedded in the video. */
   captionsEnabled?: boolean;
-  /** ID of the avatar from the project avatar library to use for avatar/combined render modes. */
-  avatarId?: number;
-  /** ID of the platform avatar from the shared library to use for avatar/combined render modes. */
-  platformAvatarId?: number;
 }

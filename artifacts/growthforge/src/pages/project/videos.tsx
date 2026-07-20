@@ -8,20 +8,19 @@ import {
   useGetVideoRenderStatus,
   useGenerateImage,
   useGetProjectUsage,
-  useListPlatformAvatars,
   getListVideosQueryKey,
   getGetVideoRenderStatusQueryKey,
   getGetProjectQueryKey,
   ImageGenerateInputStyle,
   ImageGenerateInputOrientation,
 } from "@workspace/api-client-react";
-import type { Video as VideoModel, PlatformAvatar } from "@workspace/api-client-react";
+import type { Video as VideoModel } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Loader2, Video as VideoIcon, Play, Sparkles, Film, Check, X,
   AlertCircle, ChevronDown, Image as ImageIcon, RefreshCw,
-  Lock, Download, ExternalLink, Plus, Trash2, User, Upload,
+  Lock, Download, ExternalLink,
   Search, Filter, Clock, Archive, BarChart3, RotateCcw,
 } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
@@ -199,7 +198,6 @@ const IMAGE_STEPS = [
   "Finalizing output...",
 ];
 
-type RenderMode = "footage" | "avatar" | "combined";
 type RenderResolution = "1080p" | "4k";
 
 function ScoreBar({ label, value, color }: { label: string; value: number | null | undefined; color: string }) {
@@ -262,14 +260,8 @@ function RenderPanel({
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
   const [locallyStarted, setLocallyStarted] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
-  const [actorPhotoUrl, setActorPhotoUrl] = useState<string | null>(video.avatarPhotoPath ?? null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const [cancellingRender, setCancellingRender] = useState(false);
-  const [selectedPlatformAvatarId, setSelectedPlatformAvatarId] = useState<number | null>(null);
   const queryClient = useQueryClient();
-
-  const { data: platformAvatarsData } = useListPlatformAvatars();
 
   const startRender = useStartVideoRender();
 
@@ -315,31 +307,6 @@ function RenderPanel({
     RENDER_STEPS[0].label,
   );
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadError(null);
-    setUploadingPhoto(true);
-    try {
-      const formData = new FormData();
-      formData.append("photo", file);
-      const res = await fetch(`/api/projects/${projectId}/videos/${video.id}/avatar`, {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error((body as { error?: string }).error ?? "Upload failed");
-      }
-      const data = await res.json() as { avatarPhotoPath: string };
-      setActorPhotoUrl(data.avatarPhotoPath);
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setUploadingPhoto(false);
-    }
-  };
-
   const handleCancelRender = async () => {
     setCancellingRender(true);
     try {
@@ -365,13 +332,7 @@ function RenderPanel({
       {
         id: projectId,
         videoId: video.id,
-        data: {
-          mode: "combined" as RenderMode,
-          resolution,
-          aspectRatio,
-          captionsEnabled,
-          ...(selectedPlatformAvatarId ? { platformAvatarId: selectedPlatformAvatarId } : {}),
-        },
+        data: { resolution, aspectRatio, captionsEnabled },
       },
       {
         onSuccess: () => {
@@ -395,7 +356,7 @@ function RenderPanel({
           <span className="text-sm font-bold text-[#00E676]">Video Rendering — Paid Plans Only</span>
         </div>
         <p className="text-xs text-white/50 mb-3">
-          Your trial includes video blueprints (actor scripts + storyboards). Upgrade to render actual MP4 videos with AI voiceover, HeyGen presenter, and B-roll footage.
+          Your trial includes Commercial Blueprints (scripts, storyboards, and production notes). Upgrade to produce actual MP4 commercials with AI voiceover and cinematic AI footage.
         </p>
         <a
           href="/plans"
@@ -496,130 +457,6 @@ function RenderPanel({
       {/* Render config — only show when not in progress */}
       {!locallyStarted && currentStatus !== "queued" && currentStatus !== "processing" && (
         <>
-          {/* Choose Presenter */}
-          <div>
-            <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Choose Presenter</p>
-
-            {/* Platform avatar picker */}
-            {platformAvatarsData && platformAvatarsData.avatars.length > 0 && (
-              <div className="mb-3">
-                <div className="grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto pr-0.5">
-                  {platformAvatarsData.avatars.map((avatar: PlatformAvatar) => (
-                    <button
-                      key={avatar.id}
-                      onClick={() => {
-                        setSelectedPlatformAvatarId(prev => prev === avatar.id ? null : avatar.id);
-                        if (actorPhotoUrl) setActorPhotoUrl(null);
-                      }}
-                      className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
-                        selectedPlatformAvatarId === avatar.id
-                          ? "border-[#00E676] ring-2 ring-[#00E676]/30"
-                          : "border-white/10 hover:border-white/30"
-                      }`}
-                      title={`${avatar.name} · ${avatar.gender} · ${avatar.archetype}`}
-                    >
-                      <img
-                        src={avatar.previewUrl}
-                        alt={avatar.name}
-                        className="w-full h-full object-cover"
-                      />
-                      {selectedPlatformAvatarId === avatar.id && (
-                        <div className="absolute inset-0 bg-[#00E676]/20 flex items-end justify-end p-1">
-                          <div className="w-4 h-4 rounded-full bg-[#00E676] flex items-center justify-center">
-                            <Check className="w-2.5 h-2.5 text-black" />
-                          </div>
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-                {selectedPlatformAvatarId && (
-                  <p className="text-[10px] text-[#00E676] mt-1.5 px-0.5">
-                    {platformAvatarsData.avatars.find((a: PlatformAvatar) => a.id === selectedPlatformAvatarId)?.name} selected
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Divider */}
-            {platformAvatarsData && platformAvatarsData.avatars.length > 0 && (
-              <div className="flex items-center gap-2 mb-2.5">
-                <div className="flex-1 h-px bg-white/8" />
-                <span className="text-[10px] text-white/30 font-medium">or use your own photo</span>
-                <div className="flex-1 h-px bg-white/8" />
-              </div>
-            )}
-
-            {/* Custom photo upload */}
-            <label
-              className={`relative flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                uploadingPhoto
-                  ? "border-white/10 bg-white/2 opacity-60 cursor-wait"
-                  : actorPhotoUrl
-                  ? "border-[#00E676]/40 bg-[#00E676]/5 hover:border-[#00E676]/60"
-                  : "border-white/10 bg-white/2 hover:border-white/20"
-              }`}
-            >
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                disabled={uploadingPhoto}
-                onChange={(e) => {
-                  setSelectedPlatformAvatarId(null);
-                  void handlePhotoUpload(e);
-                }}
-              />
-
-              {uploadingPhoto ? (
-                <>
-                  <div className="w-11 h-11 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
-                    <Loader2 className="w-5 h-5 text-white/30 animate-spin" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-white/60">Uploading photo…</p>
-                    <p className="text-[10px] text-white/30 mt-0.5">Your face will become the AI actor</p>
-                  </div>
-                </>
-              ) : actorPhotoUrl ? (
-                <>
-                  <img
-                    src={actorPhotoUrl}
-                    alt="Actor"
-                    className="w-11 h-11 rounded-lg object-cover shrink-0 ring-1 ring-[#00E676]/30"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-white">Custom photo ready</p>
-                    <p className="text-[10px] text-white/40 mt-0.5">AI will lip-sync this face to your script · tap to change</p>
-                  </div>
-                  <Check className="w-4 h-4 text-[#00E676] shrink-0" />
-                </>
-              ) : (
-                <>
-                  <div className="w-11 h-11 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
-                    <Upload className="w-4 h-4 text-white/30" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-white/70">Upload your own photo</p>
-                    <p className="text-[10px] text-white/35 mt-0.5">
-                      Your face, influencer, or character — JPEG / PNG / WebP
-                    </p>
-                  </div>
-                </>
-              )}
-            </label>
-
-            {!actorPhotoUrl && !selectedPlatformAvatarId && !uploadingPhoto && (
-              <p className="text-[10px] text-white/30 mt-1.5 px-0.5">
-                No presenter selected? GrowthForge will cast a professional AI presenter for you.
-              </p>
-            )}
-
-            {uploadError && (
-              <p className="text-[10px] text-red-400 mt-1.5 px-0.5">{uploadError}</p>
-            )}
-          </div>
-
           {/* Aspect Ratio */}
           <div>
             <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Aspect Ratio</p>
@@ -723,7 +560,7 @@ function RenderPanel({
             {startRender.isPending ? (
               <><Loader2 className="w-4 h-4 animate-spin" /> Starting render…</>
             ) : (
-              <><Film className="w-4 h-4" /> Render Video</>
+              <><Film className="w-4 h-4" /> Produce My Commercial</>
             )}
           </button>
 
@@ -1282,7 +1119,7 @@ export default function ProjectVideos() {
       {/* ── Page header ── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-black tracking-tight">Video Studio</h1>
+          <h1 className="text-3xl font-black tracking-tight">GrowthForge Commercial Studio</h1>
           <p className="text-muted-foreground mt-1">
             AI-generated blueprints · Real video rendering · Marketing image generation
           </p>

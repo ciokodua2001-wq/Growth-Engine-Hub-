@@ -466,8 +466,6 @@ export interface Video {
   createdAt: string;
   renderStatus?: string;
   /** @nullable */
-  renderMode?: string | null;
-  /** @nullable */
   renderResolution?: string | null;
   /** @nullable */
   renderJobId?: string | null;
@@ -479,8 +477,6 @@ export interface Video {
   renderError?: string | null;
   /** @nullable */
   voiceoverUrl?: string | null;
-  /** @nullable */
-  avatarPhotoPath?: string | null;
 }
 
 export interface VideoUpdate {
@@ -599,15 +595,6 @@ export interface Report {
   createdAt: string;
 }
 
-export type VideoRenderInputMode = typeof VideoRenderInputMode[keyof typeof VideoRenderInputMode];
-
-
-export const VideoRenderInputMode = {
-  footage: 'footage',
-  avatar: 'avatar',
-  combined: 'combined',
-} as const;
-
 export type VideoRenderInputResolution = typeof VideoRenderInputResolution[keyof typeof VideoRenderInputResolution];
 
 
@@ -630,51 +617,16 @@ export const VideoRenderInputAspectRatio = {
 } as const;
 
 export interface VideoRenderInput {
-  mode?: VideoRenderInputMode;
   resolution?: VideoRenderInputResolution;
   /** Output aspect ratio for the rendered video. */
   aspectRatio?: VideoRenderInputAspectRatio;
   /** When true, bold burned-in captions are embedded in the video. */
   captionsEnabled?: boolean;
-  /** ID of the avatar from the project avatar library to use for avatar/combined render modes. */
-  avatarId?: number;
-  /** ID of the platform avatar from the shared library to use for avatar/combined render modes. */
-  platformAvatarId?: number;
-}
-
-export interface PlatformAvatar {
-  id: number;
-  name: string;
-  gender: string;
-  archetype: string;
-  previewUrl: string;
-  /** @nullable */
-  heygenTalkingPhotoId?: string | null;
-  isActive: boolean;
-  sortOrder: number;
-  createdAt: string;
-}
-
-export interface PlatformAvatarList {
-  avatars: PlatformAvatar[];
-}
-
-export interface ProjectAvatar {
-  id: number;
-  projectId: number;
-  name: string;
-  photoUrl: string;
-  /** @nullable */
-  instructions?: string | null;
-  isDefault: boolean;
-  createdAt: string;
 }
 
 export interface VideoRenderStatus {
   videoId: number;
   renderStatus: string;
-  /** @nullable */
-  renderMode?: string | null;
   /** @nullable */
   renderResolution?: string | null;
   /** @nullable */
@@ -687,11 +639,6 @@ export interface VideoRenderStatus {
   videoUrl?: string | null;
   /** @nullable */
   voiceoverUrl?: string | null;
-}
-
-export interface AvatarUploadResponse {
-  avatarPhotoPath: string;
-  video?: Video;
 }
 
 export type ImageGenerateInputStyle = typeof ImageGenerateInputStyle[keyof typeof ImageGenerateInputStyle];

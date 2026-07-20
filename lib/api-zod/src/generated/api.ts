@@ -951,14 +951,12 @@ export const ListVideosResponseItem = zod.object({
   "viralPotential": zod.number().nullish(),
   "createdAt": zod.string(),
   "renderStatus": zod.string().optional(),
-  "renderMode": zod.string().nullish(),
   "renderResolution": zod.string().nullish(),
   "renderJobId": zod.string().nullish(),
   "renderStartedAt": zod.string().nullish(),
   "renderCompletedAt": zod.string().nullish(),
   "renderError": zod.string().nullish(),
-  "voiceoverUrl": zod.string().nullish(),
-  "avatarPhotoPath": zod.string().nullish()
+  "voiceoverUrl": zod.string().nullish()
 })
 export const ListVideosResponse = zod.array(ListVideosResponseItem)
 
@@ -996,14 +994,12 @@ export const GenerateVideosResponseItem = zod.object({
   "viralPotential": zod.number().nullish(),
   "createdAt": zod.string(),
   "renderStatus": zod.string().optional(),
-  "renderMode": zod.string().nullish(),
   "renderResolution": zod.string().nullish(),
   "renderJobId": zod.string().nullish(),
   "renderStartedAt": zod.string().nullish(),
   "renderCompletedAt": zod.string().nullish(),
   "renderError": zod.string().nullish(),
-  "voiceoverUrl": zod.string().nullish(),
-  "avatarPhotoPath": zod.string().nullish()
+  "voiceoverUrl": zod.string().nullish()
 })
 export const GenerateVideosResponse = zod.array(GenerateVideosResponseItem)
 
@@ -1031,14 +1027,12 @@ export const GetVideoResponse = zod.object({
   "viralPotential": zod.number().nullish(),
   "createdAt": zod.string(),
   "renderStatus": zod.string().optional(),
-  "renderMode": zod.string().nullish(),
   "renderResolution": zod.string().nullish(),
   "renderJobId": zod.string().nullish(),
   "renderStartedAt": zod.string().nullish(),
   "renderCompletedAt": zod.string().nullish(),
   "renderError": zod.string().nullish(),
-  "voiceoverUrl": zod.string().nullish(),
-  "avatarPhotoPath": zod.string().nullish()
+  "voiceoverUrl": zod.string().nullish()
 })
 
 
@@ -1072,14 +1066,12 @@ export const UpdateVideoResponse = zod.object({
   "viralPotential": zod.number().nullish(),
   "createdAt": zod.string(),
   "renderStatus": zod.string().optional(),
-  "renderMode": zod.string().nullish(),
   "renderResolution": zod.string().nullish(),
   "renderJobId": zod.string().nullish(),
   "renderStartedAt": zod.string().nullish(),
   "renderCompletedAt": zod.string().nullish(),
   "renderError": zod.string().nullish(),
-  "voiceoverUrl": zod.string().nullish(),
-  "avatarPhotoPath": zod.string().nullish()
+  "voiceoverUrl": zod.string().nullish()
 })
 
 
@@ -1099,18 +1091,14 @@ export const StartVideoRenderParams = zod.object({
   "videoId": zod.coerce.number()
 })
 
-export const startVideoRenderBodyModeDefault = `footage`;
 export const startVideoRenderBodyResolutionDefault = `1080p`;
 export const startVideoRenderBodyAspectRatioDefault = `16:9`;
 export const startVideoRenderBodyCaptionsEnabledDefault = false;
 
 export const StartVideoRenderBody = zod.object({
-  "mode": zod.enum(['footage', 'avatar', 'combined']).default(startVideoRenderBodyModeDefault),
   "resolution": zod.enum(['1080p', '4k']).default(startVideoRenderBodyResolutionDefault),
   "aspectRatio": zod.enum(['16:9', '9:16', '1:1', '4:5']).default(startVideoRenderBodyAspectRatioDefault).describe('Output aspect ratio for the rendered video.'),
-  "captionsEnabled": zod.boolean().default(startVideoRenderBodyCaptionsEnabledDefault).describe('When true, bold burned-in captions are embedded in the video.'),
-  "avatarId": zod.number().optional().describe('ID of the avatar from the project avatar library to use for avatar\/combined render modes.'),
-  "platformAvatarId": zod.number().optional().describe('ID of the platform avatar from the shared library to use for avatar\/combined render modes.')
+  "captionsEnabled": zod.boolean().default(startVideoRenderBodyCaptionsEnabledDefault).describe('When true, bold burned-in captions are embedded in the video.')
 })
 
 export const StartVideoRenderResponse = zod.object({
@@ -1131,14 +1119,12 @@ export const StartVideoRenderResponse = zod.object({
   "viralPotential": zod.number().nullish(),
   "createdAt": zod.string(),
   "renderStatus": zod.string().optional(),
-  "renderMode": zod.string().nullish(),
   "renderResolution": zod.string().nullish(),
   "renderJobId": zod.string().nullish(),
   "renderStartedAt": zod.string().nullish(),
   "renderCompletedAt": zod.string().nullish(),
   "renderError": zod.string().nullish(),
-  "voiceoverUrl": zod.string().nullish(),
-  "avatarPhotoPath": zod.string().nullish()
+  "voiceoverUrl": zod.string().nullish()
 })
 
 
@@ -1153,7 +1139,6 @@ export const GetVideoRenderStatusParams = zod.object({
 export const GetVideoRenderStatusResponse = zod.object({
   "videoId": zod.number(),
   "renderStatus": zod.string(),
-  "renderMode": zod.string().nullish(),
   "renderResolution": zod.string().nullish(),
   "renderStartedAt": zod.string().nullish(),
   "renderCompletedAt": zod.string().nullish(),
@@ -1447,14 +1432,12 @@ export const GetProjectAnalyticsResponse = zod.object({
   "viralPotential": zod.number().nullish(),
   "createdAt": zod.string(),
   "renderStatus": zod.string().optional(),
-  "renderMode": zod.string().nullish(),
   "renderResolution": zod.string().nullish(),
   "renderJobId": zod.string().nullish(),
   "renderStartedAt": zod.string().nullish(),
   "renderCompletedAt": zod.string().nullish(),
   "renderError": zod.string().nullish(),
-  "voiceoverUrl": zod.string().nullish(),
-  "avatarPhotoPath": zod.string().nullish()
+  "voiceoverUrl": zod.string().nullish()
 })).optional(),
   "chartData": zod.array(zod.object({
   "date": zod.string(),
@@ -1568,23 +1551,5 @@ export const GetAgentHistoryResponseItem = zod.object({
   "createdAt": zod.string()
 })
 export const GetAgentHistoryResponse = zod.array(GetAgentHistoryResponseItem)
-
-
-/**
- * @summary List active platform avatars for the avatar picker
- */
-export const ListPlatformAvatarsResponse = zod.object({
-  "avatars": zod.array(zod.object({
-  "id": zod.number(),
-  "name": zod.string(),
-  "gender": zod.string(),
-  "archetype": zod.string(),
-  "previewUrl": zod.string(),
-  "heygenTalkingPhotoId": zod.string().nullish(),
-  "isActive": zod.boolean(),
-  "sortOrder": zod.number(),
-  "createdAt": zod.string()
-}))
-})
 
 
