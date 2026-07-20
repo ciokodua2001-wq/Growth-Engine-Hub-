@@ -17,6 +17,7 @@ import { spawn } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+
 import { db } from "@workspace/db";
 import {
   commercialAssembliesTable,
@@ -29,6 +30,9 @@ import { objectStorageClient, signObjectURL } from "./objectStorage.js";
 
 const FFMPEG_BIN = "ffmpeg";
 const logger = pino({ name: "ffmpegAssembler" });
+
+// Kling generates 5-second clips; trim them so the assembled commercial hits exactly this target.
+const TARGET_OUTPUT_DURATION_SEC = 15;
 
 // ── Output format dimensions ──────────────────────────────────────────────────
 
@@ -111,9 +115,15 @@ export class CommercialAssembler {
       }
 
       const sceneCount = scenes.length;
-      const sceneDuration = scenes[0]?.durationSec ?? 5;
-      const transitionDuration = Math.min(options.transitionDuration ?? 0.5, sceneDuration * 0.3);
+      const rawSceneDuration = scenes[0]?.durationSec ?? 5;
+      const transitionDuration = Math.min(options.transitionDuration ?? 0.5, rawSceneDuration * 0.3);
       const transitionType = options.transitionType ?? "fade";
+      // Trim each clip so the total output hits TARGET_OUTPUT_DURATION_SEC.
+      // Formula: total = n*d - (n-1)*t  →  d = (target + (n-1)*t) / n
+      const sceneDuration = Math.min(
+        rawSceneDuration,
+        (TARGET_OUTPUT_DURATION_SEC + (sceneCount - 1) * transitionDuration) / sceneCount,
+      );
       const totalOutputDuration =
         sceneCount * sceneDuration - (sceneCount - 1) * transitionDuration;
 
@@ -320,9 +330,9 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   const args: string[] = ["-y"];
 
   // ── Inputs ────────────────────────────────────────────────────────────────
-  // Scene video inputs
+  // Scene video inputs — trimmed to sceneDuration so the assembly hits TARGET_OUTPUT_DURATION_SEC
   for (const f of sceneFiles) {
-    args.push("-i", f);
+    args.push("-t", sceneDuration.toFixed(3), "-i", f);
   }
 
   // Optional: logo image
@@ -434,8 +444,18 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
       `[${musicIdx}:a]volume=0.85,atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`,
     );
   } else {
-    // Silent — generate a clean silence track
-    filters.push(`anullsrc=r=44100:cl=stereo,atrim=end=${durStr},asetpts=PTS-STARTPTS[aout]`);
+    // No external audio — use original audio from each Kling scene clip.
+    // Each scene clip is trimmed to sceneDuration seconds before aconcat.
+    for (let i = 0; i < sceneCount; i++) {
+      filters.push(
+        `[${i}:a]atrim=0:${sceneDuration.toFixed(3)},asetpts=PTS-STARTPTS[a${i}]`,
+      );
+    }
+    const audioLabels = Array.from({ length: sceneCount }, (_, i) => `[a${i}]`).join("");
+    filters.push(
+      `${audioLabels}aconcat=n=${sceneCount}:v=0:a=1,` +
+      `volume=0.9,atrim=end=${durStr},asetpts=PTS-STARTPTS[aout]`,
+    );
   }
 
   // ── Final FFmpeg command ───────────────────────────────────────────────────
@@ -509,8 +529,8 @@ function buildASSCaptions(
     "",
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-    // Alignment 7 = top-left; PrimaryColour = white (&H00FFFFFF), BackColour = semi-transparent black (&H80000000)
-    `Style: Label,Arial,${fontSize},&H00FFFFFF,&H000000FF,&H00000000,&HA0000000,-1,0,0,0,100,100,2,0,3,${outline},${shadow},7,30,30,${marginV},1`,
+    // Alignment 2 = center-bottom; PrimaryColour = white, BackColour = semi-transparent black
+    `Style: Label,Arial,${fontSize},&H00FFFFFF,&H000000FF,&H00000000,&H96000000,-1,0,0,0,100,100,2,0,3,${outline},${shadow},2,20,20,${marginV},1`,
     "",
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",

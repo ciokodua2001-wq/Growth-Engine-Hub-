@@ -19,7 +19,9 @@ const KLING_MODE = "std";
 const KLING_MAX_POLLS = 120;       // 120 × 10 s = 20 min per scene
 const KLING_POLL_INTERVAL_MS = 10_000;
 const KLING_NEGATIVE_PROMPT =
-  "blurry, low quality, distorted, ugly, pixelated, amateur, watermark, text overlay, logo";
+  "blurry, low quality, distorted, ugly, pixelated, amateur, watermark, text overlay, logo, " +
+  "Chinese characters, Japanese characters, Korean characters, Asian text, non-English text, " +
+  "foreign language text, written words, typography, subtitles, captions, on-screen text, signs with writing";
 
 /**
  * Hard cap on per-scene user-initiated retries via the /retry route.
