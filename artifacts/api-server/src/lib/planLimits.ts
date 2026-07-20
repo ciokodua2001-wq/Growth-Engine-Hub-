@@ -1,6 +1,6 @@
 import { eq, and, sum } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { projectsTable, planUsageTable, trialUsageTable, videosTable } from "@workspace/db";
+import { projectsTable, planUsageTable, trialUsageTable, videosTable, usersTable } from "@workspace/db";
 import { consumeTrialQuota, TRIAL_LIMITS, type TrialFeature } from "./trialLimits.js";
 
 export type PlanFeature = TrialFeature;
@@ -138,11 +138,23 @@ export async function consumeQuota(
   amount = 1,
 ): Promise<QuotaResult> {
   const [project] = await db
-    .select({ plan: projectsTable.plan })
+    .select({ plan: projectsTable.plan, ownerId: projectsTable.ownerId })
     .from(projectsTable)
     .where(eq(projectsTable.id, projectId));
 
   if (!project) return { allowed: false, message: "Project not found" };
+
+  // Admin and super_admin accounts bypass all quota enforcement so they can
+  // test any feature without burning limits.
+  if (project.ownerId) {
+    const [owner] = await db
+      .select({ role: usersTable.role })
+      .from(usersTable)
+      .where(eq(usersTable.id, project.ownerId));
+    if (owner && (owner.role === "admin" || owner.role === "super_admin")) {
+      return { allowed: true };
+    }
+  }
 
   const { plan } = project;
 
