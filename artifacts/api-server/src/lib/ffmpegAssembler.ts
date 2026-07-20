@@ -27,6 +27,8 @@ import {
 import { eq, and } from "drizzle-orm";
 import pino from "pino";
 import { objectStorageClient, signObjectURL } from "./objectStorage.js";
+import { generateNarration, prepareScript } from "./elevenLabsNarrator.js";
+import type { VoiceStyle } from "./elevenLabsNarrator.js";
 
 const FFMPEG_BIN = "ffmpeg";
 const logger = pino({ name: "ffmpegAssembler" });
@@ -70,8 +72,10 @@ export interface AssemblyOptions {
   backgroundMusicUrl?: string;
   /** Signed URL for narration audio (MP3/AAC/WAV). */
   narrationUrl?: string;
-  /** Show scene-name captions at the start of each scene (default: true). */
+  /** Show captions burned from the narration script (default: true). */
   captionsEnabled?: boolean;
+  /** Voice style for auto-generated narration (default: "corporate"). */
+  voiceStyle?: string;
 }
 
 // ── CommercialAssembler ───────────────────────────────────────────────────────
@@ -114,23 +118,55 @@ export class CommercialAssembler {
         );
       }
 
+      // ── 1b. Load video record for duration + voiceover text ───────────────
+      const [video] = await db
+        .select()
+        .from(videosTable)
+        .where(eq(videosTable.id, videoId));
+
+      // Respect the commercial duration the user selected (15 / 30 / 45 / 60s).
+      const targetDuration = Number(video?.duration) || TARGET_OUTPUT_DURATION_SEC;
+      // Voiceover/script is used for auto-narration and script-based captions.
+      const rawVoiceover =
+        (video?.voiceover as string | null) ||
+        (video?.script as string | null) ||
+        null;
+
       const sceneCount = scenes.length;
       const rawSceneDuration = scenes[0]?.durationSec ?? 5;
       const transitionDuration = Math.min(options.transitionDuration ?? 0.5, rawSceneDuration * 0.3);
       const transitionType = options.transitionType ?? "fade";
-      // Trim each clip so the total output hits TARGET_OUTPUT_DURATION_SEC.
+      // Trim each clip so the total output hits targetDuration.
       // Formula: total = n*d - (n-1)*t  →  d = (target + (n-1)*t) / n
       const sceneDuration = Math.min(
         rawSceneDuration,
-        (TARGET_OUTPUT_DURATION_SEC + (sceneCount - 1) * transitionDuration) / sceneCount,
+        (targetDuration + (sceneCount - 1) * transitionDuration) / sceneCount,
       );
       const totalOutputDuration =
         sceneCount * sceneDuration - (sceneCount - 1) * transitionDuration;
 
       logger.info(
-        { sceneCount, sceneDuration, transitionDuration, totalOutputDuration },
+        { sceneCount, sceneDuration, transitionDuration, totalOutputDuration, targetDuration },
         "[Assembler] Scene timing calculated",
       );
+
+      // ── Auto-generate narration from script if no URL was provided ─────────
+      const voiceStyle = ((options.voiceStyle ?? "corporate") as VoiceStyle);
+      let resolvedNarrationUrl = options.narrationUrl;
+
+      if (!resolvedNarrationUrl && rawVoiceover) {
+        logger.info({ videoId, voiceStyle }, "[Assembler] Auto-generating narration from script");
+        try {
+          const narResult = await generateNarration({ script: rawVoiceover, voiceStyle, videoId });
+          resolvedNarrationUrl = narResult.narrationUrl;
+          logger.info(
+            { videoId, provider: narResult.voiceProvider, chars: narResult.scriptChars },
+            "[Assembler] Narration generated ✓",
+          );
+        } catch (err) {
+          logger.error({ err, videoId }, "[Assembler] Narration generation failed — assembling without audio");
+        }
+      }
 
       // ── 2. Download all scene videos to tmp ───────────────────────────────
       const sceneFiles: string[] = [];
@@ -156,10 +192,10 @@ export class CommercialAssembler {
       }
 
       let narrationFile: string | null = null;
-      if (options.narrationUrl) {
+      if (resolvedNarrationUrl) {
         narrationFile = path.join(tmpDir, "narration.mp3");
         logger.info("[Assembler] Downloading narration");
-        await downloadFile(options.narrationUrl, narrationFile);
+        await downloadFile(resolvedNarrationUrl, narrationFile);
       }
 
       let musicFile: string | null = null;
@@ -169,17 +205,12 @@ export class CommercialAssembler {
         await downloadFile(options.backgroundMusicUrl, musicFile);
       }
 
-      // ── 4. Generate ASS captions file (shared across formats) ─────────────
+      // ── 4. Prepare captions (generated per-format at the right resolution) ──
       const captionsEnabled = options.captionsEnabled !== false;
-      let assFile: string | null = null;
-      if (captionsEnabled && scenes.some(s => s.sceneName)) {
-        assFile = path.join(tmpDir, "captions.ass");
-        const captionData = scenes.map((s, i) => ({
-          name: (s.sceneName ?? `Scene ${i + 1}`).toUpperCase(),
-          startSec: i === 0 ? 0.3 : i * (sceneDuration - transitionDuration) + 0.5,
-        }));
-        fs.writeFileSync(assFile, buildASSCaptions(captionData, 1920, 1080));
-      }
+      // Script text is prepared once; captions are written per-format below.
+      const captionsScript = (captionsEnabled && rawVoiceover)
+        ? prepareScript(rawVoiceover)
+        : null;
 
       // ── 5. Encode each requested output format ────────────────────────────
       for (let fi = 0; fi < outputFormats.length; fi++) {
@@ -187,15 +218,12 @@ export class CommercialAssembler {
         const assemblyId = assemblyIds[fi]!;
         const { width, height } = FORMAT_DIMS[format];
 
-        // Re-generate the ASS file at the correct resolution for this format
+        // Build script-based subtitle ASS file at this format's resolution
         let formatAssFile: string | null = null;
-        if (captionsEnabled && scenes.some(s => s.sceneName)) {
+        if (captionsScript) {
           formatAssFile = path.join(tmpDir, `captions_${format}.ass`);
-          const captionData = scenes.map((s, i) => ({
-            name: (s.sceneName ?? `Scene ${i + 1}`).toUpperCase(),
-            startSec: i === 0 ? 0.3 : i * (sceneDuration - transitionDuration) + 0.5,
-          }));
-          fs.writeFileSync(formatAssFile, buildASSCaptions(captionData, width, height));
+          const subtitleEntries = buildScriptSubtitles(captionsScript, totalOutputDuration);
+          fs.writeFileSync(formatAssFile, buildSubtitleASS(subtitleEntries, width, height));
         }
 
         const outputPath = path.join(tmpDir, `output_${format}.mp4`);
@@ -543,6 +571,96 @@ function buildASSCaptions(
       // Bold + letter-spaced scene label
       return `Dialogue: 0,${start},${end},Label,,0,0,0,,{\\b1\\fsp3}${e.name}`;
     })
+    .join("\n");
+
+  return `${header}\n${events}\n`;
+}
+
+// ── Script-based subtitle builder ─────────────────────────────────────────────
+
+interface SubtitleEntry {
+  text: string;
+  startSec: number;
+  endSec: number;
+}
+
+/**
+ * Splits a prepared narration script into timed subtitle entries.
+ * Timing is estimated proportionally by character count across totalDuration.
+ * Lines are word-wrapped at ~40 chars for comfortable mobile reading.
+ */
+function buildScriptSubtitles(script: string, totalDuration: number): SubtitleEntry[] {
+  // Split on sentence boundaries
+  const raw = script.replace(/([.!?])\s+/g, "$1\n").split(/\n/).map(s => s.trim()).filter(Boolean);
+  if (raw.length === 0) return [];
+
+  const totalChars = raw.reduce((sum, s) => sum + s.length, 0);
+  const entries: SubtitleEntry[] = [];
+  let currentTime = 0.1;
+
+  for (const sentence of raw) {
+    if (currentTime >= totalDuration - 0.3) break;
+    // Duration proportional to character count; minimum 1.0s, capped at remaining time
+    const estimated = Math.max(1.0, (sentence.length / totalChars) * totalDuration * 0.95);
+    const endSec = Math.min(currentTime + estimated, totalDuration - 0.1);
+    entries.push({ text: wrapSubtitleLine(sentence, 40), startSec: currentTime, endSec });
+    currentTime = endSec + 0.08; // brief gap between subtitle entries
+  }
+
+  return entries;
+}
+
+function wrapSubtitleLine(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let line = "";
+  for (const w of words) {
+    const candidate = line ? `${line} ${w}` : w;
+    if (candidate.length <= maxChars) {
+      line = candidate;
+    } else {
+      if (line) lines.push(line);
+      line = w;
+    }
+  }
+  if (line) lines.push(line);
+  // ASS uses \N for hard line breaks
+  return lines.join("\\N");
+}
+
+function buildSubtitleASS(entries: SubtitleEntry[], videoWidth: number, videoHeight: number): string {
+  const fontSize = Math.max(38, Math.round(videoWidth * 0.033));
+  const marginV = Math.max(60, Math.round(videoHeight * 0.07));
+  const outline = Math.max(2, Math.round(fontSize * 0.07));
+
+  function toAssTime(sec: number): string {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    const cs = Math.round((s % 1) * 100);
+    return `${h}:${String(m).padStart(2, "0")}:${String(Math.floor(s)).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
+  }
+
+  const header = [
+    "[Script Info]",
+    "ScriptType: v4.00+",
+    `PlayResX: ${videoWidth}`,
+    `PlayResY: ${videoHeight}`,
+    "Collisions: Normal",
+    "WrapStyle: 0",
+    "",
+    "[V4+ Styles]",
+    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+    // Alignment=2: center-bottom. White text, solid black outline for maximum contrast on any background.
+    `Style: Default,Arial,${fontSize},&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,${outline},0,2,20,20,${marginV},1`,
+    "",
+    "[Events]",
+    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+  ].join("\n");
+
+  const events = entries
+    .map(e => `Dialogue: 0,${toAssTime(e.startSec)},${toAssTime(e.endSec)},Default,,0,0,0,,${e.text}`)
     .join("\n");
 
   return `${header}\n${events}\n`;
