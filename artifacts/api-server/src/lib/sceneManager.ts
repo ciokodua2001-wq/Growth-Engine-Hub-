@@ -47,6 +47,21 @@ const MAX_USER_RETRIES = 10;
 // "processing" throughout — the user never sees a failed state while retrying.
 const MAX_AUTO_RETRIES = 3;
 
+/**
+ * Returns the number of 5-second Kling scenes to generate for a given target duration.
+ * With 0.5 s xfade transitions: assembled output = n×5 − (n−1)×0.5 = n×4.5 + 0.5 s.
+ *   3 scenes → ~14 s   (target ≤ 15 s)
+ *   6 scenes → ~27.5 s (target ≤ 30 s)
+ *   9 scenes → ~41 s   (target ≤ 45 s)
+ *  12 scenes → ~54.5 s (target > 45 s)
+ */
+function computeTargetSceneCount(durationSec: number): number {
+  if (durationSec <= 15) return 3;
+  if (durationSec <= 30) return 6;
+  if (durationSec <= 45) return 9;
+  return 12;
+}
+
 // ── 6-Scene commercial structure ──────────────────────────────────────────────
 export const COMMERCIAL_SCENE_STRUCTURE: Array<{
   type: CommercialSceneType;
@@ -161,29 +176,37 @@ export class SceneManager {
     const aspectRatio = video.aspectRatio ?? "16:9";
     const klingAspectRatio = this.normaliseAspectRatio(aspectRatio);
 
+    // ── Target scene count ─────────────────────────────────────────────────
+    // Each Kling clip is 5 s; with 0.5 s xfade transitions the assembled
+    // output is n×5 − (n−1)×0.5 seconds.  Pick n so the output matches the
+    // user-selected duration as closely as possible.
+    const targetSceneCount = computeTargetSceneCount(Number(video.duration) || 30);
+
     // ── Prompt fingerprint ─────────────────────────────────────────────────
-    // Includes klingAspectRatio so that changing the output format (e.g. 16:9→9:16)
-    // produces a cache miss and forces fresh Kling submissions in the correct format.
+    // Includes klingAspectRatio AND targetSceneCount so that changing either
+    // the output format or the requested duration produces a cache miss and
+    // forces fresh Kling submissions with the correct parameters.
     const blueprintContent =
-      (video.script ?? "") + (video.storyboard ?? "") + (video.cinematicPlan ?? "") + klingAspectRatio;
+      (video.script ?? "") + (video.storyboard ?? "") + (video.cinematicPlan ?? "") +
+      klingAspectRatio + String(targetSceneCount);
     const promptHash = createHash("sha256").update(blueprintContent).digest("hex");
 
     // ── Cache hit check ────────────────────────────────────────────────────
-    // If all 6 scenes already exist with the same hash and none have failed,
-    // skip the Claude call and return the cached rows.
+    // If the right number of scenes already exist with the same hash and none
+    // have failed, skip the Claude call and return the cached rows.
     const existing = await db
       .select()
       .from(klingSceneJobsTable)
       .where(eq(klingSceneJobsTable.videoId, videoId))
       .orderBy(klingSceneJobsTable.sceneIndex);
 
-    const allMatch = existing.length === 6
+    const allMatch = existing.length === targetSceneCount
       && existing.every(s => s.promptHash === promptHash)
       && existing.every(s => s.status !== "failed");
 
     if (allMatch) {
       logger.info(
-        { videoId, aspectRatio: klingAspectRatio, promptHash: promptHash.slice(0, 8) },
+        { videoId, aspectRatio: klingAspectRatio, targetSceneCount, promptHash: promptHash.slice(0, 8) },
         "[SceneManager] Blueprint unchanged — returning cached scenes (no Claude call)",
       );
       return existing;
@@ -193,7 +216,7 @@ export class SceneManager {
     const ctx = await getGroundingContext(projectId).catch(() => null);
     const groundingBlock = ctx ? renderGroundingBlock(ctx) : null;
 
-    const scenes = await this.callDecomposeAI(video, groundingBlock);
+    const scenes = await this.callDecomposeAI(video, groundingBlock, targetSceneCount);
 
     logger.info(
       { videoId, sceneCount: scenes.length },
@@ -611,16 +634,33 @@ export class SceneManager {
   private async callDecomposeAI(
     video: Awaited<ReturnType<typeof this.loadVideo>>,
     groundingBlock: string | null,
+    targetSceneCount: number,
   ): Promise<AISceneDescriptor[]> {
     if (!video) throw new Error("No video");
 
+    // Describe how to compress/expand the 6-beat commercial arc to fit targetSceneCount.
+    // Always start with Hook and end with CTA; combine or split the middle beats as needed.
+    const arcDescription = targetSceneCount <= 3
+      ? `Scene 1 (Hook): Grab attention — ${COMMERCIAL_SCENE_STRUCTURE[0]!.objective}
+Scene 2 (Solution): Introduce the product and its key benefits — ${COMMERCIAL_SCENE_STRUCTURE[2]!.objective}
+Scene ${targetSceneCount} (Call to Action): Close with a clear CTA — ${COMMERCIAL_SCENE_STRUCTURE[5]!.objective}`
+      : COMMERCIAL_SCENE_STRUCTURE
+          .slice(0, Math.min(6, targetSceneCount))
+          .map((s, i) => `${i + 1}. ${s.name} (${s.timeHint}): ${s.objective}`)
+          .join("\n") +
+        (targetSceneCount > 6
+          ? `\n${Array.from({ length: targetSceneCount - 6 }, (_, i) =>
+              `${i + 7}. (Extended scene ${i + 1}): Deepen a benefit, proof, or testimonial element from the brief`
+            ).join("\n")}`
+          : "");
+
     const systemPrompt = `You are a world-class commercial director and AI video generation specialist.
-Your task is to decompose a commercial video brief into exactly 6 scenes following the standard commercial structure.
+Your task is to decompose a commercial video brief into exactly ${targetSceneCount} scene${targetSceneCount === 1 ? "" : "s"} following the standard commercial arc.
 
 Each scene must include 8 cinematic metadata fields AND a ready-to-use Kling AI text-to-video prompt.
 
-Scene structure (always in this exact order):
-${COMMERCIAL_SCENE_STRUCTURE.map((s, i) => `${i + 1}. ${s.name} (${s.timeHint}): ${s.objective}`).join("\n")}
+Scene structure (always in this exact order — compress or expand the commercial arc to fit exactly ${targetSceneCount} scenes):
+${arcDescription}
 
 For each scene, the 8 metadata fields are:
 - environment: Specific location, setting, time of day, weather (be cinematic and precise)
@@ -677,16 +717,16 @@ Return ONLY valid JSON in this exact shape:
   ]
 }`;
 
-    const userPrompt = `Create 6 commercial scenes for this video:
+    const userPrompt = `Create ${targetSceneCount} commercial scene${targetSceneCount === 1 ? "" : "s"} for this video:
 
 Title: ${video.title}
 Script: ${video.script ?? "(not provided)"}
 Storyboard: ${video.storyboard ?? "(not provided)"}
-Duration: ${video.duration ?? 30} seconds
+Duration: ${video.duration ?? 30} seconds (target: ${targetSceneCount} scenes × 5 s clips)
 Aspect ratio: ${video.aspectRatio ?? "16:9"}
 ${groundingBlock ? `\nBusiness context:\n${groundingBlock}` : ""}
 
-Generate exactly 6 scenes (one per commercial section). Make every scene visually distinct and commercially potent.`;
+Generate exactly ${targetSceneCount} scenes. Make every scene visually distinct and commercially potent.`;
 
     logger.info({ videoId: video.id }, "[SceneManager] Calling Claude for scene decomposition");
 
@@ -701,14 +741,16 @@ Generate exactly 6 scenes (one per commercial section). Make every scene visuall
       throw new Error("AI returned empty scenes array");
     }
 
-    // Ensure sceneType matches our known types — gracefully coerce unknown values
+    // Ensure sceneType matches our known types — gracefully coerce unknown values.
+    // For counts != 6, COMMERCIAL_SCENE_STRUCTURE may not have an entry at index i;
+    // fall back to reasonable defaults so the record is always valid.
     const knownTypes: CommercialSceneType[] = ["hook", "problem", "solution", "benefits", "proof", "cta"];
     return result.scenes.map((s, i) => ({
       ...s,
       sceneIndex: i,
       sceneType: knownTypes.includes(s.sceneType as CommercialSceneType)
         ? (s.sceneType as CommercialSceneType)
-        : (COMMERCIAL_SCENE_STRUCTURE[i]?.type ?? "hook"),
+        : (COMMERCIAL_SCENE_STRUCTURE[i]?.type ?? (i === 0 ? "hook" : i === result.scenes.length - 1 ? "cta" : "solution")),
       sceneName: s.sceneName || COMMERCIAL_SCENE_STRUCTURE[i]?.name || `Scene ${i + 1}`,
     }));
   }

@@ -207,12 +207,25 @@ export class CommercialAssembler {
         const assemblyId = assemblyIds[fi]!;
         const { width, height } = FORMAT_DIMS[format];
 
-        // Build script-based subtitle ASS file at this format's resolution
+        // Build script-based subtitle ASS file at this format's resolution.
+        // Compute pillarbox/letterbox margins so captions stay within the actual
+        // content area when the source clip AR differs from the output AR.
         let formatAssFile: string | null = null;
         if (captionsScript) {
           formatAssFile = path.join(tmpDir, `captions_${format}.ass`);
           const subtitleEntries = buildScriptSubtitles(captionsScript, totalOutputDuration);
-          fs.writeFileSync(formatAssFile, buildSubtitleASS(subtitleEntries, width, height));
+
+          // Parse clip AR ("9:16", "16:9", "1:1") into ratio numbers for margin calc.
+          const clipARStr = scenes[0]?.aspectRatio ?? "16:9";
+          const [clipARW, clipARH] = clipARStr.split(":").map(Number);
+          const { marginX: pillarboxPx } = computePillarboxMargins(
+            clipARW ?? 16, clipARH ?? 9, width, height,
+          );
+          // Add a small inset (3% of output width) beyond the pillarbox boundary
+          // so text never bumps right against the content edge.
+          const captionMarginLR = Math.max(30, pillarboxPx + Math.round(width * 0.03));
+
+          fs.writeFileSync(formatAssFile, buildSubtitleASS(subtitleEntries, width, height, captionMarginLR));
         }
 
         const outputPath = path.join(tmpDir, `output_${format}.mp4`);
@@ -640,7 +653,31 @@ function wrapSubtitleLine(text: string, maxChars: number): string {
   return lines.join("\\N");
 }
 
-function buildSubtitleASS(entries: SubtitleEntry[], videoWidth: number, videoHeight: number): string {
+/**
+ * Computes how much of the output frame is actually content (vs. pillarbox/letterbox black)
+ * when a source clip with ratio srcW:srcH is scaled to fill outW×outH using
+ * force_original_aspect_ratio=decrease + pad (which is what our FFmpeg scale filter does).
+ * Returns the pixel margin on each horizontal side (marginX) and vertical side (marginY).
+ */
+function computePillarboxMargins(
+  srcW: number, srcH: number,
+  outW: number, outH: number,
+): { marginX: number; marginY: number } {
+  const scale = Math.min(outW / srcW, outH / srcH);
+  const contentW = Math.round(srcW * scale);
+  const contentH = Math.round(srcH * scale);
+  return {
+    marginX: Math.floor((outW - contentW) / 2),
+    marginY: Math.floor((outH - contentH) / 2),
+  };
+}
+
+function buildSubtitleASS(
+  entries: SubtitleEntry[],
+  videoWidth: number,
+  videoHeight: number,
+  marginLR: number,
+): string {
   const fontSize = Math.max(38, Math.round(videoWidth * 0.033));
   const marginV = Math.max(60, Math.round(videoHeight * 0.07));
   const outline = Math.max(2, Math.round(fontSize * 0.07));
@@ -664,7 +701,8 @@ function buildSubtitleASS(entries: SubtitleEntry[], videoWidth: number, videoHei
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
     // Alignment=2: center-bottom. White text, solid black outline for maximum contrast on any background.
-    `Style: Default,Arial,${fontSize},&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,${outline},0,2,20,20,${marginV},1`,
+    // marginLR keeps captions inside the actual content area (avoids pillarbox/letterbox spill).
+    `Style: Default,Arial,${fontSize},&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,${outline},0,2,${marginLR},${marginLR},${marginV},1`,
     "",
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
