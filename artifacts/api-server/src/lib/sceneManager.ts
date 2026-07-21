@@ -157,8 +157,15 @@ export class SceneManager {
     const video = await this.loadVideo(videoId);
     if (!video) throw new Error(`Video ${videoId} not found`);
 
+    // ── Aspect ratio (computed before fingerprint so it's included in the hash) ──
+    const aspectRatio = video.aspectRatio ?? "16:9";
+    const klingAspectRatio = this.normaliseAspectRatio(aspectRatio);
+
     // ── Prompt fingerprint ─────────────────────────────────────────────────
-    const blueprintContent = (video.script ?? "") + (video.storyboard ?? "") + (video.cinematicPlan ?? "");
+    // Includes klingAspectRatio so that changing the output format (e.g. 16:9→9:16)
+    // produces a cache miss and forces fresh Kling submissions in the correct format.
+    const blueprintContent =
+      (video.script ?? "") + (video.storyboard ?? "") + (video.cinematicPlan ?? "") + klingAspectRatio;
     const promptHash = createHash("sha256").update(blueprintContent).digest("hex");
 
     // ── Cache hit check ────────────────────────────────────────────────────
@@ -176,7 +183,7 @@ export class SceneManager {
 
     if (allMatch) {
       logger.info(
-        { videoId, promptHash: promptHash.slice(0, 8) },
+        { videoId, aspectRatio: klingAspectRatio, promptHash: promptHash.slice(0, 8) },
         "[SceneManager] Blueprint unchanged — returning cached scenes (no Claude call)",
       );
       return existing;
@@ -185,9 +192,6 @@ export class SceneManager {
     // ── Load grounding context ─────────────────────────────────────────────
     const ctx = await getGroundingContext(projectId).catch(() => null);
     const groundingBlock = ctx ? renderGroundingBlock(ctx) : null;
-
-    const aspectRatio = video.aspectRatio ?? "16:9";
-    const klingAspectRatio = this.normaliseAspectRatio(aspectRatio);
 
     const scenes = await this.callDecomposeAI(video, groundingBlock);
 

@@ -139,12 +139,10 @@ export class CommercialAssembler {
       const rawSceneDuration = scenes[0]?.durationSec ?? 5;
       const transitionDuration = Math.min(options.transitionDuration ?? 0.5, rawSceneDuration * 0.3);
       const transitionType = options.transitionType ?? "fade";
-      // Trim each clip so the total output hits targetDuration.
-      // Formula: total = n*d - (n-1)*t  →  d = (target + (n-1)*t) / n
-      const sceneDuration = Math.min(
-        rawSceneDuration,
-        (targetDuration + (sceneCount - 1) * transitionDuration) / sceneCount,
-      );
+      // Use the full Kling clip duration — trimming clips shorter cuts baked-in
+      // narration mid-sentence (Kling v2.6 native audio fills the entire clip).
+      // Natural output: n*d - (n-1)*t  e.g. 6×5 - 5×0.5 = 27.5s
+      const sceneDuration = rawSceneDuration;
       const totalOutputDuration =
         sceneCount * sceneDuration - (sceneCount - 1) * transitionDuration;
 
