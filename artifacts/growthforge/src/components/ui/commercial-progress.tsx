@@ -247,6 +247,12 @@ export default function CommercialProductionProgress({ video, projectId, caption
   const startedRef = useRef(false);
   const mountedRef = useRef(true);
 
+  type OutputFormat = "landscape" | "square" | "vertical";
+  const [selectedFormats, setSelectedFormats] = useState<OutputFormat[]>(["landscape"]);
+  const [captionsOn, setCaptionsOn] = useState(captionsEnabled);
+  const selectedFormatsRef = useRef<OutputFormat[]>(["landscape"]);
+  const captionsOnRef = useRef(captionsEnabled);
+
   // ── Detect resume state on mount ───────────────────────────────────────────
   useEffect(() => {
     mountedRef.current = true;
@@ -370,8 +376,8 @@ export default function CommercialProductionProgress({ video, projectId, caption
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          outputFormats: ["landscape"],
-          captionsEnabled,
+          outputFormats: selectedFormatsRef.current.length > 0 ? selectedFormatsRef.current : ["landscape"],
+          captionsEnabled: captionsOnRef.current,
           transitionType: "fade",
           transitionDuration: 0.5,
           ...(musicUrl ? { backgroundMusicUrl: musicUrl } : {}),
@@ -390,7 +396,7 @@ export default function CommercialProductionProgress({ video, projectId, caption
       setError(msg);
       setPhase("error");
     }
-  }, [apiBase, captionsEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [apiBase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Assembly polling with simulated sub-stages ─────────────────────────────
   const pollAssembly = useCallback(async () => {
@@ -605,11 +611,72 @@ export default function CommercialProductionProgress({ video, projectId, caption
               <p className="text-[10px] text-white/45 mt-0.5">Generate a Commercial Brief first — we'll use it as the production blueprint for your commercial.</p>
             </div>
           ) : (
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {(["AI Scene Filming", "Cinematic Transitions", "Scene Captions", "Web-Ready MP4"] as const).map(tag => (
-                <span key={tag} className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/50">{tag}</span>
-              ))}
-            </div>
+            <>
+              {/* ── Aspect ratio ──────────────────────────────────────────── */}
+              <div className="mb-3">
+                <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-1.5">Aspect Ratio</p>
+                <div className="flex gap-1.5">
+                  {([
+                    { key: "landscape" as const, label: "Landscape", sub: "16:9", w: 16, h: 9 },
+                    { key: "square"    as const, label: "Square",    sub: "1:1",  w: 9,  h: 9 },
+                    { key: "vertical"  as const, label: "Vertical",  sub: "9:16", w: 9,  h: 16 },
+                  ]).map(({ key, label, sub, w, h }) => {
+                    const active = selectedFormats.includes(key);
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          setSelectedFormats(prev => {
+                            const next = prev.includes(key)
+                              ? prev.length > 1 ? prev.filter(f => f !== key) : prev
+                              : [...prev, key];
+                            selectedFormatsRef.current = next;
+                            return next;
+                          });
+                        }}
+                        className={`flex-1 flex flex-col items-center gap-1.5 py-2.5 rounded-lg border transition-all ${
+                          active
+                            ? "border-[#00E676]/40 bg-[#00E676]/8 text-[#00E676]"
+                            : "border-white/10 bg-white/2 text-white/35 hover:border-white/20 hover:text-white/55"
+                        }`}
+                      >
+                        <div
+                          className={`rounded border ${active ? "border-[#00E676]/50 bg-[#00E676]/15" : "border-white/15 bg-white/5"}`}
+                          style={{ width: `${w * 2.2}px`, height: `${h * 2.2}px` }}
+                        />
+                        <span className="text-[9px] font-bold leading-none">{label}</span>
+                        <span className={`text-[8px] leading-none ${active ? "text-[#00E676]/60" : "text-white/20"}`}>{sub}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ── Captions toggle ───────────────────────────────────────── */}
+              <div className="mb-3">
+                <button
+                  onClick={() => {
+                    setCaptionsOn(v => {
+                      captionsOnRef.current = !v;
+                      return !v;
+                    });
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-all ${
+                    captionsOn
+                      ? "border-[#00E676]/30 bg-[#00E676]/6"
+                      : "border-white/10 bg-white/2 hover:border-white/18"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className={`w-3.5 h-3.5 ${captionsOn ? "text-[#00E676]" : "text-white/30"}`} />
+                    <span className={`text-[11px] font-semibold ${captionsOn ? "text-white/80" : "text-white/35"}`}>Captions</span>
+                  </div>
+                  <div className={`w-7 h-4 rounded-full transition-all relative ${captionsOn ? "bg-[#00E676]" : "bg-white/10"}`}>
+                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${captionsOn ? "left-3.5" : "left-0.5"}`} />
+                  </div>
+                </button>
+              </div>
+            </>
           )}
 
           {/* ── Music upload ───────────────────────────────────────────────── */}

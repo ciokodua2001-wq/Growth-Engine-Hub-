@@ -477,23 +477,34 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   }
 
   // Step 5: Audio mixing
+  //
+  // Design notes:
+  //  • aresample=44100 normalises every input before any processing — avoids
+  //    FFmpeg silently dropping a stream when sample rates differ.
+  //  • apad=whole_dur=X pads narration to the full video length so
+  //    amix=duration=first always sees a complete-length "first" stream.
+  //  • amix=duration=first on the padded narration caps output to video length.
+  //  • atrim+asetpts on the amix output is a safety cap in case apad overshoots.
+  //  • -shortest flag (added to output args below) stops audio once video ends.
   const durStr = totalOutputDuration.toFixed(3);
   if (narrationIdx !== null && musicIdx !== null) {
-    // Narration (full volume) + music (ducked to 15%)
+    // Narration (full volume, padded to video length) + music (ducked to 15%)
     filters.push(
-      `[${narrationIdx}:a]volume=1.0,atrim=0:${durStr},asetpts=PTS-STARTPTS[narr]`,
+      `[${narrationIdx}:a]aresample=44100,volume=1.0,apad=whole_dur=${durStr}[narr]`,
     );
     filters.push(
-      `[${musicIdx}:a]volume=0.15,atrim=0:${durStr},asetpts=PTS-STARTPTS[mus]`,
+      `[${musicIdx}:a]aresample=44100,volume=0.15[mus]`,
     );
-    filters.push(`[narr][mus]amix=inputs=2:duration=first:normalize=0[aout]`);
+    filters.push(
+      `[narr][mus]amix=inputs=2:duration=first:normalize=0,atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`,
+    );
   } else if (narrationIdx !== null) {
     filters.push(
-      `[${narrationIdx}:a]volume=1.0,atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`,
+      `[${narrationIdx}:a]aresample=44100,volume=1.0,apad=whole_dur=${durStr},atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`,
     );
   } else if (musicIdx !== null) {
     filters.push(
-      `[${musicIdx}:a]volume=0.85,atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`,
+      `[${musicIdx}:a]aresample=44100,volume=0.85,atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`,
     );
   } else {
     // No external audio — use original audio from each Kling scene clip.
@@ -533,6 +544,9 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
 
   // Web optimisation — moov atom at front (progressive download / streaming)
   args.push("-movflags", "+faststart");
+
+  // Stop encoding when the shortest stream (video) ends — prevents audio overrun
+  args.push("-shortest");
 
   // No extra duration flag — let the filter_complex determine duration
   args.push(outputPath);
@@ -737,12 +751,14 @@ function runFFmpeg(args: string[]): Promise<void> {
     proc.on("close", code => {
       clearTimeout(timer);
       if (code !== 0) {
-        // Last 1500 chars of stderr = most useful FFmpeg error
-        const tail = stderr.slice(-1500);
+        // Last 2000 chars of stderr = most useful FFmpeg error
+        const tail = stderr.slice(-2000);
         logger.error({ code, tail }, "[Assembler] FFmpeg exited with non-zero code");
         reject(new Error(`FFmpeg exited ${code}: ${tail}`));
       } else {
-        logger.info("[Assembler] FFmpeg completed successfully");
+        // Log stderr even on success — reveals silent audio/stream warnings
+        const stderrTail = stderr.slice(-3000);
+        logger.info({ stderrTail }, "[Assembler] FFmpeg completed successfully");
         resolve();
       }
     });
