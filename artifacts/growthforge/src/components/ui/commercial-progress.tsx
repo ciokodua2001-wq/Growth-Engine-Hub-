@@ -58,7 +58,7 @@ interface AssembliesResponse {
 type StageId =
   | "analysis" | "strategy" | "script" | "blueprint"
   | "scene_0" | "scene_1" | "scene_2" | "scene_3" | "scene_4" | "scene_5"
-  | "rendering" | "music" | "captions" | "finalizing" | "complete";
+  | "rendering" | "music" | "finalizing" | "complete";
 
 interface Stage {
   id: StageId;
@@ -81,7 +81,6 @@ const STAGES: Stage[] = [
   { id: "scene_5",    label: "Filming Scene 6 — Call to Act", detail: "Closing with brand authority and urgency that drives immediate viewer response…",           icon: Film,          weight: 10 },
   { id: "rendering",  label: "Assembling Your Commercial",    detail: "Joining all 6 scenes with cinematic crossfades and professional color normalization…",      icon: Film,          weight: 5 },
   { id: "music",      label: "Adding the Score",              detail: "Weaving in background music at the perfect volume — supporting tone without distraction…",  icon: Music,         weight: 5 },
-  { id: "captions",   label: "Adding Captions",               detail: "Burning in clean, bold captions frame-synced to your commercial's timeline…",               icon: FileText, weight: 5 },
   { id: "finalizing", label: "Preparing for Delivery",        detail: "Encoding to H.264 High Profile with faststart — instant playback on every platform…",      icon: Sparkles,      weight: 5 },
   { id: "complete",   label: "Commercial Delivered",          detail: "Your commercial is ready to publish, share, and drive results.",                            icon: Check,         weight: 0 },
 ];
@@ -105,7 +104,7 @@ function computeProgress(
       pct += stage.weight;
     } else if (stage.id === currentStageId) {
       if (stage.id.startsWith("scene_")) pct += stage.weight * (sceneProgress / 100) * 0.8;
-      else if (["rendering","music","captions","finalizing"].includes(stage.id)) pct += stage.weight * (assemblyProgress / 100) * 0.7;
+      else if (["rendering","music","finalizing"].includes(stage.id)) pct += stage.weight * (assemblyProgress / 100) * 0.7;
       else pct += stage.weight * 0.4;
     }
   }
@@ -362,7 +361,9 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const [captionPos, setCaptionPos] = useState<CaptionPos>("bottom");
   const [currentCaptionText, setCurrentCaptionText] = useState<string | null>(null);
   const [captionExportState, setCaptionExportState] = useState<"idle" | "rendering" | "done" | "error">("idle");
+  const [finalAssemblyId, setFinalAssemblyId] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const subtitleTimingsRef = useRef<Array<{ text: string; startSec: number; endSec: number }>>([]);
 
@@ -540,14 +541,24 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
         if (!pr.ok) continue;
         const data = (await pr.json()) as AssembliesResponse;
         const target = data.assemblies.find(a => a.id === targetId);
-        if (target?.status === "complete" && target.videoUrl) {
+        if (target?.status === "complete" && target.videoUrl && target.id) {
           setCaptionExportState("done");
-          const a = document.createElement("a");
-          a.href = target.videoUrl;
-          a.download = `${video.title ?? "commercial"}-captioned.mp4`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
+          // Use the proxy route to force a real file download on mobile Chrome
+          const proxyUrl = `${apiBase}/assemblies/${target.id}/download`;
+          try {
+            const dr = await fetch(proxyUrl);
+            if (dr.ok) {
+              const blob = await dr.blob();
+              const objectUrl = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = objectUrl;
+              a.download = `${video.title ?? "commercial"}-captioned.mp4`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(objectUrl);
+            }
+          } catch { /* non-fatal — user can manually download */ }
           return;
         }
         if (target?.status === "failed") throw new Error("Caption export failed on server");
@@ -559,20 +570,70 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     }
   }, [apiBase, captionPreset, captionPos, video.title, toast]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Share / copy-link handlers ─────────────────────────────────────────────
+  // ── Share / copy-link / download handlers ──────────────────────────────────
+
+  // Returns the proxy download URL for the current clean assembly.
+  // Proxy route handles GCS auth + forces Content-Disposition: attachment.
+  const getProxyDownloadUrl = useCallback(() => {
+    if (!finalAssemblyId) return null;
+    return `${apiBase}/assemblies/${finalAssemblyId}/download`;
+  }, [apiBase, finalAssemblyId]);
+
+  const handleDownload = useCallback(async () => {
+    const proxyUrl = getProxyDownloadUrl();
+    if (!proxyUrl) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(proxyUrl);
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `${video.title ?? "commercial"}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      toast({ title: "Download failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  }, [getProxyDownloadUrl, video.title, toast]);
+
   const handleShare = useCallback(async () => {
     if (!finalVideoUrl) return;
+    const proxyUrl = getProxyDownloadUrl();
+
+    // Try native file-share first (mobile share sheet sends the actual video)
+    if (proxyUrl && navigator.share && typeof navigator.canShare === "function") {
+      try {
+        const res = await fetch(proxyUrl);
+        if (res.ok) {
+          const blob = await res.blob();
+          const file = new File([blob], `${video.title ?? "commercial"}.mp4`, { type: "video/mp4" });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ title: video.title ?? "GrowthForge Commercial", files: [file] });
+            return;
+          }
+        }
+      } catch { /* fall through to URL share */ }
+    }
+
+    // URL share (desktop / browsers without file-share)
     if (navigator.share) {
       try {
         await navigator.share({ title: video.title, text: "Check out this commercial made with GrowthForge AI", url: finalVideoUrl });
         return;
-      } catch { /* user cancelled or browser denied */ }
+      } catch { /* user cancelled */ }
     }
-    // Fallback: copy link to clipboard
+
+    // Clipboard fallback
     await navigator.clipboard.writeText(finalVideoUrl).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2_500);
-  }, [finalVideoUrl, video.title]);
+  }, [finalVideoUrl, getProxyDownloadUrl, video.title]);
 
   const handleCopyLink = useCallback(async () => {
     if (!finalVideoUrl) return;
@@ -634,7 +695,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const pollAssembly = useCallback(async () => {
     const INTERVAL = 6_000;
     const MAX_WAIT_MS = 8 * 60 * 1000; // 8 minutes — generous even for slow presets
-    const assemblySubStages: StageId[] = ["rendering", "music", "captions", "finalizing"];
+    const assemblySubStages: StageId[] = ["rendering", "music", "finalizing"];
     let subStageIdx = 0;
     const startedAt = Date.now();
 
@@ -679,6 +740,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
               a => selectedFormatsRef.current.includes(a.outputFormat as OutputFormat) && a.status === "complete" && a.videoUrl,
             ) ?? data.assemblies.find(a => a.status === "complete" && a.videoUrl);
           const url = primaryAssembly?.videoUrl ?? null;
+          setFinalAssemblyId(primaryAssembly?.id ?? null);
 
           setCompletedStages(prev => {
             const next = new Set(prev);
@@ -974,9 +1036,8 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
           )}
         </div>
 
-        {/* Caption editor — only shown when the video has a voiceover script */}
-        {video.voiceover && (
-          <div className="rounded-xl bg-white/3 border border-white/8 p-3 space-y-2.5">
+        {/* Caption editor — always shown so users can export with any preset */}
+        <div className="rounded-xl bg-white/3 border border-white/8 p-3 space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Type className="w-3 h-3 text-white/50" />
@@ -1026,7 +1087,6 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
               </>
             )}
           </div>
-        )}
 
         {/* Export options */}
         <div className="space-y-2">
@@ -1047,27 +1107,27 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             </button>
           </div>
 
-          <a
-            href={finalVideoUrl}
-            download
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-white/55 hover:bg-white/8 transition-all"
+          <button
+            onClick={() => void handleDownload()}
+            disabled={downloading || !finalAssemblyId}
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-white/55 hover:bg-white/8 transition-all disabled:opacity-40"
           >
-            <Download className="w-3.5 h-3.5" /> Download (no captions)
-          </a>
+            {downloading
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Downloading…</>
+              : <><Download className="w-3.5 h-3.5" /> Download (no captions)</>}
+          </button>
 
-          {video.voiceover && (
-            <button
-              onClick={() => void handleExportWithCaptions()}
-              disabled={captionExportState === "rendering"}
-              className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold bg-[#00D4FF]/10 border border-[#00D4FF]/25 text-[#00D4FF] hover:bg-[#00D4FF]/18 transition-all disabled:opacity-50"
-            >
-              {captionExportState === "rendering"
-                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rendering with captions…</>
-                : captionExportState === "done"
-                  ? <><Check className="w-3.5 h-3.5" /> Done — click to re-download</>
-                  : <><Film className="w-3.5 h-3.5" /> Export with {captionPreset.charAt(0).toUpperCase() + captionPreset.slice(1)} captions</>}
-            </button>
-          )}
+          <button
+            onClick={() => void handleExportWithCaptions()}
+            disabled={captionExportState === "rendering"}
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold bg-[#00D4FF]/10 border border-[#00D4FF]/25 text-[#00D4FF] hover:bg-[#00D4FF]/18 transition-all disabled:opacity-50"
+          >
+            {captionExportState === "rendering"
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rendering with captions…</>
+              : captionExportState === "done"
+                ? <><Check className="w-3.5 h-3.5" /> Done — click to re-download</>
+                : <><Film className="w-3.5 h-3.5" /> Export with {captionPreset.charAt(0).toUpperCase() + captionPreset.slice(1)} captions</>}
+          </button>
         </div>
 
         <button

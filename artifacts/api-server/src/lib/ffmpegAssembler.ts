@@ -851,21 +851,43 @@ function runFFmpeg(args: string[]): Promise<void> {
 // native 1080×1920.  filter_complex bypasses FFmpeg's auto-rotate, so we detect
 // this and apply a transpose filter in the normalisation step to physically
 // correct the pixel orientation before any scaling.
+//
+// Two encoding styles exist in the wild:
+//   1. Legacy stream tag  — `tags.rotate = "90"` (older Kling / FFmpeg builds)
+//   2. displaymatrix      — `side_data_list[*].rotation = -90` (newer builds)
+// We probe with -show_streams -of json and check both.
 
 function probeRotation(filePath: string): Promise<number> {
   return new Promise(resolve => {
     const proc = spawn("ffprobe", [
       "-v", "error",
       "-select_streams", "v:0",
-      "-show_entries", "stream_tags=rotate",
-      "-of", "csv=p=0",
+      "-show_streams",
+      "-of", "json",
       filePath,
     ], { stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
     proc.stdout?.on("data", (d: Buffer) => { out += d.toString(); });
     proc.on("close", () => {
-      const n = parseInt(out.trim(), 10);
-      resolve(Number.isFinite(n) ? n : 0);
+      try {
+        const parsed = JSON.parse(out) as {
+          streams?: Array<{
+            tags?: { rotate?: string };
+            side_data_list?: Array<{ rotation?: number }>;
+          }>;
+        };
+        const stream = parsed.streams?.[0];
+        // 1. Legacy stream tag (most common in Kling v2.5)
+        const tagRot = parseInt(stream?.tags?.rotate ?? "", 10);
+        if (Number.isFinite(tagRot) && tagRot !== 0) { resolve(tagRot); return; }
+        // 2. displaymatrix side data (Kling v2.6+). rotation is stored as negative
+        //    of the clockwise angle, e.g. -90 means 90° clockwise → transpose=1.
+        const sideRot = stream?.side_data_list?.find(sd => sd.rotation !== undefined)?.rotation;
+        if (typeof sideRot === "number" && sideRot !== 0) { resolve(Math.abs(sideRot)); return; }
+        resolve(0);
+      } catch {
+        resolve(0);
+      }
     });
     proc.on("error", () => resolve(0));
   });

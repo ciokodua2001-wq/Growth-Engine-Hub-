@@ -18,6 +18,7 @@
  */
 
 import { createHash, randomUUID } from "crypto";
+import { Readable } from "stream";
 import { Router } from "express";
 import multer from "multer";
 import { db } from "@workspace/db";
@@ -535,6 +536,63 @@ router.post(
     res.json({ url, bytes: req.file.size, name: req.file.originalname });
   },
 );
+
+// ── GET /projects/:id/videos/:videoId/assemblies/:assemblyId/download ────────
+// Proxy the assembled video through the API server with Content-Disposition: attachment.
+// This forces a real file-save on mobile Chrome, which ignores the HTML `download`
+// attribute on cross-origin GCS signed URLs.
+
+router.get("/projects/:id/videos/:videoId/assemblies/:assemblyId/download", async (req, res) => {
+  const projectId  = parseInt(req.params.id, 10);
+  const videoId    = parseInt(req.params.videoId, 10);
+  const assemblyId = parseInt(req.params.assemblyId, 10);
+  if (isNaN(projectId) || isNaN(videoId) || isNaN(assemblyId)) {
+    res.status(400).json({ error: "Invalid IDs" });
+    return;
+  }
+
+  // Verify the video belongs to this project (ownership already checked via router.param)
+  const [video] = await db
+    .select({ id: videosTable.id })
+    .from(videosTable)
+    .where(and(eq(videosTable.id, videoId), eq(videosTable.projectId, projectId)));
+  if (!video) { res.status(404).json({ error: "Video not found" }); return; }
+
+  const [assembly] = await db
+    .select({ videoUrl: commercialAssembliesTable.videoUrl })
+    .from(commercialAssembliesTable)
+    .where(and(
+      eq(commercialAssembliesTable.id, assemblyId),
+      eq(commercialAssembliesTable.videoId, videoId),
+      eq(commercialAssembliesTable.status, "complete"),
+    ));
+  if (!assembly?.videoUrl) {
+    res.status(404).json({ error: "Assembly not found or not complete" });
+    return;
+  }
+
+  const signedUrl = await refreshAssemblyUrl(assembly.videoUrl);
+  let upstream: Response;
+  try {
+    upstream = await fetch(signedUrl, { signal: AbortSignal.timeout(30_000) });
+  } catch (err) {
+    logger.warn({ err }, "[Download] Failed to fetch from GCS");
+    res.status(502).json({ error: "Failed to fetch video from storage" });
+    return;
+  }
+  if (!upstream.ok) {
+    res.status(502).json({ error: `Storage returned ${upstream.status}` });
+    return;
+  }
+
+  res.setHeader("Content-Type", "video/mp4");
+  res.setHeader("Content-Disposition", `attachment; filename="commercial-${videoId}.mp4"`);
+  res.setHeader("Cache-Control", "no-store");
+  const cl = upstream.headers.get("content-length");
+  if (cl) res.setHeader("Content-Length", cl);
+
+  Readable.fromWeb(upstream.body as import("stream/web").ReadableStream).pipe(res);
+});
 
 // ── Response formatter ────────────────────────────────────────────────────────
 
