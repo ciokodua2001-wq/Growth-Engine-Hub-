@@ -18,3 +18,9 @@ id = "GfzcYEYGYczBlNEVlOjCy"
 uri = "file://attached_assets/kling-v26-test.mp4"
 type = "video"
 title = "Kling v2.6 Native Audio — Test Clip"
+
+[[outputs]]
+id = "CVWE8LtX_P1hruVn_JF8Y"
+uri = "file://attached_assets/kling-v26-street.mp4"
+type = "video"
+title = "Kling v2.6 — Busy Street Scene with Speech"

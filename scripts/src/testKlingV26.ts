@@ -21,10 +21,10 @@ const OUT_FILE = "/tmp/kling-v26-test.mp4";
 // ── Test prompt — mirrors a real GrowthForge scene ───────────────────────────
 // Includes explicit audio direction so we can evaluate what Kling generates.
 const TEST_PROMPT =
-  "Professional entrepreneur in a sleek modern office, confident smile, " +
-  "typing on a laptop, golden hour window light. A calm narrator voice " +
-  "explains how AI builds your marketing department in minutes. Corporate " +
-  "upbeat background score, professional ambient atmosphere. " +
+  "Busy city street, crowds of people walking, traffic noise, urban energy. " +
+  "A confident man walks directly toward the camera, looks into the lens and says: " +
+  "'GrowthForge builds your marketing department in minutes.' " +
+  "Cinematic handheld camera, natural daylight, vibrant street atmosphere. " +
   "No text, no signs, no writing.";
 
 const NEGATIVE_PROMPT =
