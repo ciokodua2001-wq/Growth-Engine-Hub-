@@ -244,6 +244,7 @@ export default function CommercialProductionProgress({ video, projectId, caption
   const [musicFileName, setMusicFileName] = useState<string | null>(null);
   const [uploadingMusic, setUploadingMusic] = useState(false);
   const musicInputRef = useRef<HTMLInputElement>(null);
+  const musicUrlRef = useRef<string | null>(null); // keeps startAssembly closure fresh
   const startedRef = useRef(false);
   const mountedRef = useRef(true);
 
@@ -363,6 +364,7 @@ export default function CommercialProductionProgress({ video, projectId, caption
       const { url, name } = (await r.json()) as { url: string; name: string };
       setMusicUrl(url);
       setMusicFileName(name);
+      musicUrlRef.current = url; // keep ref in sync so startAssembly gets the latest
     } catch (err) {
       toast({ title: "Music upload failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     } finally {
@@ -380,7 +382,7 @@ export default function CommercialProductionProgress({ video, projectId, caption
           captionsEnabled: captionsOnRef.current,
           transitionType: "fade",
           transitionDuration: 0.5,
-          ...(musicUrl ? { backgroundMusicUrl: musicUrl } : {}),
+          ...(musicUrlRef.current ? { backgroundMusicUrl: musicUrlRef.current } : {}),
           ...(force ? { force: true } : {}),
         }),
       });
@@ -441,10 +443,12 @@ export default function CommercialProductionProgress({ video, projectId, caption
         }
 
         if (data.overallStatus === "complete") {
-          const landscapeAssembly = data.assemblies.find(
-            a => a.outputFormat === "landscape" && a.status === "complete" && a.videoUrl,
-          );
-          const url = landscapeAssembly?.videoUrl ?? null;
+          // Pick the primary selected format first, then any completed assembly
+          const primaryAssembly =
+            data.assemblies.find(
+              a => selectedFormatsRef.current.includes(a.outputFormat as OutputFormat) && a.status === "complete" && a.videoUrl,
+            ) ?? data.assemblies.find(a => a.status === "complete" && a.videoUrl);
+          const url = primaryAssembly?.videoUrl ?? null;
 
           setCompletedStages(prev => {
             const next = new Set(prev);

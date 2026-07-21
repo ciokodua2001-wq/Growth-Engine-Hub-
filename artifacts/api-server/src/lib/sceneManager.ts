@@ -20,8 +20,11 @@ const KLING_MAX_POLLS = 120;       // 120 × 10 s = 20 min per scene
 const KLING_POLL_INTERVAL_MS = 10_000;
 const KLING_NEGATIVE_PROMPT =
   "blurry, low quality, distorted, ugly, pixelated, amateur, watermark, text overlay, logo, " +
-  "Chinese characters, Japanese characters, Korean characters, Asian text, non-English text, " +
-  "foreign language text, written words, typography, subtitles, captions, on-screen text, signs with writing";
+  "any text, any letters, any words, any writing, any script, any characters, any alphabet, " +
+  "Chinese characters, Japanese characters, Korean characters, Cyrillic characters, Arabic script, " +
+  "Devanagari script, Hebrew script, Thai script, Asian text, non-English text, foreign language text, " +
+  "written words, typography, subtitles, captions, on-screen text, signs with writing, " +
+  "billboards with text, labels with words, readable text of any kind";
 
 /**
  * Hard cap on per-scene user-initiated retries via the /retry route.
@@ -577,8 +580,9 @@ For each scene, the 8 metadata fields are:
 The Kling prompt must be:
 - Photorealistic, cinema-grade, 4K quality
 - 450–500 characters max
-- Actionable visual description (no dialogue, no text)
-- Structured: [style]. [environment]. [subject action]. [camera]. [lighting]. [mood].
+- Actionable visual description — absolutely NO text, letters, words, signs, or writing of any kind visible in the frame
+- MANDATORY: every klingPrompt must end with the exact phrase: "No visible text, signs, or writing."
+- Structured: [style]. [environment]. [subject action]. [camera]. [lighting]. [mood]. No visible text, signs, or writing.
 
 Return ONLY valid JSON in this exact shape:
 {
