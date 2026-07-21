@@ -203,8 +203,13 @@ export class CommercialAssembler {
 
       let narrationFile: string | null = null;
       if (resolvedNarrationUrl) {
-        narrationFile = path.join(tmpDir, "narration.mp3");
-        logger.info("[Assembler] Downloading narration");
+        // Preserve the real extension from the URL — OpenAI TTS produces .wav,
+        // ElevenLabs produces .mp3. Using the wrong extension can cause FFmpeg
+        // to pick the wrong demuxer and silently produce no audio stream.
+        const narUrlPath = resolvedNarrationUrl.split("?")[0] ?? "";
+        const narExt = narUrlPath.endsWith(".wav") ? "wav" : "mp3";
+        narrationFile = path.join(tmpDir, `narration.${narExt}`);
+        logger.info({ narExt }, "[Assembler] Downloading narration");
         await downloadFile(resolvedNarrationUrl, narrationFile);
       }
 
@@ -372,9 +377,10 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   const args: string[] = ["-y"];
 
   // ── Inputs ────────────────────────────────────────────────────────────────
-  // Scene video inputs — trimmed to sceneDuration so the assembly hits TARGET_OUTPUT_DURATION_SEC
+  // Scene video inputs — duration is trimmed inside filter_complex via the
+  // trim filter (more reliable than -t before -i when using filter_complex).
   for (const f of sceneFiles) {
-    args.push("-t", sceneDuration.toFixed(3), "-i", f);
+    args.push("-i", f);
   }
 
   // Optional: logo image
@@ -401,8 +407,12 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   // ── Build filter_complex ──────────────────────────────────────────────────
   const filters: string[] = [];
 
-  // Step 1: Normalize each scene to target resolution + 30fps
+  // Step 1: Normalize each scene to target resolution + 30fps.
+  // trim+setpts here (not -t before -i) guarantees the filter graph sees
+  // exactly sceneDuration seconds of video per clip.
+  const trimStr = sceneDuration.toFixed(3);
   const scaleFilter =
+    `trim=duration=${trimStr},setpts=PTS-STARTPTS,` +
     `scale=${width}:${height}:force_original_aspect_ratio=decrease,` +
     `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,` +
     `fps=30,setsar=1,format=yuv420p`;
