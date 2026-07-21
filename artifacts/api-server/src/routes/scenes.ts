@@ -110,6 +110,25 @@ router.post("/projects/:id/videos/:videoId/scenes/generate", async (req, res) =>
     return;
   }
 
+  // ── Update aspect ratio before decomposition ──────────────────────────────
+  // The client sends the user-selected output format ("landscape"/"square"/"vertical")
+  // as `aspectRatio`. We map it to the Kling aspect ratio string and persist it so
+  // both scene generation (Kling) and assembly (FFmpeg) use the same target format.
+  const FORMAT_TO_AR: Record<string, string> = {
+    landscape: "16:9",
+    square: "1:1",
+    vertical: "9:16",
+  };
+  const bodyAr = typeof req.body?.aspectRatio === "string" ? req.body.aspectRatio : null;
+  const resolvedAr = (bodyAr && FORMAT_TO_AR[bodyAr]) ? FORMAT_TO_AR[bodyAr] : null;
+  if (resolvedAr) {
+    await db
+      .update(videosTable)
+      .set({ aspectRatio: resolvedAr })
+      .where(eq(videosTable.id, videoId));
+    logger.info({ videoId, aspectRatio: resolvedAr }, "[scenes] Updated video aspect ratio before decomposition");
+  }
+
   logger.info({ projectId, videoId, userId }, "[scenes] Starting blueprint decomposition");
 
   const manager = getSceneManager();

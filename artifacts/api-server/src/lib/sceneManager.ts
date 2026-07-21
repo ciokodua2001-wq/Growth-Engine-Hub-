@@ -42,6 +42,11 @@ const KLING_NEGATIVE_PROMPT =
  */
 const MAX_USER_RETRIES = 10;
 
+// Server-side auto-retries happen silently before the scene is ever marked "failed".
+// Each attempt re-submits a fresh Kling task. The DB status stays "submitted"/
+// "processing" throughout — the user never sees a failed state while retrying.
+const MAX_AUTO_RETRIES = 3;
+
 // ── 6-Scene commercial structure ──────────────────────────────────────────────
 export const COMMERCIAL_SCENE_STRUCTURE: Array<{
   type: CommercialSceneType;
@@ -368,27 +373,42 @@ export class SceneManager {
       "[SceneManager] Processing scene",
     );
 
-    // ── Step 1: Acquire Kling concurrency slot ───────────────────────────────
+    // ── Auto-retry loop ──────────────────────────────────────────────────────
+    // Kling generation is occasionally flaky. We silently re-submit up to
+    // MAX_AUTO_RETRIES times before ever marking the scene as "failed".
+    // The DB status stays "submitted"/"processing" during all auto-retries so
+    // the client never sees a failure state while the system is still trying.
     const queue = getRenderQueue();
-    let releaseSlot: ((success?: boolean) => void) | null = null;
+    let lastError: Error | undefined;
 
-    try {
-      logger.debug(
-        { sceneJobId, sceneIndex: scene.sceneIndex },
-        "[SceneManager] Waiting for Kling slot",
-      );
-      releaseSlot = await queue.acquireKling();
-    } catch (err) {
-      logger.error({ err, sceneJobId }, "[SceneManager] Failed to acquire Kling slot");
-      await this.markSceneFailed(sceneJobId, "Failed to acquire render slot");
-      return;
-    }
+    for (let attempt = 0; attempt <= MAX_AUTO_RETRIES; attempt++) {
+      if (attempt > 0) {
+        const backoffMs = 5_000 * attempt;
+        logger.warn(
+          { sceneJobId, sceneIndex: scene.sceneIndex, attempt, maxAttempts: MAX_AUTO_RETRIES + 1, lastError: lastError?.message },
+          `[SceneManager] Auto-retry ${attempt}/${MAX_AUTO_RETRIES} — backing off ${backoffMs}ms`,
+        );
+        await sleep(backoffMs);
+        // Reset DB to "submitted" so client keeps seeing "in progress"
+        await db
+          .update(klingSceneJobsTable)
+          .set({ klingTaskId: null, externalTaskId: null, status: "submitted", updatedAt: new Date() })
+          .where(eq(klingSceneJobsTable.id, sceneJobId));
+      }
 
-    let klingTaskId: string;
+      // ── Step 1: Acquire Kling concurrency slot ─────────────────────────────
+      let releaseSlot: ((success?: boolean) => void) | null = null;
+      try {
+        releaseSlot = await queue.acquireKling();
+      } catch (err) {
+        logger.error({ err, sceneJobId }, "[SceneManager] Failed to acquire Kling slot");
+        await this.markSceneFailed(sceneJobId, "Failed to acquire render slot");
+        return;
+      }
 
-    try {
       // ── Step 2: Submit to Kling ────────────────────────────────────────────
       const externalTaskId = `gf-v${scene.videoId}-s${scene.sceneIndex}-${Date.now()}`;
+      let klingTaskId: string;
 
       try {
         klingTaskId = await this.submitToKling(scene.prompt, scene.aspectRatio, externalTaskId);
@@ -396,24 +416,19 @@ export class SceneManager {
           .update(klingSceneJobsTable)
           .set({ klingTaskId, externalTaskId, status: "submitted", updatedAt: new Date() })
           .where(eq(klingSceneJobsTable.id, sceneJobId));
-
         logger.info(
-          { sceneJobId, sceneIndex: scene.sceneIndex, klingTaskId },
-          "[SceneManager] Scene submitted to Kling — task created",
+          { sceneJobId, sceneIndex: scene.sceneIndex, klingTaskId, attempt },
+          "[SceneManager] Scene submitted to Kling",
         );
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        logger.error({ err, sceneJobId, sceneIndex: scene.sceneIndex }, "[SceneManager] Scene submission failed");
-        await this.markSceneFailed(sceneJobId, `Submission failed: ${msg}`);
         releaseSlot(false);
         releaseSlot = null;
-        return;
+        lastError = err instanceof Error ? err : new Error(String(err));
+        logger.error({ err, sceneJobId, sceneIndex: scene.sceneIndex, attempt }, "[SceneManager] Scene submission failed");
+        continue; // auto-retry
       }
 
-      // ── Step 3: Release Kling slot — we've submitted, poll is cheap ────────
-      // The Kling API is only "busy" during the submit call itself. Polling and
-      // downloading happen independently so the slot can be freed now to let
-      // other scenes submit.
+      // ── Step 3: Release Kling slot (poll is cheap) ────────────────────────
       releaseSlot(true);
       releaseSlot = null;
 
@@ -421,19 +436,28 @@ export class SceneManager {
       try {
         const storedUrl = await this.pollUntilComplete(sceneJobId, scene.sceneIndex, klingTaskId, scene.videoId);
         logger.info(
-          { sceneJobId, sceneIndex: scene.sceneIndex, storedUrl },
+          { sceneJobId, sceneIndex: scene.sceneIndex, storedUrl, attempt },
           "[SceneManager] Scene complete and stored",
         );
+        return; // success — exit the retry loop
       } catch (err) {
-        // pollUntilComplete already wrote the failure to DB
-        logger.error({ err, sceneJobId, sceneIndex: scene.sceneIndex }, "[SceneManager] Scene polling/download failed");
-      }
-    } finally {
-      // Safety net: always release if not already released
-      if (releaseSlot) {
-        releaseSlot(false);
+        lastError = err instanceof Error ? err : new Error(String(err));
+        logger.warn(
+          { err: lastError.message, sceneJobId, sceneIndex: scene.sceneIndex, attempt },
+          "[SceneManager] Scene poll/download failed",
+        );
+        // If this was NOT a retriable Kling transient failure (e.g. download store error)
+        // we still retry — worst case we waste one Kling credit; better than showing a failed state.
       }
     }
+
+    // ── All auto-retries exhausted — mark truly failed ─────────────────────
+    const finalMsg = lastError?.message ?? "Scene failed after all auto-retry attempts";
+    logger.error(
+      { sceneJobId, sceneIndex: scene.sceneIndex, finalMsg },
+      "[SceneManager] All auto-retries exhausted — marking scene failed",
+    );
+    await this.markSceneFailed(sceneJobId, finalMsg);
   }
 
   // ── Internal: Kling API calls ─────────────────────────────────────────────
@@ -565,16 +589,16 @@ export class SceneManager {
 
       if (taskData.task_status === "failed") {
         const msg = taskData.task_status_msg ?? `Kling generation failed (task=${klingTaskId})`;
-        logger.error({ sceneJobId, sceneIndex, klingTaskId, msg }, "[SceneManager] Kling reported failure");
-        await this.markSceneFailed(sceneJobId, msg);
+        // Throw without marking DB failed — processScene auto-retry loop handles that
+        logger.warn({ sceneJobId, sceneIndex, klingTaskId, msg }, "[SceneManager] Kling reported failure — auto-retry will handle");
         throw new Error(`Kling scene failed: ${msg}`);
       }
     }
 
     const timeoutMin = (KLING_MAX_POLLS * KLING_POLL_INTERVAL_MS) / 60_000;
     const msg = `Scene timed out after ${timeoutMin} min (task=${klingTaskId})`;
-    logger.error({ sceneJobId, sceneIndex, klingTaskId }, `[SceneManager] ${msg}`);
-    await this.markSceneFailed(sceneJobId, msg);
+    // Throw without marking DB failed — processScene auto-retry loop handles that
+    logger.warn({ sceneJobId, sceneIndex, klingTaskId }, `[SceneManager] ${msg} — auto-retry will handle`);
     throw new Error(msg);
   }
 

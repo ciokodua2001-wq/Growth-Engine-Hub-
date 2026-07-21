@@ -499,9 +499,18 @@ export default function CommercialProductionProgress({ video, projectId, caption
     setCurrentStage("scene_0");
     setPhase("scenes");
     try {
+      // Map the selected output format to a Kling aspect ratio so Kling clips
+      // are generated natively in the right format (not scaled/letterboxed later).
+      const FORMAT_TO_AR: Record<string, string> = {
+        landscape: "landscape",
+        square: "square",
+        vertical: "vertical",
+      };
+      const selectedFormat = selectedFormatsRef.current[0] ?? "landscape";
       const r = await fetch(`${apiBase}/scenes/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aspectRatio: FORMAT_TO_AR[selectedFormat] ?? "landscape" }),
       });
       if (!r.ok) {
         const body = (await r.json().catch(() => ({}))) as { error?: string; message?: string };
@@ -893,7 +902,7 @@ export default function CommercialProductionProgress({ video, projectId, caption
               <span className="text-[9px] text-[#00D4FF]/70">{activeSceneCount} filming in parallel</span>
             )}
             {hasFailedScene && !allScenesSucceeded && (
-              <span className="text-[9px] text-red-400/70">Some scenes need attention — retry individually</span>
+              <span className="text-[9px] text-amber-400/60">One scene needs a re-film — tap retry</span>
             )}
           </div>
           <div className="grid grid-cols-6 gap-1.5">
