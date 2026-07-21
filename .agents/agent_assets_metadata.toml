@@ -12,3 +12,9 @@ id = "SfDMq0XTJXvDHglk4yvOC"
 uri = "file://GrowthForge_GoogleAds_Design.pdf"
 type = "pdf"
 title = "GrowthForge Google Ads Design Documentation (PDF)"
+
+[[outputs]]
+id = "GfzcYEYGYczBlNEVlOjCy"
+uri = "file://attached_assets/kling-v26-test.mp4"
+type = "video"
+title = "Kling v2.6 Native Audio — Test Clip"

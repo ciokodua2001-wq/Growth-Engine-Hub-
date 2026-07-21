@@ -66,7 +66,7 @@ async function submit(apiKey: string): Promise<string> {
       prompt:          TEST_PROMPT,
       negative_prompt: NEGATIVE_PROMPT,
       duration:        "5",
-      mode:            "std",
+      mode:            "pro",
       aspect_ratio:    "16:9",
       cfg_scale:       0.5,
       sound:           "on",   // ← Native Audio flag
