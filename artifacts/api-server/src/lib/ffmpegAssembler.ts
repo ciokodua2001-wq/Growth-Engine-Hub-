@@ -176,6 +176,13 @@ export class CommercialAssembler {
         : false;
       logger.info({ clipsHaveAudio }, "[Assembler] Clip audio probe complete");
 
+      // Detect stored rotation metadata so we can physically transpose pixels in
+      // the filter_complex (filter_complex bypasses FFmpeg's auto-rotate).
+      const clipRotation = sceneFiles.length > 0
+        ? await probeRotation(sceneFiles[0]!)
+        : 0;
+      logger.info({ clipRotation }, "[Assembler] Clip rotation probe complete");
+
       let logoFile: string | null = null;
       if (options.logoUrl) {
         logoFile = path.join(tmpDir, "logo.png");
@@ -246,6 +253,7 @@ export class CommercialAssembler {
             sceneFiles,
             logoFile,
             clipsHaveAudio,
+            clipRotation,
             musicFile,
             assFile: formatAssFile,
             outputPath,
@@ -324,6 +332,7 @@ interface EncodeOptions {
   sceneFiles: string[];
   logoFile: string | null;
   clipsHaveAudio: boolean;
+  clipRotation: number;
   musicFile: string | null;
   assFile: string | null;
   outputPath: string;
@@ -355,6 +364,7 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
     totalOutputDuration,
     logoPosition,
     logoOpacity,
+    clipRotation,
   } = opts;
 
   const args: string[] = ["-y"];
@@ -387,9 +397,19 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   // Step 1: Normalize each scene to target resolution + 30fps.
   // trim+setpts here (not -t before -i) guarantees the filter graph sees
   // exactly sceneDuration seconds of video per clip.
+  //
+  // filter_complex bypasses FFmpeg's built-in auto-rotate, so we must handle
+  // rotation metadata manually.  If the source clips carry a rotation tag
+  // (e.g. Kling stores 9:16 as 1920×1080 + rotate=90), we prepend a physical
+  // transpose so pixels are correctly oriented before any scaling.
   const trimStr = sceneDuration.toFixed(3);
+  const transposePrefix =
+    clipRotation === 90  ? "transpose=1," :   // 90° clockwise
+    clipRotation === 270 ? "transpose=2," :   // 90° counter-clockwise
+    clipRotation === 180 ? "transpose=1,transpose=1," : // 180°
+    "";                                        // 0° — no correction needed
   const scaleFilter =
-    `trim=duration=${trimStr},setpts=PTS-STARTPTS,` +
+    `trim=duration=${trimStr},setpts=PTS-STARTPTS,${transposePrefix}` +
     `scale=${width}:${height}:force_original_aspect_ratio=decrease,` +
     `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,` +
     `fps=30,setsar=1,format=yuv420p`;
@@ -533,6 +553,11 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
 
   // Stop encoding when the shortest stream (video) ends — prevents audio overrun
   args.push("-shortest");
+
+  // Explicitly clear rotation metadata on the output so mobile browsers
+  // (Chrome Android) don't apply a second rotation on top of the physical
+  // pixel correction we already performed via the transpose filter above.
+  args.push("-metadata:s:v:0", "rotate=0");
 
   // No extra duration flag — let the filter_complex determine duration
   args.push(outputPath);
@@ -782,6 +807,31 @@ function runFFmpeg(args: string[]): Promise<void> {
 }
 
 // ── Audio stream probe ────────────────────────────────────────────────────────
+// Runs ffprobe to read the stored rotation tag (in degrees: 0, 90, 180, 270).
+// Kling sometimes stores portrait clips as 1920×1080 + rotate=90 rather than
+// native 1080×1920.  filter_complex bypasses FFmpeg's auto-rotate, so we detect
+// this and apply a transpose filter in the normalisation step to physically
+// correct the pixel orientation before any scaling.
+
+function probeRotation(filePath: string): Promise<number> {
+  return new Promise(resolve => {
+    const proc = spawn("ffprobe", [
+      "-v", "error",
+      "-select_streams", "v:0",
+      "-show_entries", "stream_tags=rotate",
+      "-of", "csv=p=0",
+      filePath,
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    proc.stdout?.on("data", (d: Buffer) => { out += d.toString(); });
+    proc.on("close", () => {
+      const n = parseInt(out.trim(), 10);
+      resolve(Number.isFinite(n) ? n : 0);
+    });
+    proc.on("error", () => resolve(0));
+  });
+}
+
 // Runs ffprobe on a file and returns true if it contains at least one audio stream.
 // Used to detect whether Kling v2.6 Native Audio generated audio in each clip.
 
