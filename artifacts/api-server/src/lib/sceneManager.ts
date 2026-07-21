@@ -10,6 +10,16 @@ import type { CommercialSceneType, KlingSceneJob } from "@workspace/db";
 
 const logger = pino({ name: "sceneManager" });
 
+/**
+ * Programmatically guarantee every Kling prompt ends with the no-text phrase.
+ * This runs in code regardless of what Claude generated — it is not advisory.
+ */
+function enforceNoTextSuffix(prompt: string): string {
+  const suffix = "No text, no signs, no writing.";
+  const trimmed = prompt.trimEnd().replace(/[.,!?]+$/, "");
+  return `${trimmed}. ${suffix}`;
+}
+
 // ── Official Kling API ────────────────────────────────────────────────────────
 const KLING_BASE_URL = "https://api-singapore.klingai.com";
 const KLING_DEFAULT_MODEL = "kling-v2-5-turbo";
@@ -198,7 +208,7 @@ export class SceneManager {
           motion: s.motion,
           brandStyle: s.brandStyle,
           marketingObjective: s.marketingObjective,
-          prompt: s.klingPrompt,
+          prompt: enforceNoTextSuffix(s.klingPrompt),
           promptHash,
           status: "pending" as const,
           model: KLING_DEFAULT_MODEL,
@@ -577,12 +587,24 @@ For each scene, the 8 metadata fields are:
 - brandStyle: How brand identity appears visually (colors, aesthetic, product placement)
 - marketingObjective: One sentence — what this specific scene must achieve commercially
 
+CRITICAL — environments to NEVER use (they always produce text in AI video):
+- Car interiors, dashboards, instrument clusters, gauges, speedometers
+- Storefronts, shop windows, retail shelves, supermarkets
+- Computer screens, phone screens, monitors, tablets, TVs
+- Books, newspapers, magazines, documents, whiteboards, chalkboards
+- Product packaging with labels, bottles with labels, branded merchandise
+- Billboards, street signs, road signs, banners, posters
+- Office environments with visible papers or screens
+Instead use: people in motion, natural landscapes, abstract environments, hands
+interacting with objects (not screens), aerial/drone shots, lifestyle moments,
+close-ups of faces with emotion, atmospheric environments without signage.
+
 The Kling prompt must be:
 - Photorealistic, cinema-grade, 4K quality
 - 450–500 characters max
 - Actionable visual description — absolutely NO text, letters, words, signs, or writing of any kind visible in the frame
-- MANDATORY: every klingPrompt must end with the exact phrase: "No visible text, signs, or writing."
-- Structured: [style]. [environment]. [subject action]. [camera]. [lighting]. [mood]. No visible text, signs, or writing.
+- MANDATORY: every klingPrompt must end with: "No text, no signs, no writing."
+- Structured: [style]. [environment]. [subject action]. [camera]. [lighting]. [mood]. No text, no signs, no writing.
 
 Return ONLY valid JSON in this exact shape:
 {
