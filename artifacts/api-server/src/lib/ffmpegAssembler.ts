@@ -54,6 +54,11 @@ export type TransitionType =
   | "slideup"
   | "slidedown";
 
+/** Visual style preset for burned-in captions. */
+export type CaptionPreset = "classic" | "box" | "bold" | "neon" | "cinematic";
+/** Vertical anchor for burned-in captions. */
+export type CaptionPosition = "bottom" | "middle" | "top";
+
 const FORMAT_DIMS: Record<OutputFormat, { width: number; height: number }> = {
   landscape: { width: 1920, height: 1080 },
   square:    { width: 1080, height: 1080 },
@@ -77,8 +82,17 @@ export interface AssemblyOptions {
   logoOpacity?: number;
   /** Signed URL for background music audio (MP3/AAC) — mixed at low volume under clip audio. */
   backgroundMusicUrl?: string;
-  /** Show captions burned from the video script (default: true). */
+  /**
+   * Burn captions into the video pixels (default: false).
+   * When false (default) the assembler produces a clean MP4; captions are
+   * rendered as a browser overlay in the UI and never baked into the file.
+   * Set to true only for explicit "Export with captions" renders.
+   */
   captionsEnabled?: boolean;
+  /** Caption visual style preset (only used when captionsEnabled=true). */
+  captionPreset?: CaptionPreset;
+  /** Caption vertical position (only used when captionsEnabled=true). */
+  captionPosition?: CaptionPosition;
 }
 
 // ── CommercialAssembler ───────────────────────────────────────────────────────
@@ -201,8 +215,11 @@ export class CommercialAssembler {
         logger.info("[Assembler] Using default ambient background music");
       }
 
-      // ── 4. Prepare captions (generated per-format at the right resolution) ──
-      const captionsEnabled = options.captionsEnabled !== false;
+      // ── 4. Prepare captions (only when explicitly requested for "Export with captions" renders) ──
+      // Default behaviour is clean MP4 — captions are shown as a browser overlay in the UI.
+      const captionsEnabled = options.captionsEnabled === true;
+      const captionPreset: CaptionPreset = options.captionPreset ?? "classic";
+      const captionPosition: CaptionPosition = options.captionPosition ?? "bottom";
       // Script text is prepared once; captions are written per-format below.
       const captionsScript = (captionsEnabled && rawVoiceover)
         ? prepareScript(rawVoiceover)
@@ -232,7 +249,7 @@ export class CommercialAssembler {
           // so text never bumps right against the content edge.
           const captionMarginLR = Math.max(30, pillarboxPx + Math.round(width * 0.03));
 
-          fs.writeFileSync(formatAssFile, buildSubtitleASS(subtitleEntries, width, height, captionMarginLR));
+          fs.writeFileSync(formatAssFile, buildSubtitleASS(subtitleEntries, width, height, captionMarginLR, captionPreset, captionPosition));
         }
 
         const outputPath = path.join(tmpDir, `output_${format}.mp4`);
@@ -702,17 +719,41 @@ function buildSubtitleASS(
   videoWidth: number,
   videoHeight: number,
   marginLR: number,
+  preset: CaptionPreset = "classic",
+  position: CaptionPosition = "bottom",
 ): string {
-  const fontSize = Math.max(38, Math.round(videoWidth * 0.033));
-  const marginV = Math.max(60, Math.round(videoHeight * 0.07));
-  const outline = Math.max(2, Math.round(fontSize * 0.07));
+  // Base font size; preset multipliers allow relative sizing.
+  const baseFontSize = Math.max(38, Math.round(videoWidth * 0.033));
+  const sizeMultiplier = preset === "cinematic" ? 0.85 : preset === "bold" ? 1.1 : 1.0;
+  const fontSize = Math.round(baseFontSize * sizeMultiplier);
+  const baseOutline = Math.max(2, Math.round(fontSize * 0.07));
+
+  // ASS colour format: &HAABBGGRR  (AA=00 → opaque, FF → transparent; colour is BGR)
+  // Preset-specific style parameters.
+  const STYLES: Record<CaptionPreset, {
+    primaryColour: string; outlineColour: string; backColour: string;
+    bold: 0 | 1; italic: 0 | 1; borderStyle: 1 | 4;
+    outline: number; shadow: number;
+  }> = {
+    classic:   { primaryColour: "&H00FFFFFF", outlineColour: "&H00000000", backColour: "&H00000000", bold: 0, italic: 0, borderStyle: 1, outline: baseOutline,                                       shadow: 0 },
+    box:       { primaryColour: "&H00FFFFFF", outlineColour: "&H00000000", backColour: "&H80000000", bold: 1, italic: 0, borderStyle: 4, outline: 0,                                                   shadow: 0 },
+    bold:      { primaryColour: "&H0000FFFF", outlineColour: "&H00000000", backColour: "&H00000000", bold: 1, italic: 0, borderStyle: 1, outline: Math.max(3, baseOutline + 1),                       shadow: 0 },
+    neon:      { primaryColour: "&H0076E600", outlineColour: "&H00FFFFFF", backColour: "&H00000000", bold: 1, italic: 0, borderStyle: 1, outline: baseOutline,                                        shadow: 0 },
+    cinematic: { primaryColour: "&H00FFFFFF", outlineColour: "&H00000000", backColour: "&H00000000", bold: 0, italic: 1, borderStyle: 1, outline: Math.max(1, Math.round(baseOutline * 0.6)), shadow: Math.max(3, Math.round(fontSize * 0.1)) },
+  };
+  const s = STYLES[preset];
+
+  // ASS Alignment: bottom=2 (centre-bottom), middle=5 (centre), top=8 (centre-top).
+  const alignment = position === "top" ? 8 : position === "middle" ? 5 : 2;
+  // marginV: distance from the anchor edge (top or bottom). Ignored for middle (Alignment=5).
+  const marginV = position === "middle" ? 0 : Math.max(60, Math.round(videoHeight * 0.07));
 
   function toAssTime(sec: number): string {
     const h = Math.floor(sec / 3600);
     const m = Math.floor((sec % 3600) / 60);
-    const s = sec % 60;
-    const cs = Math.round((s % 1) * 100);
-    return `${h}:${String(m).padStart(2, "0")}:${String(Math.floor(s)).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
+    const sv = sec % 60;
+    const cs = Math.round((sv % 1) * 100);
+    return `${h}:${String(m).padStart(2, "0")}:${String(Math.floor(sv)).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
   }
 
   const header = [
@@ -725,9 +766,7 @@ function buildSubtitleASS(
     "",
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-    // Alignment=2: center-bottom. White text, solid black outline for maximum contrast on any background.
-    // marginLR keeps captions inside the actual content area (avoids pillarbox/letterbox spill).
-    `Style: Default,Arial,${fontSize},&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,${outline},0,2,${marginLR},${marginLR},${marginV},1`,
+    `Style: Default,Arial,${fontSize},${s.primaryColour},&H000000FF,${s.outlineColour},${s.backColour},${s.bold},${s.italic},0,0,100,100,0,0,${s.borderStyle},${s.outline},${s.shadow},${alignment},${marginLR},${marginLR},${marginV},1`,
     "",
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",

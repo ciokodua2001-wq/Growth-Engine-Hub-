@@ -34,6 +34,8 @@ import {
   checkAssemblerRequirements,
   type OutputFormat,
   type AssemblyOptions,
+  type CaptionPreset,
+  type CaptionPosition,
 } from "../lib/ffmpegAssembler.js";
 import pino from "pino";
 
@@ -158,6 +160,17 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
 
   const forceReassemble = body.force === true;
 
+  // Caption burn-in is opt-in (default: false — clean MP4, browser overlay in UI).
+  const captionsEnabled = body.captionsEnabled === true;
+  const VALID_CAPTION_PRESETS = ["classic", "box", "bold", "neon", "cinematic"];
+  const VALID_CAPTION_POSITIONS = ["bottom", "middle", "top"];
+  const captionPreset: CaptionPreset = VALID_CAPTION_PRESETS.includes(String(body.captionPreset ?? ""))
+    ? (body.captionPreset as CaptionPreset)
+    : "classic";
+  const captionPosition: CaptionPosition = VALID_CAPTION_POSITIONS.includes(String(body.captionPosition ?? ""))
+    ? (body.captionPosition as CaptionPosition)
+    : "bottom";
+
   const options: AssemblyOptions = {
     outputFormats: requestedFormats,
     transitionType: transitionType as AssemblyOptions["transitionType"],
@@ -166,19 +179,24 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
     logoPosition: logoPosition as AssemblyOptions["logoPosition"],
     logoOpacity,
     backgroundMusicUrl: typeof body.backgroundMusicUrl === "string" ? body.backgroundMusicUrl : undefined,
-    captionsEnabled: body.captionsEnabled !== false,
+    captionsEnabled,
+    captionPreset,
+    captionPosition,
   };
 
   // ── Options fingerprint — used for assembly deduplication ──────────────────
   // Dynamic URLs (logoUrl, musicUrl) are intentionally excluded — they are signed
   // URLs that change per-request even for the same asset.
+  // captionsEnabled + style are included so clean and captioned renders coexist.
   const optionsFingerprint = createHash("sha256")
     .update(JSON.stringify({
       transitionType: options.transitionType,
       transitionDuration: options.transitionDuration,
       logoPosition: options.logoPosition,
       logoOpacity: options.logoOpacity,
-      captionsEnabled: options.captionsEnabled,
+      captionsEnabled,
+      captionPreset: captionsEnabled ? captionPreset : null,
+      captionPosition: captionsEnabled ? captionPosition : null,
       hasLogo: !!options.logoUrl,
       hasMusic: !!options.backgroundMusicUrl,
     }))

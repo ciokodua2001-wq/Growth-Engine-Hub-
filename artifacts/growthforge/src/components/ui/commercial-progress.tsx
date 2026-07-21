@@ -10,14 +10,15 @@
  *   → Complete          (inline video player + download)
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, type CSSProperties } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Check, AlertCircle, RefreshCw, Download, ExternalLink,
+  Check, AlertCircle, RefreshCw, Download,
   Loader2, Clock, Film, Music, Sparkles, BarChart2,
-  Target, FileText, Clapperboard, MessageSquare, Play,
+  Target, FileText, Clapperboard, Play,
   RotateCcw, X, Lock as LockIcon, Upload, Trash2,
+  Share2, Copy, Type,
 } from "lucide-react";
 
 // ── API types ─────────────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ const STAGES: Stage[] = [
   { id: "scene_5",    label: "Filming Scene 6 — Call to Act", detail: "Closing with brand authority and urgency that drives immediate viewer response…",           icon: Film,          weight: 10 },
   { id: "rendering",  label: "Assembling Your Commercial",    detail: "Joining all 6 scenes with cinematic crossfades and professional color normalization…",      icon: Film,          weight: 5 },
   { id: "music",      label: "Adding the Score",              detail: "Weaving in background music at the perfect volume — supporting tone without distraction…",  icon: Music,         weight: 5 },
-  { id: "captions",   label: "Adding Captions",               detail: "Burning in clean, bold captions frame-synced to your commercial's timeline…",               icon: MessageSquare, weight: 5 },
+  { id: "captions",   label: "Adding Captions",               detail: "Burning in clean, bold captions frame-synced to your commercial's timeline…",               icon: FileText, weight: 5 },
   { id: "finalizing", label: "Preparing for Delivery",        detail: "Encoding to H.264 High Profile with faststart — instant playback on every platform…",      icon: Sparkles,      weight: 5 },
   { id: "complete",   label: "Commercial Delivered",          detail: "Your commercial is ready to publish, share, and drive results.",                            icon: Check,         weight: 0 },
 ];
@@ -213,6 +214,95 @@ function SceneTile({
   );
 }
 
+// ── Caption overlay helpers ───────────────────────────────────────────────────
+
+function wrapCaptionText(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let line = "";
+  for (const w of words) {
+    const c = line ? `${line} ${w}` : w;
+    if (c.length <= maxChars) { line = c; }
+    else { if (line) lines.push(line); line = w; }
+  }
+  if (line) lines.push(line);
+  return lines.join("\n");
+}
+
+function buildSubtitleTimings(
+  voiceover: string,
+  duration: number,
+): Array<{ text: string; startSec: number; endSec: number }> {
+  if (!voiceover || duration <= 0) return [];
+  const raw = voiceover.replace(/([.!?])\s+/g, "$1\n").split(/\n/).map(s => s.trim()).filter(Boolean);
+  if (raw.length === 0) return [];
+  const totalChars = raw.reduce((sum, s) => sum + s.length, 0);
+  const entries: Array<{ text: string; startSec: number; endSec: number }> = [];
+  let t = 0.1;
+  for (const sentence of raw) {
+    if (t >= duration - 0.3) break;
+    const dur = Math.max(1.0, (sentence.length / totalChars) * duration * 0.95);
+    const end = Math.min(t + dur, duration - 0.1);
+    entries.push({ text: wrapCaptionText(sentence, 32), startSec: t, endSec: end });
+    t = end + 0.08;
+  }
+  return entries;
+}
+
+type CaptionPresetKey = "classic" | "box" | "bold" | "neon" | "cinematic";
+type CaptionPosKey = "bottom" | "middle" | "top";
+
+function getCaptionOverlayStyle(
+  pos: CaptionPosKey,
+  preset: CaptionPresetKey,
+): CSSProperties {
+  const posBase: CSSProperties =
+    pos === "top"    ? { top: "8%",  transform: "translateX(-50%)" }           :
+    pos === "middle" ? { top: "50%", transform: "translateX(-50%) translateY(-50%)" } :
+                       { bottom: "12%", transform: "translateX(-50%)" };
+
+  const presetStyle: CSSProperties =
+    preset === "box" ? {
+      color: "#FFFFFF", fontWeight: "700",
+      fontSize: "clamp(10px, 2.8vw, 15px)",
+      background: "rgba(0,0,0,0.75)", padding: "5px 10px", borderRadius: "5px",
+    } :
+    preset === "bold" ? {
+      color: "#FFFF00", fontWeight: "900",
+      fontSize: "clamp(11px, 3.1vw, 16px)",
+      textShadow: "-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000",
+    } :
+    preset === "neon" ? {
+      color: "#00E676", fontWeight: "700",
+      fontSize: "clamp(10px, 2.8vw, 15px)",
+      textShadow: "0 0 8px rgba(0,230,118,0.5), -1px -1px 0 rgba(255,255,255,0.5), 1px -1px 0 rgba(255,255,255,0.5), -1px 1px 0 rgba(255,255,255,0.5), 1px 1px 0 rgba(255,255,255,0.5)",
+    } :
+    preset === "cinematic" ? {
+      color: "rgba(255,255,255,0.92)", fontStyle: "italic", fontWeight: "400",
+      fontSize: "clamp(9px, 2.5vw, 13px)",
+      textShadow: "0 2px 10px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.6)",
+    } :
+    /* classic */ {
+      color: "#FFFFFF", fontWeight: "600",
+      fontSize: "clamp(10px, 2.8vw, 15px)",
+      textShadow: "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, -2px 0 0 #000, 2px 0 0 #000",
+    };
+
+  return {
+    position: "absolute",
+    left: "50%",
+    width: "82%",
+    textAlign: "center",
+    zIndex: 10,
+    pointerEvents: "none",
+    lineHeight: "1.45",
+    letterSpacing: "0.01em",
+    ...posBase,
+    ...presetStyle,
+  };
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export interface CommercialProgressVideo {
@@ -223,19 +313,19 @@ export interface CommercialProgressVideo {
   cinematicPlan?: string | null;
   renderStatus?: string | null;
   videoUrl?: string | null;
+  voiceover?: string | null;
 }
 
 interface Props {
   video: CommercialProgressVideo;
   projectId: number;
-  captionsEnabled?: boolean;
   isTrial?: boolean;
   onBack?: () => void;
 }
 
 type Phase = "idle" | "blueprint" | "scenes" | "assembling" | "complete" | "error";
 
-export default function CommercialProductionProgress({ video, projectId, captionsEnabled = true, isTrial = false, onBack }: Props) {
+export default function CommercialProductionProgress({ video, projectId, isTrial = false, onBack }: Props) {
   const apiBase = `/api/projects/${projectId}/videos/${video.id}`;
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -262,9 +352,19 @@ export default function CommercialProductionProgress({ video, projectId, caption
 
   type OutputFormat = "landscape" | "square" | "vertical";
   const [selectedFormats, setSelectedFormats] = useState<OutputFormat[]>(["landscape"]);
-  const [captionsOn, setCaptionsOn] = useState(captionsEnabled);
   const selectedFormatsRef = useRef<OutputFormat[]>(["landscape"]);
-  const captionsOnRef = useRef(captionsEnabled);
+
+  // ── Caption overlay state (post-render, browser-side) ──────────────────────
+  type CaptionPreset = "classic" | "box" | "bold" | "neon" | "cinematic";
+  type CaptionPos = "bottom" | "middle" | "top";
+  const [captionsVisible, setCaptionsVisible] = useState(true);
+  const [captionPreset, setCaptionPreset] = useState<CaptionPreset>("classic");
+  const [captionPos, setCaptionPos] = useState<CaptionPos>("bottom");
+  const [currentCaptionText, setCurrentCaptionText] = useState<string | null>(null);
+  const [captionExportState, setCaptionExportState] = useState<"idle" | "rendering" | "done" | "error">("idle");
+  const [copied, setCopied] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const subtitleTimingsRef = useRef<Array<{ text: string; startSec: number; endSec: number }>>([]);
 
   // ── Detect resume state on mount ───────────────────────────────────────────
   useEffect(() => {
@@ -291,6 +391,32 @@ export default function CommercialProductionProgress({ video, projectId, caption
 
     return () => { mountedRef.current = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Caption overlay timing ─────────────────────────────────────────────────
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !video.voiceover || phase !== "complete") return;
+
+    const buildTimings = () => {
+      if (v.duration && isFinite(v.duration)) {
+        subtitleTimingsRef.current = buildSubtitleTimings(video.voiceover!, v.duration);
+      }
+    };
+    const onTimeUpdate = () => {
+      const t = v.currentTime;
+      const entry = subtitleTimingsRef.current.find(e => t >= e.startSec && t < e.endSec) ?? null;
+      setCurrentCaptionText(entry?.text ?? null);
+    };
+
+    v.addEventListener("loadedmetadata", buildTimings);
+    v.addEventListener("timeupdate", onTimeUpdate);
+    buildTimings();
+
+    return () => {
+      v.removeEventListener("loadedmetadata", buildTimings);
+      v.removeEventListener("timeupdate", onTimeUpdate);
+    };
+  }, [phase, finalVideoUrl, video.voiceover]);
 
   // ── Elapsed timer ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -385,6 +511,76 @@ export default function CommercialProductionProgress({ video, projectId, caption
     }
   }, [apiBase]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Caption export — POST /assemble with captions burned in ───────────────
+  const handleExportWithCaptions = useCallback(async () => {
+    setCaptionExportState("rendering");
+    try {
+      const r = await fetch(`${apiBase}/assemble`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          outputFormats: selectedFormatsRef.current.length > 0 ? selectedFormatsRef.current : ["landscape"],
+          captionsEnabled: true,
+          captionPreset,
+          captionPosition: captionPos,
+          transitionType: "fade",
+          transitionDuration: 0.5,
+          ...(musicUrlRef.current ? { backgroundMusicUrl: musicUrlRef.current } : {}),
+          force: true,
+        }),
+      });
+      if (!r.ok) throw new Error(`Assembly start failed (${r.status})`);
+      const { assemblyIds } = (await r.json()) as { assemblyIds: number[] };
+      const targetId = assemblyIds[0];
+
+      // Poll until the captioned assembly completes, then auto-download
+      while (mountedRef.current) {
+        await new Promise(res => setTimeout(res, 8_000));
+        const pr = await fetch(`${apiBase}/assemblies`);
+        if (!pr.ok) continue;
+        const data = (await pr.json()) as AssembliesResponse;
+        const target = data.assemblies.find(a => a.id === targetId);
+        if (target?.status === "complete" && target.videoUrl) {
+          setCaptionExportState("done");
+          const a = document.createElement("a");
+          a.href = target.videoUrl;
+          a.download = `${video.title ?? "commercial"}-captioned.mp4`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          return;
+        }
+        if (target?.status === "failed") throw new Error("Caption export failed on server");
+      }
+    } catch (err) {
+      setCaptionExportState("error");
+      toast({ title: "Export failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+      setTimeout(() => setCaptionExportState("idle"), 4_000);
+    }
+  }, [apiBase, captionPreset, captionPos, video.title, toast]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Share / copy-link handlers ─────────────────────────────────────────────
+  const handleShare = useCallback(async () => {
+    if (!finalVideoUrl) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: video.title, text: "Check out this commercial made with GrowthForge AI", url: finalVideoUrl });
+        return;
+      } catch { /* user cancelled or browser denied */ }
+    }
+    // Fallback: copy link to clipboard
+    await navigator.clipboard.writeText(finalVideoUrl).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2_500);
+  }, [finalVideoUrl, video.title]);
+
+  const handleCopyLink = useCallback(async () => {
+    if (!finalVideoUrl) return;
+    await navigator.clipboard.writeText(finalVideoUrl).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2_500);
+  }, [finalVideoUrl]);
+
   // ── Assembly trigger ───────────────────────────────────────────────────────
   const handleMusicUpload = useCallback(async (file: File) => {
     setUploadingMusic(true);
@@ -414,7 +610,6 @@ export default function CommercialProductionProgress({ video, projectId, caption
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           outputFormats: selectedFormatsRef.current.length > 0 ? selectedFormatsRef.current : ["landscape"],
-          captionsEnabled: captionsOnRef.current,
           transitionType: "fade",
           transitionDuration: 0.5,
           ...(musicUrlRef.current ? { backgroundMusicUrl: musicUrlRef.current } : {}),
@@ -699,30 +894,6 @@ export default function CommercialProductionProgress({ video, projectId, caption
                 </div>
               </div>
 
-              {/* ── Captions toggle ───────────────────────────────────────── */}
-              <div className="mb-3">
-                <button
-                  onClick={() => {
-                    setCaptionsOn(v => {
-                      captionsOnRef.current = !v;
-                      return !v;
-                    });
-                  }}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-all ${
-                    captionsOn
-                      ? "border-[#00E676]/30 bg-[#00E676]/6"
-                      : "border-white/10 bg-white/2 hover:border-white/18"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className={`w-3.5 h-3.5 ${captionsOn ? "text-[#00E676]" : "text-white/30"}`} />
-                    <span className={`text-[11px] font-semibold ${captionsOn ? "text-white/80" : "text-white/35"}`}>Captions</span>
-                  </div>
-                  <div className={`w-7 h-4 rounded-full transition-all relative ${captionsOn ? "bg-[#00E676]" : "bg-white/10"}`}>
-                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${captionsOn ? "left-3.5" : "left-0.5"}`} />
-                  </div>
-                </button>
-              </div>
             </>
           )}
 
@@ -780,34 +951,125 @@ export default function CommercialProductionProgress({ video, projectId, caption
     );
   }
 
-  // ── Complete: show video player ────────────────────────────────────────────
+  // ── Complete: show video player + caption editor + export options ──────────
   if (phase === "complete" && finalVideoUrl) {
     return (
       <div className="mt-4 pt-4 border-t border-white/8 space-y-3">
-        <div className="rounded-xl overflow-hidden border border-[#00E676]/30 bg-black">
-          <video controls className="w-full max-h-52 bg-black" src={finalVideoUrl} />
+
+        {/* Video player with live caption overlay */}
+        <div className="relative rounded-xl overflow-hidden border border-[#00E676]/30 bg-black">
+          <video
+            ref={videoRef}
+            controls
+            className="w-full"
+            style={{ maxHeight: "300px", display: "block" }}
+            src={finalVideoUrl}
+          />
+          {captionsVisible && currentCaptionText && (
+            <div style={getCaptionOverlayStyle(captionPos, captionPreset)}>
+              {currentCaptionText.split("\n").map((line, i) => (
+                <span key={i} style={{ display: "block" }}>{line}</span>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex-1 rounded-xl bg-[#00E676]/8 border border-[#00E676]/20 px-3 py-2.5">
-            <p className="text-xs font-bold text-[#00E676]">Commercial Delivered</p>
-            <p className="text-[10px] text-white/40 mt-0.5">Ready to publish · H.264 · Landscape 1920×1080</p>
+
+        {/* Caption editor — only shown when the video has a voiceover script */}
+        {video.voiceover && (
+          <div className="rounded-xl bg-white/3 border border-white/8 p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Type className="w-3 h-3 text-white/50" />
+                <span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider">Captions</span>
+              </div>
+              <button
+                onClick={() => setCaptionsVisible(v => !v)}
+                className={`w-8 h-4 rounded-full transition-all relative ${captionsVisible ? "bg-[#00E676]" : "bg-white/10"}`}
+              >
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${captionsVisible ? "left-4" : "left-0.5"}`} />
+              </button>
+            </div>
+            {captionsVisible && (
+              <>
+                <div>
+                  <p className="text-[9px] text-white/30 uppercase tracking-wider mb-1.5">Style</p>
+                  <div className="flex gap-1">
+                    {(["classic", "box", "bold", "neon", "cinematic"] as CaptionPreset[]).map(p => (
+                      <button
+                        key={p}
+                        onClick={() => setCaptionPreset(p)}
+                        className={`flex-1 py-1.5 rounded text-[9px] font-bold transition-all capitalize ${
+                          captionPreset === p
+                            ? "bg-[#00E676]/20 border border-[#00E676]/40 text-[#00E676]"
+                            : "bg-white/4 border border-white/8 text-white/40 hover:text-white/60"
+                        }`}
+                      >{p}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[9px] text-white/30 uppercase tracking-wider mb-1.5">Position</p>
+                  <div className="flex gap-1">
+                    {(["top", "middle", "bottom"] as CaptionPos[]).map(pos => (
+                      <button
+                        key={pos}
+                        onClick={() => setCaptionPos(pos)}
+                        className={`flex-1 py-1.5 rounded text-[9px] font-bold transition-all capitalize ${
+                          captionPos === pos
+                            ? "bg-[#00D4FF]/20 border border-[#00D4FF]/40 text-[#00D4FF]"
+                            : "bg-white/4 border border-white/8 text-white/40 hover:text-white/60"
+                        }`}
+                      >{pos}</button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
+        )}
+
+        {/* Export options */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <button
+              onClick={() => void handleShare()}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-[#00E676] text-black hover:bg-[#14F195] transition-all"
+            >
+              <Share2 className="w-3.5 h-3.5" /> Share
+            </button>
+            <button
+              onClick={() => void handleCopyLink()}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold bg-white/6 border border-white/12 text-white/70 hover:bg-white/10 transition-all"
+            >
+              {copied
+                ? <><Check className="w-3.5 h-3.5 text-[#00E676]" /> Copied!</>
+                : <><Copy className="w-3.5 h-3.5" /> Copy Link</>}
+            </button>
+          </div>
+
           <a
             href={finalVideoUrl}
             download
-            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/60 border border-white/10 transition-colors"
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-white/55 hover:bg-white/8 transition-all"
           >
-            <Download className="w-3.5 h-3.5" /> Download
+            <Download className="w-3.5 h-3.5" /> Download (no captions)
           </a>
-          <a
-            href={finalVideoUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/60 border border-white/10 transition-colors"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+
+          {video.voiceover && (
+            <button
+              onClick={() => void handleExportWithCaptions()}
+              disabled={captionExportState === "rendering"}
+              className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold bg-[#00D4FF]/10 border border-[#00D4FF]/25 text-[#00D4FF] hover:bg-[#00D4FF]/18 transition-all disabled:opacity-50"
+            >
+              {captionExportState === "rendering"
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rendering with captions…</>
+                : captionExportState === "done"
+                  ? <><Check className="w-3.5 h-3.5" /> Done — click to re-download</>
+                  : <><Film className="w-3.5 h-3.5" /> Export with {captionPreset.charAt(0).toUpperCase() + captionPreset.slice(1)} captions</>}
+            </button>
+          )}
         </div>
+
         <button
           onClick={() => {
             setFinalVideoUrl(null);
