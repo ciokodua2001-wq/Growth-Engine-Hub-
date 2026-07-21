@@ -22,10 +22,10 @@ function enforceNoTextSuffix(prompt: string): string {
 
 // ── Official Kling API ────────────────────────────────────────────────────────
 const KLING_BASE_URL = "https://api-singapore.klingai.com";
-const KLING_DEFAULT_MODEL = "kling-v2-5-turbo";
+const KLING_DEFAULT_MODEL = "kling-v2-6";
 const KLING_DURATION = "5";
 const KLING_DURATION_SEC = 5;
-const KLING_MODE = "std";
+const KLING_MODE = "pro";  // Native Audio requires pro mode
 const KLING_MAX_POLLS = 120;       // 120 × 10 s = 20 min per scene
 const KLING_POLL_INTERVAL_MS = 10_000;
 const KLING_NEGATIVE_PROMPT =
@@ -101,7 +101,9 @@ interface AISceneDescriptor {
   motion: string;
   brandStyle: string;
   marketingObjective: string;
-  klingPrompt: string;
+  klingPrompt: string;        // visual description only (composed with audio below)
+  narrationLine: string;      // what is spoken in this scene (business-specific, ≤20 words)
+  audioMood: string;          // ambient sound + music style for this scene
 }
 
 interface AIDecompositionResult {
@@ -195,26 +197,41 @@ export class SceneManager {
     const rows = await db
       .insert(klingSceneJobsTable)
       .values(
-        scenes.map(s => ({
-          videoId,
-          sceneIndex: s.sceneIndex,
-          sceneName: s.sceneName,
-          sceneType: s.sceneType,
-          environment: s.environment,
-          cameraMovement: s.cameraMovement,
-          lighting: s.lighting,
-          mood: s.mood,
-          composition: s.composition,
-          motion: s.motion,
-          brandStyle: s.brandStyle,
-          marketingObjective: s.marketingObjective,
-          prompt: enforceNoTextSuffix(s.klingPrompt),
-          promptHash,
-          status: "pending" as const,
-          model: KLING_DEFAULT_MODEL,
-          aspectRatio: klingAspectRatio,
-          retryCount: 0,
-        })),
+        scenes.map(s => {
+          // Compose the full Kling prompt: visual + narration + audio mood
+          // narrationLine and audioMood are stored separately for client editing.
+          const fullPrompt = enforceNoTextSuffix(
+            [
+              s.klingPrompt.replace(/\.\s*No text.*$/i, "").trim(),
+              s.narrationLine ? `Narrator voice says: "${s.narrationLine}".` : "",
+              s.audioMood ?? "",
+            ]
+              .filter(Boolean)
+              .join(" "),
+          );
+          return {
+            videoId,
+            sceneIndex: s.sceneIndex,
+            sceneName: s.sceneName,
+            sceneType: s.sceneType,
+            environment: s.environment,
+            cameraMovement: s.cameraMovement,
+            lighting: s.lighting,
+            mood: s.mood,
+            composition: s.composition,
+            motion: s.motion,
+            brandStyle: s.brandStyle,
+            marketingObjective: s.marketingObjective,
+            narrationLine: s.narrationLine ?? null,
+            audioMood: s.audioMood ?? null,
+            prompt: fullPrompt,
+            promptHash,
+            status: "pending" as const,
+            model: KLING_DEFAULT_MODEL,
+            aspectRatio: klingAspectRatio,
+            retryCount: 0,
+          };
+        }),
       )
       .returning();
 
@@ -440,7 +457,7 @@ export class SceneManager {
           duration: KLING_DURATION,
           mode: KLING_MODE,
           aspect_ratio: aspectRatio,
-          sound: "off",
+          sound: "on",   // Kling v2.6 Native Audio
           external_task_id: externalTaskId,
         }),
         signal: AbortSignal.timeout(30_000),
@@ -599,12 +616,16 @@ Instead use: people in motion, natural landscapes, abstract environments, hands
 interacting with objects (not screens), aerial/drone shots, lifestyle moments,
 close-ups of faces with emotion, atmospheric environments without signage.
 
-The Kling prompt must be:
+The Kling prompt (klingPrompt) is the VISUAL description only — do NOT include audio in it:
 - Photorealistic, cinema-grade, 4K quality
-- 450–500 characters max
+- 350 characters max
 - Actionable visual description — absolutely NO text, letters, words, signs, or writing of any kind visible in the frame
 - MANDATORY: every klingPrompt must end with: "No text, no signs, no writing."
 - Structured: [style]. [environment]. [subject action]. [camera]. [lighting]. [mood]. No text, no signs, no writing.
+
+Additionally provide two audio fields per scene (Kling v2.6 Native Audio):
+- narrationLine: What is SPOKEN in this scene — a short, punchy marketing line (10–18 words max) that is SPECIFIC to the actual business (use its real name, product, or value proposition from the business context). Progress the story across the 6 scenes: Hook grabs attention, Problem names the pain, Solution introduces the product, Benefits gives the result, Proof builds trust, CTA closes with the business name and action (e.g. "Try GrowthForge free at usegrowthforge.com").
+- audioMood: Ambient sound + music style that matches this scene's energy and business type (e.g. "busy city street ambience, upbeat corporate jazz", "quiet office hum, minimal piano score", "crowd cheering, energetic hip-hop beat"). 2–3 descriptive phrases only.
 
 Return ONLY valid JSON in this exact shape:
 {
@@ -621,7 +642,9 @@ Return ONLY valid JSON in this exact shape:
       "motion": "...",
       "brandStyle": "...",
       "marketingObjective": "...",
-      "klingPrompt": "..."
+      "klingPrompt": "...",
+      "narrationLine": "...",
+      "audioMood": "..."
     }
   ]
 }`;
@@ -731,8 +754,8 @@ Generate exactly 6 scenes (one per commercial section). Make every scene visuall
   // ── Internal: Kling helpers ───────────────────────────────────────────────
 
   private get apiKey(): string {
-    const key = process.env.KLING_API_KEY;
-    if (!key) throw new Error("KLING_API_KEY environment variable is not configured");
+    const key = process.env.KLING_V26_API_KEY ?? process.env.KLING_API_KEY;
+    if (!key) throw new Error("KLING_V26_API_KEY environment variable is not configured");
     return key;
   }
 

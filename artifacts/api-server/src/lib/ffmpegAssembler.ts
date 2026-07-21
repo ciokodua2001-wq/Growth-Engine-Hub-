@@ -35,8 +35,7 @@ import {
 import { eq, and } from "drizzle-orm";
 import pino from "pino";
 import { objectStorageClient, signObjectURL } from "./objectStorage.js";
-import { generateNarration, prepareScript } from "./elevenLabsNarrator.js";
-import type { VoiceStyle } from "./elevenLabsNarrator.js";
+import { prepareScript } from "./elevenLabsNarrator.js";
 
 const FFMPEG_BIN = "ffmpeg";
 const logger = pino({ name: "ffmpegAssembler" });
@@ -76,14 +75,10 @@ export interface AssemblyOptions {
   logoPosition?: "br" | "bl" | "tr" | "tl";
   /** Logo opacity 0–1 (default: 0.85). */
   logoOpacity?: number;
-  /** Signed URL for background music audio (MP3/AAC). */
+  /** Signed URL for background music audio (MP3/AAC) — mixed at low volume under clip audio. */
   backgroundMusicUrl?: string;
-  /** Signed URL for narration audio (MP3/AAC/WAV). */
-  narrationUrl?: string;
-  /** Show captions burned from the narration script (default: true). */
+  /** Show captions burned from the video script (default: true). */
   captionsEnabled?: boolean;
-  /** Voice style for auto-generated narration (default: "corporate"). */
-  voiceStyle?: string;
 }
 
 // ── CommercialAssembler ───────────────────────────────────────────────────────
@@ -158,24 +153,6 @@ export class CommercialAssembler {
         "[Assembler] Scene timing calculated",
       );
 
-      // ── Auto-generate narration from script if no URL was provided ─────────
-      const voiceStyle = ((options.voiceStyle ?? "corporate") as VoiceStyle);
-      let resolvedNarrationUrl = options.narrationUrl;
-
-      if (!resolvedNarrationUrl && rawVoiceover) {
-        logger.info({ videoId, voiceStyle }, "[Assembler] Auto-generating narration from script");
-        try {
-          const narResult = await generateNarration({ script: rawVoiceover, voiceStyle, videoId });
-          resolvedNarrationUrl = narResult.narrationUrl;
-          logger.info(
-            { videoId, provider: narResult.voiceProvider, chars: narResult.scriptChars },
-            "[Assembler] Narration generated ✓",
-          );
-        } catch (err) {
-          logger.error({ err, videoId }, "[Assembler] Narration generation failed — assembling without audio");
-        }
-      }
-
       // ── 2. Download all scene videos to tmp ───────────────────────────────
       const sceneFiles: string[] = [];
       for (let i = 0; i < scenes.length; i++) {
@@ -194,23 +171,18 @@ export class CommercialAssembler {
       }
 
       // ── 3. Download optional assets ───────────────────────────────────────
+      // Probe the first clip to detect whether Kling generated an audio stream.
+      // v2.6 Native Audio clips always have audio; v2.5 clips are silent.
+      const clipsHaveAudio = sceneFiles.length > 0
+        ? await probeHasAudio(sceneFiles[0]!)
+        : false;
+      logger.info({ clipsHaveAudio }, "[Assembler] Clip audio probe complete");
+
       let logoFile: string | null = null;
       if (options.logoUrl) {
         logoFile = path.join(tmpDir, "logo.png");
         logger.info("[Assembler] Downloading logo");
         await downloadFile(options.logoUrl, logoFile);
-      }
-
-      let narrationFile: string | null = null;
-      if (resolvedNarrationUrl) {
-        // Preserve the real extension from the URL — OpenAI TTS produces .wav,
-        // ElevenLabs produces .mp3. Using the wrong extension can cause FFmpeg
-        // to pick the wrong demuxer and silently produce no audio stream.
-        const narUrlPath = resolvedNarrationUrl.split("?")[0] ?? "";
-        const narExt = narUrlPath.endsWith(".wav") ? "wav" : "mp3";
-        narrationFile = path.join(tmpDir, `narration.${narExt}`);
-        logger.info({ narExt }, "[Assembler] Downloading narration");
-        await downloadFile(resolvedNarrationUrl, narrationFile);
       }
 
       let musicFile: string | null = null;
@@ -262,7 +234,7 @@ export class CommercialAssembler {
           await encodeFormat({
             sceneFiles,
             logoFile,
-            narrationFile,
+            clipsHaveAudio,
             musicFile,
             assFile: formatAssFile,
             outputPath,
@@ -340,7 +312,7 @@ export class CommercialAssembler {
 interface EncodeOptions {
   sceneFiles: string[];
   logoFile: string | null;
-  narrationFile: string | null;
+  clipsHaveAudio: boolean;
   musicFile: string | null;
   assFile: string | null;
   outputPath: string;
@@ -359,7 +331,7 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   const {
     sceneFiles,
     logoFile,
-    narrationFile,
+    clipsHaveAudio,
     musicFile,
     assFile,
     outputPath,
@@ -388,11 +360,6 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
     args.push("-loop", "1", "-i", logoFile);
   }
 
-  // Optional: narration audio (no loop)
-  if (narrationFile) {
-    args.push("-i", narrationFile);
-  }
-
   // Optional: background music (looped forever, trimmed in filter)
   if (musicFile) {
     args.push("-stream_loop", "-1", "-i", musicFile);
@@ -401,7 +368,6 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   // ── Input index mapping ───────────────────────────────────────────────────
   let nextInputIdx = sceneCount;
   const logoIdx = logoFile ? nextInputIdx++ : null;
-  const narrationIdx = narrationFile ? nextInputIdx++ : null;
   const musicIdx = musicFile ? nextInputIdx++ : null;
 
   // ── Build filter_complex ──────────────────────────────────────────────────
@@ -476,48 +442,57 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
     filters.push(`[${videoLabel}]copy[vout]`);
   }
 
-  // Step 5: Audio mixing
+  // Step 5: Audio mixing (Kling v2.6 Native Audio)
   //
-  // Design notes:
-  //  • aresample=44100 normalises every input before any processing — avoids
-  //    FFmpeg silently dropping a stream when sample rates differ.
-  //  • apad=whole_dur=X pads narration to the full video length so
-  //    amix=duration=first always sees a complete-length "first" stream.
-  //  • amix=duration=first on the padded narration caps output to video length.
-  //  • atrim+asetpts on the amix output is a safety cap in case apad overshoots.
-  //  • -shortest flag (added to output args below) stops audio once video ends.
+  // Primary path (clipsHaveAudio=true): extract audio from each Kling clip,
+  // crossfade between scenes using acrossfade (mirrors video xfade timing),
+  // then mix the optional music bed underneath at low volume.
+  //
+  // Fallback path (clipsHaveAudio=false, e.g. legacy v2.5 clips): use music only.
   const durStr = totalOutputDuration.toFixed(3);
-  if (narrationIdx !== null && musicIdx !== null) {
-    // Narration (full volume, padded to video length) + music (ducked to 15%)
-    filters.push(
-      `[${narrationIdx}:a]aresample=44100,volume=1.0,apad=whole_dur=${durStr}[narr]`,
-    );
-    filters.push(
-      `[${musicIdx}:a]aresample=44100,volume=0.15[mus]`,
-    );
-    filters.push(
-      `[narr][mus]amix=inputs=2:duration=first:normalize=0,atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`,
-    );
-  } else if (narrationIdx !== null) {
-    filters.push(
-      `[${narrationIdx}:a]aresample=44100,volume=1.0,apad=whole_dur=${durStr},atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`,
-    );
+  const trimStr2 = sceneDuration.toFixed(3);
+
+  if (clipsHaveAudio) {
+    // Extract + resample audio from each clip
+    for (let i = 0; i < sceneCount; i++) {
+      filters.push(
+        `[${i}:a]aresample=44100,atrim=0:${trimStr2},asetpts=PTS-STARTPTS[a${i}]`,
+      );
+    }
+
+    // Acrossfade chain — transitions match video xfade duration
+    if (sceneCount === 1) {
+      filters.push(`[a0]copy[acat]`);
+    } else {
+      let prevLabel = "a0";
+      for (let i = 1; i < sceneCount; i++) {
+        const outLabel = i === sceneCount - 1 ? "acat" : `ac${i}`;
+        filters.push(
+          `[${prevLabel}][a${i}]acrossfade=d=${transitionDuration.toFixed(3)}:c1=tri:c2=tri[${outLabel}]`,
+        );
+        prevLabel = outLabel;
+      }
+    }
+
+    // Mix with music bed (low volume) if available, otherwise use clip audio directly
+    if (musicIdx !== null) {
+      filters.push(`[acat]volume=0.88[aklng]`);
+      filters.push(`[${musicIdx}:a]aresample=44100,volume=0.12,apad=whole_dur=${durStr}[mus]`);
+      filters.push(
+        `[aklng][mus]amix=inputs=2:duration=first:normalize=0,atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`,
+      );
+    } else {
+      filters.push(`[acat]volume=0.88,atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`);
+    }
   } else if (musicIdx !== null) {
+    // Fallback: no clip audio — music only
     filters.push(
       `[${musicIdx}:a]aresample=44100,volume=0.85,atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`,
     );
   } else {
-    // No external audio — use original audio from each Kling scene clip.
-    // Each scene clip is trimmed to sceneDuration seconds before aconcat.
-    for (let i = 0; i < sceneCount; i++) {
-      filters.push(
-        `[${i}:a]atrim=0:${sceneDuration.toFixed(3)},asetpts=PTS-STARTPTS[a${i}]`,
-      );
-    }
-    const audioLabels = Array.from({ length: sceneCount }, (_, i) => `[a${i}]`).join("");
+    // No audio at all — generate silence so FFmpeg doesn't fail the -map [aout]
     filters.push(
-      `${audioLabels}aconcat=n=${sceneCount}:v=0:a=1,` +
-      `volume=0.9,atrim=end=${durStr},asetpts=PTS-STARTPTS[aout]`,
+      `anullsrc=r=44100:cl=stereo,atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`,
     );
   }
 
@@ -552,7 +527,7 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   args.push(outputPath);
 
   logger.info(
-    { filterCount: filters.length, inputCount: sceneCount + (logoFile ? 1 : 0) + (narrationFile ? 1 : 0) + (musicFile ? 1 : 0) },
+    { filterCount: filters.length, inputCount: sceneCount + (logoFile ? 1 : 0) + (musicFile ? 1 : 0), clipsHaveAudio },
     "[Assembler] Launching FFmpeg",
   );
 
@@ -767,6 +742,26 @@ function runFFmpeg(args: string[]): Promise<void> {
       clearTimeout(timer);
       reject(new Error(`FFmpeg spawn error: ${err.message}`));
     });
+  });
+}
+
+// ── Audio stream probe ────────────────────────────────────────────────────────
+// Runs ffprobe on a file and returns true if it contains at least one audio stream.
+// Used to detect whether Kling v2.6 Native Audio generated audio in each clip.
+
+function probeHasAudio(filePath: string): Promise<boolean> {
+  return new Promise(resolve => {
+    const proc = spawn("ffprobe", [
+      "-v", "error",
+      "-select_streams", "a:0",
+      "-show_entries", "stream=codec_type",
+      "-of", "csv=p=0",
+      filePath,
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    proc.stdout?.on("data", (d: Buffer) => { out += d.toString(); });
+    proc.on("close", () => resolve(out.trim().startsWith("audio")));
+    proc.on("error", () => resolve(false));
   });
 }
 

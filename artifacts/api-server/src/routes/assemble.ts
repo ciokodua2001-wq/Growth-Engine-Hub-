@@ -3,8 +3,7 @@
  *
  * POST /projects/:id/videos/:videoId/assemble
  *   Accepts: { outputFormats, transitionType, transitionDuration, logoUrl,
- *              logoPosition, logoOpacity, backgroundMusicUrl, narrationUrl,
- *              captionsEnabled }
+ *              logoPosition, logoOpacity, backgroundMusicUrl, captionsEnabled }
  *   Returns: { assemblyIds, assemblies[] }
  *
  *   Deduplication: if a "complete" assembly already exists for a requested format
@@ -167,14 +166,12 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
     logoPosition: logoPosition as AssemblyOptions["logoPosition"],
     logoOpacity,
     backgroundMusicUrl: typeof body.backgroundMusicUrl === "string" ? body.backgroundMusicUrl : undefined,
-    narrationUrl: typeof body.narrationUrl === "string" ? body.narrationUrl : undefined,
     captionsEnabled: body.captionsEnabled !== false,
   };
 
   // ── Options fingerprint — used for assembly deduplication ──────────────────
-  // We fingerprint the options that materially affect the output file.
-  // Dynamic URLs (logoUrl, narrationUrl, musicUrl) are intentionally excluded
-  // because they are signed URLs that change per-request even for the same asset.
+  // Dynamic URLs (logoUrl, musicUrl) are intentionally excluded — they are signed
+  // URLs that change per-request even for the same asset.
   const optionsFingerprint = createHash("sha256")
     .update(JSON.stringify({
       transitionType: options.transitionType,
@@ -183,7 +180,6 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
       logoOpacity: options.logoOpacity,
       captionsEnabled: options.captionsEnabled,
       hasLogo: !!options.logoUrl,
-      hasNarration: !!options.narrationUrl,
       hasMusic: !!options.backgroundMusicUrl,
     }))
     .digest("hex");
@@ -339,7 +335,6 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
       transitionDuration,
       captionsEnabled: options.captionsEnabled,
       hasLogo: !!options.logoUrl,
-      hasNarration: !!options.narrationUrl,
       hasMusic: !!options.backgroundMusicUrl,
     },
   });

@@ -30,6 +30,10 @@ export const klingSceneJobsTable = pgTable("kling_scene_jobs", {
   brandStyle: text("brand_style"),         // brand visual elements
   marketingObjective: text("marketing_objective"), // what this scene achieves
 
+  // ── Audio direction fields (v2.6 Native Audio) ───────────────────────────
+  narrationLine: text("narration_line"),  // spoken line for this scene (business-specific)
+  audioMood: text("audio_mood"),          // ambient + music style description
+
   // ── Kling render fields ───────────────────────────────────────────────────
   prompt: text("prompt").notNull(),
   klingTaskId: text("kling_task_id"),
