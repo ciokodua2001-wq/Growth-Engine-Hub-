@@ -144,25 +144,31 @@ function SceneTile({
   const isFailed = scene.status === "failed";
   const isPending = scene.status === "pending";
   const isRetrying = retrying === scene.id;
-  const isRetryCapped = isFailed && scene.retryCount >= MAX_SCENE_RETRIES;
+  // Only surface the "truly failed" state after several full retry cycles.
+  // Below this threshold the tile looks like it's still filming — the system
+  // is auto-retrying silently and the user doesn't need to know.
+  const AUTO_HIDE_THRESHOLD = 3;
+  const showAsActive = isFailed && scene.retryCount < AUTO_HIDE_THRESHOLD;
+  const showAsFailed = isFailed && scene.retryCount >= AUTO_HIDE_THRESHOLD;
+  const isRetryCapped = showAsFailed && scene.retryCount >= MAX_SCENE_RETRIES;
 
   return (
     <div className={`relative rounded-xl border p-2.5 transition-all duration-500 ${
-      isSuccess  ? "border-[#00E676]/30 bg-[#00E676]/6"
-      : isFailed  ? "border-red-500/30 bg-red-500/6"
-      : isActive  ? "border-[#00D4FF]/25 bg-[#00D4FF]/5"
+      isSuccess   ? "border-[#00E676]/30 bg-[#00E676]/6"
+      : showAsFailed ? "border-red-500/30 bg-red-500/6"
+      : (isActive || showAsActive) ? "border-[#00D4FF]/25 bg-[#00D4FF]/5"
       : "border-white/6 bg-white/2"
     }`}>
       {/* Status icon */}
       <div className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto mb-1.5 ${
         isSuccess ? "bg-[#00E676] text-black"
-        : isFailed ? "bg-red-500/20 border border-red-500/40"
-        : isActive ? "bg-[#00D4FF]/15 border border-[#00D4FF]/30"
+        : showAsFailed ? "bg-red-500/20 border border-red-500/40"
+        : (isActive || showAsActive) ? "bg-[#00D4FF]/15 border border-[#00D4FF]/30"
         : "bg-white/5 border border-white/10"
       }`}>
         {isSuccess ? <Check className="w-3 h-3" />
-          : isFailed ? <X className="w-2.5 h-2.5 text-red-400" />
-          : isActive ? (
+          : showAsFailed ? <X className="w-2.5 h-2.5 text-red-400" />
+          : (isActive || showAsActive) ? (
             <motion.div
               className="w-1.5 h-1.5 rounded-full bg-[#00D4FF]"
               animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
@@ -173,18 +179,21 @@ function SceneTile({
 
       {/* Label */}
       <p className={`text-[9px] font-semibold text-center truncate ${
-        isSuccess ? "text-[#00E676]" : isFailed ? "text-red-400" : isActive ? "text-[#00D4FF]" : "text-white/30"
+        isSuccess ? "text-[#00E676]"
+        : showAsFailed ? "text-red-400"
+        : (isActive || showAsActive) ? "text-[#00D4FF]"
+        : "text-white/30"
       }`}>
         {name.split(" — ")[1] ?? name}
       </p>
 
-      {/* Retry count badge */}
-      {scene.retryCount > 0 && !isFailed && (
+      {/* Retry count badge (only when truly active and has been retried) */}
+      {scene.retryCount > 0 && (isActive || showAsActive) && (
         <p className="text-[8px] text-white/25 text-center mt-0.5">retry #{scene.retryCount}</p>
       )}
 
-      {/* Retry button */}
-      {isFailed && (
+      {/* Manual retry button — only shown after auto-retries are exhausted */}
+      {showAsFailed && (
         isRetryCapped ? (
           <p className="mt-1.5 text-[8px] text-red-400/60 text-center">Limit reached</p>
         ) : (
@@ -247,6 +256,9 @@ export default function CommercialProductionProgress({ video, projectId, caption
   const musicUrlRef = useRef<string | null>(null); // keeps startAssembly closure fresh
   const startedRef = useRef(false);
   const mountedRef = useRef(true);
+  // Tracks scene IDs we've already auto-triggered a client-side retry for,
+  // so we don't fire multiple retries from successive poll ticks.
+  const autoRetriedRef = useRef<Set<number>>(new Set());
 
   type OutputFormat = "landscape" | "square" | "vertical";
   const [selectedFormats, setSelectedFormats] = useState<OutputFormat[]>(["landscape"]);
@@ -311,6 +323,32 @@ export default function CommercialProductionProgress({ video, projectId, caption
 
         setScenes(data.scenes);
 
+        // ── Client-side auto-retry ──────────────────────────────────────────
+        // When a scene lands in "failed" status (server auto-retries exhausted),
+        // silently trigger another retry from the client without showing any
+        // failure UI to the user. Each auto-retry on the server runs 4 Kling
+        // attempts internally, so this gives another full retry cycle.
+        // We track which scene IDs we've already triggered so we don't fire
+        // duplicate retries on successive poll ticks.
+        for (const scene of data.scenes) {
+          if (
+            scene.status === "failed" &&
+            scene.retryCount < MAX_SCENE_RETRIES &&
+            !autoRetriedRef.current.has(scene.id)
+          ) {
+            autoRetriedRef.current.add(scene.id);
+            // Optimistically flip to "pending" so the tile stays blue (no red flash)
+            setScenes(prev => prev.map(s =>
+              s.id === scene.id ? { ...s, status: "pending" as const } : s,
+            ));
+            // Fire and forget — errors are non-fatal (next poll will catch it)
+            fetch(`${apiBase}/scenes/${scene.id}/retry`, { method: "POST" }).catch(() => {
+              // Re-allow retry next cycle if the request itself failed
+              autoRetriedRef.current.delete(scene.id);
+            });
+          }
+        }
+
         // Update the active scene stage label
         const activeScene = data.scenes.find(
           s => s.status === "submitted" || s.status === "processing",
@@ -339,9 +377,6 @@ export default function CommercialProductionProgress({ video, projectId, caption
           await startAssembly();
           return;
         }
-
-        // Any scene failed (but not all — per-scene retry keeps others running)
-        // We stay in scenes phase and let the user retry
       } catch (err) {
         if (!mountedRef.current) return;
         // Non-fatal — just keep polling
@@ -571,7 +606,11 @@ export default function CommercialProductionProgress({ video, projectId, caption
   const assemblyNotStarted = phase !== "assembling" && phase !== "complete";
   const etaMinutes = remainingScenes * SCENE_ETA_MINUTES + (assemblyNotStarted ? ASSEMBLY_ETA_MINUTES : phase === "assembling" ? 3 : 0);
 
-  const hasFailedScene = scenes.some(s => s.status === "failed");
+  // Only surface the "needs attention" banner when a scene is truly stuck —
+  // i.e. failed AND has exhausted enough auto-retry cycles (retryCount ≥ 3).
+  // Below that threshold, the client is silently retrying and the user
+  // should never see a failure state.
+  const hasFailedScene = scenes.some(s => s.status === "failed" && s.retryCount >= 3);
   const allScenesSucceeded = scenes.length > 0 && scenes.every(s => s.status === "succeed");
   const activeSceneCount = scenes.filter(s => s.status === "submitted" || s.status === "processing").length;
 
