@@ -630,18 +630,13 @@ export default function CommercialProductionProgress({ video, projectId, caption
                       <button
                         key={key}
                         onClick={() => {
-                          setSelectedFormats(prev => {
-                            const next = prev.includes(key)
-                              ? prev.length > 1 ? prev.filter(f => f !== key) : prev
-                              : [...prev, key];
-                            selectedFormatsRef.current = next;
-                            return next;
-                          });
+                          setSelectedFormats([key]);
+                          selectedFormatsRef.current = [key];
                         }}
                         className={`flex-1 flex flex-col items-center gap-1.5 py-2.5 rounded-lg border transition-all ${
                           active
-                            ? "border-[#00E676]/40 bg-[#00E676]/8 text-[#00E676]"
-                            : "border-white/10 bg-white/2 text-white/35 hover:border-white/20 hover:text-white/55"
+                            ? "border-[#00E676]/50 bg-[#00E676]/10 text-[#00E676] ring-1 ring-[#00E676]/30"
+                            : "border-white/8 bg-white/2 text-white/25 hover:border-white/18 hover:text-white/45 cursor-pointer"
                         }`}
                       >
                         <div
