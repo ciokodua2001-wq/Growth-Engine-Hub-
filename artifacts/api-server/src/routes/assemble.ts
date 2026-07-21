@@ -41,6 +41,22 @@ import pino from "pino";
 const router = Router();
 const logger = pino({ name: "assemble.route" });
 
+// Re-sign a GCS signed URL with a fresh 24-hour TTL.
+// Both scene videos (4-hour TTL) and assembled videos (24-hour TTL) can expire.
+async function refreshAssemblyUrl(storedUrl: string): Promise<string> {
+  if (!storedUrl.startsWith("https://storage.googleapis.com/")) return storedUrl;
+  try {
+    const u = new URL(storedUrl);
+    const parts = u.pathname.split("/").filter(Boolean);
+    if (parts.length < 2) return storedUrl;
+    const bucketName = parts[0]!;
+    const objectName = parts.slice(1).join("/");
+    return await signObjectURL({ bucketName, objectName, method: "GET", ttlSec: 86_400 });
+  } catch {
+    return storedUrl;
+  }
+}
+
 const VALID_FORMATS: OutputFormat[] = ["landscape", "square", "vertical"];
 const VALID_TRANSITIONS = ["fade", "dissolve", "wipeleft", "wiperight", "slideup", "slidedown"];
 const VALID_POSITIONS = ["br", "bl", "tr", "tl"];
@@ -342,15 +358,22 @@ router.get("/projects/:id/videos/:videoId/assemblies", async (req, res) => {
     .where(eq(commercialAssembliesTable.videoId, videoId))
     .orderBy(commercialAssembliesTable.createdAt);
 
-  const statusCounts = assemblies.reduce(
-    (acc, a) => { acc[a.status] = (acc[a.status] ?? 0) + 1; return acc; },
-    {} as Record<string, number>,
-  );
+  // Compute overall status based on the LATEST assembly per format.
+  // Earlier failed/cancelled rows from prior attempts are superseded and must
+  // not drag the status back to "partial" when a later assembly succeeded.
+  const latestByFormat = new Map<string, typeof assemblies[0]>();
+  for (const a of assemblies) {
+    const cur = latestByFormat.get(a.outputFormat);
+    if (!cur || (a.createdAt ?? 0) >= (cur.createdAt ?? 0)) {
+      latestByFormat.set(a.outputFormat, a);
+    }
+  }
+  const relevant = [...latestByFormat.values()];
 
-  const total = assemblies.length;
-  const complete = statusCounts["complete"] ?? 0;
-  const failed = statusCounts["failed"] ?? 0;
-  const processing = (statusCounts["pending"] ?? 0) + (statusCounts["processing"] ?? 0);
+  const total = relevant.length;
+  const complete = relevant.filter(a => a.status === "complete").length;
+  const failed   = relevant.filter(a => a.status === "failed").length;
+  const processing = relevant.filter(a => a.status === "pending" || a.status === "processing").length;
 
   let overallStatus: "idle" | "processing" | "complete" | "partial" | "failed";
   if (total === 0) overallStatus = "idle";
@@ -358,6 +381,17 @@ router.get("/projects/:id/videos/:videoId/assemblies", async (req, res) => {
   else if (failed === total) overallStatus = "failed";
   else if (complete === total) overallStatus = "complete";
   else overallStatus = "partial";
+
+  // Re-sign any GCS videoUrls that may have expired (24-hour TTL).
+  // Run all refreshes in parallel so it doesn't add latency per-assembly.
+  const refreshedAssemblies = await Promise.all(
+    assemblies.map(async a => {
+      if (a.status === "complete" && a.videoUrl) {
+        return { ...a, videoUrl: await refreshAssemblyUrl(a.videoUrl) };
+      }
+      return a;
+    }),
+  );
 
   res.json({
     videoId,
@@ -369,7 +403,7 @@ router.get("/projects/:id/videos/:videoId/assemblies", async (req, res) => {
       failed,
       percentComplete: total > 0 ? Math.round((complete / total) * 100) : 0,
     },
-    assemblies: assemblies.map(formatAssembly),
+    assemblies: refreshedAssemblies.map(formatAssembly),
   });
 });
 
