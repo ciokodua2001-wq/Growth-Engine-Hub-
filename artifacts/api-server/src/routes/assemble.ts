@@ -226,12 +226,26 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
     );
   }
 
-  // If ALL formats are cached, skip FFmpeg entirely
+  // If ALL formats are cached, skip FFmpeg entirely — but still cancel any
+  // stuck pending/processing rows for this video so the polling status is clean.
   if (formatsNeedingRender.length === 0) {
     logger.info(
       { videoId, formats: requestedFormats },
       "[assemble] All formats already assembled with same options — returning cached",
     );
+    await db
+      .update(commercialAssembliesTable)
+      .set({
+        status: "cancelled",
+        errorMessage: "Superseded by a completed assembly.",
+        updatedAt: new Date(),
+      } as unknown as typeof commercialAssembliesTable.$inferInsert)
+      .where(
+        and(
+          eq(commercialAssembliesTable.videoId, videoId),
+          inArray(commercialAssembliesTable.status, ["pending", "processing"]),
+        ),
+      );
     res.status(200).json({
       message: "Assemblies already complete — returning cached results",
       videoId,

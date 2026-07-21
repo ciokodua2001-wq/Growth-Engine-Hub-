@@ -9,7 +9,7 @@ import { startRenderMonitor } from "./lib/renderMonitor.js";
 import { checkEncryptionKey, isEncryptedFormat, decryptToken } from "./lib/tokenCrypto.js";
 import { db } from "@workspace/db";
 import { metaConnectionsTable, commercialAssembliesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 // Startup key check — surface missing/invalid TOKEN_ENCRYPTION_KEY before any user
 // hits a publish failure.  We check the dedicated key specifically (not the
@@ -107,8 +107,9 @@ async function initStripe(): Promise<void> {
 
 async function recoverStuckAssemblies(): Promise<void> {
   try {
-    // Any row still "processing" at startup is definitively orphaned — FFmpeg
-    // cannot survive a process restart. Reset ALL of them immediately, no age threshold.
+    // Any row still "pending" or "processing" at startup is definitively orphaned —
+    // FFmpeg cannot survive a process restart, and a "pending" row whose fire-and-forget
+    // never ran also dies with the process. Reset ALL of them, no age threshold.
     const result = await db
       .update(commercialAssembliesTable)
       .set({
@@ -116,7 +117,7 @@ async function recoverStuckAssemblies(): Promise<void> {
         errorMessage: "Assembly was interrupted by a server restart. Click 'Retry Assembly' to re-stitch your scenes.",
         updatedAt: new Date(),
       })
-      .where(eq(commercialAssembliesTable.status, "processing"))
+      .where(inArray(commercialAssembliesTable.status, ["pending", "processing"]))
       .returning({ id: commercialAssembliesTable.id });
     if (result.length > 0) {
       logger.warn({ count: result.length }, "Startup recovery: reset stuck assemblies to failed");

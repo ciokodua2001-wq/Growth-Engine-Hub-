@@ -741,7 +741,7 @@ export default function CommercialProductionProgress({ video, projectId, caption
                   setError(null);
                   setAssemblies([]);
                   setPhase("assembling");
-                  void startAssembly();
+                  void startAssembly(true);
                 }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-[#00D4FF]/15 hover:bg-[#00D4FF]/25 text-[#00D4FF] border border-[#00D4FF]/25 transition-colors"
               >
