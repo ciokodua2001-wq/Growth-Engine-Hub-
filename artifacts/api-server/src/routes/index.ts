@@ -26,6 +26,8 @@ import scenesRouter from "./scenes.js";
 import assembleRouter from "./assemble.js";
 import narrationRouter from "./narration.js";
 import renderAdminRouter from "./renderAdmin.js";
+import videoWalletRouter from "./video-wallet.js";
+import adminVideoRouter from "./admin-video.js";
 
 const router: IRouter = Router();
 
@@ -56,5 +58,7 @@ router.use(scenesRouter);
 router.use(assembleRouter);
 router.use(narrationRouter);
 router.use(renderAdminRouter);
+router.use(videoWalletRouter);
+router.use(adminVideoRouter);
 
 export default router;

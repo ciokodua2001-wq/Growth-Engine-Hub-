@@ -3,10 +3,11 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { db } from "@workspace/db";
-import { videosTable } from "@workspace/db";
+import { videosTable, projectsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import pino from "pino";
 import { deductPlatformCredits } from "./platformCredits.js";
+import { deductVideoSeconds } from "./videoWallet.js";
 
 const FFMPEG_BIN = "ffmpeg";
 
@@ -141,6 +142,13 @@ async function runRenderPipeline(
   const [video] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
   if (!video) throw new Error(`Video ${videoId} not found`);
 
+  // Resolve the project owner for wallet deduction after successful render
+  const [project] = await db
+    .select({ ownerId: projectsTable.ownerId })
+    .from(projectsTable)
+    .where(eq(projectsTable.id, video.projectId));
+  const ownerUserId = project?.ownerId ?? null;
+
   await db.update(videosTable).set({
     renderStatus: "processing",
     renderResolution: resolution,
@@ -228,6 +236,19 @@ async function runRenderPipeline(
     videoUrl: finalUrl,
     renderCompletedAt: new Date(),
   }).where(eq(videosTable.id, videoId));
+
+  // Deduct video seconds from the owner's wallet on successful render
+  if (ownerUserId) {
+    deductVideoSeconds(
+      ownerUserId,
+      duration,
+      videoId,
+      video.projectId,
+      `Video render completed — "${video.title}"`,
+    ).catch((err) => {
+      logger.error({ err, ownerUserId, videoId, duration }, "Failed to deduct video seconds after render");
+    });
+  }
 }
 
 // ── ElevenLabs TTS ────────────────────────────────────────────────────────────

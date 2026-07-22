@@ -4,8 +4,168 @@ import {
   RefreshCw, ExternalLink, CheckCircle, XCircle, AlertTriangle,
   Minus, ArrowUpCircle, ArrowDownCircle, ChevronDown, ChevronUp,
   Plus, Settings, BarChart2, Video, Clock, DollarSign, Zap, CreditCard,
+  Film, TrendingUp, Users, ShoppingCart,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/admin-layout";
+
+/* ─── Video analytics types ──────────────────────────────────── */
+interface VideoAnalyticsData {
+  walletStats: {
+    totalUsers: number;
+    totalMonthlyAlloc: number;
+    totalMonthlyUsed: number;
+    totalPurchasedRemaining: number;
+    totalPurchasedEver: number;
+    totalRenderedEver: number;
+  };
+  planBreakdown: Array<{
+    plan: string;
+    userCount: number;
+    totalMonthlyAlloc: number;
+    totalMonthlyUsed: number;
+    totalPurchased: number;
+  }>;
+  last30Days: {
+    purchases: { totalSeconds: number; totalUsdPaid: number; purchaseCount: number };
+    renders: { totalSeconds: number; renderCount: number };
+  };
+  economics: {
+    klingCostPerSecond: number;
+    retailPerSecond: number;
+    platformCost: number;
+    totalRevenueEver: number;
+    estimatedMarginPct: number | null;
+  };
+}
+
+function fmtSec(s: number | null | undefined): string {
+  const n = Number(s ?? 0);
+  if (n >= 3600) return `${(n / 3600).toFixed(1)}h`;
+  if (n >= 60)   return `${(n / 60).toFixed(1)}m`;
+  return `${n}s`;
+}
+
+function fmtUsdSimple(v: number | null | undefined, digits = 2): string {
+  return `$${Number(v ?? 0).toFixed(digits)}`;
+}
+
+/* ─── Video analytics section ────────────────────────────────── */
+function VideoAnalyticsSection() {
+  const [open, setOpen] = useState(false);
+
+  const { data, isLoading, error } = useQuery<VideoAnalyticsData>({
+    queryKey: ["admin-video-analytics"],
+    queryFn: async () => {
+      const r = await fetch("/api/admin/video-analytics");
+      if (!r.ok) throw new Error("Failed to load video analytics");
+      return r.json() as Promise<VideoAnalyticsData>;
+    },
+    enabled: open,
+  });
+
+  const ws = data?.walletStats;
+  const eco = data?.economics;
+  const l30 = data?.last30Days;
+
+  return (
+    <div className="rounded-2xl border border-[#00D4FF]/15 overflow-hidden"
+      style={{ background: "rgba(0,212,255,0.03)" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full px-5 py-4 flex items-center justify-between gap-3 hover:bg-white/2 transition-colors">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+            style={{ background: "rgba(0,212,255,0.12)", border: "1px solid rgba(0,212,255,0.2)" }}>
+            <Film className="w-4 h-4 text-[#00D4FF]" />
+          </div>
+          <div className="text-left">
+            <div className="text-sm font-bold text-white">Video Credit Economy</div>
+            <div className="text-xs text-white/40">Platform-wide wallet stats and revenue</div>
+          </div>
+        </div>
+        {open ? <ChevronUp className="w-4 h-4 text-white/30" /> : <ChevronDown className="w-4 h-4 text-white/30" />}
+      </button>
+
+      {open && (
+        <div className="px-5 pb-5 space-y-5 border-t border-white/6">
+          {isLoading && (
+            <div className="flex items-center justify-center py-8 gap-2 text-white/30">
+              <RefreshCw className="w-4 h-4 animate-spin" /> Loading analytics…
+            </div>
+          )}
+          {error && <p className="text-red-400 text-sm py-4 text-center">Could not load video analytics.</p>}
+
+          {data && (
+            <>
+              {/* KPI row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4">
+                {[
+                  { icon: <Users className="w-3.5 h-3.5" />, label: "Wallets", value: String(Number(ws?.totalUsers ?? 0)), color: "#00D4FF" },
+                  { icon: <Film className="w-3.5 h-3.5" />, label: "Rendered (all time)", value: fmtSec(ws?.totalRenderedEver), color: "#00E676" },
+                  { icon: <ShoppingCart className="w-3.5 h-3.5" />, label: "Purchased (30d)", value: fmtSec(l30?.purchases.totalSeconds), color: "#14F195" },
+                  { icon: <TrendingUp className="w-3.5 h-3.5" />, label: "Revenue (30d)", value: fmtUsdSimple(l30?.purchases.totalUsdPaid), color: "#00E676" },
+                ].map(({ icon, label, value, color }) => (
+                  <div key={label} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)" }}>
+                    <div className="flex items-center gap-1.5 mb-1.5" style={{ color }}>
+                      {icon}
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">{label}</span>
+                    </div>
+                    <div className="text-white font-black text-xl">{value}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Economics */}
+              <div className="rounded-xl p-4 space-y-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-3">Economics</p>
+                {[
+                  ["Kling cost / second", fmtUsdSimple(eco?.klingCostPerSecond, 4)],
+                  ["Retail price / second", fmtUsdSimple(eco?.retailPerSecond, 2)],
+                  ["Total Kling cost (all time)", fmtUsdSimple(eco?.platformCost, 2)],
+                  ["Total credit revenue (all time)", fmtUsdSimple(eco?.totalRevenueEver, 2)],
+                  ["Estimated margin", eco?.estimatedMarginPct != null ? `${eco.estimatedMarginPct}%` : "—"],
+                ].map(([label, val]) => (
+                  <div key={label} className="flex items-center justify-between text-sm">
+                    <span className="text-white/40">{label}</span>
+                    <span className="text-white font-semibold font-mono">{val}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Plan breakdown */}
+              {(data.planBreakdown?.length ?? 0) > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Usage by Plan</p>
+                  {data.planBreakdown.map(pb => {
+                    const pct = Number(pb.totalMonthlyAlloc) > 0
+                      ? Math.round((Number(pb.totalMonthlyUsed) / Number(pb.totalMonthlyAlloc)) * 100)
+                      : 0;
+                    return (
+                      <div key={pb.plan} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)" }}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-bold text-white capitalize">{pb.plan}</span>
+                          <span className="text-xs text-white/40">{Number(pb.userCount)} users</span>
+                        </div>
+                        <div className="h-1 rounded-full bg-white/8 overflow-hidden mb-1">
+                          <div className="h-full rounded-full bg-[#00E676]" style={{ width: `${Math.min(pct, 100)}%` }} />
+                        </div>
+                        <div className="flex gap-4 text-[10px] text-white/30">
+                          <span>Used {fmtSec(pb.totalMonthlyUsed)} / {fmtSec(pb.totalMonthlyAlloc)}</span>
+                          <span>{pct}%</span>
+                          <span>Purchased: {fmtSec(pb.totalPurchased)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -824,6 +984,8 @@ export default function AdminCredits() {
             )}
           </div>
         )}
+
+        <VideoAnalyticsSection />
 
         <div className="rounded-2xl border border-white/8 p-5 space-y-2" style={{ background: "rgba(255,255,255,0.02)" }}>
           <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-3">How each provider is tracked</p>

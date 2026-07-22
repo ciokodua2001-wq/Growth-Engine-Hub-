@@ -8,13 +8,13 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
+import { getBundleBySeconds, CREDIT_BUNDLES } from "../lib/videoConfig.js";
 
 const router = Router();
 
 /**
  * GET /stripe/products
- * Public — returns all active products with their monthly prices.
- * Used by the /plans page to map plan slugs → Stripe price IDs.
+ * Public — returns all active subscription products with their monthly prices.
  */
 router.get("/stripe/products", async (_req, res) => {
   try {
@@ -43,7 +43,7 @@ router.get("/stripe/products", async (_req, res) => {
     const map = new Map<string, ProductEntry>();
     for (const product of productsPage.data) {
       const meta = product.metadata as Record<string, string> | null;
-      if (!meta?.plan) continue; // skip non-GrowthForge products
+      if (!meta?.plan) continue;
       const productPrices = (pricesByProduct.get(product.id) ?? [])
         .filter((p) => p.recurring?.interval === "month")
         .map((p) => ({
@@ -70,8 +70,7 @@ router.get("/stripe/products", async (_req, res) => {
 
 /**
  * POST /stripe/checkout
- * Auth required. Creates a Stripe Checkout session for the given price ID.
- * Returns { url } — the client redirects the browser there.
+ * Auth required. Creates a Stripe Checkout session for a subscription price ID.
  */
 router.post("/stripe/checkout", async (req, res) => {
   const userId = requireUserId(req, res);
@@ -91,7 +90,7 @@ router.post("/stripe/checkout", async (req, res) => {
     }
 
     const claims = getAuth(req).sessionClaims as Record<string, unknown> | null;
-    const email =
+    const email  =
       user.email ??
       (claims?.email as string | undefined) ??
       (claims?.primary_email_address as string | undefined) ??
@@ -99,9 +98,8 @@ router.post("/stripe/checkout", async (req, res) => {
 
     const customerId = await stripeService.findOrCreateCustomer(userId, email);
 
-    const domain =
-      process.env.REPLIT_DOMAINS?.split(",")[0] ?? req.get("host") ?? "localhost";
-    const base = `https://${domain}`;
+    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? req.get("host") ?? "localhost";
+    const base   = `https://${domain}`;
 
     const session = await stripeService.createCheckoutSession(
       customerId,
@@ -118,9 +116,86 @@ router.post("/stripe/checkout", async (req, res) => {
 });
 
 /**
+ * POST /stripe/checkout/video-credits
+ * Auth required. Creates a one-time Stripe Checkout session for video second bundles.
+ * Body: { seconds: 5 | 15 | 30 | 60 | 120 }
+ */
+router.post("/stripe/checkout/video-credits", async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  const { seconds } = req.body as { seconds?: number };
+  if (!seconds) {
+    res.status(400).json({ error: "seconds is required", availableBundles: CREDIT_BUNDLES });
+    return;
+  }
+
+  const bundle = getBundleBySeconds(seconds);
+  if (!bundle) {
+    res.status(400).json({
+      error:            "Invalid bundle size",
+      availableBundles: CREDIT_BUNDLES,
+    });
+    return;
+  }
+
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    const claims  = getAuth(req).sessionClaims as Record<string, unknown> | null;
+    const email   =
+      user.email ??
+      (claims?.email as string | undefined) ??
+      (claims?.primary_email_address as string | undefined) ??
+      "";
+
+    const customerId = await stripeService.findOrCreateCustomer(userId, email);
+    const stripe     = getUncachableStripeClient();
+
+    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? req.get("host") ?? "localhost";
+    const base   = `https://${domain}`;
+
+    const session = await stripe.checkout.sessions.create({
+      customer:             customerId,
+      payment_method_types: ["card"],
+      mode:                 "payment",
+      line_items: [
+        {
+          price_data: {
+            currency:    "usd",
+            unit_amount: Math.round(bundle.priceUsd * 100),
+            product_data: {
+              name:        `GrowthForge Video Credits — ${bundle.label}`,
+              description: `${bundle.seconds} seconds of AI video generation time`,
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        type:    "video_seconds",
+        userId,
+        seconds: String(bundle.seconds),
+        plan:    user.plan ?? "trial",
+      },
+      success_url: `${base}/videos?credits=success&seconds=${bundle.seconds}`,
+      cancel_url:  `${base}/videos?credits=cancelled`,
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    logger.error({ err }, "POST /stripe/checkout/video-credits failed");
+    res.status(500).json({ error: "Failed to create video credit checkout session" });
+  }
+});
+
+/**
  * POST /stripe/portal
- * Auth required. Creates a Stripe Customer Portal session so the user can
- * manage/cancel their subscription.
+ * Auth required. Creates a Stripe Customer Portal session.
  */
 router.post("/stripe/portal", async (req, res) => {
   const userId = requireUserId(req, res);
@@ -133,9 +208,8 @@ router.post("/stripe/portal", async (req, res) => {
       return;
     }
 
-    const domain =
-      process.env.REPLIT_DOMAINS?.split(",")[0] ?? req.get("host") ?? "localhost";
-    const portal = await stripeService.createPortalSession(
+    const domain  = process.env.REPLIT_DOMAINS?.split(",")[0] ?? req.get("host") ?? "localhost";
+    const portal  = await stripeService.createPortalSession(
       user.stripeCustomerId,
       `https://${domain}/plans`,
     );
@@ -148,7 +222,7 @@ router.post("/stripe/portal", async (req, res) => {
 
 /**
  * GET /stripe/subscription
- * Auth required. Returns the current user's plan + subscription info.
+ * Auth required. Returns current plan + subscription info.
  */
 router.get("/stripe/subscription", async (req, res) => {
   const userId = requireUserId(req, res);
@@ -165,11 +239,7 @@ router.get("/stripe/subscription", async (req, res) => {
       ? await stripeStorage.getSubscription(user.stripeSubscriptionId)
       : null;
 
-    res.json({
-      plan: user.plan,
-      status: user.subscriptionStatus,
-      subscription,
-    });
+    res.json({ plan: user.plan, status: user.subscriptionStatus, subscription });
   } catch (err) {
     logger.error({ err }, "GET /stripe/subscription failed");
     res.status(500).json({ error: "Failed to get subscription" });

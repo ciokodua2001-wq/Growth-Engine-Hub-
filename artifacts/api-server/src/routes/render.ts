@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { videosTable } from "@workspace/db";
+import { videosTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
 import { checkRenderRequirements, startVideoRender, type RenderResolution, type AspectRatio } from "../lib/videoRenderPipeline.js";
+import { checkVideoSeconds } from "../lib/videoWallet.js";
 
 const router = Router();
 
@@ -15,7 +16,7 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
   if (!userId) return;
 
   const projectId = parseInt(req.params.id, 10);
-  const videoId = parseInt(req.params.videoId, 10);
+  const videoId   = parseInt(req.params.videoId, 10);
 
   if (isNaN(projectId) || isNaN(videoId)) {
     res.status(400).json({ error: "Invalid project or video ID" });
@@ -23,8 +24,8 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
   }
 
   const {
-    resolution = "1080p",
-    aspectRatio = "16:9",
+    resolution     = "1080p",
+    aspectRatio    = "16:9",
     captionsEnabled = false,
   } = req.body as {
     resolution?: RenderResolution;
@@ -32,7 +33,7 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     captionsEnabled?: boolean;
   };
 
-  const validResolutions = ["1080p", "4k"];
+  const validResolutions  = ["1080p", "4k"];
   const validAspectRatios = ["16:9", "9:16", "1:1", "4:5"];
   if (!validResolutions.includes(resolution)) {
     res.status(400).json({ error: `resolution must be one of: ${validResolutions.join(", ")}` });
@@ -59,21 +60,43 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
   const { ready, missing } = checkRenderRequirements();
   if (!ready) {
     res.status(503).json({
-      error: "Video rendering is not yet configured",
+      error:   "Video rendering is not yet configured",
       missing,
       message: `Set the following environment variables to enable video rendering: ${missing.join(", ")}`,
     });
     return;
   }
 
+  // ── Video seconds wallet check ────────────────────────────────────────────
+  const [user] = await db
+    .select({ plan: usersTable.plan })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+
+  const plan            = user?.plan ?? "trial";
+  const requiredSeconds = video.duration ?? 60;
+
+  const { allowed, balance, message } = await checkVideoSeconds(userId, plan, requiredSeconds);
+  if (!allowed) {
+    res.status(402).json({
+      error:             "Insufficient video seconds",
+      message:           message ?? "You do not have enough video seconds to render this video.",
+      requiredSeconds,
+      remainingSeconds:  balance.totalRemaining,
+      monthlyRemaining:  balance.monthlySecondsRemaining,
+      purchasedRemaining: balance.purchasedSecondsRemaining,
+    });
+    return;
+  }
+
   await db.update(videosTable).set({
-    renderStatus: "queued",
-    renderResolution: resolution,
+    renderStatus:       "queued",
+    renderResolution:   resolution,
     aspectRatio,
     captionsEnabled,
-    renderError: null,
-    renderJobId: null,
-    renderCompletedAt: null,
+    renderError:        null,
+    renderJobId:        null,
+    renderCompletedAt:  null,
   }).where(eq(videosTable.id, videoId));
 
   startVideoRender(videoId, resolution, aspectRatio as AspectRatio, captionsEnabled);
@@ -88,7 +111,7 @@ router.get("/projects/:id/videos/:videoId/render", async (req, res) => {
   if (!userId) return;
 
   const projectId = parseInt(req.params.id, 10);
-  const videoId = parseInt(req.params.videoId, 10);
+  const videoId   = parseInt(req.params.videoId, 10);
 
   const [video] = await db.select().from(videosTable).where(
     and(eq(videosTable.id, videoId), eq(videosTable.projectId, projectId))
@@ -100,14 +123,14 @@ router.get("/projects/:id/videos/:videoId/render", async (req, res) => {
   }
 
   res.json({
-    videoId: video.id,
-    renderStatus: video.renderStatus,
-    renderResolution: video.renderResolution,
-    renderStartedAt: video.renderStartedAt,
+    videoId:           video.id,
+    renderStatus:      video.renderStatus,
+    renderResolution:  video.renderResolution,
+    renderStartedAt:   video.renderStartedAt,
     renderCompletedAt: video.renderCompletedAt,
-    renderError: video.renderError,
-    videoUrl: video.videoUrl,
-    voiceoverUrl: video.voiceoverUrl,
+    renderError:       video.renderError,
+    videoUrl:          video.videoUrl,
+    voiceoverUrl:      video.voiceoverUrl,
   });
 });
 
@@ -117,7 +140,7 @@ router.delete("/projects/:id/videos/:videoId/render", async (req, res) => {
   if (!userId) return;
 
   const projectId = parseInt(req.params.id, 10);
-  const videoId = parseInt(req.params.videoId, 10);
+  const videoId   = parseInt(req.params.videoId, 10);
 
   if (isNaN(projectId) || isNaN(videoId)) {
     res.status(400).json({ error: "Invalid project or video ID" });
@@ -138,8 +161,8 @@ router.delete("/projects/:id/videos/:videoId/render", async (req, res) => {
   }
 
   await db.update(videosTable).set({
-    renderStatus: "failed",
-    renderError: "Render was cancelled.",
+    renderStatus:      "failed",
+    renderError:       "Render was cancelled.",
     renderCompletedAt: new Date(),
   }).where(eq(videosTable.id, videoId));
 

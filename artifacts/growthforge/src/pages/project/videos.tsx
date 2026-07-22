@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 import CommercialProductionProgress from "@/components/ui/commercial-progress";
+import VideoWalletWidget from "@/components/video-wallet-widget";
 
 // ── Cinematic Plan types ──────────────────────────────────────────────────────
 type AspectRatio = "16:9" | "9:16" | "1:1" | "4:5";
@@ -1245,19 +1246,29 @@ export default function ProjectVideos() {
               <Lock className="h-4 w-4" /> Upgrade to Create
             </a>
           ) : (
-            <button
-              onClick={() => setModalOpen(true)}
-              className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-primary/20 self-end"
-            >
-              <Sparkles className="h-4 w-4" />
-              Create {blueprintCount} Commercial Brief{blueprintCount !== 1 ? "s" : ""}
-            </button>
+            <div className="flex items-center gap-2 self-end">
+              <VideoWalletWidget compact />
+              <button
+                onClick={() => setModalOpen(true)}
+                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-primary/20"
+              >
+                <Sparkles className="h-4 w-4" />
+                Create {blueprintCount} Commercial Brief{blueprintCount !== 1 ? "s" : ""}
+              </button>
+            </div>
           )}
         </div>
       </div>
 
       {/* ── Usage panel ── */}
       <UsagePanel projectId={projectId} plan={plan} />
+
+      {/* ── Video wallet (non-trial) ── */}
+      {!isTrial && (
+        <div className="mt-2 mb-6 max-w-sm">
+          <VideoWalletWidget />
+        </div>
+      )}
 
       {/* ── Blueprint library ── */}
       {isLoading ? (

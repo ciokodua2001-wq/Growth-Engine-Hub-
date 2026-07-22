@@ -1,0 +1,428 @@
+# REPLIT IMPLEMENTATION PROMPT
+# GrowthForge Video Studio Credit System, Kling Monitoring & Monetization
+
+Please implement the following as the new source of truth for GrowthForge's AI Video Studio.
+
+---
+
+## BUSINESS RULES
+
+GrowthForge uses Kling v2.6 Native Audio Pro exclusively for video generation.
+
+Verified provider economics:
+
+- 200 Kling Credits = $29
+- 1 Kling Credit = $0.145
+- Kling v2.6 Native Audio Pro consumes approximately 1 Kling Credit per generated second
+- Therefore:
+  - 5-second video = 5 credits
+  - 15-second video = 15 credits
+  - 30-second video = 30 credits
+  - 45-second video = 45 credits
+  - 60-second video = 60 credits
+
+GrowthForge will track video entitlements using SECONDS rather than video counts.
+
+---
+
+# PLAN ENTITLEMENTS
+
+Update all frontend pricing cards, plan descriptions, subscription limits, usage tracking, and backend entitlement logic.
+
+## Starter ($39/month)
+
+Monthly Video Allocation:
+45 seconds
+
+Display Text:
+"Up to 3 Promotional Videos / Month"
+
+---
+
+## Get-Going ($99/month)
+
+Monthly Video Allocation:
+120 seconds
+
+Display Text:
+"Up to 8 Promotional Videos / Month"
+
+---
+
+## Growth ($249/month)
+
+Monthly Video Allocation:
+300 seconds
+
+Display Text:
+"Up to 20 Promotional Videos / Month"
+
+---
+
+## Agency ($599/month)
+
+Monthly Video Allocation:
+720 seconds
+
+Display Text:
+"Up to 48 Promotional Videos / Month"
+
+---
+
+# CREDIT MODEL
+
+Video usage is tracked entirely in seconds.
+
+Examples:
+
+Generate 5-second video:
+Deduct 5 seconds
+
+Generate 15-second video:
+Deduct 15 seconds
+
+Generate 30-second video:
+Deduct 30 seconds
+
+Generate 60-second video:
+Deduct 60 seconds
+
+No entitlement calculations should be based on number of videos.
+
+Everything must use seconds.
+
+---
+
+# USER VIDEO WALLET
+
+Each user must have:
+
+monthly_video_seconds
+
+purchased_video_seconds
+
+video_seconds_used
+
+video_seconds_remaining
+
+---
+
+# CREDIT CONSUMPTION ORDER
+
+When a video is generated:
+
+1. Deduct from Monthly Included Seconds first
+2. Deduct from Purchased Seconds second
+
+Example:
+
+Monthly Remaining = 10
+Purchased Remaining = 50
+
+User generates 15-second video
+
+Result:
+
+10 seconds deducted from monthly allocation
+5 seconds deducted from purchased balance
+
+---
+
+# MONTHLY RESET LOGIC
+
+At subscription renewal:
+
+Starter:
+45 seconds
+
+Get-Going:
+120 seconds
+
+Growth:
+300 seconds
+
+Agency:
+720 seconds
+
+Reset only the monthly allocation.
+
+Do NOT reset purchased credits.
+
+Purchased credits must carry over indefinitely.
+
+---
+
+# VIDEO GENERATION PROCESS
+
+Before generation:
+
+1. Determine requested duration.
+2. Calculate required seconds.
+3. Verify available balance.
+4. If balance is insufficient:
+   - Block generation
+   - Prompt user to purchase additional credits
+
+After successful generation:
+
+1. Deduct actual generated seconds.
+2. Update user balances.
+3. Update admin metrics.
+4. Create permanent usage log.
+
+Failed generations:
+
+- Log failure
+- Do NOT deduct any credits
+
+---
+
+# USAGE LOGGING
+
+Every successful generation must create a permanent usage record.
+
+Track:
+
+- User ID
+- Project ID
+- Subscription Plan
+- Video Length Requested
+- Video Length Generated
+- Seconds Consumed
+- Kling Credits Consumed
+- Cost To GrowthForge
+- Remaining User Balance
+- Timestamp
+
+Every failed generation must record:
+
+- User ID
+- Project ID
+- Requested Length
+- Failure Reason
+- Timestamp
+
+No credits deducted on failures.
+
+---
+
+# ADMIN MONITORING
+
+Wire Kling generation into existing AI Usage and Credit Bank infrastructure.
+
+The Admin Dashboard should show:
+
+## Provider Metrics
+
+Current Kling Credits Available
+
+Estimated Remaining Value
+
+Current Provider Balance
+
+Credits Remaining
+
+Minutes Remaining
+
+---
+
+## Usage Metrics
+
+Total Videos Generated
+
+Total Seconds Generated
+
+Total Minutes Generated
+
+Average Video Length
+
+---
+
+## Cost Metrics
+
+Total Kling Spend
+
+Spend This Month
+
+Spend All Time
+
+Average Cost Per User
+
+Average Cost Per Subscription Tier
+
+---
+
+## Profitability Metrics
+
+Starter
+
+Get-Going
+
+Growth
+
+Agency
+
+For each plan show:
+
+Revenue
+
+Video Seconds Consumed
+
+Kling Cost
+
+Estimated Margin
+
+---
+
+# USER DASHBOARD
+
+Add Video Studio Credit Widget.
+
+Show:
+
+Video Seconds Remaining
+
+Monthly Allocation Remaining
+
+Purchased Credits Remaining
+
+Credits Used This Month
+
+Progress Bar
+
+Purchase Credits Button
+
+Example:
+
+Video Studio Credits
+
+85 Seconds Remaining
+
+35 Seconds Used This Month
+
+[ Purchase More Credits ]
+
+---
+
+# LOW CREDIT ALERTS
+
+Trigger alerts automatically.
+
+## Warning 1
+
+Below 25% balance
+
+Message:
+
+"You're running low on Video Studio credits. Purchase additional credits to continue creating promotional videos."
+
+---
+
+## Warning 2
+
+Below 10% balance
+
+Message:
+
+"You only have a small amount of Video Studio credits remaining. Top up now to avoid interruptions."
+
+---
+
+## Warning 3
+
+At 0 balance
+
+Message:
+
+"Your Video Studio credits have been exhausted. Purchase additional credits to continue generating videos."
+
+---
+
+# VIDEO CREDIT TOP-UPS
+
+Users must be able to purchase credits from:
+
+- Dashboard
+- Video Studio
+- Subscription Page
+- Billing
+- Settings
+- Low Credit Popups
+
+Purchased credits never expire.
+
+---
+
+# CREDIT PRICING
+
+GrowthForge sells video generation credits at:
+
+$1.25 per second
+
+Credits must be sold in 5-second increments.
+
+Create the following products:
+
+5 Seconds
+$6.25
+
+10 Seconds
+$12.50
+
+20 Seconds
+$25.00
+
+50 Seconds
+$62.50
+
+100 Seconds
+$125.00
+
+After successful payment:
+
+Immediately add purchased seconds to user's video wallet.
+
+---
+
+# ADMIN CONFIGURATION
+
+Create editable settings so values can be modified without code deployment.
+
+Configurable values:
+
+Kling Cost Per Credit = 0.145
+
+Credits Consumed Per Second = 1
+
+Starter Monthly Seconds = 45
+
+Get-Going Monthly Seconds = 120
+
+Growth Monthly Seconds = 300
+
+Agency Monthly Seconds = 720
+
+Low Balance Warning 1 = 25%
+
+Low Balance Warning 2 = 10%
+
+Video Credit Sale Price = $1.25 Per Second
+
+---
+
+# SUCCESS CRITERIA
+
+The implementation is complete when:
+
+1. All plans display the new promotional video allowances.
+2. Video Studio uses seconds instead of video counts.
+3. Every generation deducts seconds correctly.
+4. Monthly credits reset automatically on subscription renewal.
+5. Purchased credits never expire.
+6. Users can buy additional video seconds at any time.
+7. Low-credit warnings function automatically.
+8. All generations are logged.
+9. Admin dashboard displays provider balance, usage, spend, and profitability.
+10. Every successful Kling generation updates balances and analytics in real time.
+11. Failed generations never deduct user credits.
+12. The system provides complete visibility into GrowthForge's Kling usage, customer consumption, and profit margins.
