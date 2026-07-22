@@ -2,9 +2,10 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { usersTable, videoWalletsTable, videoSecondLogsTable } from "@workspace/db";
-import { eq, desc, sql, gte, and } from "drizzle-orm";
+import { eq, desc, sql, gte, and, ilike } from "drizzle-orm";
 import { getVideoConfig, setVideoConfigs } from "../lib/videoConfig.js";
 import { VIDEO_CONFIG_DEFAULTS } from "../lib/videoConfig.js";
+import { giftVideoSeconds } from "../lib/videoWallet.js";
 
 const router = Router();
 
@@ -173,19 +174,74 @@ router.get("/admin/video-analytics", requireAdmin, async (req, res) => {
 
 /**
  * GET /admin/video-wallets
- * Returns all user wallets (paginated).
+ * Returns all user wallets joined with user email (paginated, searchable).
  */
 router.get("/admin/video-wallets", requireAdmin, async (req, res) => {
   try {
-    const limit = Math.min(parseInt((req.query["limit"] as string) ?? "50", 10), 200);
-    const wallets = await db
-      .select()
+    const limit  = Math.min(parseInt((req.query["limit"]  as string) ?? "50", 10), 200);
+    const search = (req.query["search"] as string | undefined)?.trim();
+
+    const rows = await db
+      .select({
+        userId:               videoWalletsTable.userId,
+        plan:                 videoWalletsTable.plan,
+        monthlyVideoSeconds:  videoWalletsTable.monthlyVideoSeconds,
+        monthlySecondsUsed:   videoWalletsTable.monthlySecondsUsed,
+        purchasedVideoSeconds:videoWalletsTable.purchasedVideoSeconds,
+        totalPurchasedSeconds:videoWalletsTable.totalPurchasedSeconds,
+        totalRenderedSeconds: videoWalletsTable.totalRenderedSeconds,
+        lastResetAt:          videoWalletsTable.lastResetAt,
+        updatedAt:            videoWalletsTable.updatedAt,
+        email:                usersTable.email,
+      })
       .from(videoWalletsTable)
+      .leftJoin(usersTable, eq(videoWalletsTable.userId, usersTable.id))
+      .where(
+        search
+          ? ilike(usersTable.email, `%${search}%`)
+          : undefined,
+      )
       .orderBy(desc(videoWalletsTable.updatedAt))
       .limit(limit);
-    res.json(wallets);
+
+    res.json(rows);
   } catch (err) {
     req.log.error({ err }, "GET /admin/video-wallets failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /admin/video-wallets/gift
+ * Gift video seconds to a specific user.
+ * Body: { userId: string; seconds: number; note?: string }
+ */
+router.post("/admin/video-wallets/gift", requireAdmin, async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    const adminUserId = auth.userId!;
+
+    const { userId, seconds, note } = req.body as {
+      userId: string;
+      seconds: unknown;
+      note?: string;
+    };
+
+    if (!userId || typeof userId !== "string") {
+      res.status(400).json({ error: "userId is required" });
+      return;
+    }
+
+    const parsedSeconds = parseInt(String(seconds), 10);
+    if (!parsedSeconds || parsedSeconds <= 0 || parsedSeconds > 3600) {
+      res.status(400).json({ error: "seconds must be a positive integer ≤ 3600" });
+      return;
+    }
+
+    const balance = await giftVideoSeconds(userId, parsedSeconds, adminUserId, note?.trim());
+    res.json({ success: true, balance });
+  } catch (err) {
+    req.log.error({ err }, "POST /admin/video-wallets/gift failed");
     res.status(500).json({ error: "Internal server error" });
   }
 });

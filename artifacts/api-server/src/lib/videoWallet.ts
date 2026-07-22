@@ -238,6 +238,44 @@ export async function creditPurchasedSeconds(
   return toBalance(updated);
 }
 
+export async function giftVideoSeconds(
+  userId: string,
+  seconds: number,
+  adminUserId: string,
+  note?: string,
+): Promise<VideoWalletBalance> {
+  await getOrCreateWallet(userId);
+
+  const [updated] = await db
+    .update(videoWalletsTable)
+    .set({
+      purchasedVideoSeconds: sql`purchased_video_seconds + ${seconds}`,
+      totalPurchasedSeconds: sql`total_purchased_seconds + ${seconds}`,
+      updatedAt: new Date(),
+    })
+    .where(eq(videoWalletsTable.userId, userId))
+    .returning();
+
+  if (!updated) throw new Error(`Wallet not found for user ${userId}`);
+
+  const newMonthlyBalance = Math.max(0, updated.monthlyVideoSeconds - updated.monthlySecondsUsed);
+
+  await db.insert(videoSecondLogsTable).values({
+    userId,
+    type:               "admin_gift",
+    secondsChanged:     seconds,
+    fromMonthly:        0,
+    fromPurchased:      0,
+    newMonthlyBalance,
+    newPurchasedBalance: updated.purchasedVideoSeconds,
+    description:        note ? `Admin gift (${adminUserId}): ${note}` : `Admin gift of ${seconds}s by ${adminUserId}`,
+    amountPaidUsd:      0,
+  });
+
+  logger.info({ userId, seconds, adminUserId, note }, "Video seconds gifted by admin");
+  return toBalance(updated);
+}
+
 export async function resetMonthlySecondsForUser(userId: string, plan: string): Promise<void> {
   const monthlyAlloc  = await getMonthlySecondsByPlan(plan);
   const [existing]    = await db.select().from(videoWalletsTable).where(eq(videoWalletsTable.userId, userId));
