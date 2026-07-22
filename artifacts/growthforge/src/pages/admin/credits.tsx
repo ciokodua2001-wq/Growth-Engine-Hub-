@@ -983,10 +983,14 @@ function LiveCard({ p, provider }: { p: LiveProvider; provider: string }) {
 /* ─── Card: Kling / Shotstack (manual bank) ─────────────────── */
 
 function BankCard({ p, provider, onRefresh }: { p: BankProvider; provider: string; onRefresh: () => void }) {
-  const [showTopUp,   setShowTopUp]   = useState(false);
-  const [showTxns,    setShowTxns]    = useState(false);
+  const [showTopUp,    setShowTopUp]    = useState(false);
+  const [showTxns,     setShowTxns]     = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showReport,  setShowReport]  = useState(false);
+  const [showReport,   setShowReport]   = useState(false);
+  const [showReset,    setShowReset]    = useState(false);
+  const [resetReason,  setResetReason]  = useState("");
+  const [resetPending, setResetPending] = useState(false);
+  const [resetDone,    setResetDone]    = useState(false);
   const color      = COLORS[provider] ?? "#00E676";
   const isLow      = p.pct !== null && p.pct <= p.alertThresholdPct;
   const isWarn     = p.pct !== null && !isLow && p.pct <= p.alertThresholdPct * 1.5;
@@ -996,7 +1000,27 @@ function BankCard({ p, provider, onRefresh }: { p: BankProvider; provider: strin
   const estimatedUsd = p.balance != null && p.costPerCredit
     ? p.balance * p.costPerCredit : null;
 
-  function closeAll() { setShowTxns(false); setShowSettings(false); setShowReport(false); }
+  function closeAll() { setShowTxns(false); setShowSettings(false); setShowReport(false); setShowReset(false); }
+
+  async function handleReset() {
+    setResetPending(true);
+    try {
+      const r = await fetch(`/api/admin/credits/${provider}/reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: resetReason.trim() || undefined }),
+      });
+      if (!r.ok) throw new Error("Reset failed");
+      setResetDone(true);
+      setShowReset(false);
+      setResetReason("");
+      setTimeout(() => { setResetDone(false); onRefresh(); }, 1200);
+    } catch {
+      alert("Reset failed — check console for details.");
+    } finally {
+      setResetPending(false);
+    }
+  }
 
   return (
     <>
@@ -1086,7 +1110,7 @@ function BankCard({ p, provider, onRefresh }: { p: BankProvider; provider: strin
         )}
 
         {/* Footer actions */}
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           <button onClick={() => { closeAll(); setShowTxns(!showTxns); }}
             className="flex items-center gap-1 text-xs text-white/30 hover:text-white/60 transition-all">
             {showTxns ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />} Usage log
@@ -1101,7 +1125,49 @@ function BankCard({ p, provider, onRefresh }: { p: BankProvider; provider: strin
             className="flex items-center gap-1 text-xs text-white/30 hover:text-white/60 transition-all">
             <BarChart2 className="w-3 h-3" /> Report
           </button>
+          <span className="text-white/15">·</span>
+          <button
+            onClick={() => { closeAll(); setShowReset(r => !r); }}
+            className={`flex items-center gap-1 text-xs transition-all ${resetDone ? "text-[#00E676]" : "text-red-400/50 hover:text-red-400"}`}>
+            {resetDone ? <CheckCircle className="w-3 h-3" /> : <RefreshCw className="w-3 h-3" />}
+            {resetDone ? "Reset!" : "Reset Balance"}
+          </button>
         </div>
+
+        {showReset && (
+          <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-red-400">Reset {p.displayName} balance?</p>
+                <p className="text-xs text-white/40 mt-0.5">
+                  Zeros balance, peak, totalAdded, consumed credits, videos &amp; minutes. Adds a reset entry to the usage log. Cannot be undone.
+                </p>
+              </div>
+            </div>
+            <input
+              value={resetReason}
+              onChange={e => setResetReason(e.target.value)}
+              placeholder="Reason (optional) — e.g. switched to new API key"
+              className="w-full px-3 py-2 rounded-lg border border-white/8 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-red-400/30 transition-colors"
+              style={{ background: "rgba(255,255,255,0.04)" }}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => void handleReset()}
+                disabled={resetPending}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-red-500/80 hover:bg-red-500 transition-colors disabled:opacity-50">
+                {resetPending ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                {resetPending ? "Resetting…" : "Yes, reset to zero"}
+              </button>
+              <button
+                onClick={() => setShowReset(false)}
+                className="px-4 py-2 rounded-lg border border-white/8 text-xs text-white/40 hover:text-white/60 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         {showTxns     && <TxnList provider={provider} />}
         {showSettings && <SettingsPanel provider={provider} p={p} onSaved={onRefresh} />}

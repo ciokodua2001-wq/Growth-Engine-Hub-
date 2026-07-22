@@ -149,6 +149,49 @@ router.post("/admin/credits/:provider/adjust", requireAdmin, async (req, res): P
   }
 });
 
+router.post("/admin/credits/:provider/reset", requireAdmin, async (req, res): Promise<void> => {
+  try {
+    const { provider } = req.params as { provider: string };
+    const { reason } = req.body as { reason?: string };
+
+    const [bank] = await db
+      .select()
+      .from(platformCreditBanksTable)
+      .where(eq(platformCreditBanksTable.provider, provider));
+
+    if (!bank) { res.status(404).json({ error: "Bank not found" }); return; }
+
+    const [updated] = await db
+      .update(platformCreditBanksTable)
+      .set({
+        balance:              0,
+        peakBalance:          0,
+        totalAdded:           0,
+        totalCreditsConsumed: 0,
+        totalUsdSpent:        0,
+        totalVideosGenerated: 0,
+        totalMinutesGenerated:0,
+        updatedAt:            new Date(),
+      })
+      .where(eq(platformCreditBanksTable.provider, provider))
+      .returning();
+
+    await db.insert(platformCreditTransactionsTable).values({
+      provider,
+      type:         "reset",
+      amount:       0,
+      balanceAfter: 0,
+      description:  reason?.trim() || "Admin reset — balance cleared to start fresh",
+    });
+
+    req.log.info({ provider, reason }, "Credit bank reset by admin");
+    res.json(updated);
+  } catch (err) {
+    req.log.error({ err }, "Error resetting credit bank");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.get("/admin/credits/:provider/transactions", requireAdmin, async (req, res): Promise<void> => {
   try {
     const { provider } = req.params as { provider: string };
