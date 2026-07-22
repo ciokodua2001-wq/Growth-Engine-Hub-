@@ -52,7 +52,7 @@ export const ACTION_COST_USD: Record<string, number> = {
  *   Agency:     (×20 projects scale) = $25.70
  */
 export const PLAN_MONTHLY_AI_CEILING: Record<string, number> = {
-  trial:       0.35,
+  trial:       0.18,
   starter:     1.71,
   "get-going": 4.59,
   growth:      9.48,

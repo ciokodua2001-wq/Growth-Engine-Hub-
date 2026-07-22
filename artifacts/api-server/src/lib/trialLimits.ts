@@ -7,11 +7,10 @@ import { projectsTable, trialUsageTable } from "@workspace/db";
 // note / replit.md). Every limit below participates in that budget — do not add a
 // new AI-costing feature without a matching entry here and a re-check of the total.
 //
-// Worst-case budget at max trial utilization (~$0.343 total, under $0.35 cap):
-//   analysis $0.030, 2×competitors $0.040, personas $0.020, strategy $0.020,
-//   competitor_report $0.040, 10×social_posts $0.050, 2×email_campaigns $0.040,
-//   video_blueprints $0.030, 5×ads $0.025, 10×agent_messages $0.023 (Haiku),
-//   5×image_generation $0.025 → total ~$0.343
+// Worst-case budget at max trial utilization (~$0.178 total, under $0.18 cap):
+//   analysis $0.030, 1×competitors $0.020, personas $0.020, strategy $0.020,
+//   competitor_report $0.040, 5×social_posts $0.025, 10×agent_messages $0.023 (Haiku)
+//   → total $0.178. email/ads/images/video_blueprints are paid-only (quota = 0).
 //
 // NOTE: Forge AI chat runs on Claude Haiku ($0.0023/msg). Trial limit is 10 messages
 // — enough to demonstrate the agent without meaningful extraction risk.
@@ -25,16 +24,17 @@ import { projectsTable, trialUsageTable } from "@workspace/db";
 // against the $0.45 budget before shipping.
 export const TRIAL_LIMITS = {
   analysis: 1,
-  competitors: 2,
+  competitors: 1,
   personas: 1,
   strategy: 1,
   competitor_report: 1,
-  social_posts: 10,
-  email_campaigns: 2,
-  video_blueprints: 1,
-  ads: 5,
+  social_posts: 5,
+  // Paid-only content features — quota = 0 blocks trial entirely; UI shows upgrade teaser.
+  email_campaigns: 0,
+  video_blueprints: 0,
+  ads: 0,
+  image_generation: 0,
   agent_messages: 10,
-  image_generation: 5,
   // SEO Strategy Builder is a paid-only feature; trial quota = 0 blocks it entirely.
   seo_strategy: 0,
   // Campaign reports are paid-only (requireActiveSubscription gate); quota = 0 blocks trial entirely.

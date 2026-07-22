@@ -178,6 +178,141 @@ function CinematicBlueprintViewer({ plan, script }: { plan: CinematicPlan; scrip
   );
 }
 
+// ── Trial gate: hardcoded sample blueprint preview ────────────────────────────
+const SAMPLE_BLUEPRINT: CinematicPlan = {
+  visualStyle: "Clean corporate minimalism with dynamic motion — crisp whites and deep navy, punctuated by electric accent lighting. Shot to feel like a premium product launch.",
+  characterDescription: "Founder in her 30s — sharp, confident, well-tailored blazer. Radiates the energy of someone who has already solved the problem.",
+  environment: "Modern open-plan office at golden hour. Floor-to-ceiling windows. City skyline behind. Laptop open on a minimal glass desk.",
+  lighting: "Motivated window key — soft key, blue fill from off-camera LED. Lens flares on glass surfaces.",
+  cameraLanguage: "Handheld with intent — smooth but alive. Push-ins on key emotional beats. 50mm for dialogue, 85mm for hero shots.",
+  performanceDirection: "Quiet confidence. No overselling. The product speaks for itself — she just invites you in.",
+  textOverlayPlacement: "Lower-third brand lockup on opener. Product name animates in at midpoint. CTA card at end with URL.",
+  finalHeroShot: "Slow pull back from laptop screen showing the dashboard — founder smiling knowingly at camera, city glowing behind her.",
+  shots: [
+    {
+      shotNumber: 1,
+      duration: 5,
+      dialogue: "You didn't start a business to spend all day managing it.",
+      environment: "Tight on founder's eyes — shallow depth, city blurred behind",
+      subjectAction: "Founder looks directly into camera, a slight knowing smile forming",
+      facialExpression: "Calm confidence — the look of someone who found the answer",
+      bodyMovement: "Still. Minimal. Presence over movement.",
+      cameraMovement: "Very slow push in to extreme close-up",
+      lensStyle: "85mm f/1.4 — cinematic bokeh",
+      lighting: "Single window key, cool blue fill",
+      transition: "Cut on the word 'managing'",
+      visualEffects: "Subtle lens flare from window reflection",
+    },
+    {
+      shotNumber: 2,
+      duration: 8,
+      dialogue: "GrowthForge reads your business and builds your marketing department in minutes.",
+      environment: "Over-the-shoulder — laptop screen showing the dashboard loading with AI-generated content",
+      subjectAction: "Founder types URL, watches results populate in real time",
+      facialExpression: "Focused, then impressed — eyebrows lifting as content appears",
+      bodyMovement: "Leans forward slightly, elbows on desk",
+      cameraMovement: "Rack focus from founder's face to laptop screen mid-sentence",
+      lensStyle: "50mm f/2.0",
+      lighting: "Screen glow on face + window key",
+      transition: "Smash cut to screen recording insert",
+      visualEffects: "Screen reflection in glasses",
+    },
+    {
+      shotNumber: 3,
+      duration: 10,
+      dialogue: "Competitors. Strategy. Social posts, email campaigns, video — generated and ready to publish.",
+      environment: "Split-screen of dashboard features — competitor cards, strategy docs, content tiles",
+      subjectAction: "Founder scrolls through dashboard, taps each section with natural confidence",
+      facialExpression: "Engaged, gesturing — natural, not rehearsed",
+      bodyMovement: "Points at screen as features appear",
+      cameraMovement: "Static wide — then three fast ECUs of each feature loading",
+      lensStyle: "35mm wide, macro for screen detail",
+      lighting: "Even ambient — product clarity over mood",
+      transition: "Fast cuts synced to voiceover beats",
+      visualEffects: "Motion graphics callouts highlight each feature on screen",
+    },
+    {
+      shotNumber: 4,
+      duration: 7,
+      dialogue: "Start free. No credit card. Your entire marketing engine — live in seven minutes.",
+      environment: "Hero shot — founder standing, laptop closed, full city skyline visible",
+      subjectAction: "Turns to face camera, confident and inviting",
+      facialExpression: "Open, warm, direct — close of a trusted advisor",
+      bodyMovement: "Natural weight shift, open body language",
+      cameraMovement: "Slow pull back to reveal full environment",
+      lensStyle: "24mm — environmental context",
+      lighting: "Golden hour backlight, rim light on shoulders",
+      transition: "Fade to brand card",
+      visualEffects: "Warm lens flare on pull back",
+    },
+  ],
+};
+
+const SAMPLE_SCRIPT = `SHOT 1 — OPEN ON FOUNDER
+"You didn't start a business to spend all day managing it."
+
+SHOT 2 — PRODUCT REVEAL
+"GrowthForge reads your business and builds your marketing department in minutes."
+
+SHOT 3 — FEATURE SHOWCASE (V/O over screen recordings)
+"Competitors. Strategy. Social posts, email campaigns, video — generated and ready to publish."
+
+SHOT 4 — CLOSE / CTA
+"Start free. No credit card. Your entire marketing engine — live in seven minutes."
+
+[END CARD: GrowthForge · UseGrowthForge.com · Start Free Trial]`;
+
+function VideoStudioTrialGate() {
+  return (
+    <div className="mt-2">
+      {/* Label */}
+      <p className="text-[10px] font-semibold text-white/25 uppercase tracking-widest mb-3 flex items-center gap-2">
+        <Lock className="w-3 h-3" /> Sample Blueprint — Paid Plans Only
+      </p>
+
+      <div className="relative rounded-2xl overflow-hidden border border-white/8">
+        {/* Blurred preview of a real blueprint */}
+        <div className="pointer-events-none select-none" style={{ filter: "blur(3px)", opacity: 0.45 }}>
+          {/* Fake card header */}
+          <div className="px-4 pt-4 pb-3 border-b border-white/6 flex items-center gap-3">
+            <span className="text-[10px] font-black text-violet-400 bg-violet-500/15 border border-violet-500/20 px-2 py-0.5 rounded-full">PROMO</span>
+            <p className="text-sm font-bold text-white">30-Second Brand Commercial — Launch Campaign</p>
+            <span className="ml-auto text-[10px] text-white/25 shrink-0">4 Shots · 30s</span>
+          </div>
+          {/* Blueprint content */}
+          <div className="px-4 pb-4 max-h-80 overflow-hidden">
+            <CinematicBlueprintViewer plan={SAMPLE_BLUEPRINT} script={SAMPLE_SCRIPT} />
+          </div>
+        </div>
+
+        {/* Upgrade overlay */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-[#040B14]/50 backdrop-blur-[2px]">
+          <div className="rounded-2xl border border-[#00E676]/25 bg-[#040B14]/92 backdrop-blur-md p-8 max-w-md w-full text-center"
+            style={{ boxShadow: "0 0 60px rgba(0,230,118,0.06), 0 25px 50px rgba(0,0,0,0.6)" }}>
+            <div className="w-12 h-12 rounded-2xl bg-[#00E676]/15 border border-[#00E676]/25 flex items-center justify-center mx-auto mb-4">
+              <Film className="w-6 h-6 text-[#00E676]" />
+            </div>
+            <h3 className="text-xl font-black text-white mb-2">AI Commercial Studio</h3>
+            <p className="text-sm text-white/55 mb-2 leading-relaxed">
+              That's a real blueprint above — actor scripts, cinematic shot lists, and production notes generated for your actual brand.
+            </p>
+            <p className="text-xs text-white/30 mb-6 leading-relaxed">
+              Upgrade to generate up to 200 Promotional Videos per month and render them into broadcast-ready 1080p HD commercials with AI voiceover and cinematic footage.
+            </p>
+            <a
+              href="/plans"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm text-black transition-all hover:scale-[1.02] active:scale-[0.99]"
+              style={{ background: "#00E676", boxShadow: "0 0 28px rgba(0,230,118,0.3)" }}
+            >
+              <Sparkles className="w-4 h-4" /> Upgrade to Unlock Studio
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const typeColors: Record<string, string> = {
   promo: "bg-violet-500/15 text-violet-400 border-violet-500/20",
   product: "bg-cyan-500/15 text-cyan-400 border-cyan-500/20",
@@ -1101,13 +1236,23 @@ export default function ProjectVideos() {
               ))}
             </div>
           </div>
-          <button
-            onClick={() => setModalOpen(true)}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-primary/20 self-end"
-          >
-            <Sparkles className="h-4 w-4" />
-            Create {blueprintCount} Commercial Brief{blueprintCount !== 1 ? "s" : ""}
-          </button>
+          {isTrial ? (
+            <a
+              href="/plans"
+              className="flex items-center gap-2 font-bold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-lg self-end text-black"
+              style={{ background: "#00E676", boxShadow: "0 0 20px rgba(0,230,118,0.2)" }}
+            >
+              <Lock className="h-4 w-4" /> Upgrade to Create
+            </a>
+          ) : (
+            <button
+              onClick={() => setModalOpen(true)}
+              className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-primary/20 self-end"
+            >
+              <Sparkles className="h-4 w-4" />
+              Create {blueprintCount} Commercial Brief{blueprintCount !== 1 ? "s" : ""}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1316,6 +1461,8 @@ export default function ProjectVideos() {
             </div>
           )}
         </div>
+      ) : isTrial ? (
+        <VideoStudioTrialGate />
       ) : (
         <div className="flex flex-col items-center justify-center py-32 text-center">
           <VideoIcon className="h-16 w-16 text-primary/30 mb-6" />
