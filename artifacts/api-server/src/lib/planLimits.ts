@@ -21,7 +21,7 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     social_posts: 50,
     email_campaigns: 10,
     ads: 10,
-    video_blueprints: 10,
+    video_blueprints: 3,
     agent_messages: 200,
     image_generation: 15,
     seo_strategy: 1,
@@ -36,7 +36,7 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     social_posts: 100,
     email_campaigns: 30,
     ads: 30,
-    video_blueprints: 25,
+    video_blueprints: 8,
     agent_messages: 600,
     image_generation: 30,
     seo_strategy: 3,
@@ -51,7 +51,7 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     social_posts: 200,
     email_campaigns: 60,
     ads: 60,
-    video_blueprints: 75,
+    video_blueprints: 20,
     agent_messages: 1000,
     image_generation: 60,
     seo_strategy: 6,
@@ -66,7 +66,7 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     social_posts: 400,
     email_campaigns: 120,
     ads: 120,
-    video_blueprints: 200,
+    video_blueprints: 48,
     agent_messages: 4000,
     image_generation: 120,
     seo_strategy: 20,
@@ -204,6 +204,71 @@ export async function consumeQuota(
 
     return { allowed: true } satisfies QuotaResult;
   });
+}
+
+/**
+ * Returns how many units of a feature the project can still consume in the
+ * current period, without modifying any counters.
+ *
+ * Returns Infinity for:
+ *   - admins / super_admins (bypass all quotas)
+ *   - features with null limit (unlimited)
+ *   - unrecognised plans (fail-open)
+ *
+ * Returns 0 when the limit is already met or exceeded.
+ */
+export async function getQuotaRemaining(
+  projectId: number,
+  feature: PlanFeature,
+): Promise<number> {
+  const [project] = await db
+    .select({ plan: projectsTable.plan, ownerId: projectsTable.ownerId })
+    .from(projectsTable)
+    .where(eq(projectsTable.id, projectId));
+
+  if (!project) return 0;
+
+  if (project.ownerId) {
+    const [owner] = await db
+      .select({ role: usersTable.role })
+      .from(usersTable)
+      .where(eq(usersTable.id, project.ownerId));
+    if (owner && (owner.role === "admin" || owner.role === "super_admin")) {
+      return Infinity;
+    }
+  }
+
+  const { plan } = project;
+
+  if (plan === "trial") {
+    const limit = TRIAL_LIMITS[feature as TrialFeature];
+    if (limit == null) return Infinity;
+    const [row] = await db
+      .select({ count: trialUsageTable.count })
+      .from(trialUsageTable)
+      .where(and(eq(trialUsageTable.projectId, projectId), eq(trialUsageTable.feature, feature)));
+    return Math.max(0, limit - (row?.count ?? 0));
+  }
+
+  const planLimits = PLAN_LIMITS[plan as PaidPlan];
+  if (!planLimits) return Infinity;
+
+  const limit = planLimits[feature];
+  if (limit === null) return Infinity;
+
+  const periodStart = currentPeriodStart();
+  const [row] = await db
+    .select({ count: planUsageTable.count })
+    .from(planUsageTable)
+    .where(
+      and(
+        eq(planUsageTable.projectId, projectId),
+        eq(planUsageTable.feature, feature),
+        eq(planUsageTable.periodStart, periodStart),
+      ),
+    );
+
+  return Math.max(0, limit - (row?.count ?? 0));
 }
 
 // Video minutes display was removed — Promotional Videos (video_blueprints) is the

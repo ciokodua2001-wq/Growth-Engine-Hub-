@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { videosTable, activityTable } from "@workspace/db";
-import { consumeQuota } from "../lib/planLimits.js";
+import { consumeQuota, getQuotaRemaining } from "../lib/planLimits.js";
 import { TRIAL_MAX_VIDEO_BATCH } from "../lib/trialLimits.js";
 import { getGroundingContext } from "../lib/projectContext.js";
 import { generateVideoBlueprints, type VideoBlueprintResult } from "../lib/contentGenerators.js";
@@ -51,10 +51,17 @@ router.post("/projects/:id/videos", requireActiveSubscription, async (req, res):
     count = Math.min(count, TRIAL_MAX_VIDEO_BATCH);
   }
 
-  // Call-based quota: one unit per generation event, regardless of how many
-  // videos the batch produces (matches the pricing card's "1 Video Blueprint" wording
-  // and avoids blocking the platform's own 9-video auto-batch on the first use).
-  const quota = await consumeQuota(projectId, "video_blueprints", 1);
+  // Count-based quota: each video produced counts against the monthly limit.
+  // We first check remaining quota and silently cap the batch so a request for
+  // 9 videos on a 3-video plan produces 3 rather than failing outright.
+  const remaining = await getQuotaRemaining(projectId, "video_blueprints");
+  if (remaining <= 0) {
+    res.status(403).json({ error: "Monthly promotional video limit reached. Upgrade your plan to continue." });
+    return;
+  }
+  count = Math.min(count, isFinite(remaining) ? remaining : count);
+
+  const quota = await consumeQuota(projectId, "video_blueprints", count);
   if (!quota.allowed) {
     res.status(403).json({ error: quota.message });
     return;
