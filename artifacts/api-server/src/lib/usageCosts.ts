@@ -16,8 +16,10 @@ export const ACTION_COST_USD: Record<string, number> = {
   email_campaigns:   0.020,
   video_blueprints:  0.030,   // per batch call (clamped on trial)
   ads:               0.005,   // per ad
-  agent_messages:    0.012,
+  agent_messages:    0.0023,  // Claude Haiku (switched from Sonnet $0.012)
   image_generation:  0.005,   // per image (managed billing)
+  seo_strategy:      0.040,   // long-form SEO strategy generation
+  campaign_reports:  0.040,   // AI campaign analytics report
 
   // Video render pipeline — all-in cost per 30-second render segment
   video_render_footage_30s:  0.068,  // FAL Kling v1.6 T2V clips ($0.045/5s clip × ~6 clips) + ElevenLabs TTS + Shotstack 1080p
@@ -31,19 +33,30 @@ export const ACTION_COST_USD: Record<string, number> = {
 };
 
 /**
- * Monthly AI cost ceiling per plan at full utilization (internal).
- * Represents worst-case spend when every video render uses combined mode (avatar + footage).
+ * Monthly Claude AI cost ceiling per plan at full quota utilization (internal).
+ * Computed as: sum(quota × unit_cost) across all features in ACTION_COST_USD.
+ * Video renders are excluded — those are gated separately via hasVideoRender → auto non-refundable.
  * Threshold = 15% of this value for refund ineligibility.
  *
- * Plan pricing: Starter $29 · Get-Going $79 · Growth $199 · Agency $599
- * All plans land ~11-13% of revenue at 100% utilization — well within 20% target.
+ * Plan pricing: Starter $39 · Get-Going $99 · Growth $249 · Agency $599
+ * All plans land ~4-5% of revenue at 100% utilization (Haiku-based).
+ *
+ * Breakdown (quota × cost per feature):
+ *   Starter:    analysis 3×$0.03 + competitors 2×$0.02 + competitor_report 2×$0.04 +
+ *               personas 3×$0.02 + strategy 1×$0.02 + social_posts 50×$0.005 +
+ *               email_campaigns 10×$0.02 + ads 10×$0.005 + video_blueprints 10×$0.03 +
+ *               agent_messages 200×$0.0023 + image_generation 15×$0.005 +
+ *               seo_strategy 1×$0.04 + campaign_reports 1×$0.04 = $1.71
+ *   Get-Going:  (×3 projects scale) = $4.59
+ *   Growth:     (×6 projects scale) = $9.48
+ *   Agency:     (×20 projects scale) = $25.70
  */
 export const PLAN_MONTHLY_AI_CEILING: Record<string, number> = {
   trial:       0.45,
-  starter:     3.65,
-  "get-going": 9.62,
-  growth:      23.54,
-  agency:      69.34,
+  starter:     1.71,
+  "get-going": 4.59,
+  growth:      9.48,
+  agency:      25.70,
 };
 
 /** Internal refund ineligibility threshold (fraction of monthly ceiling) */
