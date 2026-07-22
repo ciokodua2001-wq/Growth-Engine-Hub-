@@ -26,7 +26,7 @@ export default function RefundPolicyPage() {
 
           <section>
             <h2 className="text-xl font-bold text-white mb-3">1. Free Trial</h2>
-            <p>GrowthForge offers a 14-day free trial with no credit card required. No charges are made during the trial period and no refunds are applicable. You may cancel at any time before the trial ends without any obligation.</p>
+            <p>GrowthForge offers a 7-day free trial with no credit card required. No charges are made during the trial period and no refunds are applicable. You may cancel at any time before the trial ends without any obligation.</p>
           </section>
 
           <section>

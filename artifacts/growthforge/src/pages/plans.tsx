@@ -589,12 +589,12 @@ export default function PlansPage() {
         {/* Page heading */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#00E676]/30 bg-[#00E676]/10 text-[#00E676] text-xs font-semibold mb-4">
-            <Zap className="w-3 h-3" /> 14-day free trial · No credit card required
+            <Zap className="w-3 h-3" /> 7-day free trial · No credit card required
           </div>
           <h1 className="text-4xl font-bold text-white mb-3">
             Start growing with <span className="text-[#00E676]">AI</span>
           </h1>
-          <p className="text-white/50 text-lg">Try free for 14 days, then upgrade to keep going.</p>
+          <p className="text-white/50 text-lg">Try free for 7 days, then upgrade to keep going.</p>
         </motion.div>
 
         {/* Free Trial Hero Card */}
@@ -621,7 +621,7 @@ export default function PlansPage() {
               <div className="flex items-center gap-2 mb-1">
                 <h2 className="text-xl font-bold text-white">Free Trial</h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#00E676]/15 text-[#00E676] border border-[#00E676]/30">
-                  14 days
+                  7 days
                 </span>
               </div>
               <p className="text-white/50 text-sm mb-3">

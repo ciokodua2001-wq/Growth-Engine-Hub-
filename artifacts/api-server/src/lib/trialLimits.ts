@@ -7,15 +7,14 @@ import { projectsTable, trialUsageTable } from "@workspace/db";
 // note / replit.md). Every limit below participates in that budget — do not add a
 // new AI-costing feature without a matching entry here and a re-check of the total.
 //
-// Worst-case budget at max trial utilization (~$0.412 total, under $0.45 cap):
+// Worst-case budget at max trial utilization (~$0.343 total, under $0.35 cap):
 //   analysis $0.030, 2×competitors $0.040, personas $0.020, strategy $0.020,
 //   competitor_report $0.040, 10×social_posts $0.050, 2×email_campaigns $0.040,
-//   video_blueprints $0.030, 5×ads $0.025, 40×agent_messages $0.092 (Haiku),
-//   5×image_generation $0.025 → total ~$0.412
+//   video_blueprints $0.030, 5×ads $0.025, 10×agent_messages $0.023 (Haiku),
+//   5×image_generation $0.025 → total ~$0.343
 //
-// NOTE: Forge AI chat was switched to Claude Haiku ($0.0023/msg vs Sonnet's $0.012).
-// This freed up ~$0.028 of headroom vs the old 10-message Sonnet budget ($0.120),
-// allowing agent_messages to be raised from 10 → 40 while staying under $0.45.
+// NOTE: Forge AI chat runs on Claude Haiku ($0.0023/msg). Trial limit is 10 messages
+// — enough to demonstrate the agent without meaningful extraction risk.
 //
 // Content Engine (blog/whitepaper/case-study etc.): NOT on trial — excluded from this
 // budget because a single 3-piece generation call costs ~$0.030-0.060 (long-form body
@@ -34,7 +33,7 @@ export const TRIAL_LIMITS = {
   email_campaigns: 2,
   video_blueprints: 1,
   ads: 5,
-  agent_messages: 40,
+  agent_messages: 10,
   image_generation: 5,
   // SEO Strategy Builder is a paid-only feature; trial quota = 0 blocks it entirely.
   seo_strategy: 0,

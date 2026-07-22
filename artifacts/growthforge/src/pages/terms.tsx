@@ -48,7 +48,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-xl font-bold text-white mb-3">4. Free Trial</h2>
-            <p>GrowthForge offers a 14-day free trial with limited usage. During the trial, you have access to core features subject to usage limits. No credit card is required to start a free trial. Trial limits are subject to change at our discretion.</p>
+            <p>GrowthForge offers a 7-day free trial with limited usage. During the trial, you have access to core features subject to usage limits. No credit card is required to start a free trial. Trial limits are subject to change at our discretion.</p>
           </section>
 
           <section>

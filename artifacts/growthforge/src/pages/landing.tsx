@@ -217,12 +217,12 @@ const FAQ = [
   { q: "What is GrowthForge?", a: "GrowthForge is an AI Growth Operating System built by Strapli Technologies. You paste your business website URL and it builds your entire marketing department in minutes — competitive intelligence, brand strategy, social and email content, video campaigns, ad creatives, and an AI agent that can execute tasks on demand. It replaces tools and headcount that would otherwise cost $150K+ per year." },
   { q: "How does GrowthForge work?", a: "Three steps: (1) Paste your website URL. (2) GrowthForge's AI reads your site, discovers your top competitors, identifies market gaps, and builds a complete marketing strategy tailored to your brand. (3) Use the strategy to generate content, videos, campaigns, and more — all in one place. No setup, no learning curve." },
   { q: "Do I need marketing experience?", a: "No. GrowthForge is built for founders, operators, and lean teams who want results without needing to hire a marketing director. The platform handles strategy, positioning, and execution — you just review and publish." },
-  { q: "What plans are available?", a: "GrowthForge offers four paid tiers: Starter ($39/mo, 1 project, 10 Promotional Videos/mo), Get-Going ($99/mo, 3 projects, 25 Promotional Videos/mo), Growth ($249/mo, 6 projects, 75 Promotional Videos/mo), and Agency ($599/mo, 20 projects, 200 Promotional Videos/mo). All plans include AI video generation at 1080p HD. Start with a free 14-day trial — no credit card required." },
+  { q: "What plans are available?", a: "GrowthForge offers four paid tiers: Starter ($39/mo, 1 project, 10 Promotional Videos/mo), Get-Going ($99/mo, 3 projects, 25 Promotional Videos/mo), Growth ($249/mo, 6 projects, 75 Promotional Videos/mo), and Agency ($599/mo, 20 projects, 200 Promotional Videos/mo). All plans include AI video generation at 1080p HD. Start with a free 7-day trial — no credit card required." },
   { q: "Can I analyze competitors?", a: "Yes. GrowthForge automatically discovers your top competitors, analyzes their positioning, identifies weaknesses in their messaging, and generates a full competitive report — including exactly how to position your brand to win against each one." },
   { q: "Can I generate written content?", a: "Yes. GrowthForge generates social media posts, email campaigns, ad copy, and ad creatives — all grounded in your actual business analysis and brand voice. Content is produced in batches so you always have a pipeline ready to publish." },
   { q: "How does video generation work?", a: "GrowthForge renders complete AI Promotional Videos — scene-by-scene with voiceover, brand visuals, and captions — all at 1080p HD using Kling AI. On the free trial you get 1 Promotional Video to see the full production quality. Paid plans include 10–200 Promotional Videos per month depending on your tier, ready to post directly to any platform." },
   { q: "What is Forge AI and what can it do?", a: "Forge AI is GrowthForge's built-in AI agent — it's not a generic chatbot. It knows your business, your competitors, your strategy, and your content history. You can ask it to generate new social posts, draft an email campaign, produce video concepts, or surface competitor insights. It executes tasks using the same AI pipelines as the platform's core tools, so everything it produces is grounded in your real business data." },
-  { q: "What happens during the free trial?", a: "The 14-day free trial gives you real access to the core platform — business analysis, competitor discovery, customer personas, marketing strategy, and Forge AI. Content and video outputs during the trial are quota-limited so you can fully evaluate the platform before committing. No credit card is required to start." },
+  { q: "What happens during the free trial?", a: "The 7-day free trial gives you real access to the core platform — business analysis, competitor discovery, customer personas, marketing strategy, and Forge AI. Content and video outputs during the trial are quota-limited so you can fully evaluate the platform before committing. No credit card is required to start." },
   { q: "Can I cancel or change plans later?", a: "Yes. You can upgrade, downgrade, or cancel at any time from your account settings. Cancellations take effect at the end of the current billing period and you keep access until then. See our Refund Policy for eligibility details." },
 ];
 
@@ -670,7 +670,7 @@ export default function LandingPage() {
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.55 }}
             className="text-sm text-white/30 flex items-center justify-center gap-4">
             <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> No credit card required</span>
-            <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> 14-day free trial</span>
+            <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> 7-day free trial</span>
             <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> Cancel anytime</span>
           </motion.p>
 
@@ -809,7 +809,7 @@ export default function LandingPage() {
             style={{ background: "linear-gradient(135deg, rgba(0,230,118,0.06) 0%, rgba(0,212,255,0.04) 100%)" }}>
             <div>
               <h3 className="text-2xl md:text-3xl font-black text-white mb-2">Ready to replace your marketing team?</h3>
-              <p className="text-white/50">Start your free 14-day trial. No credit card, no commitment.</p>
+              <p className="text-white/50">Start your free 7-day trial. No credit card, no commitment.</p>
             </div>
             <Link href="/sign-up" className="shrink-0 flex items-center gap-2 font-bold px-8 py-4 rounded-xl text-black hover:scale-[1.02] transition-all"
               style={{ background: "#00E676", boxShadow: "0 0 30px rgba(0,230,118,0.2)" }}>
@@ -1081,7 +1081,7 @@ export default function LandingPage() {
           <FadeIn className="flex justify-center mb-10">
             <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-[#00E676]/30 bg-[#00E676]/10">
               <Check className="w-4 h-4 text-[#00E676] shrink-0" />
-              <span className="text-[#00E676] text-sm font-semibold">All plans include a 14-day free trial — no credit card required</span>
+              <span className="text-[#00E676] text-sm font-semibold">All plans include a 7-day free trial — no credit card required</span>
             </div>
           </FadeIn>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
@@ -1173,7 +1173,7 @@ export default function LandingPage() {
                       >
                         <ArrowRight className="w-3.5 h-3.5" /> Start Free Trial
                       </Link>
-                      <p className="text-center text-[10px] text-white/20">14-day free trial · No credit card required</p>
+                      <p className="text-center text-[10px] text-white/20">7-day free trial · No credit card required</p>
                     </div>
                   </div>
                 </div>
@@ -1183,7 +1183,7 @@ export default function LandingPage() {
           <FadeIn className="text-center mt-8">
             <p className="text-white/30 text-sm">
               Want to use GrowthForge now?{" "}
-              <Link href="/sign-up" className="hover:underline font-semibold" style={{ color: "#00E676" }}>Start your free 14-day trial</Link>
+              <Link href="/sign-up" className="hover:underline font-semibold" style={{ color: "#00E676" }}>Start your free 7-day trial</Link>
               {" "}— no credit card required.
             </p>
           </FadeIn>
@@ -1239,7 +1239,7 @@ export default function LandingPage() {
                 Book a Demo
               </Link>
             </div>
-            <p className="mt-5 text-sm text-white/25">Free 14-day trial · No credit card required · Cancel anytime</p>
+            <p className="mt-5 text-sm text-white/25">Free 7-day trial · No credit card required · Cancel anytime</p>
           </FadeIn>
         </div>
       </section>
