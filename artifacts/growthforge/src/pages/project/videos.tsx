@@ -298,7 +298,7 @@ function VideoStudioTrialGate() {
               That's a real blueprint above — actor scripts, cinematic shot lists, and production notes generated for your actual brand.
             </p>
             <p className="text-xs text-white/30 mb-6 leading-relaxed">
-              Upgrade to generate up to 200 Promotional Videos per month and render them into broadcast-ready 1080p HD commercials with AI voiceover and cinematic footage.
+              Upgrade to generate up to 48 Promotional Videos per month and render them into broadcast-ready 1080p HD commercials with AI voiceover and cinematic footage.
             </p>
             <a
               href="/plans"
