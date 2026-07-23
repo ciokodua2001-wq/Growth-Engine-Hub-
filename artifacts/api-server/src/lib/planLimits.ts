@@ -26,6 +26,8 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     image_generation: 15,
     seo_strategy: 1,
     campaign_reports: 1,
+    seo_blog_posts: 5,
+    seo_watchdog: 4,
   },
   "get-going": {
     analysis: 8,
@@ -41,6 +43,8 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     image_generation: 30,
     seo_strategy: 3,
     campaign_reports: 2,
+    seo_blog_posts: 15,
+    seo_watchdog: 4,
   },
   growth: {
     analysis: 15,
@@ -56,6 +60,8 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     image_generation: 60,
     seo_strategy: 6,
     campaign_reports: 5,
+    seo_blog_posts: 30,
+    seo_watchdog: 4,
   },
   agency: {
     analysis: 30,
@@ -71,6 +77,8 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     image_generation: 120,
     seo_strategy: 20,
     campaign_reports: 10,
+    seo_blog_posts: null,
+    seo_watchdog: null,
   },
 };
 
@@ -97,6 +105,8 @@ const FEATURE_LABELS: Record<PlanFeature, string> = {
   image_generation: "AI image generation",
   seo_strategy: "AI SEO Strategy generation",
   campaign_reports: "AI campaign report",
+  seo_blog_posts: "SEO blog post generation",
+  seo_watchdog: "SEO Coach weekly check-in",
 };
 
 const PLAN_TIER_ORDER = ["trial", "starter", "get-going", "growth", "agency"] as const;

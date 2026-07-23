@@ -59,6 +59,13 @@ import type {
   PublishSocialInput,
   Report,
   ReportInput,
+  SeoBlogPost,
+  SeoBlogPostInput,
+  SeoMetaTagsInput,
+  SeoMetaTagsResult,
+  SeoSchemaResult,
+  SeoSitemapResult,
+  SeoWatchdog,
   SocialPost,
   SocialPostInput,
   SocialPostStats,
@@ -4528,6 +4535,738 @@ export function useGetProjectUsage<TData = Awaited<ReturnType<typeof getProjectU
 
 
 
+
+export const getListSeoBlogPostsUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/seo/blog-posts`
+}
+
+/**
+ * @summary List SEO blog posts for a project
+ */
+export const listSeoBlogPosts = async (id: number, options?: RequestInit): Promise<SeoBlogPost[]> => {
+
+  return customFetch<SeoBlogPost[]>(getListSeoBlogPostsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSeoBlogPostsQueryKey = (id: number,) => {
+    return [
+    `/api/projects/${id}/seo/blog-posts`
+    ] as const;
+    }
+
+
+export const getListSeoBlogPostsQueryOptions = <TData = Awaited<ReturnType<typeof listSeoBlogPosts>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSeoBlogPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSeoBlogPostsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSeoBlogPosts>>> = ({ signal }) => listSeoBlogPosts(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSeoBlogPosts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSeoBlogPostsQueryResult = NonNullable<Awaited<ReturnType<typeof listSeoBlogPosts>>>
+export type ListSeoBlogPostsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List SEO blog posts for a project
+ */
+
+export function useListSeoBlogPosts<TData = Awaited<ReturnType<typeof listSeoBlogPosts>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSeoBlogPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSeoBlogPostsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGenerateSeoBlogPostUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/seo/blog-posts/generate`
+}
+
+/**
+ * @summary Generate a new SEO-optimized blog post
+ */
+export const generateSeoBlogPost = async (id: number,
+    seoBlogPostInput: SeoBlogPostInput, options?: RequestInit): Promise<SeoBlogPost> => {
+
+  return customFetch<SeoBlogPost>(getGenerateSeoBlogPostUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(seoBlogPostInput)
+  }
+);}
+
+
+
+
+export const getGenerateSeoBlogPostMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateSeoBlogPost>>, TError,{id: number;data: BodyType<SeoBlogPostInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateSeoBlogPost>>, TError,{id: number;data: BodyType<SeoBlogPostInput>}, TContext> => {
+
+const mutationKey = ['generateSeoBlogPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateSeoBlogPost>>, {id: number;data: BodyType<SeoBlogPostInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  generateSeoBlogPost(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateSeoBlogPostMutationResult = NonNullable<Awaited<ReturnType<typeof generateSeoBlogPost>>>
+    export type GenerateSeoBlogPostMutationBody = BodyType<SeoBlogPostInput>
+    export type GenerateSeoBlogPostMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Generate a new SEO-optimized blog post
+ */
+export const useGenerateSeoBlogPost = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateSeoBlogPost>>, TError,{id: number;data: BodyType<SeoBlogPostInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateSeoBlogPost>>,
+        TError,
+        {id: number;data: BodyType<SeoBlogPostInput>},
+        TContext
+      > => {
+      return useMutation(getGenerateSeoBlogPostMutationOptions(options));
+    }
+
+export const getDeleteSeoBlogPostUrl = (id: number,
+    postId: number,) => {
+
+
+
+
+  return `/api/projects/${id}/seo/blog-posts/${postId}`
+}
+
+/**
+ * @summary Delete a SEO blog post
+ */
+export const deleteSeoBlogPost = async (id: number,
+    postId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteSeoBlogPostUrl(id,postId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteSeoBlogPostMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSeoBlogPost>>, TError,{id: number;postId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteSeoBlogPost>>, TError,{id: number;postId: number}, TContext> => {
+
+const mutationKey = ['deleteSeoBlogPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteSeoBlogPost>>, {id: number;postId: number}> = (props) => {
+          const {id,postId} = props ?? {};
+
+          return  deleteSeoBlogPost(id,postId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteSeoBlogPostMutationResult = NonNullable<Awaited<ReturnType<typeof deleteSeoBlogPost>>>
+
+    export type DeleteSeoBlogPostMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a SEO blog post
+ */
+export const useDeleteSeoBlogPost = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSeoBlogPost>>, TError,{id: number;postId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteSeoBlogPost>>,
+        TError,
+        {id: number;postId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteSeoBlogPostMutationOptions(options));
+    }
+
+export const getGetSeoMetaTagsUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/seo/meta-tags`
+}
+
+/**
+ * @summary Get generated meta tags for a project
+ */
+export const getSeoMetaTags = async (id: number, options?: RequestInit): Promise<SeoMetaTagsResult> => {
+
+  return customFetch<SeoMetaTagsResult>(getGetSeoMetaTagsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSeoMetaTagsQueryKey = (id: number,) => {
+    return [
+    `/api/projects/${id}/seo/meta-tags`
+    ] as const;
+    }
+
+
+export const getGetSeoMetaTagsQueryOptions = <TData = Awaited<ReturnType<typeof getSeoMetaTags>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSeoMetaTags>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSeoMetaTagsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSeoMetaTags>>> = ({ signal }) => getSeoMetaTags(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSeoMetaTags>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSeoMetaTagsQueryResult = NonNullable<Awaited<ReturnType<typeof getSeoMetaTags>>>
+export type GetSeoMetaTagsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get generated meta tags for a project
+ */
+
+export function useGetSeoMetaTags<TData = Awaited<ReturnType<typeof getSeoMetaTags>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSeoMetaTags>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSeoMetaTagsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGenerateSeoMetaTagsUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/seo/meta-tags/generate`
+}
+
+/**
+ * @summary Generate meta tags for all pages
+ */
+export const generateSeoMetaTags = async (id: number,
+    seoMetaTagsInput: SeoMetaTagsInput, options?: RequestInit): Promise<SeoMetaTagsResult> => {
+
+  return customFetch<SeoMetaTagsResult>(getGenerateSeoMetaTagsUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(seoMetaTagsInput)
+  }
+);}
+
+
+
+
+export const getGenerateSeoMetaTagsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateSeoMetaTags>>, TError,{id: number;data: BodyType<SeoMetaTagsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateSeoMetaTags>>, TError,{id: number;data: BodyType<SeoMetaTagsInput>}, TContext> => {
+
+const mutationKey = ['generateSeoMetaTags'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateSeoMetaTags>>, {id: number;data: BodyType<SeoMetaTagsInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  generateSeoMetaTags(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateSeoMetaTagsMutationResult = NonNullable<Awaited<ReturnType<typeof generateSeoMetaTags>>>
+    export type GenerateSeoMetaTagsMutationBody = BodyType<SeoMetaTagsInput>
+    export type GenerateSeoMetaTagsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Generate meta tags for all pages
+ */
+export const useGenerateSeoMetaTags = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateSeoMetaTags>>, TError,{id: number;data: BodyType<SeoMetaTagsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateSeoMetaTags>>,
+        TError,
+        {id: number;data: BodyType<SeoMetaTagsInput>},
+        TContext
+      > => {
+      return useMutation(getGenerateSeoMetaTagsMutationOptions(options));
+    }
+
+export const getGetSeoSchemaUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/seo/schema`
+}
+
+/**
+ * @summary Get generated schema markup for a project
+ */
+export const getSeoSchema = async (id: number, options?: RequestInit): Promise<SeoSchemaResult> => {
+
+  return customFetch<SeoSchemaResult>(getGetSeoSchemaUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSeoSchemaQueryKey = (id: number,) => {
+    return [
+    `/api/projects/${id}/seo/schema`
+    ] as const;
+    }
+
+
+export const getGetSeoSchemaQueryOptions = <TData = Awaited<ReturnType<typeof getSeoSchema>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSeoSchema>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSeoSchemaQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSeoSchema>>> = ({ signal }) => getSeoSchema(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSeoSchema>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSeoSchemaQueryResult = NonNullable<Awaited<ReturnType<typeof getSeoSchema>>>
+export type GetSeoSchemaQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get generated schema markup for a project
+ */
+
+export function useGetSeoSchema<TData = Awaited<ReturnType<typeof getSeoSchema>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSeoSchema>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSeoSchemaQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGenerateSeoSchemaUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/seo/schema/generate`
+}
+
+/**
+ * @summary Generate JSON-LD schema markup with platform installation guides
+ */
+export const generateSeoSchema = async (id: number, options?: RequestInit): Promise<SeoSchemaResult> => {
+
+  return customFetch<SeoSchemaResult>(getGenerateSeoSchemaUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getGenerateSeoSchemaMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateSeoSchema>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateSeoSchema>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['generateSeoSchema'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateSeoSchema>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  generateSeoSchema(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateSeoSchemaMutationResult = NonNullable<Awaited<ReturnType<typeof generateSeoSchema>>>
+
+    export type GenerateSeoSchemaMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Generate JSON-LD schema markup with platform installation guides
+ */
+export const useGenerateSeoSchema = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateSeoSchema>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateSeoSchema>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getGenerateSeoSchemaMutationOptions(options));
+    }
+
+export const getGenerateSeoSitemapUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/seo/sitemap/generate`
+}
+
+/**
+ * @summary Generate a sitemap.xml for the project website
+ */
+export const generateSeoSitemap = async (id: number, options?: RequestInit): Promise<SeoSitemapResult> => {
+
+  return customFetch<SeoSitemapResult>(getGenerateSeoSitemapUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getGenerateSeoSitemapMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateSeoSitemap>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateSeoSitemap>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['generateSeoSitemap'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateSeoSitemap>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  generateSeoSitemap(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateSeoSitemapMutationResult = NonNullable<Awaited<ReturnType<typeof generateSeoSitemap>>>
+
+    export type GenerateSeoSitemapMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Generate a sitemap.xml for the project website
+ */
+export const useGenerateSeoSitemap = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateSeoSitemap>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateSeoSitemap>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getGenerateSeoSitemapMutationOptions(options));
+    }
+
+export const getGetSeoWatchdogUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/seo/watchdog`
+}
+
+/**
+ * @summary Get the latest SEO watchdog coaching plan
+ */
+export const getSeoWatchdog = async (id: number, options?: RequestInit): Promise<SeoWatchdog> => {
+
+  return customFetch<SeoWatchdog>(getGetSeoWatchdogUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSeoWatchdogQueryKey = (id: number,) => {
+    return [
+    `/api/projects/${id}/seo/watchdog`
+    ] as const;
+    }
+
+
+export const getGetSeoWatchdogQueryOptions = <TData = Awaited<ReturnType<typeof getSeoWatchdog>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSeoWatchdog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSeoWatchdogQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSeoWatchdog>>> = ({ signal }) => getSeoWatchdog(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSeoWatchdog>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSeoWatchdogQueryResult = NonNullable<Awaited<ReturnType<typeof getSeoWatchdog>>>
+export type GetSeoWatchdogQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the latest SEO watchdog coaching plan
+ */
+
+export function useGetSeoWatchdog<TData = Awaited<ReturnType<typeof getSeoWatchdog>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSeoWatchdog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSeoWatchdogQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGenerateSeoWatchdogUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/seo/watchdog/generate`
+}
+
+/**
+ * @summary Generate a new weekly SEO coaching plan
+ */
+export const generateSeoWatchdog = async (id: number, options?: RequestInit): Promise<SeoWatchdog> => {
+
+  return customFetch<SeoWatchdog>(getGenerateSeoWatchdogUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getGenerateSeoWatchdogMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateSeoWatchdog>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateSeoWatchdog>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['generateSeoWatchdog'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateSeoWatchdog>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  generateSeoWatchdog(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateSeoWatchdogMutationResult = NonNullable<Awaited<ReturnType<typeof generateSeoWatchdog>>>
+
+    export type GenerateSeoWatchdogMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Generate a new weekly SEO coaching plan
+ */
+export const useGenerateSeoWatchdog = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateSeoWatchdog>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateSeoWatchdog>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getGenerateSeoWatchdogMutationOptions(options));
+    }
 
 export const getGetAgentHistoryUrl = (id: number,) => {
 

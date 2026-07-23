@@ -39,6 +39,10 @@ export const TRIAL_LIMITS = {
   seo_strategy: 0,
   // Campaign reports are paid-only (requireActiveSubscription gate); quota = 0 blocks trial entirely.
   campaign_reports: 0,
+  // SEO blog posts, meta tags, schema markup — paid-only; trial = 0.
+  seo_blog_posts: 0,
+  // SEO Watchdog coach — allow 1 on trial so users can see what it does.
+  seo_watchdog: 1,
 } as const;
 
 export type TrialFeature = keyof typeof TRIAL_LIMITS;
@@ -57,6 +61,8 @@ const FEATURE_LABELS: Record<TrialFeature, string> = {
   image_generation: "AI image generation",
   seo_strategy: "AI SEO Strategy Builder",
   campaign_reports: "AI campaign report",
+  seo_blog_posts: "SEO blog post generation",
+  seo_watchdog: "SEO Coach weekly check-in",
 };
 
 const FEATURE_UNITS: Record<TrialFeature, string> = {
@@ -73,6 +79,8 @@ const FEATURE_UNITS: Record<TrialFeature, string> = {
   image_generation: "image",
   seo_strategy: "strategy",
   campaign_reports: "report",
+  seo_blog_posts: "post",
+  seo_watchdog: "check-in",
 };
 
 /** Trial-plan video blueprint batches are capped smaller than the platform's normal

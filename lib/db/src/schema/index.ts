@@ -14,6 +14,7 @@ export * from "./credits";
 export * from "./google-ads";
 export * from "./meta";
 export * from "./seo";
+export * from "./seoTools";
 export * from "./team";
 export * from "./avatars";
 export * from "./klingSceneJobs";

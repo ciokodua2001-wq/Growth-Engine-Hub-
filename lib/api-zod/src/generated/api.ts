@@ -1535,6 +1535,206 @@ export const GetProjectUsageResponse = zod.object({
 
 
 /**
+ * @summary List SEO blog posts for a project
+ */
+export const ListSeoBlogPostsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListSeoBlogPostsResponseItem = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "keyword": zod.string(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "metaTitle": zod.string().nullish(),
+  "metaDescription": zod.string().nullish(),
+  "wordCount": zod.number().nullish(),
+  "status": zod.string(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional()
+})
+export const ListSeoBlogPostsResponse = zod.array(ListSeoBlogPostsResponseItem)
+
+
+/**
+ * @summary Generate a new SEO-optimized blog post
+ */
+export const GenerateSeoBlogPostParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GenerateSeoBlogPostBody = zod.object({
+  "keyword": zod.string().optional(),
+  "tone": zod.string().optional()
+})
+
+export const GenerateSeoBlogPostResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "keyword": zod.string(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "metaTitle": zod.string().nullish(),
+  "metaDescription": zod.string().nullish(),
+  "wordCount": zod.number().nullish(),
+  "status": zod.string(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Delete a SEO blog post
+ */
+export const DeleteSeoBlogPostParams = zod.object({
+  "id": zod.coerce.number(),
+  "postId": zod.coerce.number()
+})
+
+export const DeleteSeoBlogPostResponse = zod.unknown()
+
+
+/**
+ * @summary Get generated meta tags for a project
+ */
+export const GetSeoMetaTagsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetSeoMetaTagsResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "pages": zod.object({
+
+}).passthrough(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Generate meta tags for all pages
+ */
+export const GenerateSeoMetaTagsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GenerateSeoMetaTagsBody = zod.object({
+  "pages": zod.array(zod.string()).optional()
+})
+
+export const GenerateSeoMetaTagsResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "pages": zod.object({
+
+}).passthrough(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Get generated schema markup for a project
+ */
+export const GetSeoSchemaParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetSeoSchemaResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "schemas": zod.object({
+
+}).passthrough(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Generate JSON-LD schema markup with platform installation guides
+ */
+export const GenerateSeoSchemaParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GenerateSeoSchemaResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "schemas": zod.object({
+
+}).passthrough(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Generate a sitemap.xml for the project website
+ */
+export const GenerateSeoSitemapParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GenerateSeoSitemapResponse = zod.object({
+  "xml": zod.string(),
+  "pages": zod.object({
+
+}).passthrough(),
+  "pageCount": zod.number(),
+  "submissionInstructions": zod.object({
+
+}).passthrough().optional()
+})
+
+
+/**
+ * @summary Get the latest SEO watchdog coaching plan
+ */
+export const GetSeoWatchdogParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetSeoWatchdogResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "weekOf": zod.string(),
+  "headline": zod.string(),
+  "summary": zod.string(),
+  "actions": zod.object({
+
+}).passthrough(),
+  "progressNote": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Generate a new weekly SEO coaching plan
+ */
+export const GenerateSeoWatchdogParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GenerateSeoWatchdogResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "weekOf": zod.string(),
+  "headline": zod.string(),
+  "summary": zod.string(),
+  "actions": zod.object({
+
+}).passthrough(),
+  "progressNote": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().optional()
+})
+
+
+/**
  * @summary Get AI agent conversation history
  */
 export const GetAgentHistoryParams = zod.object({

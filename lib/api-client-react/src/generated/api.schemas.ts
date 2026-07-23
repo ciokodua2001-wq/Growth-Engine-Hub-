@@ -720,6 +720,78 @@ export interface ErrorEnvelope {
   error: string;
 }
 
+export interface SeoMetaTagsInput {
+  pages?: string[];
+}
+
+export interface SeoBlogPostInput {
+  keyword?: string;
+  tone?: string;
+}
+
+export interface SeoBlogPost {
+  id: number;
+  projectId: number;
+  keyword: string;
+  title: string;
+  content: string;
+  /** @nullable */
+  metaTitle?: string | null;
+  /** @nullable */
+  metaDescription?: string | null;
+  /** @nullable */
+  wordCount?: number | null;
+  status: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type SeoMetaTagsResultPages = { [key: string]: unknown };
+
+export interface SeoMetaTagsResult {
+  id: number;
+  projectId: number;
+  pages: SeoMetaTagsResultPages;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type SeoSchemaResultSchemas = { [key: string]: unknown };
+
+export interface SeoSchemaResult {
+  id: number;
+  projectId: number;
+  schemas: SeoSchemaResultSchemas;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type SeoSitemapResultPages = { [key: string]: unknown };
+
+export type SeoSitemapResultSubmissionInstructions = { [key: string]: unknown };
+
+export interface SeoSitemapResult {
+  xml: string;
+  pages: SeoSitemapResultPages;
+  pageCount: number;
+  submissionInstructions?: SeoSitemapResultSubmissionInstructions;
+}
+
+export type SeoWatchdogActions = { [key: string]: unknown };
+
+export interface SeoWatchdog {
+  id: number;
+  projectId: number;
+  weekOf: string;
+  headline: string;
+  summary: string;
+  actions: SeoWatchdogActions;
+  /** @nullable */
+  progressNote?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface AgentMessageInput {
   message: string;
 }

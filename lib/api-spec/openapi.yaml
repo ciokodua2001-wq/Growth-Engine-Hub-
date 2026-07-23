@@ -1362,6 +1362,212 @@ paths:
         "404":
           description: Project not found
 
+  # ── SEO Tools ─────────────────────────────────────────────────────────────
+  /projects/{id}/seo/blog-posts:
+    get:
+      operationId: listSeoBlogPosts
+      tags: [seo]
+      summary: List SEO blog posts for a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of blog posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SeoBlogPost"
+
+  /projects/{id}/seo/blog-posts/generate:
+    post:
+      operationId: generateSeoBlogPost
+      tags: [seo]
+      summary: Generate a new SEO-optimized blog post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeoBlogPostInput"
+      responses:
+        "200":
+          description: Generated blog post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeoBlogPost"
+
+  /projects/{id}/seo/blog-posts/{postId}:
+    delete:
+      operationId: deleteSeoBlogPost
+      tags: [seo]
+      summary: Delete a SEO blog post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+
+  /projects/{id}/seo/meta-tags:
+    get:
+      operationId: getSeoMetaTags
+      tags: [seo]
+      summary: Get generated meta tags for a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Meta tags result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeoMetaTagsResult"
+
+  /projects/{id}/seo/meta-tags/generate:
+    post:
+      operationId: generateSeoMetaTags
+      tags: [seo]
+      summary: Generate meta tags for all pages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeoMetaTagsInput"
+      responses:
+        "200":
+          description: Generated meta tags
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeoMetaTagsResult"
+
+  /projects/{id}/seo/schema:
+    get:
+      operationId: getSeoSchema
+      tags: [seo]
+      summary: Get generated schema markup for a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Schema markup result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeoSchemaResult"
+
+  /projects/{id}/seo/schema/generate:
+    post:
+      operationId: generateSeoSchema
+      tags: [seo]
+      summary: Generate JSON-LD schema markup with platform installation guides
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Generated schema markup
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeoSchemaResult"
+
+  /projects/{id}/seo/sitemap/generate:
+    post:
+      operationId: generateSeoSitemap
+      tags: [seo]
+      summary: Generate a sitemap.xml for the project website
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Generated sitemap
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeoSitemapResult"
+
+  /projects/{id}/seo/watchdog:
+    get:
+      operationId: getSeoWatchdog
+      tags: [seo]
+      summary: Get the latest SEO watchdog coaching plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Latest watchdog plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeoWatchdog"
+
+  /projects/{id}/seo/watchdog/generate:
+    post:
+      operationId: generateSeoWatchdog
+      tags: [seo]
+      summary: Generate a new weekly SEO coaching plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Generated watchdog plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeoWatchdog"
+
   /projects/{id}/agent/history:
     get:
       operationId: getAgentHistory
@@ -2382,6 +2588,116 @@ components:
       required: [error]
       properties:
         error:
+          type: string
+
+    # ── SEO Tools ────────────────────────────────────────────────────────────
+    SeoMetaTagsInput:
+      type: object
+      properties:
+        pages:
+          type: array
+          items:
+            type: string
+
+    SeoBlogPostInput:
+      type: object
+      properties:
+        keyword:
+          type: string
+        tone:
+          type: string
+
+    SeoBlogPost:
+      type: object
+      required: [id, projectId, keyword, title, content, status, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        keyword:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        metaTitle:
+          type: ["string", "null"]
+        metaDescription:
+          type: ["string", "null"]
+        wordCount:
+          type: ["integer", "null"]
+        status:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    SeoMetaTagsResult:
+      type: object
+      required: [id, projectId, pages, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        pages:
+          type: object
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    SeoSchemaResult:
+      type: object
+      required: [id, projectId, schemas, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        schemas:
+          type: object
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    SeoSitemapResult:
+      type: object
+      required: [xml, pages, pageCount]
+      properties:
+        xml:
+          type: string
+        pages:
+          type: object
+        pageCount:
+          type: integer
+        submissionInstructions:
+          type: object
+
+    SeoWatchdog:
+      type: object
+      required: [id, projectId, weekOf, headline, summary, actions, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        weekOf:
+          type: string
+        headline:
+          type: string
+        summary:
+          type: string
+        actions:
+          type: object
+        progressNote:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
           type: string
 
     # ── Agent ────────────────────────────────────────────────────────────────
