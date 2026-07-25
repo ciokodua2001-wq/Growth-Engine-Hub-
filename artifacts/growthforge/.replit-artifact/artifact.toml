@@ -19,12 +19,16 @@ run = "pnpm --filter @workspace/growthforge run dev"
 
 [services.production]
 build = [ "pnpm", "--filter", "@workspace/growthforge", "run", "build" ]
-publicDir = "artifacts/growthforge/dist/public"
-serve = "static"
 
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
+[services.production.run]
+args = ["node", "artifacts/growthforge/server.mjs"]
+
+[services.production.run.env]
+PORT = "23190"
+NODE_ENV = "production"
+
+[services.production.health.startup]
+path = "/healthz"
 
 [services.env]
 PORT = "23190"
