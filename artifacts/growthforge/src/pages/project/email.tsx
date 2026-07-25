@@ -148,11 +148,65 @@ const EMAIL_STEPS = [
   "Optimizing for deliverability...",
 ];
 
-function parseRecipients(raw: string): string[] {
-  return raw
+interface Recipient {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  company?: string;
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Parse either:
+ *  - plain email list  (one per line, or comma/semicolon separated)
+ *  - CSV with header   (email,first_name,last_name,company)
+ */
+function parseCsvRecipients(raw: string): Recipient[] {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+
+  const lines = trimmed.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0) return [];
+
+  // Detect multi-column CSV: any line with a comma that isn't a bare email
+  const hasMultiColumns = lines.some(l => l.includes(",") && !EMAIL_RE.test(l.trim()));
+
+  if (hasMultiColumns) {
+    // Find header row: first line containing "email" or "name"
+    const firstLower = lines[0].toLowerCase();
+    const hasHeader  = firstLower.includes("email") || firstLower.includes("first") || firstLower.includes("name");
+    const headerRow  = hasHeader ? lines[0] : null;
+
+    const parsedHeaders = headerRow
+      ? headerRow.split(",").map(h => h.trim().toLowerCase().replace(/^["']|["']$/g, ""))
+      : ["email", "first_name"];
+
+    const idx = (keys: string[]) => parsedHeaders.findIndex(h => keys.some(k => h.includes(k)));
+    const emailIdx   = idx(["email"]);
+    const firstIdx   = idx(["first_name", "firstname", "first"]);
+    const lastIdx    = idx(["last_name", "lastname", "last"]);
+    const companyIdx = idx(["company", "org", "business"]);
+
+    const dataLines = hasHeader ? lines.slice(1) : lines;
+    return dataLines.flatMap(line => {
+      const cols = line.split(",").map(c => c.trim().replace(/^["']|["']$/g, ""));
+      const rawEmail = emailIdx >= 0 ? (cols[emailIdx] ?? "") : (cols[0] ?? "");
+      if (!EMAIL_RE.test(rawEmail)) return [];
+      return [{
+        email:     rawEmail,
+        firstName: firstIdx   >= 0 ? (cols[firstIdx]   || undefined) : undefined,
+        lastName:  lastIdx    >= 0 ? (cols[lastIdx]     || undefined) : undefined,
+        company:   companyIdx >= 0 ? (cols[companyIdx]  || undefined) : undefined,
+      }];
+    });
+  }
+
+  // Plain email list — split on newlines, commas, or semicolons
+  return trimmed
     .split(/[\n,;]+/)
     .map(e => e.trim())
-    .filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    .filter(e => EMAIL_RE.test(e))
+    .map(email => ({ email }));
 }
 
 interface SendModalProps {
@@ -171,7 +225,9 @@ function SendModal({ emailId, projectId, subject, onClose, onSent, onSendError }
   const sendEmail = useSendEmail();
   const { data: sendConfig, isLoading: configLoading } = useGetEmailSendConfig(projectId);
 
-  const recipients = parseRecipients(raw);
+  const recipients = parseCsvRecipients(raw);
+  const namedCount  = recipients.filter(r => r.firstName).length;
+  const isPersonalized = namedCount > 0;
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCsvError(null);
@@ -200,7 +256,6 @@ function SendModal({ emailId, projectId, subject, onClose, onSent, onSendError }
           onClose();
         },
         onError: () => {
-          // Modal stays open showing the inline error banner; parent shows error toast
           onSendError(recipients.length);
         },
       }
@@ -230,7 +285,6 @@ function SendModal({ emailId, projectId, subject, onClose, onSent, onSendError }
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : !sendConfig?.configured ? (
-          /* Setup-required screen — shown when RESEND_API_KEY is not configured */
           <div className="p-6 space-y-4">
             <div className="flex items-start gap-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
               <AlertTriangle className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
@@ -250,21 +304,22 @@ function SendModal({ emailId, projectId, subject, onClose, onSent, onSendError }
               <li>Refresh and try again</li>
             </ol>
             <div className="flex justify-end pt-2">
-              <button onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Close
-              </button>
+              <button onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">Close</button>
             </div>
           </div>
         ) : (
           <>
             <div className="p-6 space-y-4">
               <div>
-                <label className="text-sm font-semibold mb-2 block">Recipients</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-semibold">Recipients</label>
+                  <span className="text-[10px] text-muted-foreground">Supports plain emails or CSV with headers</span>
+                </div>
                 <textarea
                   value={raw}
                   onChange={e => setRaw(e.target.value)}
-                  placeholder="Paste email addresses separated by commas, semicolons, or newlines&#10;&#10;john@example.com&#10;jane@company.com"
-                  rows={6}
+                  placeholder={"Plain list:\njohn@example.com\njane@company.com\n\nOr CSV with names (enables {{first_name}} personalisation):\nemail,first_name,last_name,company\njohn@example.com,John,Smith,Acme"}
+                  rows={7}
                   className="w-full bg-secondary border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none font-mono"
                 />
               </div>
@@ -282,9 +337,22 @@ function SendModal({ emailId, projectId, subject, onClose, onSent, onSendError }
               </div>
 
               {recipients.length > 0 && (
-                <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                  <span>{recipients.length} valid recipient{recipients.length !== 1 ? "s" : ""} ready to send</span>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    <span>{recipients.length} valid recipient{recipients.length !== 1 ? "s" : ""} ready to send</span>
+                  </div>
+                  {isPersonalized ? (
+                    <div className="flex items-center gap-2 text-xs text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-3 py-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                      <span>{namedCount} of {recipients.length} have names — <span className="font-mono">{"{{first_name}}"}</span> will be personalised. Others get "there" as fallback.</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/50 rounded-lg px-3 py-2">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                      <span>No names detected. <span className="font-mono">{"{{first_name}}"}</span> will be replaced with "there". Upload a CSV with a <span className="font-mono">first_name</span> column to personalise.</span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -296,7 +364,7 @@ function SendModal({ emailId, projectId, subject, onClose, onSent, onSendError }
               )}
 
               <div className="text-xs text-muted-foreground bg-secondary/50 rounded-lg px-3 py-2">
-                Sends from <span className="text-foreground font-mono">{sendConfig.fromAddress}</span>. Make sure this address is verified in your Resend dashboard before sending.
+                Sends from <span className="text-foreground font-mono">{sendConfig.fromAddress}</span>. Verify this address in your Resend dashboard before sending.
               </div>
             </div>
 

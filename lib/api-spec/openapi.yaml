@@ -2134,6 +2134,19 @@ components:
         fromAddress:
           type: string
 
+    EmailRecipient:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        company:
+          type: string
+
     EmailSendInput:
       type: object
       required: [recipients]
@@ -2141,9 +2154,9 @@ components:
         recipients:
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/EmailRecipient"
           minItems: 1
-          maxItems: 50
+          maxItems: 500
 
     # ── Ads ──────────────────────────────────────────────────────────────────
     AdInput:

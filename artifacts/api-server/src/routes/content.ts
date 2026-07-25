@@ -349,24 +349,37 @@ router.post("/projects/:id/emails/:emailId/send", requireActiveSubscription, asy
 
   const resend = new Resend(apiKey);
 
-  const validEmails = recipients.filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
-  if (validEmails.length === 0) { res.status(400).json({ error: "No valid email addresses provided" }); return; }
-
-  let failCount = 0;
-  const batches: string[][] = [];
-  for (let i = 0; i < validEmails.length; i += 50) {
-    batches.push(validEmails.slice(i, i + 50));
+  // ── Template variable substitution ───────────────────────────
+  function substituteVars(text: string, r: { email: string; firstName?: string | null; lastName?: string | null; company?: string | null }): string {
+    const firstName  = r.firstName  || "there";
+    const lastName   = r.lastName   || "";
+    const fullName   = [r.firstName, r.lastName].filter(Boolean).join(" ") || "there";
+    const company    = r.company    || "";
+    return text
+      .replace(/\{\{first_name\}\}/gi,  firstName)
+      .replace(/\{\{last_name\}\}/gi,   lastName)
+      .replace(/\{\{full_name\}\}/gi,   fullName)
+      .replace(/\{\{name\}\}/gi,        fullName)
+      .replace(/\{\{company\}\}/gi,     company)
+      .replace(/\{\{email\}\}/gi,       r.email);
   }
 
-  for (const batch of batches) {
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const validRecipients = recipients.filter(r => EMAIL_RE.test(r.email));
+  if (validRecipients.length === 0) { res.status(400).json({ error: "No valid email addresses provided" }); return; }
+
+  let failCount = 0;
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < validRecipients.length; i += BATCH_SIZE) {
+    const batch = validRecipients.slice(i, i + BATCH_SIZE);
     const headers: Record<string, string> = { "X-Entity-Ref-ID": String(email.id) };
     if (email.previewText) headers["X-Preview-Text"] = email.previewText;
     const { error } = await resend.batch.send(
-      batch.map(to => ({
+      batch.map(r => ({
         from: "GrowthForge AI <marketing@usegrowthforge.com>",
-        to,
-        subject: email.subject,
-        text: email.body ?? email.subject,
+        to: r.email,
+        subject: substituteVars(email.subject, r),
+        text:    substituteVars(email.body ?? email.subject, r),
         headers,
       }))
     );
@@ -375,6 +388,8 @@ router.post("/projects/:id/emails/:emailId/send", requireActiveSubscription, asy
       failCount += batch.length;
     }
   }
+
+  const validEmails = validRecipients; // alias for count below
 
   const sentCount = validEmails.length - failCount;
 

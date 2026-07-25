@@ -28,6 +28,7 @@ export * from './customerPersona';
 export * from './dashboardSummary';
 export * from './emailCampaign';
 export * from './emailCampaignInput';
+export * from './emailRecipient';
 export * from './emailSendConfig';
 export * from './emailSendInput';
 export * from './errorEnvelope';

@@ -377,12 +377,19 @@ export interface EmailSendConfig {
   fromAddress: string;
 }
 
+export interface EmailRecipient {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  company?: string;
+}
+
 export interface EmailSendInput {
   /**
      * @minItems 1
-     * @maxItems 50
+     * @maxItems 500
      */
-  recipients: string[];
+  recipients: EmailRecipient[];
 }
 
 export interface AdInput {

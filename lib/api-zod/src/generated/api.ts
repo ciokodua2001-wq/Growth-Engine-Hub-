@@ -846,12 +846,17 @@ export const SendEmailParams = zod.object({
   "emailId": zod.coerce.number()
 })
 
-export const sendEmailBodyRecipientsMax = 50;
+export const sendEmailBodyRecipientsMax = 500;
 
 
 
 export const SendEmailBody = zod.object({
-  "recipients": zod.array(zod.string()).min(1).max(sendEmailBodyRecipientsMax)
+  "recipients": zod.array(zod.object({
+  "email": zod.string(),
+  "firstName": zod.string().optional(),
+  "lastName": zod.string().optional(),
+  "company": zod.string().optional()
+})).min(1).max(sendEmailBodyRecipientsMax)
 })
 
 export const SendEmailResponse = zod.object({

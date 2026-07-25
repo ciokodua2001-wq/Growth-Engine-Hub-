@@ -5,11 +5,12 @@
  * GrowthForge AI API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { EmailRecipient } from './emailRecipient';
 
 export interface EmailSendInput {
   /**
      * @minItems 1
-     * @maxItems 50
+     * @maxItems 500
      */
-  recipients: string[];
+  recipients: EmailRecipient[];
 }
