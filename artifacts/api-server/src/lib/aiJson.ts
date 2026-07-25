@@ -41,7 +41,7 @@ async function callClaude<T>(params: {
   // injectCulturalNuance() is a no-op when profile is null, so English calls
   // are completely unaffected in both behaviour and token cost.
   const localeProfile = params.locale ? getLocaleProfile(params.locale) : null;
-  const enrichedSystem = injectCulturalNuance(params.system, localeProfile);
+  const enrichedSystem = injectCulturalNuance(params.system, localeProfile, params.locale);
 
   const message = await anthropic.messages.create({
     model: params.model,

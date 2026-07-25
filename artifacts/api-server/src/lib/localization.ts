@@ -109,6 +109,55 @@ const COPYWRITING_FORMULA_OVERRIDES: Record<string, string> = {
 const DEFAULT_FORMULA_GUIDANCE = `Apply standard persuasion frameworks appropriate to the content type
   (AIDA for ads, PAS for problem-solution content, storytelling for brand copy).`;
 
+// ── Unit & currency conversion rules per locale ────────────────────────────────
+
+const UNIT_CONVERSION_RULES: Record<string, string> = {
+  "es-MX": `If the source content references USD prices, imperial units, or US-centric measurements,
+  convert them automatically using these rules — do NOT leave US-centric figures in the output:
+  • USD ($) → Pesos mexicanos (MXN). Format: "$X,XXX MXN" or "MX$X,XXX". Approx rate: $1 USD ≈ $17 MXN.
+  • Miles → kilómetros (km). Multiply by 1.609. Example: 60 miles → 97 km.
+  • Inches → centímetros (cm). Multiply by 2.54. Example: 6 inches → 15 cm.
+  • Feet → metros (m). Multiply by 0.305. Example: 6 ft → 1.83 m.
+  • Pounds (weight) → kilogramos (kg). Multiply by 0.453. Example: 10 lbs → 4.5 kg.
+  • Fahrenheit → Celsius. Formula: (°F − 32) × 5/9. Example: 72°F → 22°C.
+  • Fluid ounces → mililitros (ml). Multiply by 29.57. Example: 8 fl oz → 237 ml.
+  • Gallons → litros (L). Multiply by 3.785. Example: 1 gal → 3.8 L.`,
+
+  "de-DE": `If the source content references USD prices, imperial units, or US-centric measurements,
+  convert them automatically using these rules — do NOT leave US-centric figures in the output:
+  • USD ($) → Euro (€). Format: "X.XXX,XX €" (€ suffix, space before). Approx rate: $1 USD ≈ 0,92 €.
+  • Miles → Kilometer (km). Multiply by 1,609. Example: 60 Meilen → 97 km.
+  • Inches → Zentimeter (cm). Multiply by 2,54. Example: 6 Zoll → 15,2 cm.
+  • Feet → Meter (m). Multiply by 0,305. Example: 6 Fuß → 1,83 m.
+  • Pounds (weight) → Kilogramm (kg). Multiply by 0,453. Example: 10 lbs → 4,5 kg.
+  • Fahrenheit → Celsius. Formel: (°F − 32) × 5/9. Example: 72°F → 22°C.
+  • Fluid ounces → Milliliter (ml). Multiply by 29,57. Example: 8 fl oz → 237 ml.
+  • Gallons → Liter (L). Multiply by 3,785. Example: 1 Gallon → 3,8 L.`,
+
+  "fr-FR": `If the source content references USD prices, imperial units, or US-centric measurements,
+  convert them automatically using these rules — do NOT leave US-centric figures in the output:
+  • USD ($) → Euro (€). Format: "X XXX,XX €" (€ suffix, non-breaking space before). Approx rate: $1 USD ≈ 0,92 €.
+  • Miles → kilomètres (km). Multiply by 1,609. Example: 60 miles → 97 km.
+  • Inches → centimètres (cm). Multiply by 2,54. Example: 6 pouces → 15,2 cm.
+  • Feet → mètres (m). Multiply by 0,305. Example: 6 pieds → 1,83 m.
+  • Pounds (weight) → kilogrammes (kg). Multiply by 0,453. Example: 10 lbs → 4,5 kg.
+  • Fahrenheit → Celsius. Formule : (°F − 32) × 5/9. Example : 72°F → 22°C.
+  • Fluid ounces → millilitres (ml). Multiply by 29,57. Example : 8 fl oz → 237 ml.
+  • Gallons → litres (L). Multiply by 3,785. Example : 1 gallon → 3,8 L.`,
+
+  "pt-BR": `If the source content references USD prices, imperial units, or US-centric measurements,
+  convert them automatically using these rules — do NOT leave US-centric figures in the output:
+  • USD ($) → Reais brasileiros (R$). Format: "R$ X.XXX,XX". Approx rate: $1 USD ≈ R$ 5,00.
+    Always add parcelamento framing for any price above R$ 100: "ou Xx de R$ XX,XX sem juros".
+  • Miles → quilômetros (km). Multiply by 1,609. Example: 60 milhas → 97 km.
+  • Inches → centímetros (cm). Multiply by 2,54. Example: 6 polegadas → 15 cm.
+  • Feet → metros (m). Multiply by 0,305. Example: 6 pés → 1,83 m.
+  • Pounds (weight) → quilogramas (kg). Multiply by 0,453. Example: 10 lbs → 4,5 kg.
+  • Fahrenheit → Celsius. Fórmula: (°F − 32) × 5/9. Example: 72°F → 22°C.
+  • Fluid ounces → mililitros (ml). Multiply by 29,57. Example: 8 fl oz → 237 ml.
+  • Gallons → litros (L). Multiply by 3,785. Example: 1 galão → 3,8 L.`,
+};
+
 // ── System-level cultural nuance injector ─────────────────────────────────────
 
 /**
@@ -116,45 +165,41 @@ const DEFAULT_FORMULA_GUIDANCE = `Apply standard persuasion frameworks appropria
  * upgrading it from a generic content generator into a culturally-native writer
  * for the target market.
  *
- * The injected block instructs the model to:
- * - Rewrite copy natively using regional formulas (NOT line-by-line translation)
- * - Adopt the locale's specific slang, idioms, and tone as mandatory behaviour
- * - Align video scripts and ad hooks to local SEO search-intent patterns
- * - Apply correct formatting (currency, dates, punctuation, register)
+ * Rules injected:
+ *  1. Language — 100% target language, no leakage
+ *  2. Native rewriting — no line-by-line translation; regional copywriting formulas
+ *  3. Tone & cultural calibration — values, motivators, prohibited patterns
+ *  4. Slang & idioms — mandatory native vocabulary
+ *  5. SEO & search-intent alignment — hooks wired to local query patterns
+ *  6. Formatting — currency, dates, numbers, punctuation, register
+ *  7. Output purity — no conversational filler, no preambles, pure JSON
+ *  8. Markdown preservation — structural tokens must survive inside JSON strings
+ *  9. Unit & currency conversion — US-centric figures auto-converted to local equivalents
  *
  * Falls back to the unmodified basePrompt when localeProfile is null/undefined,
  * ensuring safe degradation to standard professional English.
  *
- * @param basePrompt   The original LLM system message
+ * @param basePrompt    The original LLM system message
  * @param localeProfile A LocaleProfile from localizationProfiles.json, or null
- * @returns The system message with the Localization Directives block appended
+ * @param localeCode    BCP-47 locale code (e.g. "es-MX") — used for exact table lookups
+ * @returns The enriched system message
  */
 export function injectCulturalNuance(
   basePrompt: string,
   localeProfile: LocaleProfile | null | undefined,
+  localeCode?: string,
 ): string {
-  // ── Safe fallback ────────────────────────────────────────────────────────────
+  // ── Safe fallback — English or unknown locale ────────────────────────────────
   if (!localeProfile) return basePrompt;
 
   const { language_name, regional_nuance, slang_and_idioms, seo_behavior, formatting } = localeProfile;
 
-  // Find the locale code for formula lookup (match by language_name)
-  const formulaKey = Object.keys(COPYWRITING_FORMULA_OVERRIDES).find(
-    key => COPYWRITING_FORMULA_OVERRIDES[key] !== undefined &&
-           language_name.toLowerCase().includes(key.split("-")[0] === "fr" ? "french"
-             : key.split("-")[0] === "de" ? "german"
-             : key.split("-")[0] === "pt" ? "portuguese"
-             : key.split("-")[0] === "es" ? "spanish" : ""),
-  );
-  // Fall back to matching by checking locale codes directly
-  const localeKey = Object.keys(COPYWRITING_FORMULA_OVERRIDES).find(k =>
-    language_name.toLowerCase().startsWith(k.split("-")[0] === "fr" ? "french"
-      : k.split("-")[0] === "de" ? "german"
-      : k.split("-")[0] === "pt" ? "portuguese"
-      : k.split("-")[0] === "es" ? "spanish" : "__none__")
-  ) ?? formulaKey;
-  const formulaGuidance = (localeKey ? COPYWRITING_FORMULA_OVERRIDES[localeKey] : null)
+  // Use the explicit localeCode for exact table lookups; no fragile string matching.
+  const formulaGuidance = (localeCode ? COPYWRITING_FORMULA_OVERRIDES[localeCode] : null)
     ?? DEFAULT_FORMULA_GUIDANCE;
+
+  const unitConversionRules = (localeCode ? UNIT_CONVERSION_RULES[localeCode] : null)
+    ?? "Use the metric system and local currency throughout. Convert any US-centric figures encountered.";
 
   const slangDirectives = slang_and_idioms
     .map(s => `  • "${s.term}" → ${s.meaning}. Deploy in: ${s.usage}.`)
@@ -164,7 +209,7 @@ export function injectCulturalNuance(
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LOCALIZATION DIRECTIVES — MANDATORY SYSTEM RULES
-Target market: ${language_name}
+Target market: ${language_name}${localeCode ? ` (${localeCode})` : ""}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 RULE 1 — LANGUAGE (non-negotiable)
@@ -189,7 +234,7 @@ PROHIBITED patterns (will alienate this audience — treat as hard errors):
 ${regional_nuance.taboos.map(t => `  ✗ ${t}`).join("\n")}
 
 RULE 4 — SLANG & IDIOMS (mandatory native vocabulary)
-You MUST naturally incorporate the expressions below where contextually appropriate. Their complete absence signals foreign copy and breaks trust. Do not force every term into every piece — use judgment, but use them.
+Naturally incorporate the expressions below where contextually appropriate. Their complete absence signals foreign copy and breaks trust. Use judgment — do not force every term, but use them.
 ${slangDirectives}
 
 RULE 5 — SEO & SEARCH-INTENT ALIGNMENT (video scripts, ad hooks, headlines)
@@ -214,6 +259,28 @@ RULE 6 — FORMATTING (apply precisely)
 - Punctuation: ${formatting.punctuation_style}
 - CTA verbs — use ONLY these, never English equivalents: ${formatting.preferred_cta_verbs.join(", ")}
 - Register: ${formatting.formal_register}
+
+RULE 7 — OUTPUT PURITY (zero tolerance)
+Your response is consumed directly by an automated pipeline. Any of the following will break the system and are strictly forbidden:
+  ✗ Conversational preambles: "Here is your copy:", "Here's the translation:", "Sure, I've written:", "Of course,", "Certainly,", "As requested,"
+  ✗ Sign-offs or closing remarks: "I hope this helps", "Let me know if you need changes", "Feel free to adjust"
+  ✗ Meta-commentary: "Note that I used informal tone because...", "I translated this as...", "This copy follows..."
+  ✗ Language-mixing: English phrases embedded inside ${language_name} copy (except proper nouns)
+  ✗ Apologies or hedging: "I'm not sure if this is correct but...", "You may want to verify..."
+Output ONLY the raw JSON object requested. Nothing before the opening brace. Nothing after the closing brace.
+
+RULE 8 — MARKDOWN STRUCTURE PRESERVATION
+Many output fields contain markdown formatting (##, ###, **, *, -, numbered lists). These structural tokens carry semantic meaning and must be preserved exactly:
+  • ## and ### headings must remain as-is — do not convert to plain text or bold
+  • **bold** markers must remain paired — never leave a dangling **
+  • Bullet lists (- item) and numbered lists (1. item) must maintain their prefix characters
+  • Do not add or remove blank lines inside markdown blocks — preserve the structure the schema specifies
+  • JSON string escaping: use \\n for newlines inside JSON string values, never literal line breaks
+  • Never wrap the JSON in markdown fences (\`\`\`json ... \`\`\`)
+
+RULE 9 — UNIT & CURRENCY CONVERSION (automatic, no exceptions)
+${unitConversionRules}
+  If the exact conversion rate is unknown at generation time, use the approximate rate provided and flag with "(aprox.)" — never leave raw USD, miles, inches, or °F in the final output.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 END LOCALIZATION DIRECTIVES
