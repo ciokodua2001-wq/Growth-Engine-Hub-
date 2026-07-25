@@ -1160,10 +1160,10 @@ export default function ProjectVideos() {
     });
   };
 
-  const handleSubmit = (_url: string, _instructions: string): Promise<void> =>
+  const handleSubmit = (_url: string, _instructions: string, locale: string): Promise<void> =>
     new Promise((resolve, reject) => {
       generateVideos.mutate(
-        { id: projectId, data: { mode, count: blueprintCount, targetDuration } },
+        { id: projectId, data: { mode, count: blueprintCount, targetDuration, targetLocale: locale || undefined } },
         {
           onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) }); resolve(); },
           onError: reject,

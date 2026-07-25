@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Globe, Loader2, Check, AlertCircle, Sparkles } from "lucide-react";
+import { X, Globe, Loader2, Check, AlertCircle, Sparkles, Languages } from "lucide-react";
+
+const LOCALE_OPTIONS = [
+  { value: "",      flag: "🌐", label: "English (default)" },
+  { value: "es-MX", flag: "🇲🇽", label: "Spanish — Mexico" },
+  { value: "de-DE", flag: "🇩🇪", label: "German — Germany" },
+  { value: "pt-BR", flag: "🇧🇷", label: "Portuguese — Brazil" },
+];
 
 interface GenerateModalProps {
   isOpen: boolean;
@@ -10,7 +17,7 @@ interface GenerateModalProps {
   defaultWebsiteUrl?: string;
   instructionsPlaceholder?: string;
   processingSteps: string[];
-  onSubmit: (websiteUrl: string, instructions: string) => Promise<void>;
+  onSubmit: (websiteUrl: string, instructions: string, locale: string) => Promise<void>;
   ctaLabel?: string;
 }
 
@@ -38,6 +45,7 @@ export default function GenerateModal({
   const [phase, setPhase] = useState<Phase>("form");
   const [websiteUrl, setWebsiteUrl] = useState(defaultWebsiteUrl);
   const [instructions, setInstructions] = useState("");
+  const [locale, setLocale] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -46,6 +54,7 @@ export default function GenerateModal({
       setPhase("form");
       setWebsiteUrl(defaultWebsiteUrl);
       setInstructions("");
+      setLocale("");
       setCurrentStep(0);
       setErrorMsg("");
     }
@@ -68,7 +77,7 @@ export default function GenerateModal({
 
     try {
       await Promise.all([
-        onSubmit(websiteUrl.trim(), instructions),
+        onSubmit(websiteUrl.trim(), instructions, locale),
         new Promise<void>((r) => setTimeout(r, processingSteps.length * STEP_DURATION)),
       ]);
       clearInterval(interval);
@@ -158,6 +167,31 @@ export default function GenerateModal({
                     rows={4}
                     className="w-full bg-secondary border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none leading-relaxed"
                   />
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Languages className="h-3 w-3 text-muted-foreground" />
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Output Language
+                    </label>
+                  </div>
+                  <select
+                    value={locale}
+                    onChange={(e) => setLocale(e.target.value)}
+                    className="w-full bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  >
+                    {LOCALE_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.flag}  {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  {locale && (
+                    <p className="text-[10px] text-muted-foreground/60 mt-1 pl-1">
+                      All generated content will be written in {LOCALE_OPTIONS.find(o => o.value === locale)?.label.split(" — ")[0]}, using regional tone, idioms, and SEO patterns for that market.
+                    </p>
+                  )}
                 </div>
 
                 <button

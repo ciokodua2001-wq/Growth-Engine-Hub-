@@ -742,10 +742,10 @@ export default function ProjectSocial() {
     setSelectedPlatforms(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
   };
 
-  const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
+  const handleSubmit = (_websiteUrl: string, _instructions: string, locale: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       generatePosts.mutate(
-        { id: projectId, data: { platforms: selectedPlatforms } },
+        { id: projectId, data: { platforms: selectedPlatforms, targetLocale: locale || undefined } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getListSocialPostsQueryKey(projectId) });

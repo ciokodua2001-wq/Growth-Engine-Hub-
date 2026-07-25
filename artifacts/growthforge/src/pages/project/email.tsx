@@ -415,10 +415,10 @@ export default function ProjectEmail() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
   };
 
-  const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
+  const handleSubmit = (_websiteUrl: string, _instructions: string, locale: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       generateEmails.mutate(
-        { id: projectId, data: { type: selectedType } },
+        { id: projectId, data: { type: selectedType, targetLocale: locale || undefined } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getListEmailsQueryKey(projectId) });

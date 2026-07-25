@@ -64,10 +64,10 @@ export default function ProjectContent() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
+  const handleSubmit = (_websiteUrl: string, _instructions: string, locale: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       generateContent.mutate(
-        { id: projectId, data: { type: selectedType, count: 3 } },
+        { id: projectId, data: { type: selectedType, count: 3, targetLocale: locale || undefined } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getListContentQueryKey(projectId) });
