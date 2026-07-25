@@ -19,6 +19,12 @@ export const projectsTable = pgTable("projects", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  /**
+   * BCP-47 locale code auto-detected during onboarding from the project's
+   * website URL (e.g. "es-MX", "de-DE", "pt-BR"). Null means detection
+   * produced no result and the system should default to English.
+   */
+  detectedLocale: text("detected_locale"),
 });
 
 export const insertProjectSchema = createInsertSchema(projectsTable).omit({ id: true, createdAt: true, updatedAt: true });

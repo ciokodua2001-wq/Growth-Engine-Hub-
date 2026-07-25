@@ -20,6 +20,13 @@ interface GenerateModalProps {
   processingSteps: string[];
   onSubmit: (websiteUrl: string, instructions: string, locale: string) => Promise<void>;
   ctaLabel?: string;
+  /**
+   * BCP-47 locale code auto-detected from the project's website URL during
+   * onboarding (e.g. "es-MX", "de-DE"). When provided and matched to a
+   * supported locale option, the dropdown is pre-selected and the user sees
+   * an "auto-detected" badge. They can still override it manually.
+   */
+  detectedLocale?: string;
 }
 
 type Phase = "form" | "loading" | "success" | "error";
@@ -42,24 +49,41 @@ export default function GenerateModal({
   processingSteps,
   onSubmit,
   ctaLabel = "Generate",
+  detectedLocale,
 }: GenerateModalProps) {
   const [phase, setPhase] = useState<Phase>("form");
   const [websiteUrl, setWebsiteUrl] = useState(defaultWebsiteUrl);
   const [instructions, setInstructions] = useState("");
-  const [locale, setLocale] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Resolve the detectedLocale to a supported option value, or "" for English.
+  // We check against LOCALE_OPTIONS so unsupported codes don't produce a
+  // dangling <select> value that looks selected but renders nothing.
+  const resolvedDetectedLocale =
+    detectedLocale && LOCALE_OPTIONS.some(o => o.value === detectedLocale)
+      ? detectedLocale
+      : "";
+
+  const [locale, setLocale] = useState(resolvedDetectedLocale);
+  // Track whether the current locale value came from auto-detection so we can
+  // show the badge. If the user manually changes it, the badge disappears.
+  const [localeIsAutoDetected, setLocaleIsAutoDetected] = useState(
+    resolvedDetectedLocale !== "",
+  );
 
   useEffect(() => {
     if (isOpen) {
       setPhase("form");
       setWebsiteUrl(defaultWebsiteUrl);
       setInstructions("");
-      setLocale("");
+      setLocale(resolvedDetectedLocale);
+      setLocaleIsAutoDetected(resolvedDetectedLocale !== "");
       setCurrentStep(0);
       setErrorMsg("");
     }
-  }, [isOpen, defaultWebsiteUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, defaultWebsiteUrl, detectedLocale]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,7 +203,10 @@ export default function GenerateModal({
                   </div>
                   <select
                     value={locale}
-                    onChange={(e) => setLocale(e.target.value)}
+                    onChange={(e) => {
+                      setLocale(e.target.value);
+                      setLocaleIsAutoDetected(false);
+                    }}
                     className="w-full bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   >
                     {LOCALE_OPTIONS.map(opt => (
@@ -188,11 +215,16 @@ export default function GenerateModal({
                       </option>
                     ))}
                   </select>
-                  {locale && (
+                  {localeIsAutoDetected && locale ? (
+                    <p className="text-[10px] text-primary/70 mt-1 pl-1 flex items-center gap-1">
+                      <span>✦</span>
+                      Auto-detected from your website — change it above if needed.
+                    </p>
+                  ) : locale ? (
                     <p className="text-[10px] text-muted-foreground/60 mt-1 pl-1">
                       All generated content will be written in {LOCALE_OPTIONS.find(o => o.value === locale)?.label.split(" — ")[0]}, using regional tone, idioms, and SEO patterns for that market.
                     </p>
-                  )}
+                  ) : null}
                 </div>
 
                 <button

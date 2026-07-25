@@ -996,6 +996,7 @@ export default function ProjectSocial() {
         title="Generate Social Posts"
         subtitle={`Creating content for ${selectedPlatforms.join(", ")}`}
         defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        detectedLocale={project?.detectedLocale ?? undefined}
         instructionsPlaceholder={`Examples:\n• Generate LinkedIn thought leadership\n• Create viral TikTok hooks\n• Focus on product launches\n• Target startup founders`}
         processingSteps={SOCIAL_STEPS}
         onSubmit={handleSubmit}

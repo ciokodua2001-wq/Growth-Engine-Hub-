@@ -188,6 +188,7 @@ export default function ProjectContent() {
         title={`Generate ${selectedType.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())}`}
         subtitle="AI will write high-converting content tailored to your audience"
         defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        detectedLocale={project?.detectedLocale ?? undefined}
         instructionsPlaceholder={`Examples:\n• Focus on SEO keyword clusters\n• Write for technical audiences\n• Include case study examples\n• Target early-stage founders`}
         processingSteps={CONTENT_STEPS}
         onSubmit={handleSubmit}

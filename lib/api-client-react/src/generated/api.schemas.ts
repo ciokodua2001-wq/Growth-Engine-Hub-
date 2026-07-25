@@ -28,6 +28,12 @@ export interface Project {
   brandingCompanyName?: string | null;
   /** @nullable */
   brandingAccentColor?: string | null;
+  /**
+   * BCP-47 locale code auto-detected from the website URL during onboarding.
+   * e.g. "es-MX", "de-DE", "pt-BR". Null means no profile matched.
+   * @nullable
+   */
+  detectedLocale?: string | null;
   createdAt: string;
   updatedAt?: string;
 }

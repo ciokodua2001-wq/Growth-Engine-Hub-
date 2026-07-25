@@ -160,6 +160,7 @@ export default function ProjectAds() {
         title={`Generate ${selectedPlatform} Ad Creatives`}
         subtitle="AI will write high-converting ads optimized for your target platform"
         defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        detectedLocale={project?.detectedLocale ?? undefined}
         instructionsPlaceholder={`Examples:\n• Target startup founders\n• Focus on free trial CTA\n• Emphasize ROI and time savings\n• Use bold direct response copy`}
         processingSteps={ADS_STEPS}
         onSubmit={handleSubmit}

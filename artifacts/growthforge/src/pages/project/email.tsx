@@ -594,6 +594,7 @@ export default function ProjectEmail() {
         title={`Generate ${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} Email Sequence`}
         subtitle="AI will write a high-converting multi-email campaign for your funnel"
         defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        detectedLocale={project?.detectedLocale ?? undefined}
         instructionsPlaceholder={`Examples:\n• Focus on onboarding new users\n• Target enterprise decision makers\n• Emphasize ROI and case studies\n• Use conversational tone`}
         processingSteps={EMAIL_STEPS}
         onSubmit={handleSubmit}

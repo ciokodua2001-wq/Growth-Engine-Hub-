@@ -1501,6 +1501,7 @@ export default function ProjectVideos() {
         title={`Generate ${blueprintCount} Blueprint${blueprintCount !== 1 ? "s" : ""}`}
         subtitle="AI will write actor scripts, storyboards, and production notes for each video"
         defaultWebsiteUrl={project?.websiteUrl ?? ""}
+        detectedLocale={project?.detectedLocale ?? undefined}
         instructionsPlaceholder={`Examples:\n• Focus on product demo videos\n• Create viral TikTok hooks\n• Target founder pain points\n• Include customer testimonial style`}
         processingSteps={VIDEO_STEPS}
         onSubmit={handleSubmit}
