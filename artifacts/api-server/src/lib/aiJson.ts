@@ -1,5 +1,6 @@
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { deductPlatformCredits } from "./platformCredits.js";
+import { getLocaleProfile, injectCulturalNuance } from "./localization.js";
 
 const MODEL = "claude-sonnet-4-6";
 // Claude Sonnet pricing: $3/M input tokens, $15/M output tokens
@@ -32,11 +33,20 @@ async function callClaude<T>(params: {
   prompt: string;
   maxTokens?: number;
   label?: string;
+  locale?: string;
 }): Promise<T> {
+  // ── Cultural nuance injection ─────────────────────────────────────────────
+  // Fetch the locale profile (null = English fallback) and upgrade the system
+  // prompt with native copywriting directives before the request is sent.
+  // injectCulturalNuance() is a no-op when profile is null, so English calls
+  // are completely unaffected in both behaviour and token cost.
+  const localeProfile = params.locale ? getLocaleProfile(params.locale) : null;
+  const enrichedSystem = injectCulturalNuance(params.system, localeProfile);
+
   const message = await anthropic.messages.create({
     model: params.model,
     max_tokens: params.maxTokens ?? 8192,
-    system: params.system,
+    system: enrichedSystem,
     messages: [{ role: "user", content: params.prompt }],
   });
 
@@ -60,12 +70,17 @@ async function callClaude<T>(params: {
   }
 }
 
-/** Full-quality generation with Claude Sonnet — used for all content and analysis. */
+/**
+ * Full-quality generation with Claude Sonnet — used for all content and analysis.
+ * Pass `locale` (BCP-47 code, e.g. "es-MX") to upgrade the system prompt with
+ * native copywriting directives via injectCulturalNuance(). Omit for English.
+ */
 export async function generateJson<T>(params: {
   system: string;
   prompt: string;
   maxTokens?: number;
   label?: string;
+  locale?: string;
 }): Promise<T> {
   return callClaude<T>({
     model: MODEL,
@@ -79,6 +94,7 @@ export async function generateJson<T>(params: {
  * Fast, low-cost generation with Claude Haiku — used exclusively for Forge AI agent
  * chat (intent classification + conversational replies). 12× cheaper than Sonnet
  * with no perceptible quality difference for chat and routing tasks.
+ * Locale injection is intentionally omitted here — chat responses are always in English.
  */
 export async function generateJsonFast<T>(params: {
   system: string;

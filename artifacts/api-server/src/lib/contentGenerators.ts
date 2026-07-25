@@ -1,6 +1,5 @@
 import { generateJson } from "./aiJson.js";
 import { renderGroundingBlock, type GroundingContext } from "./projectContext.js";
-import { renderLocaleBlock } from "./localization.js";
 
 export interface SocialPostResult {
   platform: string;
@@ -14,14 +13,12 @@ export async function generateSocialPosts(
   opts: { platforms: string[]; perPlatform: number; prompt?: string; locale?: string },
 ): Promise<SocialPostResult[]> {
   const requestedTotal = opts.platforms.length * opts.perPlatform;
-  const localeBlock = renderLocaleBlock(opts.locale);
   const response = await generateJson<{ posts: SocialPostResult[] }>({
     system:
       "You are a senior social media copywriter. You write specific, on-brand social posts grounded in the " +
       "real business context provided — never generic marketing filler, never posts about the platform " +
       "itself. Respond with ONLY a single JSON object, no prose.",
     prompt: `${renderGroundingBlock(ctx)}
-${localeBlock ? `\n${localeBlock}\n` : ""}
 ${opts.prompt ? `\nAdditional direction from the user: ${opts.prompt}\n` : ""}
 Write exactly ${opts.perPlatform} social post(s) for EACH of these platforms: ${opts.platforms.join(", ")}.
 Each post must be tailored to that platform's tone/format and to THIS business's audience, voice, and value
@@ -32,6 +29,7 @@ proposition. Return JSON:
   ]
 }
 The "posts" array must contain exactly ${requestedTotal} items (${opts.perPlatform} per platform).`,
+    locale: opts.locale,
   });
   return response.posts.slice(0, requestedTotal);
 }
@@ -53,14 +51,12 @@ export async function generateEmailCampaign(
   ctx: GroundingContext,
   opts: { type: string; subjectHint?: string; prompt?: string; locale?: string },
 ): Promise<EmailResult> {
-  const localeBlock = renderLocaleBlock(opts.locale);
   return generateJson<EmailResult>({
     system:
       "You are a senior email marketing copywriter. You write specific, on-brand marketing emails grounded " +
       "in the real business context provided — never generic filler, never an email about the platform " +
       "itself. Use {{first_name}} as the recipient placeholder. Respond with ONLY a single JSON object, no prose.",
     prompt: `${renderGroundingBlock(ctx)}
-${localeBlock ? `\n${localeBlock}\n` : ""}
 ${opts.subjectHint ? `\nRequested subject line direction: ${opts.subjectHint}\n` : ""}
 ${opts.prompt ? `\nAdditional direction from the user: ${opts.prompt}\n` : ""}
 Write ${EMAIL_TYPE_BRIEFS[opts.type] ?? EMAIL_TYPE_BRIEFS.welcome} for this specific business. Return JSON:
@@ -69,6 +65,7 @@ Write ${EMAIL_TYPE_BRIEFS[opts.type] ?? EMAIL_TYPE_BRIEFS.welcome} for this spec
   "previewText": "a short preview/preheader line",
   "body": "the full email body, using {{first_name}} as the greeting placeholder, with real paragraphs and a clear CTA"
 }`,
+    locale: opts.locale,
   });
 }
 
@@ -150,11 +147,9 @@ async function generateSingleVideoBlueprint(
                            ', of type "social"'
   );
   const durationTarget = opts.targetDuration ?? 45;
-  const localeBlock = renderLocaleBlock(opts.locale);
   const response = await generateJson<{ videos: [Omit<VideoBlueprintResult, "cinematicPlan"> & { cinematicPlan: CinematicPlan }] }>({
     system: AI_VIDEO_DIRECTOR_SYSTEM,
     prompt: `${renderGroundingBlock(ctx)}
-${localeBlock ? `\n${localeBlock}\n` : ""}
 ${opts.prompt ? `\nAdditional direction from the user: ${opts.prompt}\n` : ""}
 Create exactly 1 short-form cinematic marketing video blueprint for this business${typeHint}. This is video ${opts.index + 1} of ${opts.total} — make it feel distinct from others in the set.
 
@@ -208,6 +203,7 @@ Return JSON with this exact structure:
   ]
 }`,
     maxTokens: 4096,
+    locale: opts.locale,
   });
   const v = response.videos[0];
   return { ...v, cinematicPlan: JSON.stringify(v.cinematicPlan) };
@@ -238,14 +234,12 @@ export async function generateAdCreatives(
   ctx: GroundingContext,
   opts: { platform: string; count: number; prompt?: string; locale?: string },
 ): Promise<AdCreativeResult[]> {
-  const localeBlock = renderLocaleBlock(opts.locale);
   const response = await generateJson<{ ads: AdCreativeResult[] }>({
     system:
       "You are a senior performance ad copywriter. You write specific, on-brand ad creatives grounded in the " +
       "real business context provided — never generic filler, never an ad about the platform itself. " +
       "Respond with ONLY a single JSON object, no prose.",
     prompt: `${renderGroundingBlock(ctx)}
-${localeBlock ? `\n${localeBlock}\n` : ""}
 ${opts.prompt ? `\nAdditional direction from the user: ${opts.prompt}\n` : ""}
 Write exactly ${opts.count} distinct ${opts.platform} ad creative(s) for this specific business. Return JSON:
 {
@@ -254,6 +248,7 @@ Write exactly ${opts.count} distinct ${opts.platform} ad creative(s) for this sp
   ]
 }
 The "ads" array must contain exactly ${opts.count} items.`,
+    locale: opts.locale,
   });
   return response.ads.slice(0, opts.count);
 }
@@ -299,7 +294,6 @@ export async function generateContentPieces(
 ): Promise<ContentPieceResult[]> {
   const brief = CONTENT_TYPE_BRIEFS[opts.type] ?? CONTENT_TYPE_BRIEFS.blog;
   const cap = Math.min(opts.count, 3);
-  const localeBlock = renderLocaleBlock(opts.locale);
 
   const response = await generateJson<{ pieces: ContentPieceResult[] }>({
     system:
@@ -309,7 +303,6 @@ export async function generateContentPieces(
       "and speak directly to its target audience. Use the brand voice described. " +
       "Score each piece honestly with integer scores 60–99. Respond with ONLY a single JSON object, no prose.",
     prompt: `${renderGroundingBlock(ctx)}
-${localeBlock ? `\n${localeBlock}\n` : ""}
 ${opts.prompt ? `\nAdditional direction from the user: ${opts.prompt}\n` : ""}
 Write exactly ${cap} piece(s) of the following content type: ${brief}
 
@@ -332,6 +325,7 @@ Return JSON:
 }
 The "pieces" array must contain exactly ${cap} item(s).`,
     maxTokens: 8192,
+    locale: opts.locale,
   });
 
   return (response.pieces ?? []).slice(0, cap);
