@@ -6,6 +6,7 @@ const LOCALE_OPTIONS = [
   { value: "",      flag: "🌐", label: "English (default)" },
   { value: "es-MX", flag: "🇲🇽", label: "Spanish — Mexico" },
   { value: "de-DE", flag: "🇩🇪", label: "German — Germany" },
+  { value: "fr-FR", flag: "🇫🇷", label: "French — France" },
   { value: "pt-BR", flag: "🇧🇷", label: "Portuguese — Brazil" },
 ];
 

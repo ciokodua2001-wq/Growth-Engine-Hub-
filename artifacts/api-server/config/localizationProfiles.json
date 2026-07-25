@@ -77,6 +77,46 @@
     }
   },
 
+  "fr-FR": {
+    "language_name": "French (France)",
+    "regional_nuance": {
+      "tone": "Sophisticated, precise, and intellectually confident. French audiences respond to craft, elegance, and substance — copy should feel considered and well-written, never rushed or breathless. Avoid aggressive sales tactics or hyperbole; instead, let the quality of the product and the clarity of the argument do the work. Wit and a light touch of irony are welcome in B2C contexts.",
+      "cultural_values": ["Intellectual depth and cultural pride", "Craftsmanship and 'savoir-faire'", "Individual liberty and critical thinking", "Appreciation for aesthetics and refinement", "Méfiance (healthy skepticism) toward overblown claims"],
+      "taboos": ["Avoid loud, hard-sell Americanisms — 'AMAZING DEAL!!!' reads as vulgar", "Never underestimate the audience's intelligence or over-explain the obvious", "Avoid anglicisms unless the brand deliberately uses them for a modern/tech feel", "Do not use 'tu' in formal or unknown contexts — 'vous' is the safe default"],
+      "motivators": ["Heritage, craftsmanship, and provenance", "Exclusivity and taste ('pour les connaisseurs')", "Social and intellectual status", "Clarity of argument — French audiences want to be convinced, not manipulated", "Environmental and ethical responsibility (especially among under-35s)"]
+    },
+    "slang_and_idioms": [
+      { "term": "C'est top", "meaning": "That's great / top-notch", "usage": "Casual product highlight copy for B2C" },
+      { "term": "Nickel", "meaning": "Perfect, spotless, exactly right", "usage": "Quality and precision messaging" },
+      { "term": "Carton plein", "meaning": "Full house / total success", "usage": "Results and outcome copy: 'Faites un carton plein avec votre campagne'" },
+      { "term": "Sans prise de tête", "meaning": "No hassle / no headache", "usage": "Simplicity and ease-of-use messaging" },
+      { "term": "Au top", "meaning": "On point / excellent", "usage": "Approving feature descriptions, casual sign-offs" },
+      { "term": "Hyper", "meaning": "Very / extremely (replaces 'très' in casual speech)", "usage": "Emphasis in B2C lifestyle copy: 'hyper efficace', 'hyper simple'" },
+      { "term": "C'est dans la poche", "meaning": "It's in the bag / it's a done deal", "usage": "Confidence-building copy before a CTA" },
+      { "term": "Coup de cœur", "meaning": "Something you fall in love with at first sight", "usage": "Product introductions, testimonial framing" }
+    ],
+    "seo_behavior": {
+      "search_engine": "Google.fr dominates (>92% share); Bing and Qwant have minor shares",
+      "keyword_style": "French users search with full phrases and often include prepositions and articles ('le meilleur logiciel de…', 'comment faire…'). Keyword stuffing reads as unnatural — prioritise semantic richness and natural phrasing.",
+      "preferred_query_patterns": ["Meilleur… pour…", "Comment…", "… avis", "… comparatif", "Acheter… en ligne", "… pas cher", "… professionnel"],
+      "local_signals": "Include 'en France', 'pour les entreprises françaises', city names (Paris, Lyon, Marseille, Bordeaux) for local SEO. 'Livraison en France' and 'service client français' are strong trust signals.",
+      "meta_title_style": "Factual and benefit-led; include a relevant keyword naturally; brand name at end separated by '|'; 55–60 characters. Avoid exclamation marks in titles.",
+      "meta_description_style": "Elegant and informative; include a concrete proof point or benefit; clear but non-aggressive action phrase ('Découvrez', 'Essayez gratuitement'); 150–160 characters",
+      "content_length_preference": "Long-form (1,000–1,500 words) with well-structured argumentation performs best; listicles work but should feel substantive rather than superficial; 'Guides complets' and 'Dossiers' outperform shallow how-tos"
+    },
+    "formatting": {
+      "date_format": "JJ/MM/AAAA or 'le 25 juillet 2026' in prose (e.g., 25/07/2026)",
+      "time_format": "24-hour (e.g., 15h00 or 15:00)",
+      "currency": "EUR — display as '€' suffix with non-breaking space (e.g., 1 299,00 €). Never prefix.",
+      "number_separators": "Non-breaking space for thousands, comma for decimals (e.g., 1 299,50)",
+      "punctuation_style": "Standard French — use « guillemets » (angle quotes) for quotations. Add a non-breaking space before : ; ! ? — e.g., 'Résultat : 42 %'",
+      "address_order": "Number + Street name, Postal code City, France (e.g., 12 rue de la Paix, 75001 Paris, France)",
+      "reading_direction": "Left to right",
+      "preferred_cta_verbs": ["Découvrir", "Essayer gratuitement", "Commencer", "En savoir plus", "Télécharger", "S'inscrire", "Demander une démo"],
+      "formal_register": "Always use 'vous' in B2B and for unknown audiences; 'tu' only in explicitly youth-facing or casual B2C brands. Avoid overly familiar tone unless the brand identity demands it."
+    }
+  },
+
   "pt-BR": {
     "language_name": "Portuguese (Brazil)",
     "regional_nuance": {
