@@ -55,7 +55,7 @@ router.post("/auth/start-trial", async (req, res): Promise<void> => {
       return;
     }
 
-    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     await db
       .update(usersTable)

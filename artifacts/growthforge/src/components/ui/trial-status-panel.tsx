@@ -37,7 +37,7 @@ export function TrialStatusPanel({ projectId, trialEndsAt, subscriptionStatus, c
 
   const daysLeft = trialEndsAt
     ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-    : 14;
+    : 7;
 
   if (collapsed) {
     const doneItems = usage ? CHECKLIST.filter((c) => (usage[c.key] ?? 0) > 0).length : 0;

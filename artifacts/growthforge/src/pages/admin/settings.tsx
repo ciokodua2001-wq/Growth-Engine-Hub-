@@ -180,7 +180,7 @@ export default function AdminSettings() {
           {
             title: "Trial & Subscriptions",
             rows: [
-              { label: "Trial Length (days)", desc: "Free trial duration for new users", el: <TextInput defaultValue="14" /> },
+              { label: "Trial Length (days)", desc: "Free trial duration for new users", el: <TextInput defaultValue="7" /> },
               { label: "Starter Price ($/mo)", desc: "", el: <TextInput defaultValue="49" /> },
               { label: "Growth Price ($/mo)", desc: "", el: <TextInput defaultValue="99" /> },
               { label: "Agency Price ($/mo)", desc: "", el: <TextInput defaultValue="299" /> },
