@@ -76,7 +76,7 @@ router.post("/projects/:id/content", requireActiveSubscription, async (req, res)
 
   let pieces: ContentPieceResult[];
   try {
-    pieces = await generateContentPieces(ctx, { type, count, prompt: parsed.data.prompt });
+    pieces = await generateContentPieces(ctx, { type, count, prompt: parsed.data.prompt, locale: parsed.data.targetLocale ?? undefined });
   } catch (err) {
     req.log.error({ err, projectId, type }, "Content Engine: AI generation failed");
     res.status(500).json({ error: "Content generation failed. Please try again." });
@@ -179,7 +179,7 @@ router.post("/projects/:id/social-posts", requireActiveSubscription, async (req,
 
   let postResults: SocialPostResult[];
   try {
-    postResults = await generateSocialPosts(ctx, { platforms, perPlatform, prompt: parsed.data.prompt });
+    postResults = await generateSocialPosts(ctx, { platforms, perPlatform, prompt: parsed.data.prompt, locale: parsed.data.targetLocale ?? undefined });
   } catch (err) {
     req.log.error({ err }, "Social post generation failed");
     res.status(502).json({ error: "Failed to generate social posts" });
@@ -281,7 +281,7 @@ router.post("/projects/:id/emails", requireActiveSubscription, async (req, res):
 
   let emailResult: EmailResult;
   try {
-    emailResult = await generateEmailCampaign(ctx, { type, subjectHint: parsed.data.subject, prompt: parsed.data.prompt });
+    emailResult = await generateEmailCampaign(ctx, { type, subjectHint: parsed.data.subject, prompt: parsed.data.prompt, locale: parsed.data.targetLocale ?? undefined });
   } catch (err) {
     req.log.error({ err }, "Email campaign generation failed");
     res.status(502).json({ error: "Failed to generate email campaign" });

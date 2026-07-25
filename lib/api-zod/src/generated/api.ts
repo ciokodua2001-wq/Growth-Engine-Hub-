@@ -502,7 +502,8 @@ export const GenerateContentParams = zod.object({
 export const GenerateContentBody = zod.object({
   "type": zod.string(),
   "count": zod.number().optional(),
-  "prompt": zod.string().optional()
+  "prompt": zod.string().optional(),
+  "targetLocale": zod.string().optional().describe('BCP-47 locale code for localised output (e.g. es-MX, de-DE, pt-BR). Omit for English.')
 })
 
 export const GenerateContentResponseItem = zod.object({
@@ -591,7 +592,8 @@ export const GenerateSocialPostsParams = zod.object({
 export const GenerateSocialPostsBody = zod.object({
   "platforms": zod.array(zod.string()),
   "count": zod.number().optional(),
-  "prompt": zod.string().optional()
+  "prompt": zod.string().optional(),
+  "targetLocale": zod.string().optional().describe('BCP-47 locale code for localised output (e.g. es-MX, de-DE, pt-BR). Omit for English.')
 })
 
 export const GenerateSocialPostsResponseItem = zod.object({
@@ -804,7 +806,8 @@ export const GenerateEmailsParams = zod.object({
 export const GenerateEmailsBody = zod.object({
   "type": zod.string(),
   "subject": zod.string().optional(),
-  "prompt": zod.string().optional()
+  "prompt": zod.string().optional(),
+  "targetLocale": zod.string().optional().describe('BCP-47 locale code for localised output (e.g. es-MX, de-DE, pt-BR). Omit for English.')
 })
 
 export const GenerateEmailsResponse = zod.object({
@@ -911,7 +914,8 @@ export const GenerateAdsParams = zod.object({
 export const GenerateAdsBody = zod.object({
   "platform": zod.string(),
   "count": zod.number().optional(),
-  "prompt": zod.string().optional()
+  "prompt": zod.string().optional(),
+  "targetLocale": zod.string().optional().describe('BCP-47 locale code for localised output (e.g. es-MX, de-DE, pt-BR). Omit for English.')
 })
 
 export const GenerateAdsResponseItem = zod.object({
@@ -978,7 +982,8 @@ export const GenerateVideosBody = zod.object({
   "type": zod.string().optional(),
   "count": zod.number().optional(),
   "prompt": zod.string().optional(),
-  "targetDuration": zod.union([zod.literal(15),zod.literal(30),zod.literal(45),zod.literal(60),zod.literal(90)]).optional().describe('Target video duration in seconds. AI will write scripts and shots to match.')
+  "targetDuration": zod.union([zod.literal(15),zod.literal(30),zod.literal(45),zod.literal(60),zod.literal(90)]).optional().describe('Target video duration in seconds. AI will write scripts and shots to match.'),
+  "targetLocale": zod.string().optional().describe('BCP-47 locale code for localised output (e.g. es-MX, de-DE, pt-BR). Omit for English.')
 })
 
 export const GenerateVideosResponseItem = zod.object({

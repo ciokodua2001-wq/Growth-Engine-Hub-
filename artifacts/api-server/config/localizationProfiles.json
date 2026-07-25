@@ -1,0 +1,119 @@
+{
+  "es-MX": {
+    "language_name": "Spanish (Mexico)",
+    "regional_nuance": {
+      "tone": "Warm, conversational, and relationship-first. Mexican business culture values trust ('confianza') and personal connection before the transaction. Avoid overly formal Castilian Spanish — prefer the inclusive 'ustedes' over 'vosotros', and lean into approachable directness rather than stiff corporate language.",
+      "cultural_values": ["family and community (familismo)", "personal trust before business", "pride in Mexican identity and craftsmanship", "celebration of progress ('salir adelante')"],
+      "taboos": ["Avoid comparisons that imply Mexican products are inferior to US/European ones", "Do not use Castilian vosotros constructs", "Avoid overly legalistic or cold tone — it reads as distrust"],
+      "motivators": ["Belonging and loyalty rewards", "Pride in supporting local/national brands", "Value and 'buen precio' (good deal) without feeling cheap", "Aspirational imagery tied to family success"]
+    },
+    "slang_and_idioms": [
+      { "term": "¡Órale!", "meaning": "Expression of agreement, encouragement, or approval — 'Let's go!' / 'Exactly!'", "usage": "CTAs, celebration copy, momentum moments" },
+      { "term": "Chido / Chida", "meaning": "Cool, great, awesome", "usage": "Product descriptions targeting younger demographics" },
+      { "term": "Está cañón", "meaning": "It's tough / That's a challenge", "usage": "Problem-acknowledgment copy before presenting the solution" },
+      { "term": "¡Qué chulada!", "meaning": "How wonderful/beautiful!", "usage": "Reacting to a product reveal or feature highlight" },
+      { "term": "Dale gas", "meaning": "Step on it / Go for it", "usage": "Action-oriented CTAs for sales or sign-up flows" },
+      { "term": "En chinga", "meaning": "Fast, urgently (informal — use carefully)", "usage": "Speed/efficiency messaging for B2B only, informal contexts" },
+      { "term": "De pelos", "meaning": "Excellent, top-notch", "usage": "Testimonial-style copy, review highlights" }
+    ],
+    "seo_behavior": {
+      "search_engine": "Google.com.mx dominates (>95% share)",
+      "keyword_style": "Users search in full conversational phrases and questions more than keyword fragments. Include long-tail question-format keywords.",
+      "preferred_query_patterns": ["¿Cómo puedo…?", "¿Cuál es el mejor…?", "Precio de…", "Comprar… en México", "…cerca de mí"],
+      "local_signals": "Include 'en México', city names (CDMX, Guadalajara, Monterrey), and 'envío a domicilio' / 'disponible en México' for e-commerce",
+      "meta_title_style": "Lead with the primary benefit, include 'México' or city for local intent, keep under 60 characters",
+      "meta_description_style": "Conversational, include a clear action phrase ('Cotiza gratis', 'Envío gratis'), 150–160 characters",
+      "content_length_preference": "Mid-form (600–900 words) with clear H2/H3 structure performs best; listicles and how-to guides rank well"
+    },
+    "formatting": {
+      "date_format": "DD/MM/AAAA (e.g., 25/07/2026)",
+      "time_format": "12-hour with AM/PM (e.g., 3:00 PM)",
+      "currency": "MXN — display as '$' prefix or 'MXN' suffix (e.g., $1,299 MXN)",
+      "number_separators": "Period for thousands, comma for decimals (e.g., 1.299,50) — note: some regions use comma for thousands, validate per context",
+      "punctuation_style": "Use inverted question mark (¿) and exclamation mark (¡) at sentence start",
+      "address_order": "Street name + number, Colonia, City, State, CP (Postal Code), México",
+      "reading_direction": "Left to right",
+      "preferred_cta_verbs": ["Cotiza", "Compra", "Descubre", "Obtén", "Empieza", "Regístrate", "Aprovecha"],
+      "formal_register": "Use 'usted' for B2B and older audiences; 'tú' for B2C, youth, and lifestyle brands"
+    }
+  },
+
+  "de-DE": {
+    "language_name": "German (Germany)",
+    "regional_nuance": {
+      "tone": "Precise, factual, and credibility-driven. German consumers and business audiences are highly skeptical of hyperbole — they expect claims to be substantiated. Lead with specifications, certifications, and concrete outcomes rather than emotional appeals. Directness is a sign of respect, not rudeness.",
+      "cultural_values": ["Quality ('Qualität') and durability over price", "Privacy and data protection (DSGVO awareness)", "Environmental responsibility (Nachhaltigkeit)", "Reliability and punctuality", "Engineering excellence ('Made in Germany' halo effect"]  ,
+      "taboos": ["Avoid superlatives without proof ('best', 'leading') — they read as dishonest", "Never downplay data privacy or skip GDPR-compliance signals", "Avoid casual or overly familiar tone in B2B contexts", "Exaggerated emotional language feels manipulative"],
+      "motivators": ["Technical depth and specification detail", "Third-party certifications and test results (Stiftung Warentest, TÜV)", "Long-term cost-of-ownership arguments", "Environmental certifications (Blauer Engel, etc.)", "Transparent pricing — no hidden fees"]
+    },
+    "slang_and_idioms": [
+      { "term": "Alles klar", "meaning": "All good / Got it — acknowledgment of clarity", "usage": "Confirmation messaging, onboarding flows" },
+      { "term": "Na und?", "meaning": "So what? — used rhetorically to challenge the status quo", "usage": "Problem-framing copy: 'Na und, was bringt das wirklich?'" },
+      { "term": "Das ist der Hammer", "meaning": "That's amazing / That's wild (positive)", "usage": "Feature reveal copy for highly engaged audiences" },
+      { "term": "Ohne Schnickschnack", "meaning": "No frills / No nonsense", "usage": "Value-proposition copy emphasizing simplicity and directness" },
+      { "term": "Läuft bei dir", "meaning": "Things are going well for you — often ironic", "usage": "Relatable problem-acknowledgment copy" },
+      { "term": "Typisch deutsch", "meaning": "Typically German — self-aware quality reference", "usage": "Brand copy that leans into precision and reliability" },
+      { "term": "Auf Herz und Nieren prüfen", "meaning": "Put to the test (lit. test on heart and kidneys)", "usage": "Trial/demo CTAs, product-testing messaging" }
+    ],
+    "seo_behavior": {
+      "search_engine": "Google.de dominates (~90%); Bing has minor share",
+      "keyword_style": "German compound nouns are dominant search terms — users combine words into long single-word queries (e.g., 'Projektmanagementsoftware', 'Buchhaltungssoftware'). Always target compound variants alongside spaced versions.",
+      "preferred_query_patterns": ["… Vergleich", "… Test", "… kaufen", "… Erfahrungen", "Bestes …", "… Kosten", "… Anleitung"],
+      "local_signals": "Include 'Deutschland', 'deutschlandweit', city names (Berlin, München, Hamburg) for local intent. DSGVO-compliant signals improve trust and may influence CTR.",
+      "meta_title_style": "Factual benefit + key noun, include brand name at end, 55–60 characters. Avoid clickbait.",
+      "meta_description_style": "Factual, include specific numbers or proof points, clear action verb, 150–160 characters",
+      "content_length_preference": "Long-form (1,200–2,000 words) with thorough coverage performs best — thin content is trusted less; include technical depth, comparisons, and citations where possible"
+    },
+    "formatting": {
+      "date_format": "TT.MM.JJJJ (e.g., 25.07.2026)",
+      "time_format": "24-hour (e.g., 15:00 Uhr)",
+      "currency": "EUR — display as '€' prefix or suffix per context (e.g., 1.299,00 €)",
+      "number_separators": "Period for thousands, comma for decimals (e.g., 1.299,50)",
+      "punctuation_style": "Standard German — use „Anführungszeichen" (lower-9 opening, upper-6 closing) for quotations",
+      "address_order": "Street name + number, Postleitzahl (PLZ) City, Deutschland",
+      "reading_direction": "Left to right",
+      "preferred_cta_verbs": ["Jetzt kaufen", "Kostenlos testen", "Mehr erfahren", "Anfragen", "Herunterladen", "Registrieren", "Vergleichen"],
+      "formal_register": "Always use 'Sie' (formal you) in B2B and for unknown audiences; 'du' only in explicitly casual B2C brands targeting youth"
+    }
+  },
+
+  "pt-BR": {
+    "language_name": "Portuguese (Brazil)",
+    "regional_nuance": {
+      "tone": "Energetic, warm, and optimistic. Brazilians respond strongly to enthusiasm, humor, and a sense of possibility ('o Brasil que dá certo'). Copy should feel like a conversation with a knowledgeable friend, not a corporate announcement. Storytelling and emotion drive decisions more than specs alone.",
+      "cultural_values": ["Community and togetherness ('juntos somos mais fortes')", "Joy and celebration ('alegria')", "Resilience and resourcefulness ('jeitinho brasileiro')", "Family and personal relationships", "Ambition and upward mobility"],
+      "taboos": ["Avoid European Portuguese (Portugal) constructs — they sound foreign and stiff to Brazilians", "Don't be overly formal unless the context demands it (legal, financial)", "Avoid pessimistic or fear-based framing — Brazilians respond better to aspiration", "Do not conflate Brazil with other Latin American countries"],
+      "motivators": ["Social proof and community validation ('todo mundo já está usando')", "Aspirational lifestyle imagery", "Parcelamento (installment payment) framing — 'em 12x sem juros'", "Exclusivity and limited-time offers ('só hoje')", "Brazilian national pride"]
+    },
+    "slang_and_idioms": [
+      { "term": "Show de bola", "meaning": "Excellent, amazing, a total success", "usage": "Product/feature highlights, success state copy" },
+      { "term": "Mandou bem", "meaning": "You did great / Nailed it", "usage": "Congratulatory onboarding copy, achievement states" },
+      { "term": "Arrasar", "meaning": "To kill it / To absolutely excel", "usage": "Aspirational CTAs: 'Arrase nas vendas com...'"},
+      { "term": "Tá on", "meaning": "It's on / Let's go (very current slang)", "usage": "Launch announcements, campaign kickoffs — use for younger demographics" },
+      { "term": "Manda ver", "meaning": "Go for it / Give it your all", "usage": "Action-driving CTAs" },
+      { "term": "Bacana", "meaning": "Cool, nice, pleasant — mild positive", "usage": "Light approval copy, feature introductions" },
+      { "term": "Na hora", "meaning": "Exactly right / Perfect timing", "usage": "Timeliness and urgency copy" },
+      { "term": "Parcelado", "meaning": "Split into installments — extremely important in Brazilian e-commerce", "usage": "Always mention installment options in pricing copy: 'em 12x de R$X'" }
+    ],
+    "seo_behavior": {
+      "search_engine": "Google.com.br dominates (>97% share)",
+      "keyword_style": "Brazilians search in natural spoken language — long conversational queries are common. Voice search is growing fast (high mobile penetration). Include question-format and colloquial variants.",
+      "preferred_query_patterns": ["Como fazer…", "O que é…", "Melhor… para…", "… preço", "… vale a pena?", "… como usar", "Comprar … online"],
+      "local_signals": "Include 'no Brasil', 'para brasileiros', state/city names (São Paulo, Rio de Janeiro, etc.), and 'frete grátis' / 'entrega rápida' for e-commerce. Regional targeting (Sudeste, Nordeste) can be powerful for physical products.",
+      "meta_title_style": "Benefit-first, conversational, include 'no Brasil' or city for local intent, 55–60 characters",
+      "meta_description_style": "Energetic, include social proof signal or urgency, clear action verb, 150–160 characters",
+      "content_length_preference": "Mid-form (700–1,100 words) with scannable structure; video and visual content outperforms pure text — embed or reference video where possible; listicles with numbered steps perform exceptionally well"
+    },
+    "formatting": {
+      "date_format": "DD/MM/AAAA (e.g., 25/07/2026)",
+      "time_format": "24-hour (e.g., 15h00 or 15:00)",
+      "currency": "BRL — display as 'R$' prefix (e.g., R$ 1.299,90). Always offer installment framing: 'ou 12x de R$ 108,32'",
+      "number_separators": "Period for thousands, comma for decimals (e.g., 1.299,90)",
+      "punctuation_style": "Standard Portuguese — use "aspas" or standard double quotes; avoid curly quotes in digital copy",
+      "address_order": "Street type + name + number, Complemento, Bairro, City – State abbreviation, CEP XXXXX-XXX, Brasil",
+      "reading_direction": "Left to right",
+      "preferred_cta_verbs": ["Compre agora", "Experimente grátis", "Saiba mais", "Comece já", "Cadastre-se", "Baixe grátis", "Aproveite"],
+      "formal_register": "Use 'você' universally (both B2B and B2C) — 'tu' is regional (South/Northeast Brazil); avoid 'vós' entirely"
+    }
+  }
+}

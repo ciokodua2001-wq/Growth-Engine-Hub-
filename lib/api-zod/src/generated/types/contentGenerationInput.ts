@@ -10,4 +10,6 @@ export interface ContentGenerationInput {
   type: string;
   count?: number;
   prompt?: string;
+  /** BCP-47 locale code for localised output (e.g. es-MX, de-DE, pt-BR). Omit for English. */
+  targetLocale?: string;
 }

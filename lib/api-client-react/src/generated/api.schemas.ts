@@ -219,6 +219,8 @@ export interface ContentGenerationInput {
   type: string;
   count?: number;
   prompt?: string;
+  /** BCP-47 locale code for localised output (e.g. es-MX, de-DE, pt-BR). Omit for English. */
+  targetLocale?: string;
 }
 
 export interface ContentAsset {
@@ -248,6 +250,8 @@ export interface SocialPostInput {
   platforms: string[];
   count?: number;
   prompt?: string;
+  /** BCP-47 locale code for localised output (e.g. es-MX, de-DE, pt-BR). Omit for English. */
+  targetLocale?: string;
 }
 
 export interface SocialPost {
@@ -345,6 +349,8 @@ export interface EmailCampaignInput {
   type: string;
   subject?: string;
   prompt?: string;
+  /** BCP-47 locale code for localised output (e.g. es-MX, de-DE, pt-BR). Omit for English. */
+  targetLocale?: string;
 }
 
 export interface EmailCampaign {
@@ -396,6 +402,8 @@ export interface AdInput {
   platform: string;
   count?: number;
   prompt?: string;
+  /** BCP-47 locale code for localised output (e.g. es-MX, de-DE, pt-BR). Omit for English. */
+  targetLocale?: string;
 }
 
 export interface AdCreative {
@@ -439,6 +447,8 @@ export interface VideoInput {
   prompt?: string;
   /** Target video duration in seconds. AI will write scripts and shots to match. */
   targetDuration?: VideoInputTargetDuration;
+  /** BCP-47 locale code for localised output (e.g. es-MX, de-DE, pt-BR). Omit for English. */
+  targetLocale?: string;
 }
 
 export interface Video {
