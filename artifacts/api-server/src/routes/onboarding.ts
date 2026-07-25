@@ -17,11 +17,17 @@ router.post("/onboarding", async (req, res): Promise<void> => {
       return;
     }
 
-    const { businessName, websiteUrl, primaryGoal, targetMarket } = req.body as {
+    const { businessName, websiteUrl, primaryGoal, targetMarket, confirmedLocale } = req.body as {
       businessName: string;
       websiteUrl: string;
       primaryGoal?: string;
       targetMarket?: string;
+      /**
+       * BCP-47 locale code the user explicitly confirmed in the onboarding
+       * market detection widget. When provided and valid, skips the server-side
+       * detector run entirely — the user's choice is authoritative.
+       */
+      confirmedLocale?: string;
     };
 
     if (!businessName || !websiteUrl) {
@@ -31,33 +37,32 @@ router.post("/onboarding", async (req, res): Promise<void> => {
 
     const description = [primaryGoal, targetMarket].filter(Boolean).join(" | ") || null;
 
-    // ── Locale detection (runs before insert so the project is created with it) ─
-    // detectLocaleFromUrl never throws — falls back to en-US on any error.
-    // It has an internal 5-second fetch timeout for generic TLDs.
+    // ── Determine the locale to store ────────────────────────────────────────
     let detectedLocale: string | null = null;
-    try {
-      const localeResult = await detectLocaleFromUrl(websiteUrl);
+    const supported = getSupportedLocales();
+
+    if (confirmedLocale && supported.includes(confirmedLocale)) {
+      // User explicitly confirmed a market in the onboarding widget — trust it.
+      detectedLocale = confirmedLocale;
       req.log.info(
-        { locale: localeResult.locale, confidence: localeResult.confidence, source: localeResult.source },
-        "URL locale detection result",
+        { locale: confirmedLocale, source: "user-confirmed" },
+        "Using user-confirmed locale from onboarding widget",
       );
-
-      // Only store locales we have a full profile for — unknown locales would
-      // silently produce English output anyway, so null is more honest.
-      const supported = getSupportedLocales();
-      const mapped = mapToSupportedLocale(localeResult, supported);
-      detectedLocale = mapped ?? null;
-
-      if (!mapped) {
+    } else {
+      // No confirmed locale provided (or it's not a supported profile code) —
+      // fall back to server-side auto-detection from the URL.
+      // detectLocaleFromUrl never throws; falls back to en-US on any error.
+      try {
+        const localeResult = await detectLocaleFromUrl(websiteUrl);
         req.log.info(
-          { detected: localeResult.locale },
-          "Detected locale has no matching profile — defaulting to null",
+          { locale: localeResult.locale, confidence: localeResult.confidence, source: localeResult.source },
+          "Onboarding server-side URL locale detection",
         );
+        const mapped = mapToSupportedLocale(localeResult, supported);
+        detectedLocale = mapped ?? null;
+      } catch (localeErr) {
+        req.log.warn({ err: localeErr }, "Locale detection threw unexpectedly — skipping");
       }
-    } catch (localeErr) {
-      // Belt-and-suspenders: detectLocaleFromUrl should never reach here,
-      // but we must not let locale detection break onboarding.
-      req.log.warn({ err: localeErr }, "Locale detection threw unexpectedly — skipping");
     }
 
     // ── Create the project ───────────────────────────────────────────────────

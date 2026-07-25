@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useUser } from "@clerk/react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,42 +18,169 @@ import {
   Rocket,
   Search,
   Share2,
+  MapPin,
+  RefreshCw,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
 const GOALS = [
-  { label: "Generate Leads", icon: TrendingUp },
-  { label: "Increase Sales", icon: ShoppingCart },
-  { label: "Brand Awareness", icon: Megaphone },
-  { label: "Launch Product", icon: Rocket },
-  { label: "Improve SEO", icon: Search },
-  { label: "Grow Social Media", icon: Share2 },
+  { label: "Generate Leads",    icon: TrendingUp  },
+  { label: "Increase Sales",    icon: ShoppingCart },
+  { label: "Brand Awareness",   icon: Megaphone   },
+  { label: "Launch Product",    icon: Rocket      },
+  { label: "Improve SEO",       icon: Search      },
+  { label: "Grow Social Media", icon: Share2      },
 ];
 
 const STEPS = [
-  { number: 1, label: "Business Info" },
-  { number: 2, label: "Primary Goal" },
-  { number: 3, label: "Target Market" },
+  { number: 1, label: "Business Info"  },
+  { number: 2, label: "Primary Goal"   },
+  { number: 3, label: "Target Market"  },
   { number: 4, label: "Create Workspace" },
 ];
+
+/** Supported locale profiles with display metadata for the market picker. */
+const SUPPORTED_MARKETS = [
+  { locale: "es-MX", flag: "🇲🇽", marketName: "Mexico",  languageName: "Spanish"    },
+  { locale: "de-DE", flag: "🇩🇪", marketName: "Germany", languageName: "German"     },
+  { locale: "fr-FR", flag: "🇫🇷", marketName: "France",  languageName: "French"     },
+  { locale: "pt-BR", flag: "🇧🇷", marketName: "Brazil",  languageName: "Portuguese" },
+];
+
+// Minimum URL length before we attempt a scan
+const MIN_URL_LENGTH = 5;
+// Debounce delay after user stops typing (ms)
+const SCAN_DEBOUNCE_MS = 700;
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type MarketScanPhase = "idle" | "scanning" | "done" | "error";
+
+interface AnalyzeResult {
+  detected: {
+    locale: string;
+    confidence: "tld" | "og-locale" | "html-lang" | "default";
+    source: string;
+  };
+  suggestion: {
+    locale: string | null;
+    marketName: string;
+    languageName: string;
+    flag: string;
+    isSupported: boolean;
+    isDefault: boolean;
+  };
+}
+
+// ── Confidence badge ───────────────────────────────────────────────────────────
+
+function ConfidenceBadge({ confidence }: { confidence: AnalyzeResult["detected"]["confidence"] }) {
+  const map = {
+    tld:         { label: "Domain match",  color: "bg-[#00E676]/15 text-[#00E676] border-[#00E676]/30" },
+    "og-locale": { label: "Meta tag",      color: "bg-blue-500/15 text-blue-400 border-blue-400/30"   },
+    "html-lang": { label: "HTML lang attr",color: "bg-purple-500/15 text-purple-400 border-purple-400/30" },
+    default:     { label: "No signal",     color: "bg-white/5 text-white/40 border-white/10"          },
+  };
+  const { label, color } = map[confidence] ?? map.default;
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${color}`}>
+      {label}
+    </span>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
   const [, setLocation] = useLocation();
   const { user, isLoaded } = useUser();
 
-  const [step, setStep] = useState(1);
+  // ── Form state ──────────────────────────────────────────────────────────────
+  const [step, setStep]               = useState(1);
   const [businessName, setBusinessName] = useState("");
-  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [websiteUrl, setWebsiteUrl]   = useState("");
   const [primaryGoal, setPrimaryGoal] = useState("");
   const [targetMarket, setTargetMarket] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const [submitting, setSubmitting]   = useState(false);
+  const [error, setError]             = useState("");
+
+  // ── Market detection state ───────────────────────────────────────────────────
+  const [marketScanPhase, setMarketScanPhase] = useState<MarketScanPhase>("idle");
+  const [analyzeResult, setAnalyzeResult]     = useState<AnalyzeResult | null>(null);
+  const [confirmedLocale, setConfirmedLocale] = useState<string | null>(null);
+  /** Whether the user has opened the manual market picker */
+  const [showPicker, setShowPicker]           = useState(false);
+  /** The locale currently selected in the manual picker dropdown */
+  const [pickerLocale, setPickerLocale]       = useState(SUPPORTED_MARKETS[0].locale);
+
+  const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastScannedUrl = useRef<string>("");
 
   useEffect(() => {
     if (isLoaded && !user) setLocation("/sign-in");
   }, [isLoaded, user, setLocation]);
 
+  // ── Debounced URL scan ───────────────────────────────────────────────────────
+  useEffect(() => {
+    // Clear any pending scan
+    if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
+
+    const trimmed = websiteUrl.trim();
+
+    // Reset detection state when URL is cleared
+    if (trimmed.length < MIN_URL_LENGTH) {
+      setMarketScanPhase("idle");
+      setAnalyzeResult(null);
+      setConfirmedLocale(null);
+      setShowPicker(false);
+      lastScannedUrl.current = "";
+      return;
+    }
+
+    // Don't re-scan the same URL (e.g. user edits other fields)
+    if (trimmed === lastScannedUrl.current) return;
+
+    // Reset confirmed state when URL changes
+    setConfirmedLocale(null);
+    setShowPicker(false);
+    setAnalyzeResult(null);
+
+    scanTimerRef.current = setTimeout(async () => {
+      setMarketScanPhase("scanning");
+      lastScannedUrl.current = trimmed;
+      try {
+        const res = await fetch("/api/analyze-website", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: trimmed }),
+        });
+        if (!res.ok) {
+          setMarketScanPhase("error");
+          return;
+        }
+        const data: AnalyzeResult = await res.json();
+        setAnalyzeResult(data);
+        setMarketScanPhase("done");
+
+        // Auto-select the suggestion in the manual picker so it's pre-chosen
+        if (data.suggestion.locale) {
+          setPickerLocale(data.suggestion.locale);
+        }
+      } catch {
+        setMarketScanPhase("error");
+      }
+    }, SCAN_DEBOUNCE_MS);
+
+    return () => {
+      if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
+    };
+  }, [websiteUrl]);
+
   if (isLoaded && !user) return null;
+
+  // ── Navigation helpers ────────────────────────────────────────────────────────
 
   function canAdvanceStep1() {
     return businessName.trim().length > 0 && websiteUrl.trim().length > 0;
@@ -73,6 +200,8 @@ export default function OnboardingPage() {
     if (step > 1) setStep(step - 1);
   }
 
+  // ── Submission ────────────────────────────────────────────────────────────────
+
   async function handleSubmit() {
     setSubmitting(true);
     setError("");
@@ -87,6 +216,9 @@ export default function OnboardingPage() {
           websiteUrl: websiteUrl.trim(),
           primaryGoal,
           targetMarket,
+          // Pass the user's confirmed locale so the server uses it directly
+          // without running a second detector call.
+          ...(confirmedLocale ? { confirmedLocale } : {}),
         }),
       });
 
@@ -106,6 +238,34 @@ export default function OnboardingPage() {
       setSubmitting(false);
     }
   }
+
+  // ── Market widget actions ─────────────────────────────────────────────────────
+
+  function handleConfirmDetected() {
+    if (!analyzeResult?.suggestion.locale) return;
+    setConfirmedLocale(analyzeResult.suggestion.locale);
+    setShowPicker(false);
+  }
+
+  function handleConfirmPicker() {
+    setConfirmedLocale(pickerLocale);
+    setShowPicker(false);
+  }
+
+  function handleResetMarket() {
+    setConfirmedLocale(null);
+    setShowPicker(false);
+    // Keep analyzeResult so the card re-shows without rescanning
+  }
+
+  // ── Derived display values ────────────────────────────────────────────────────
+
+  const confirmedMarket = confirmedLocale
+    ? (SUPPORTED_MARKETS.find(m => m.locale === confirmedLocale) ??
+       { locale: confirmedLocale, flag: "🌐", marketName: confirmedLocale, languageName: "" })
+    : null;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#040B14" }}>
@@ -172,7 +332,8 @@ export default function OnboardingPage() {
 
         <div className="w-full max-w-lg">
           <AnimatePresence mode="wait">
-            {/* Step 1 — Business Info */}
+
+            {/* ── Step 1 — Business Info ─────────────────────────────────── */}
             {step === 1 && (
               <motion.div
                 key="step1"
@@ -190,6 +351,7 @@ export default function OnboardingPage() {
                 </div>
 
                 <div className="bg-[#080f1e] border border-white/10 rounded-2xl p-8 flex flex-col gap-5">
+                  {/* Business Name */}
                   <div className="flex flex-col gap-1.5">
                     <label className="text-sm font-medium text-white/70 flex items-center gap-2">
                       <Building2 className="w-4 h-4 text-[#00E676]" />
@@ -205,6 +367,7 @@ export default function OnboardingPage() {
                     />
                   </div>
 
+                  {/* Website URL */}
                   <div className="flex flex-col gap-1.5">
                     <label className="text-sm font-medium text-white/70 flex items-center gap-2">
                       <Globe className="w-4 h-4 text-[#00E676]" />
@@ -219,9 +382,280 @@ export default function OnboardingPage() {
                     />
                   </div>
 
-                  <p className="text-white/30 text-xs -mt-1">
-                    Our AI will read your website and automatically detect your industry, products, and audience.
-                  </p>
+                  {/* ── Market Detection Widget ─────────────────────────── */}
+                  <AnimatePresence mode="wait">
+
+                    {/* Scanning */}
+                    {marketScanPhase === "scanning" && (
+                      <motion.div
+                        key="scanning"
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.2 }}
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/3 border border-white/8 text-sm text-white/50"
+                      >
+                        <Loader2 className="w-4 h-4 animate-spin text-[#00E676]/60 shrink-0" />
+                        Scanning your website for market signals…
+                      </motion.div>
+                    )}
+
+                    {/* Confirmed */}
+                    {marketScanPhase === "done" && confirmedLocale && confirmedMarket && (
+                      <motion.div
+                        key="confirmed"
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.2 }}
+                        className="flex items-center justify-between px-4 py-3 rounded-xl bg-[#00E676]/8 border border-[#00E676]/25"
+                      >
+                        <div className="flex items-center gap-2.5 text-sm">
+                          <span className="text-xl">{confirmedMarket.flag}</span>
+                          <span className="text-white font-medium">
+                            {confirmedMarket.marketName}
+                            {confirmedMarket.languageName && (
+                              <span className="text-white/40 font-normal"> · {confirmedMarket.languageName}</span>
+                            )}
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#00E676]/15 text-[#00E676] border border-[#00E676]/30">
+                            <Check className="w-2.5 h-2.5" /> Confirmed
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleResetMarket}
+                          className="text-[10px] text-white/30 hover:text-white/60 transition-colors ml-2 shrink-0"
+                        >
+                          Change
+                        </button>
+                      </motion.div>
+                    )}
+
+                    {/* Detection result — not yet confirmed */}
+                    {marketScanPhase === "done" && !confirmedLocale && analyzeResult && (
+                      <motion.div
+                        key="result"
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.2 }}
+                        className="rounded-xl border border-white/10 bg-[#0a1628] overflow-hidden"
+                      >
+                        {analyzeResult.suggestion.isSupported && !analyzeResult.suggestion.isDefault ? (
+                          /* ── Supported market detected ── */
+                          <div>
+                            <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
+                              <MapPin className="w-3.5 h-3.5 text-[#00E676]" />
+                              <span className="text-[11px] font-semibold text-[#00E676] uppercase tracking-wider">
+                                Target market detected
+                              </span>
+                            </div>
+                            <div className="px-4 py-4 flex flex-col gap-3">
+                              <div className="flex items-center gap-3">
+                                <span className="text-3xl">{analyzeResult.suggestion.flag}</span>
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-white font-semibold">
+                                      {analyzeResult.suggestion.marketName}
+                                    </span>
+                                    <span className="text-white/40 text-sm">
+                                      · {analyzeResult.suggestion.languageName}
+                                    </span>
+                                    <ConfidenceBadge confidence={analyzeResult.detected.confidence} />
+                                  </div>
+                                  <p className="text-white/35 text-xs mt-0.5">
+                                    GrowthForge will write all content in {analyzeResult.suggestion.languageName} for the {analyzeResult.suggestion.marketName} market.
+                                  </p>
+                                </div>
+                              </div>
+
+                              {showPicker ? (
+                                /* Manual picker */
+                                <div className="flex flex-col gap-2 pt-1">
+                                  <select
+                                    value={pickerLocale}
+                                    onChange={(e) => setPickerLocale(e.target.value)}
+                                    className="w-full px-3 py-2 rounded-lg bg-[#0d1b2e] border border-white/15 text-white text-sm focus:outline-none focus:border-[#00E676]/50"
+                                  >
+                                    {SUPPORTED_MARKETS.map(m => (
+                                      <option key={m.locale} value={m.locale}>
+                                        {m.flag}  {m.marketName} — {m.languageName}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowPicker(false)}
+                                      className="flex-1 py-2 rounded-lg text-xs font-medium bg-white/5 border border-white/10 text-white/50 hover:bg-white/8 transition-colors"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handleConfirmPicker}
+                                      className="flex-[2] py-2 rounded-lg text-xs font-semibold bg-[#00E676] text-black hover:bg-[#14F195] transition-colors"
+                                    >
+                                      Confirm {SUPPORTED_MARKETS.find(m => m.locale === pickerLocale)?.marketName}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                /* Action row */
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowPicker(true)}
+                                    className="flex-1 py-2 rounded-lg text-xs font-medium bg-white/5 border border-white/10 text-white/50 hover:bg-white/8 transition-colors"
+                                  >
+                                    Choose different
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleConfirmDetected}
+                                    className="flex-[2] py-2 rounded-lg text-xs font-semibold bg-[#00E676] text-black hover:bg-[#14F195] transition-colors flex items-center justify-center gap-1.5"
+                                  >
+                                    <Check className="w-3 h-3" />
+                                    Confirm {analyzeResult.suggestion.marketName}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          /* ── No specific market detected / default ── */
+                          <div>
+                            <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
+                              <Globe className="w-3.5 h-3.5 text-white/40" />
+                              <span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">
+                                No specific market detected
+                              </span>
+                            </div>
+                            <div className="px-4 py-4 flex flex-col gap-3">
+                              <p className="text-white/40 text-xs leading-relaxed">
+                                We couldn't detect a specific country market from your website. Content will default to English. You can optionally select a target market below.
+                              </p>
+
+                              {showPicker ? (
+                                <div className="flex flex-col gap-2">
+                                  <select
+                                    value={pickerLocale}
+                                    onChange={(e) => setPickerLocale(e.target.value)}
+                                    className="w-full px-3 py-2 rounded-lg bg-[#0d1b2e] border border-white/15 text-white text-sm focus:outline-none focus:border-[#00E676]/50"
+                                  >
+                                    {SUPPORTED_MARKETS.map(m => (
+                                      <option key={m.locale} value={m.locale}>
+                                        {m.flag}  {m.marketName} — {m.languageName}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowPicker(false)}
+                                      className="flex-1 py-2 rounded-lg text-xs font-medium bg-white/5 border border-white/10 text-white/50 hover:bg-white/8 transition-colors"
+                                    >
+                                      Skip
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handleConfirmPicker}
+                                      className="flex-[2] py-2 rounded-lg text-xs font-semibold bg-[#00E676] text-black hover:bg-[#14F195] transition-colors"
+                                    >
+                                      Use {SUPPORTED_MARKETS.find(m => m.locale === pickerLocale)?.marketName}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPicker(true)}
+                                  className="w-full py-2 rounded-lg text-xs font-medium bg-white/5 border border-white/10 text-white/50 hover:bg-white/8 transition-colors"
+                                >
+                                  Choose a target market (optional)
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* Scan error — offer manual picker */}
+                    {marketScanPhase === "error" && !confirmedLocale && (
+                      <motion.div
+                        key="scan-error"
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.2 }}
+                        className="px-4 py-3 rounded-xl bg-white/3 border border-white/8 flex flex-col gap-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/40">
+                            Couldn't reach your site to detect the market.
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              lastScannedUrl.current = "";
+                              setWebsiteUrl(w => w + " ");
+                              setTimeout(() => setWebsiteUrl(w => w.trim()), 10);
+                            }}
+                            className="flex items-center gap-1 text-[10px] text-white/30 hover:text-white/60 transition-colors"
+                          >
+                            <RefreshCw className="w-2.5 h-2.5" /> Retry
+                          </button>
+                        </div>
+                        {showPicker ? (
+                          <div className="flex gap-2">
+                            <select
+                              value={pickerLocale}
+                              onChange={(e) => setPickerLocale(e.target.value)}
+                              className="flex-1 px-3 py-2 rounded-lg bg-[#0d1b2e] border border-white/15 text-white text-xs focus:outline-none focus:border-[#00E676]/50"
+                            >
+                              {SUPPORTED_MARKETS.map(m => (
+                                <option key={m.locale} value={m.locale}>
+                                  {m.flag}  {m.marketName}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={handleConfirmPicker}
+                              className="px-3 py-2 rounded-lg text-xs font-semibold bg-[#00E676] text-black hover:bg-[#14F195] transition-colors"
+                            >
+                              Use
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setShowPicker(true)}
+                            className="text-[11px] text-[#00E676]/70 hover:text-[#00E676] transition-colors text-left"
+                          >
+                            Manually select a target market →
+                          </button>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* Idle hint */}
+                    {marketScanPhase === "idle" && (
+                      <motion.p
+                        key="idle-hint"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="text-white/30 text-xs -mt-1"
+                      >
+                        Our AI will read your website and automatically detect your industry, products, and target market.
+                      </motion.p>
+                    )}
+
+                  </AnimatePresence>
+                  {/* ── End Market Detection Widget ─────────────────────── */}
 
                   {error && (
                     <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
@@ -241,7 +675,7 @@ export default function OnboardingPage() {
               </motion.div>
             )}
 
-            {/* Step 2 — Primary Goal */}
+            {/* ── Step 2 — Primary Goal ─────────────────────────────────── */}
             {step === 2 && (
               <motion.div
                 key="step2"
@@ -297,7 +731,7 @@ export default function OnboardingPage() {
               </motion.div>
             )}
 
-            {/* Step 3 — Target Market */}
+            {/* ── Step 3 — Target Market ─────────────────────────────────── */}
             {step === 3 && (
               <motion.div
                 key="step3"
@@ -315,6 +749,16 @@ export default function OnboardingPage() {
                 </div>
 
                 <div className="bg-[#080f1e] border border-white/10 rounded-2xl p-8 flex flex-col gap-5">
+                  {/* Confirmed locale carry-through indicator */}
+                  {confirmedMarket && (
+                    <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#00E676]/6 border border-[#00E676]/20 text-sm">
+                      <span className="text-lg">{confirmedMarket.flag}</span>
+                      <span className="text-white/60 text-xs">
+                        Content will be generated in <span className="text-white font-medium">{confirmedMarket.marketName}</span> — {confirmedMarket.languageName}.
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex flex-col gap-1.5">
                     <label className="text-sm font-medium text-white/70">Target Market Description</label>
                     <textarea
@@ -355,7 +799,7 @@ export default function OnboardingPage() {
               </motion.div>
             )}
 
-            {/* Step 4 — Creating workspace */}
+            {/* ── Step 4 — Creating workspace ───────────────────────────── */}
             {step === 4 && (
               <motion.div
                 key="step4"
@@ -392,6 +836,7 @@ export default function OnboardingPage() {
                 )}
               </motion.div>
             )}
+
           </AnimatePresence>
         </div>
       </main>

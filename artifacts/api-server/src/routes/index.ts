@@ -29,6 +29,7 @@ import narrationRouter from "./narration.js";
 import renderAdminRouter from "./renderAdmin.js";
 import videoWalletRouter from "./video-wallet.js";
 import adminVideoRouter from "./admin-video.js";
+import analyzeWebsiteRouter from "./analyze-website.js";
 
 const router: IRouter = Router();
 
@@ -62,5 +63,6 @@ router.use(narrationRouter);
 router.use(renderAdminRouter);
 router.use(videoWalletRouter);
 router.use(adminVideoRouter);
+router.use(analyzeWebsiteRouter);
 
 export default router;
