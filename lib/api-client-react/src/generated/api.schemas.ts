@@ -565,14 +565,26 @@ export interface ChartDataPoint {
 export interface ProjectAnalytics {
   projectId: number;
   period: string;
-  websiteTraffic?: number;
-  leads?: number;
-  revenue?: number;
   adSpend?: number;
   roas?: number;
-  topContent?: ContentAsset[];
-  topVideos?: Video[];
+  impressions?: number;
+  clicks?: number;
+  conversions?: number;
+  activeCampaigns?: number;
+  revenue?: number;
+  socialReach?: number;
+  socialEngagement?: number;
+  publishedPosts?: number;
+  emailRecipients?: number;
+  sentCampaigns?: number;
+  emailOpenRate?: number;
+  contentPieces?: number;
+  videosCreated?: number;
+  adsGenerated?: number;
+  connectedPlatforms?: string[];
   chartData?: ChartDataPoint[];
+  websiteTraffic?: number;
+  leads?: number;
 }
 
 export interface ReportInput {

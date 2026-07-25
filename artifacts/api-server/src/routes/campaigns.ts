@@ -1,9 +1,9 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import PDFDocument from "pdfkit";
 import { PassThrough } from "stream";
-import { campaignsTable, assetsTable, reportsTable, agentMessagesTable, activityTable, competitorsTable, socialPostsTable, emailCampaignsTable, adCreativesTable, videosTable, projectsTable } from "@workspace/db";
+import { campaignsTable, assetsTable, reportsTable, agentMessagesTable, activityTable, competitorsTable, socialPostsTable, emailCampaignsTable, adCreativesTable, videosTable, projectsTable, contentTable, connectedAdAccountsTable } from "@workspace/db";
 import { consumeQuota, meetsMinPlan, type PlanFeature } from "../lib/planLimits.js";
 import { TRIAL_MAX_VIDEO_BATCH } from "../lib/trialLimits.js";
 import { generateJson, generateJsonFast } from "../lib/aiJson.js";
@@ -171,29 +171,122 @@ router.get("/projects/:id/assets", async (req, res): Promise<void> => {
 router.get("/projects/:id/analytics", async (req, res): Promise<void> => {
   const params = GetProjectAnalyticsParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const projectId = params.data.id;
 
-  const chartData = Array.from({ length: 30 }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (29 - i));
-    return {
-      date: date.toISOString().split("T")[0],
-      value: Math.floor(Math.random() * 500 + 100 + i * 15),
-      label: "Website Traffic",
-    };
-  });
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  res.json({
-    projectId: params.data.id,
-    period: "last_30_days",
-    websiteTraffic: 12847,
-    leads: 342,
-    revenue: 48200,
-    adSpend: 3200,
-    roas: 15.06,
-    topContent: [],
-    topVideos: [],
-    chartData,
-  });
+  try {
+    const [campaignAgg, socialAgg, emailAgg, contentCount, videoCount, adCount, connectedAccounts, dailyActivity] =
+      await Promise.all([
+        db.select({
+          totalSpent:      sql<string>`COALESCE(SUM(${campaignsTable.spent}::numeric), 0)`,
+          avgRoas:         sql<string>`COALESCE(AVG(NULLIF(${campaignsTable.roas}::numeric, 0)), 0)`,
+          totalImpressions:sql<string>`COALESCE(SUM(${campaignsTable.impressions}), 0)`,
+          totalClicks:     sql<string>`COALESCE(SUM(${campaignsTable.clicks}), 0)`,
+          totalConversions:sql<string>`COALESCE(SUM(${campaignsTable.conversions}), 0)`,
+          activeCampaigns: sql<string>`COUNT(CASE WHEN ${campaignsTable.status} = 'active' THEN 1 END)`,
+        }).from(campaignsTable).where(eq(campaignsTable.projectId, projectId)),
+
+        db.select({
+          publishedPosts: sql<string>`COUNT(CASE WHEN ${socialPostsTable.status} = 'published' THEN 1 END)`,
+          totalReach:     sql<string>`COALESCE(SUM(${socialPostsTable.statsReach}), 0)`,
+          totalLikes:     sql<string>`COALESCE(SUM(${socialPostsTable.statsLikes}), 0)`,
+          totalComments:  sql<string>`COALESCE(SUM(${socialPostsTable.statsComments}), 0)`,
+        }).from(socialPostsTable).where(eq(socialPostsTable.projectId, projectId)),
+
+        db.select({
+          sentCampaigns:  sql<string>`COUNT(CASE WHEN ${emailCampaignsTable.status} = 'sent' THEN 1 END)`,
+          totalRecipients:sql<string>`COALESCE(SUM(CASE WHEN ${emailCampaignsTable.status} = 'sent' THEN ${emailCampaignsTable.recipientCount} ELSE 0 END), 0)`,
+          avgOpenRate:    sql<string>`COALESCE(AVG(CASE WHEN ${emailCampaignsTable.openRate} IS NOT NULL THEN CAST(${emailCampaignsTable.openRate} AS FLOAT) ELSE NULL END), 0)`,
+        }).from(emailCampaignsTable).where(eq(emailCampaignsTable.projectId, projectId)),
+
+        db.select({ count: sql<string>`COUNT(*)` }).from(contentTable).where(eq(contentTable.projectId, projectId)),
+        db.select({ count: sql<string>`COUNT(*)` }).from(videosTable).where(eq(videosTable.projectId, projectId)),
+        db.select({ count: sql<string>`COUNT(*)` }).from(adCreativesTable).where(eq(adCreativesTable.projectId, projectId)),
+
+        db.select({ provider: connectedAdAccountsTable.provider })
+          .from(connectedAdAccountsTable)
+          .where(eq(connectedAdAccountsTable.projectId, projectId)),
+
+        db.execute(sql`
+          SELECT
+            date_trunc('day', created_at AT TIME ZONE 'UTC') AS day,
+            COUNT(*) AS count
+          FROM (
+            SELECT created_at FROM social_posts   WHERE project_id = ${projectId} AND created_at >= ${thirtyDaysAgo}
+            UNION ALL
+            SELECT created_at FROM content        WHERE project_id = ${projectId} AND created_at >= ${thirtyDaysAgo}
+            UNION ALL
+            SELECT created_at FROM ad_creatives   WHERE project_id = ${projectId} AND created_at >= ${thirtyDaysAgo}
+            UNION ALL
+            SELECT created_at FROM videos         WHERE project_id = ${projectId} AND created_at >= ${thirtyDaysAgo}
+          ) combined
+          GROUP BY day
+          ORDER BY day ASC
+        `),
+      ]);
+
+    const camp   = campaignAgg[0]  ?? {};
+    const social = socialAgg[0]    ?? {};
+    const email  = emailAgg[0]     ?? {};
+
+    const adSpend = parseFloat(String(camp.totalSpent ?? "0"));
+    const roas    = Math.round(parseFloat(String(camp.avgRoas    ?? "0")) * 100) / 100;
+    const revenue = Math.round(adSpend * (roas || 0));
+
+    // Build a 30-day zero-filled chart from real daily activity
+    const activityByDay = new Map<string, number>();
+    for (const row of (dailyActivity.rows as Array<{ day: unknown; count: unknown }>)) {
+      const d   = row.day instanceof Date ? row.day : new Date(String(row.day));
+      const key = d.toISOString().split("T")[0];
+      activityByDay.set(key, Number(row.count));
+    }
+    const chartData = Array.from({ length: 30 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (29 - i));
+      const dateStr = d.toISOString().split("T")[0];
+      return { date: dateStr, value: activityByDay.get(dateStr) ?? 0, label: "Activity" };
+    });
+
+    const socialReach      = Number(social.totalReach     ?? 0);
+    const socialEngagement = Number(social.totalLikes     ?? 0) + Number(social.totalComments ?? 0);
+
+    res.json({
+      projectId,
+      period: "last_30_days",
+      // Paid ads
+      adSpend,
+      roas,
+      impressions:      Number(camp.totalImpressions  ?? 0),
+      clicks:           Number(camp.totalClicks        ?? 0),
+      conversions:      Number(camp.totalConversions   ?? 0),
+      activeCampaigns:  Number(camp.activeCampaigns    ?? 0),
+      revenue,
+      // Social
+      socialReach,
+      socialEngagement,
+      publishedPosts:   Number(social.publishedPosts   ?? 0),
+      // Email
+      emailRecipients:  Number(email.totalRecipients   ?? 0),
+      sentCampaigns:    Number(email.sentCampaigns     ?? 0),
+      emailOpenRate:    Math.round(parseFloat(String(email.avgOpenRate ?? "0")) * 100) / 100,
+      // Content
+      contentPieces:    Number(contentCount[0]?.count  ?? 0),
+      videosCreated:    Number(videoCount[0]?.count    ?? 0),
+      adsGenerated:     Number(adCount[0]?.count       ?? 0),
+      // Connected platforms
+      connectedPlatforms: connectedAccounts.map(a => a.provider),
+      // Chart
+      chartData,
+      // Legacy compat
+      websiteTraffic:   socialReach,
+      leads:            Number(camp.totalConversions   ?? 0),
+    });
+  } catch (err) {
+    req.log.error({ err }, "GET /projects/:id/analytics failed");
+    res.status(500).json({ error: "Failed to load analytics" });
+  }
 });
 
 // Reports

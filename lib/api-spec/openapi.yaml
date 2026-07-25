@@ -2389,28 +2389,50 @@ components:
           type: integer
         period:
           type: string
-        websiteTraffic:
-          type: integer
-        leads:
-          type: integer
-        revenue:
-          type: number
         adSpend:
           type: number
         roas:
           type: number
-        topContent:
+        impressions:
+          type: integer
+        clicks:
+          type: integer
+        conversions:
+          type: integer
+        activeCampaigns:
+          type: integer
+        revenue:
+          type: number
+        socialReach:
+          type: integer
+        socialEngagement:
+          type: integer
+        publishedPosts:
+          type: integer
+        emailRecipients:
+          type: integer
+        sentCampaigns:
+          type: integer
+        emailOpenRate:
+          type: number
+        contentPieces:
+          type: integer
+        videosCreated:
+          type: integer
+        adsGenerated:
+          type: integer
+        connectedPlatforms:
           type: array
           items:
-            $ref: "#/components/schemas/ContentAsset"
-        topVideos:
-          type: array
-          items:
-            $ref: "#/components/schemas/Video"
+            type: string
         chartData:
           type: array
           items:
             $ref: "#/components/schemas/ChartDataPoint"
+        websiteTraffic:
+          type: integer
+        leads:
+          type: integer
 
     ChartDataPoint:
       type: object
