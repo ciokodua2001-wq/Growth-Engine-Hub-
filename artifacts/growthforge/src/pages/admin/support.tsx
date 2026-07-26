@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   HeadphonesIcon, MessageSquare, AlertTriangle, CheckCircle2,
   ChevronDown, ChevronUp, Send, ArrowUpCircle, Loader2, RefreshCw,
-  Clock, User, Tag, BookOpen, Save, Info,
+  Clock, User, Tag, BookOpen, Save, Info, TriangleAlert,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/admin-layout";
 
@@ -247,12 +247,26 @@ function KnowledgeBaseEditor() {
     },
   });
 
-  const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
-  const isDirty = draft !== null && draft !== (data?.content ?? "");
+  // ~4 chars per token; warn at 3 000 tokens, hard-block at 4 000 tokens
+  const WARN_CHARS = 12_000;
+  const MAX_CHARS  = 16_000;
+
+  const charCount  = content.length;
+  const wordCount  = content.trim().split(/\s+/).filter(Boolean).length;
+  const isDirty    = draft !== null && draft !== (data?.content ?? "");
+  const isOverMax  = charCount > MAX_CHARS;
+  const isNearMax  = charCount > WARN_CHARS;
+  const pct        = Math.min(100, (charCount / MAX_CHARS) * 100);
+  const barColor   = isOverMax ? "#ef4444" : isNearMax ? "#f59e0b" : "#00E676";
+  const borderColor = isOverMax
+    ? "border-red-500/30 bg-red-500/5"
+    : isNearMax
+    ? "border-amber-500/30 bg-amber-500/5"
+    : "border-[#00E676]/20 bg-[#00E676]/5";
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start gap-3 p-4 rounded-xl border border-[#00E676]/20 bg-[#00E676]/5">
+      <div className={`flex items-start gap-3 p-4 rounded-xl border ${borderColor}`}>
         <Info className="h-4 w-4 text-[#00E676]/60 mt-0.5 shrink-0" />
         <div className="text-xs text-white/50 leading-relaxed">
           The AI support agent reads this knowledge base for <strong className="text-white/70">every ticket</strong> it handles.
@@ -277,12 +291,51 @@ function KnowledgeBaseEditor() {
             placeholder={`Write your product knowledge base here. Example:\n\n## Plans & Pricing\n- Starter ($39/mo): 1 project, 3 videos/mo\n- Get Going ($99/mo): 3 projects, 8 videos/mo\n...\n\n## Trial Limits\n- 7 days free, no credit card required\n- Includes: 1 analysis, 5 social posts, 10 AI messages\n...\n\n## Features\n### Social Media\n- Generates posts for LinkedIn, X, TikTok, Instagram, Facebook\n...`}
             rows={28}
             className="w-full px-5 py-4 rounded-xl text-sm text-white/80 placeholder:text-white/20 focus:outline-none resize-none leading-relaxed font-mono"
-            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)" }}
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: `1px solid ${isOverMax ? "rgba(239,68,68,0.4)" : isNearMax ? "rgba(245,158,11,0.35)" : "rgba(255,255,255,0.1)"}`,
+            }}
             spellCheck={false}
           />
 
+          {/* Length bar */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[11px]">
+              <span style={{ color: barColor }} className="font-semibold tabular-nums">
+                {charCount.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters
+              </span>
+              <span className="text-white/25">{wordCount.toLocaleString()} words</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
+              <div
+                className="h-full rounded-full transition-all duration-200"
+                style={{ width: `${pct}%`, background: barColor }}
+              />
+            </div>
+          </div>
+
+          {/* Warning / error banners */}
+          {isOverMax && (
+            <div className="flex items-start gap-3 p-4 rounded-xl border border-red-500/30 bg-red-500/8">
+              <TriangleAlert className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
+              <div className="text-xs text-red-300/90 leading-relaxed">
+                <strong>Too long to save.</strong> The knowledge base exceeds the safe prompt limit ({MAX_CHARS.toLocaleString()} characters).
+                Trim {(charCount - MAX_CHARS).toLocaleString()} characters before saving — focus on removing repeated information or moving less-critical details out.
+              </div>
+            </div>
+          )}
+          {isNearMax && !isOverMax && (
+            <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/8">
+              <TriangleAlert className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+              <div className="text-xs text-amber-300/80 leading-relaxed">
+                <strong>Approaching the limit.</strong> You have {(MAX_CHARS - charCount).toLocaleString()} characters remaining.
+                The AI works best when the knowledge base is concise — consider trimming less-used sections.
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
-            <span className="text-xs text-white/25">{wordCount.toLocaleString()} words</span>
+            <div />
             <div className="flex items-center gap-3">
               {saved && !isDirty && (
                 <span className="text-xs text-[#00E676]/70 flex items-center gap-1">
@@ -291,7 +344,7 @@ function KnowledgeBaseEditor() {
               )}
               <button
                 onClick={() => saveMutation.mutate(content)}
-                disabled={!isDirty || saveMutation.isPending}
+                disabled={!isDirty || saveMutation.isPending || isOverMax}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-[#00E676] text-black disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#00ff88] transition-colors"
               >
                 {saveMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
