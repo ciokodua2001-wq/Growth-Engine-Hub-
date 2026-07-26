@@ -136,6 +136,87 @@ function parseCsv(raw: string): string[][] {
   });
 }
 
+/* ─── Bootstrap (no auth — runs once to create the first owner) ────────────── */
+
+/**
+ * GET /owner/bootstrap
+ * Returns whether a platform owner already exists. No auth required.
+ */
+router.get("/owner/bootstrap", async (_req, res): Promise<void> => {
+  try {
+    const [owner] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.isOwner, true))
+      .limit(1);
+    res.json({ ownerExists: !!owner });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /owner/bootstrap
+ * One-time endpoint. Sets is_owner = true for the given email when:
+ *   - setupSecret matches OWNER_SETUP_SECRET env var
+ *   - No owner account exists yet
+ */
+router.post("/owner/bootstrap", async (req, res): Promise<void> => {
+  try {
+    const { email, setupSecret } = req.body as { email?: string; setupSecret?: string };
+
+    if (!email || !setupSecret) {
+      res.status(400).json({ error: "email and setupSecret are required" });
+      return;
+    }
+
+    const expectedSecret = process.env.OWNER_SETUP_SECRET;
+    if (!expectedSecret) {
+      res.status(503).json({ error: "OWNER_SETUP_SECRET is not configured on this server" });
+      return;
+    }
+
+    if (setupSecret !== expectedSecret) {
+      res.status(403).json({ error: "Invalid setup secret" });
+      return;
+    }
+
+    // Check if an owner already exists
+    const [existing] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.isOwner, true))
+      .limit(1);
+
+    if (existing) {
+      res.status(409).json({ error: "Bootstrap already complete — an owner account already exists" });
+      return;
+    }
+
+    // Find the user by email and grant owner
+    const [user] = await db
+      .select({ id: usersTable.id, email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.email, email.toLowerCase().trim()))
+      .limit(1);
+
+    if (!user) {
+      res.status(404).json({ error: "No account found with that email address. Sign up first, then run bootstrap." });
+      return;
+    }
+
+    const [updated] = await db
+      .update(usersTable)
+      .set({ isOwner: true, updatedAt: new Date() })
+      .where(eq(usersTable.id, user.id))
+      .returning();
+
+    res.json({ success: true, user: { id: updated.id, email: updated.email, isOwner: updated.isOwner } });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 /* ─── Growth Analytics ─────────────────────────────────────────────────────── */
 
 router.get("/owner/analytics", requireOwner, async (req, res): Promise<void> => {

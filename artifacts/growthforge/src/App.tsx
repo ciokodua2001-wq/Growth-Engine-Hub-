@@ -24,6 +24,7 @@ import AdminAudit from "@/pages/admin/audit";
 import AdminSettings from "@/pages/admin/settings";
 import AdminCredits from "@/pages/admin/credits";
 import OwnerDashboard from "@/pages/admin/owner-dashboard";
+import OwnerSetup from "@/pages/admin/owner-setup";
 import OwnerContacts from "@/pages/admin/owner-contacts";
 import OwnerCampaigns from "@/pages/admin/owner-campaigns";
 import OwnerCampaignComposer from "@/pages/admin/owner-campaign-composer";
@@ -211,6 +212,7 @@ function AppRoutes() {
       <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/admin/credits" component={AdminCredits} />
       <Route path="/admin/owner/dashboard" component={OwnerDashboard} />
+      <Route path="/admin/owner/setup" component={OwnerSetup} />
       <Route path="/admin/owner/contacts" component={OwnerContacts} />
       <Route path="/admin/owner/campaigns/new" component={OwnerCampaignComposer} />
       <Route path="/admin/owner/campaigns" component={OwnerCampaigns} />

@@ -2,6 +2,19 @@
 
 AI-powered marketing OS SaaS by Strapli Technologies Inc. — turns any business website into a full AI marketing department with strategy, content, social, email, and video.
 
+## First-time Setup
+
+### Activating Owner's Corner
+
+Owner's Corner (the platform owner's private analytics and email marketing command center) requires a one-time activation. No raw SQL needed.
+
+1. **Set the `OWNER_SETUP_SECRET` secret** — add a strong, random string as a Replit Secret named `OWNER_SETUP_SECRET`. This is the key that protects the bootstrap endpoint from unauthorized use.
+2. **Sign up for an account** in the app at `/sign-up` using the email address you want to be the owner.
+3. **Navigate to `/admin/owner/setup`** — enter your email and the setup secret, then click "Activate Owner's Corner".
+4. Once activated, visit `/admin/owner/dashboard` to access the Owner's Corner.
+
+The bootstrap endpoint (`POST /api/owner/bootstrap`) is a one-shot operation — once an owner exists, it returns 409 and cannot be used again.
+
 ## Run & Operate
 
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)

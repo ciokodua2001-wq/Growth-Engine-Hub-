@@ -112,6 +112,12 @@ export default function OwnerDashboard() {
           <AlertCircle className="w-10 h-10 text-red-400" />
           <div className="text-white font-bold text-lg">Access Denied</div>
           <div className="text-white/40 text-sm">Owner's Corner is restricted to the platform owner account.</div>
+          <a
+            href="/admin/owner/setup"
+            className="mt-2 text-xs text-amber-400/60 hover:text-amber-400 transition-colors underline underline-offset-2"
+          >
+            First time here? Activate Owner's Corner →
+          </a>
         </div>
       </AdminLayout>
     );
