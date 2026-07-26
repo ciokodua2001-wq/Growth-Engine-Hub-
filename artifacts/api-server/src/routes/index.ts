@@ -30,6 +30,7 @@ import renderAdminRouter from "./renderAdmin.js";
 import videoWalletRouter from "./video-wallet.js";
 import adminVideoRouter from "./admin-video.js";
 import analyzeWebsiteRouter from "./analyze-website.js";
+import ownerRouter from "./owner.js";
 
 const router: IRouter = Router();
 
@@ -64,5 +65,6 @@ router.use(renderAdminRouter);
 router.use(videoWalletRouter);
 router.use(adminVideoRouter);
 router.use(analyzeWebsiteRouter);
+router.use(ownerRouter);
 
 export default router;

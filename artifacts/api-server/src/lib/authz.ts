@@ -73,9 +73,12 @@ export async function requireActiveSubscription(req: Request, res: Response, nex
   const userId = getAuth(req)?.userId;
   if (!userId) { next(); return; }
 
-  const [user] = await db.select({ subscriptionStatus: usersTable.subscriptionStatus })
+  const [user] = await db.select({ subscriptionStatus: usersTable.subscriptionStatus, isOwner: usersTable.isOwner })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
+
+  // Platform owner has unlimited access — bypass all subscription checks
+  if (user?.isOwner) { next(); return; }
 
   if (user?.subscriptionStatus === "cancelled") {
     res.status(403).json({

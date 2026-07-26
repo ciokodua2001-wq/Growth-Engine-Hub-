@@ -23,6 +23,7 @@ import AdminActivity from "@/pages/admin/activity";
 import AdminAudit from "@/pages/admin/audit";
 import AdminSettings from "@/pages/admin/settings";
 import AdminCredits from "@/pages/admin/credits";
+import OwnerDashboard from "@/pages/admin/owner-dashboard";
 import LandingPage from "@/pages/landing";
 import DashboardPage from "@/pages/dashboard";
 import AuthRedirectPage from "@/pages/auth-redirect";
@@ -206,6 +207,7 @@ function AppRoutes() {
       <Route path="/admin/audit" component={AdminAudit} />
       <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/admin/credits" component={AdminCredits} />
+      <Route path="/admin/owner/dashboard" component={OwnerDashboard} />
 
       <Route path="/projects/:projectId/:path*">
         {(params) => (

@@ -158,10 +158,10 @@ export async function consumeQuota(
   // test any feature without burning limits.
   if (project.ownerId) {
     const [owner] = await db
-      .select({ role: usersTable.role })
+      .select({ role: usersTable.role, isOwner: usersTable.isOwner })
       .from(usersTable)
       .where(eq(usersTable.id, project.ownerId));
-    if (owner && (owner.role === "admin" || owner.role === "super_admin")) {
+    if (owner && (owner.role === "admin" || owner.role === "super_admin" || owner.isOwner)) {
       return { allowed: true };
     }
   }

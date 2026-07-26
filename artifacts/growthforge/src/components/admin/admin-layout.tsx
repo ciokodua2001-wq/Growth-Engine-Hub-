@@ -5,9 +5,11 @@ import {
   LayoutDashboard, Users, FolderOpen, CreditCard, Brain,
   FileText, HeadphonesIcon, BarChart2, ToggleLeft, Settings,
   Activity, Shield, Megaphone, ChevronLeft, ChevronRight,
-  LogOut, Menu, Loader2, DatabaseZap, Wallet,
+  LogOut, Menu, Loader2, DatabaseZap, Wallet, Crown,
+  TrendingUp, Mail, BookUser,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
+import { useIsOwner } from "@/hooks/use-is-owner";
 
 const NAV = [
   { label: "Dashboard",     href: "/admin",              icon: LayoutDashboard },
@@ -27,6 +29,12 @@ const NAV = [
   { label: "Settings",      href: "/admin/settings",     icon: Settings },
 ];
 
+const OWNER_NAV = [
+  { label: "Growth Dashboard", href: "/admin/owner/dashboard", icon: TrendingUp },
+  { label: "Email Marketing",  href: "/admin/owner/campaigns", icon: Mail },
+  { label: "Contacts",         href: "/admin/owner/contacts",  icon: BookUser },
+];
+
 interface Props { children: React.ReactNode }
 
 export default function AdminLayout({ children }: Props) {
@@ -35,6 +43,7 @@ export default function AdminLayout({ children }: Props) {
   const [location, setLocation] = useLocation();
   const { user, isLoaded, isSignedIn } = useUser();
   const { signOut } = useClerk();
+  const isOwner = useIsOwner();
 
   // Direct navigation to /admin (e.g. typing the URL, or a bookmark) should
   // prompt sign-in immediately instead of rendering a dead-end "Access
@@ -83,6 +92,32 @@ export default function AdminLayout({ children }: Props) {
             {!collapsed && <span>{label}</span>}
           </Link>
         ))}
+
+        {/* Owner's Corner — only visible to the platform owner */}
+        {isOwner && (
+          <>
+            {!collapsed && (
+              <div className="flex items-center gap-2 px-3 pt-5 pb-1.5">
+                <Crown className="w-3 h-3 shrink-0" style={{ color: "#fbbf24" }} />
+                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#fbbf24" }}>
+                  Owner's Corner
+                </span>
+              </div>
+            )}
+            {collapsed && <div className="pt-4 pb-1 flex justify-center"><Crown className="w-3.5 h-3.5" style={{ color: "#fbbf24" }} /></div>}
+            {OWNER_NAV.map(({ label, href, icon: Icon }) => (
+              <Link key={href} href={href}
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  isActive(href) ? "text-black" : "text-white/40 hover:text-white hover:bg-amber-500/8"
+                } ${collapsed ? "justify-center" : ""}`}
+                style={isActive(href) ? { background: "#fbbf24" } : {}}>
+                <Icon className="w-4 h-4 shrink-0" />
+                {!collapsed && <span>{label}</span>}
+              </Link>
+            ))}
+          </>
+        )}
       </nav>
 
       {/* Footer */}
