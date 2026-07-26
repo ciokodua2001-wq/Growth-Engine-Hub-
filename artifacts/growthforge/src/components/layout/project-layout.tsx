@@ -74,14 +74,14 @@ export default function ProjectLayout({ projectId, children }: ProjectLayoutProp
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [location] = useLocation();
-  const [trialInfo, setTrialInfo] = useState<{ subscriptionStatus?: string; trialEndsAt?: string } | null>(null);
+  const [trialInfo, setTrialInfo] = useState<{ subscriptionStatus?: string; trialEndsAt?: string; isOwner?: boolean } | null>(null);
   const id = parseInt(projectId, 10);
   const { data: project } = useGetProject(id, { query: { queryKey: getGetProjectQueryKey(id), enabled: !!id } });
 
   useEffect(() => {
     fetch("/api/auth/me")
       .then((r) => r.json())
-      .then((u) => setTrialInfo({ subscriptionStatus: u.subscriptionStatus, trialEndsAt: u.trialEndsAt }))
+      .then((u) => setTrialInfo({ subscriptionStatus: u.subscriptionStatus, trialEndsAt: u.trialEndsAt, isOwner: u.isOwner }))
       .catch(() => {});
   }, []);
 
@@ -237,12 +237,14 @@ export default function ProjectLayout({ projectId, children }: ProjectLayoutProp
 
           {/* Trial Status Panel */}
           <div className="shrink-0 mt-auto">
-            <TrialStatusPanel
-              projectId={id}
-              trialEndsAt={trialInfo?.trialEndsAt}
-              subscriptionStatus={trialInfo?.subscriptionStatus}
-              collapsed={effectiveCollapsed}
-            />
+            {!trialInfo?.isOwner && (
+              <TrialStatusPanel
+                projectId={id}
+                trialEndsAt={trialInfo?.trialEndsAt}
+                subscriptionStatus={trialInfo?.subscriptionStatus}
+                collapsed={effectiveCollapsed}
+              />
+            )}
 
             {/* Footer */}
             {!effectiveCollapsed && (
@@ -256,10 +258,12 @@ export default function ProjectLayout({ projectId, children }: ProjectLayoutProp
 
       {/* Main content */}
       <main className={cn("flex-1 overflow-y-auto flex flex-col", isMobile && "pt-14")}>
-        <TrialBanner
-          subscriptionStatus={trialInfo?.subscriptionStatus}
-          trialEndsAt={trialInfo?.trialEndsAt}
-        />
+        {!trialInfo?.isOwner && (
+          <TrialBanner
+            subscriptionStatus={trialInfo?.subscriptionStatus}
+            trialEndsAt={trialInfo?.trialEndsAt}
+          />
+        )}
         <div className="flex-1">{children}</div>
       </main>
     </div>
