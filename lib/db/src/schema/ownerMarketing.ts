@@ -96,3 +96,14 @@ export const supportTicketsTable = pgTable("support_tickets", {
 
 export type SupportTicket = typeof supportTicketsTable.$inferSelect;
 export type InsertSupportTicket = typeof supportTicketsTable.$inferInsert;
+
+// ─── Support Knowledge Base ───────────────────────────────────────────────────
+
+/** Single-row table (id=1). Content is injected into the AI support agent prompt. */
+export const supportKnowledgeBaseTable = pgTable("support_knowledge_base", {
+  id: serial("id").primaryKey(),
+  content: text("content").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type SupportKnowledgeBase = typeof supportKnowledgeBaseTable.$inferSelect;

@@ -140,6 +140,154 @@ async function ensureSupportTicketsTable(): Promise<void> {
   }
 }
 
+const DEFAULT_KNOWLEDGE_BASE = `# GrowthForge Knowledge Base
+
+## What is GrowthForge?
+GrowthForge is an AI-powered marketing operating system for founders and lean teams. It replaces expensive marketing agencies by generating strategy, content, and ads from a single platform. You paste your website URL and GrowthForge analyzes your business, competitors, and market position — then generates ready-to-publish social posts, emails, blog posts, ads, and promotional videos.
+
+## Plans & Pricing
+All plans are billed monthly. Every plan includes a **7-day free trial** — no credit card required.
+
+| Plan | Price | Projects | Videos/mo |
+|---|---|---|---|
+| Starter | $39/mo | 1 | 3 (up to 45s each) |
+| Get Going | $99/mo | 3 | 8 (up to 120s each) |
+| Growth | $249/mo | 6 | 20 (up to 300s each) |
+| Agency | $599/mo | 20 | 48 (up to 720s each) |
+
+Extra video credits can be purchased separately in the Video Studio if monthly limits are exceeded.
+
+## Free Trial Limits
+The 7-day trial includes (per project):
+- 1 Business Analysis
+- 1 Competitor Discovery
+- 1 Persona Generation
+- 1 Marketing Strategy
+- 1 Competitor Deep-Dive Report
+- 5 Social Posts (total, across all platforms)
+- 10 Forge AI Agent messages
+- 1 SEO Watchdog check-in
+
+**Not available on trial (paid plans only):** Email campaign generation, Video generation, Ad creative generation, AI image generation, SEO Strategy Builder, SEO Blog Post generation, Campaign Performance Reports.
+
+To start a trial: go to /plans and click "Start Free Trial". Signing up alone does not start it — you must click that button first.
+
+## Features
+
+### Business Analysis
+- Paste your website URL → AI extracts your Ideal Customer Profile (ICP), market opportunities, and competitive overview.
+- Available from the "Analysis" tab within any project.
+- Trial: 1 analysis per project.
+
+### Competitor Intelligence
+- Discovers your top competitors automatically based on your business.
+- Generates a detailed report with messaging gaps, positioning weaknesses, and differentiation opportunities.
+- Trial: 1 competitor discovery + 1 deep-dive report.
+
+### Content Strategy
+- Builds a complete marketing playbook: positioning statement, brand voice guide, and full-funnel content map.
+- Trial: 1 strategy generation.
+
+### Social Calendar
+Generates a 30-day content calendar with posts tailored for: LinkedIn, X (Twitter), TikTok, Instagram, and Facebook. Each post includes an AI-generated creative image.
+
+**Direct publishing** to Facebook and Instagram via Meta OAuth integration.
+- X (Twitter), TikTok, and LinkedIn: share buttons pre-fill the caption — no direct API publishing for those platforms.
+- Trial: 5 social posts total across all platforms.
+
+### Connecting Facebook/Instagram for Publishing
+1. Go to your project's Social tab.
+2. Click "Connect Facebook Page" in the handles/settings panel.
+3. Authenticate with Meta and select which page to connect.
+4. Once connected, post cards show a Publish button for Facebook and Instagram.
+
+Sessions expire periodically — if you see a "session expired" notice, click the reconnect button on that notice. You do not need to leave the page to fix this.
+
+### Email Campaigns
+- Generates welcome sequences, sales emails, nurture drips, and reactivation campaigns.
+- Upload your subscriber list as a CSV file.
+- Campaigns are delivered via the platform's email infrastructure.
+- **Paid plans only** — not available on trial.
+
+### SEO Suite
+- **Blog Posts**: AI-generated long-form SEO articles targeting your keywords. Paid only.
+- **Meta Tags**: Title tags and meta descriptions for your pages.
+- **Schema Markup**: Structured data (JSON-LD) for rich search results.
+- **SEO Watchdog**: Weekly performance check-in and AI recommendations. 1 free on trial.
+- **SEO Strategy Builder**: Full keyword and content strategy. Paid only.
+- **Comparison Pages**: Auto-generated "vs Competitor" comparison pages. Paid only.
+
+### Ad Creatives
+- Generates high-converting ad copy for Google Ads and Meta Ads (Facebook/Instagram).
+- Includes hooks, headlines, body copy, and CTAs optimized per platform.
+- **Paid plans only.**
+
+### Video Studio
+- Generates 1080p HD AI promotional videos.
+- Workflow: generate scene blueprints → review storyboard → render video.
+- Includes AI voiceover and ambient audio baked in.
+- Video generation takes approximately 2–5 minutes per scene.
+- Monthly video seconds vary by plan (see Plans table above).
+- **Paid plans only** — trial users cannot render videos.
+
+### Forge AI Agent
+- A context-aware AI chatbot that knows your business data, competitors, and strategy.
+- Can draft posts, write copy, analyze competitors, or answer questions about your marketing.
+- Trial: 10 messages per project.
+
+### Analytics Dashboard
+- Tracks campaign performance: email opens, clicks, delivery rates.
+- Available from the Analytics tab within any project.
+
+## Troubleshooting
+
+### Facebook/Instagram posts won't publish
+The Meta connection may have expired. Go to the Social tab and look for a "session expired" or "reconnect" notice. Click the reconnect button — you do not need to leave the page.
+
+### Video is stuck processing
+Video rendering takes 2–5 minutes. If it has been more than 10 minutes, refresh the page. If it still shows as processing after 15+ minutes, contact support — the team can manually clear stuck renders.
+
+### "Upgrade required" / can't access a feature on trial
+Email campaigns, video rendering, ads, and SEO blog posts require a paid plan. Go to /plans to upgrade. All your trial data and projects are preserved when you upgrade.
+
+### Reached trial limit for social posts or analysis
+The 7-day trial includes limited quotas. Upgrade to any paid plan on /plans to remove limits.
+
+### Can't find where to cancel
+To cancel, email support@usegrowthforge.com. The team processes cancellations within 24 hours.
+
+## Account & Billing
+- All plans are billed monthly and renew automatically.
+- To change plans: go to /plans and select a new plan.
+- To cancel: email support@usegrowthforge.com.
+- Refund requests require human review — these are escalated to the team and cannot be processed automatically.
+- Billing disputes or charge questions beyond plan explanations must be handled by the team.
+`;
+
+async function ensureSupportKnowledgeBaseTable(): Promise<void> {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS support_knowledge_base (
+        id         serial PRIMARY KEY,
+        content    text NOT NULL DEFAULT '',
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+    `);
+    // Seed default knowledge base if empty
+    const existing = await db.execute(sql`SELECT id FROM support_knowledge_base LIMIT 1`);
+    if (existing.rows.length === 0) {
+      await db.execute(sql`
+        INSERT INTO support_knowledge_base (content) VALUES (${DEFAULT_KNOWLEDGE_BASE})
+      `);
+      logger.info("support_knowledge_base table created and seeded");
+    } else {
+      logger.info("support_knowledge_base table ready");
+    }
+  } catch (err) {
+    logger.warn({ err }, "support_knowledge_base migration failed (non-fatal)");
+  }
+}
+
 async function ensureOwnerMarketingTables(): Promise<void> {
   try {
     await db.execute(sql`
@@ -237,6 +385,7 @@ app.listen(port, (err) => {
   startRenderMonitor();
   void runMetaTokenHealthCheck();
   void ensureSupportTicketsTable();
+  void ensureSupportKnowledgeBaseTable();
   void ensureOwnerMarketingTables();
   void ensureSeoSitemapTable();
   void ensureSeoComparisonPagesTable();

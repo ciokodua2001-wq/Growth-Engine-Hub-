@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { supportTicketsTable, usersTable } from "@workspace/db";
+import { supportTicketsTable, supportKnowledgeBaseTable, usersTable } from "@workspace/db";
 import { eq, desc, count } from "drizzle-orm";
 import { Resend } from "resend";
 import { generateJsonFast } from "../lib/aiJson.js";
@@ -12,7 +12,30 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 const SUPPORT_FROM = "GrowthForge Support <support@usegrowthforge.com>";
 const BASE_URL = process.env.PRODUCTION_URL ?? "https://usegrowthforge.com";
 
-// ── Owner email lookup (no projectId needed) ──────────────────────────────────
+// ── Knowledge base cache ──────────────────────────────────────────────────────
+
+let kbCache: { content: string; fetchedAt: number } | null = null;
+const KB_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function getKnowledgeBase(): Promise<string> {
+  if (kbCache && Date.now() - kbCache.fetchedAt < KB_CACHE_TTL_MS) {
+    return kbCache.content;
+  }
+  try {
+    const [row] = await db.select().from(supportKnowledgeBaseTable).limit(1);
+    const content = row?.content ?? "";
+    kbCache = { content, fetchedAt: Date.now() };
+    return content;
+  } catch {
+    return kbCache?.content ?? "";
+  }
+}
+
+function invalidateKbCache(): void {
+  kbCache = null;
+}
+
+// ── Owner email lookup ────────────────────────────────────────────────────────
 
 async function getOwnerEmail(): Promise<string | null> {
   try {
@@ -44,48 +67,40 @@ interface AiSupportResult {
   escalateReason?: string;
 }
 
+const AGENT_INSTRUCTIONS = `You are the AI support agent for GrowthForge. Answer every ticket using ONLY the facts in the knowledge base below. Do not invent features, prices, or policies not listed there.
+
+ESCALATE to a human when the customer:
+- Demands a refund or disputes a charge
+- Requests account deletion or data export
+- Makes a legal threat, DMCA, or copyright claim
+- Reports suspected fraud or unauthorized access
+- Asks something you genuinely cannot answer accurately from the knowledge base
+
+DO NOT escalate for: how-to questions, feature questions, trial questions, plan comparisons, general billing questions (explaining plans is fine — disputes need escalation), or any question the knowledge base answers clearly.
+
+Write your response directly to the customer (first-person, warm, specific). Address them by first name. Never give a generic "we'll look into it" answer if the knowledge base has the real answer. Keep it to 2–4 paragraphs max.
+
+Respond ONLY with this JSON object — no prose, no markdown wrapper:
+{
+  "category": "technical" | "billing" | "sales" | "demo" | "partnership" | "feedback" | "other",
+  "response": "your full reply to the customer",
+  "escalate": true | false,
+  "escalateReason": "brief internal note if escalate is true, omit otherwise"
+}`;
+
 async function generateSupportResponse(
   name: string,
   subject: string,
   message: string,
 ): Promise<AiSupportResult> {
+  const kb = await getKnowledgeBase();
+  const kbSection = kb.trim()
+    ? `\n\n--- GROWTHFORGE KNOWLEDGE BASE ---\n${kb.trim()}\n--- END KNOWLEDGE BASE ---`
+    : "";
+
   return generateJsonFast<AiSupportResult>({
-    system: `You are the AI support agent for GrowthForge, an AI-powered marketing platform for small businesses.
-
-GrowthForge features:
-- Business analysis: paste a URL → AI analyzes business, competitors, strategy in seconds
-- Social media: generates platform-specific posts (LinkedIn, Instagram, TikTok, Facebook, X) with AI creative images
-- Email marketing: AI-written campaigns sent to subscriber lists
-- AI Video: generates short-form marketing videos with AI actors and narration
-- SEO tools: AI blog posts, comparison pages, sitemaps, schema markup, GSC integration
-- Ad creatives: Google Ads and Meta (Facebook/Instagram) ad copy generation
-- Google Ads and Meta Ads direct integration for publishing
-
-Plans: Starter ($39/mo), Get Going ($99/mo), Growth ($299/mo), Agency ($799/mo). Free trial available. All plans include unlimited projects. Higher plans unlock more AI generation quota, video credits, and team seats.
-
-Your job: classify the ticket, write a warm and specific response, and decide if it needs human escalation.
-
-ESCALATE to a human when:
-- The customer demands a refund or disputes a charge
-- Account deletion or data export request
-- Legal threats, DMCA, or copyright claims
-- Suspected fraud or unauthorized account access
-- You genuinely cannot answer with confidence
-
-DO NOT escalate for: how-to questions, feature questions, trial questions, plan comparisons, technical troubleshooting you can help with, general billing questions (explaining plans is fine — disputes need escalation).
-
-Write your response directly to the customer (first-person, warm, helpful). Address them by first name. Be specific — do not give generic "we'll look into it" non-answers. Keep it concise (2-4 paragraphs max).
-
-Respond ONLY with a single JSON object, no prose:
-{
-  "category": "technical" | "billing" | "sales" | "demo" | "partnership" | "feedback" | "other",
-  "response": "your full reply to the customer",
-  "escalate": true | false,
-  "escalateReason": "brief internal note if escalate is true, else omit"
-}`,
-    prompt: `Customer name: ${name}
-Subject: ${subject}
-Message: ${message}`,
+    system: AGENT_INSTRUCTIONS + kbSection,
+    prompt: `Customer name: ${name}\nSubject: ${subject}\nMessage: ${message}`,
     maxTokens: 1024,
     label: "support-agent",
   });
@@ -140,14 +155,12 @@ router.post("/support/tickets", async (req, res): Promise<void> => {
     res.status(400).json({ error: "name, email, subject, and message are required" });
     return;
   }
-
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!EMAIL_RE.test(email.trim())) {
     res.status(400).json({ error: "Invalid email address" });
     return;
   }
 
-  // 1. Create ticket (status: open)
   const [ticket] = await db.insert(supportTicketsTable).values({
     name: name.trim(),
     email: email.trim().toLowerCase(),
@@ -156,7 +169,6 @@ router.post("/support/tickets", async (req, res): Promise<void> => {
     status: "open",
   }).returning();
 
-  // 2. AI response (async — don't block the HTTP response for too long)
   let aiResult: AiSupportResult;
   try {
     aiResult = await generateSupportResponse(name.trim(), subject.trim(), message.trim());
@@ -172,7 +184,6 @@ router.post("/support/tickets", async (req, res): Promise<void> => {
 
   const newStatus = aiResult.escalate ? "escalated" : "ai_responded";
 
-  // 3. Persist AI response + status
   await db.update(supportTicketsTable)
     .set({
       category: aiResult.category,
@@ -183,7 +194,6 @@ router.post("/support/tickets", async (req, res): Promise<void> => {
     })
     .where(eq(supportTicketsTable.id, ticket.id));
 
-  // 4. Email customer with AI response
   if (resend) {
     resend.emails.send({
       from: SUPPORT_FROM,
@@ -193,7 +203,6 @@ router.post("/support/tickets", async (req, res): Promise<void> => {
     }).catch(() => {});
   }
 
-  // 5. If escalated, email owner
   if (aiResult.escalate) {
     getOwnerEmail().then(ownerEmail => {
       if (!ownerEmail || !resend) return;
@@ -206,41 +215,28 @@ router.post("/support/tickets", async (req, res): Promise<void> => {
     }).catch(() => {});
   }
 
-  res.json({
-    ticketId: ticket.id,
-    aiResponse: aiResult.response,
-    escalated: aiResult.escalate,
-  });
+  res.json({ ticketId: ticket.id, aiResponse: aiResult.response, escalated: aiResult.escalate });
 });
 
-// ── GET /owner/support/tickets — owner only ───────────────────────────────────
+// ── GET /owner/support/tickets ────────────────────────────────────────────────
 
 router.get("/owner/support/tickets", requireOwner, async (req, res): Promise<void> => {
   try {
     const status = req.query.status as string | undefined;
-
     const tickets = await db
       .select()
       .from(supportTicketsTable)
       .where(status ? eq(supportTicketsTable.status, status) : undefined)
       .orderBy(desc(supportTicketsTable.createdAt));
 
-    // Counts for stat cards
-    const [counts] = await db
-      .select({
-        total: count(),
-      })
-      .from(supportTicketsTable);
-
+    const [counts] = await db.select({ total: count() }).from(supportTicketsTable);
     const statusCounts = await db
       .select({ status: supportTicketsTable.status, cnt: count() })
       .from(supportTicketsTable)
       .groupBy(supportTicketsTable.status);
 
     const byStatus: Record<string, number> = {};
-    for (const row of statusCounts) {
-      byStatus[row.status] = Number(row.cnt);
-    }
+    for (const row of statusCounts) byStatus[row.status] = Number(row.cnt);
 
     res.json({
       tickets: tickets.map(t => ({
@@ -264,7 +260,7 @@ router.get("/owner/support/tickets", requireOwner, async (req, res): Promise<voi
   }
 });
 
-// ── PATCH /owner/support/tickets/:id — owner only ─────────────────────────────
+// ── PATCH /owner/support/tickets/:id ─────────────────────────────────────────
 
 router.patch("/owner/support/tickets/:id", requireOwner, async (req, res): Promise<void> => {
   try {
@@ -272,33 +268,27 @@ router.patch("/owner/support/tickets/:id", requireOwner, async (req, res): Promi
     const id = parseInt(rawId ?? "", 10);
     if (isNaN(id)) { res.status(400).json({ error: "Invalid ticket ID" }); return; }
 
-    const { adminReply, status } = req.body as { adminReply?: string; status?: string };
-
     const [ticket] = await db.select().from(supportTicketsTable).where(eq(supportTicketsTable.id, id)).limit(1);
     if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
 
+    const { adminReply, status } = req.body as { adminReply?: string; status?: string };
     const update: Partial<typeof supportTicketsTable.$inferInsert> = { updatedAt: new Date() };
     if (adminReply !== undefined) {
       update.adminReply = adminReply.trim();
       update.adminRepliedAt = new Date();
-      if (!status) update.status = "resolved"; // auto-resolve when admin replies
+      if (!status) update.status = "resolved";
     }
     if (status !== undefined) update.status = status;
 
     const [updated] = await db
-      .update(supportTicketsTable)
-      .set(update)
-      .where(eq(supportTicketsTable.id, id))
-      .returning();
+      .update(supportTicketsTable).set(update).where(eq(supportTicketsTable.id, id)).returning();
 
-    // Email customer with admin's reply
     if (adminReply?.trim() && resend) {
-      const firstName = ticket.name.split(" ")[0]!;
       resend.emails.send({
         from: SUPPORT_FROM,
         to: ticket.email,
         subject: `Re: ${ticket.subject} — GrowthForge Support`,
-        html: supportEmailHtml(firstName, adminReply.trim(), ticket.subject),
+        html: supportEmailHtml(ticket.name.split(" ")[0]!, adminReply.trim(), ticket.subject),
       }).catch(() => {});
     }
 
@@ -315,7 +305,7 @@ router.patch("/owner/support/tickets/:id", requireOwner, async (req, res): Promi
   }
 });
 
-// ── POST /owner/support/tickets/:id/escalate — owner only ─────────────────────
+// ── POST /owner/support/tickets/:id/escalate ──────────────────────────────────
 
 router.post("/owner/support/tickets/:id/escalate", requireOwner, async (req, res): Promise<void> => {
   try {
@@ -330,7 +320,6 @@ router.post("/owner/support/tickets/:id/escalate", requireOwner, async (req, res
       .set({ status: "escalated", escalatedAt: new Date(), updatedAt: new Date() })
       .where(eq(supportTicketsTable.id, id));
 
-    // Notify owner
     if (resend) {
       getOwnerEmail().then(ownerEmail => {
         if (!ownerEmail) return;
@@ -346,6 +335,57 @@ router.post("/owner/support/tickets/:id/escalate", requireOwner, async (req, res
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "Error escalating ticket");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── GET /owner/support/knowledge-base ────────────────────────────────────────
+
+router.get("/owner/support/knowledge-base", requireOwner, async (_req, res): Promise<void> => {
+  try {
+    const [row] = await db.select().from(supportKnowledgeBaseTable).limit(1);
+    res.json({
+      content: row?.content ?? "",
+      updatedAt: row?.updatedAt?.toISOString() ?? null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── PUT /owner/support/knowledge-base ────────────────────────────────────────
+
+router.put("/owner/support/knowledge-base", requireOwner, async (req, res): Promise<void> => {
+  try {
+    const { content } = req.body as { content?: string };
+    if (typeof content !== "string") {
+      res.status(400).json({ error: "content is required" });
+      return;
+    }
+
+    const [existing] = await db.select({ id: supportKnowledgeBaseTable.id }).from(supportKnowledgeBaseTable).limit(1);
+
+    let row;
+    if (existing) {
+      [row] = await db
+        .update(supportKnowledgeBaseTable)
+        .set({ content: content.trim(), updatedAt: new Date() })
+        .where(eq(supportKnowledgeBaseTable.id, existing.id))
+        .returning();
+    } else {
+      [row] = await db
+        .insert(supportKnowledgeBaseTable)
+        .values({ content: content.trim() })
+        .returning();
+    }
+
+    invalidateKbCache();
+
+    res.json({
+      content: row.content,
+      updatedAt: row.updatedAt.toISOString(),
+    });
+  } catch (err) {
     res.status(500).json({ error: "Internal server error" });
   }
 });
