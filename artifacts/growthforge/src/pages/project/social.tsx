@@ -140,6 +140,79 @@ function PublishButtons({
   );
 }
 
+// ── Share Buttons (LinkedIn, X, TikTok — copy + open platform) ───────────────
+// Facebook & Instagram are handled by PublishButtons via Meta API.
+// For X we use the tweet intent URL (pre-fills composer).
+// For LinkedIn and TikTok there is no text-post intent URL, so we copy to clipboard
+// and open the platform's create page so the user only has to paste.
+
+interface ShareButtonsProps {
+  post: SocialPost;
+}
+
+function ShareButtons({ post }: ShareButtonsProps) {
+  const [shareState, setShareState] = useState<"idle" | "copied">("idle");
+  const platform = post.platform.toLowerCase();
+
+  // Only for non-Meta platforms; only on draft posts
+  if (platform === "facebook" || platform === "instagram") return null;
+  if (post.status !== "draft") return null;
+
+  const fullText = [post.caption, post.hashtags, post.cta].filter(Boolean).join("\n\n");
+
+  type PlatformCfg = { label: string; openUrl: string; needsCopy: boolean; color: string; border: string; text: string; hint?: string };
+  const cfgs: Record<string, PlatformCfg> = {
+    x: {
+      label: "Post on X",
+      // tweet intent pre-fills the composer — X counts 280 Unicode chars
+      openUrl: `https://x.com/intent/tweet?text=${encodeURIComponent(fullText.slice(0, 280))}`,
+      needsCopy: false,
+      color: "rgba(30,30,40,0.6)", border: "rgba(148,163,184,0.25)", text: "#94a3b8",
+    },
+    linkedin: {
+      label: "Share on LinkedIn",
+      openUrl: "https://www.linkedin.com/feed/",
+      needsCopy: true,
+      color: "rgba(10,102,194,0.12)", border: "rgba(96,165,250,0.25)", text: "#60a5fa",
+      hint: "Caption copied — paste into LinkedIn",
+    },
+    tiktok: {
+      label: "Share on TikTok",
+      openUrl: "https://www.tiktok.com/",
+      needsCopy: true,
+      color: "rgba(20,20,28,0.6)", border: "rgba(203,213,225,0.2)", text: "#cbd5e1",
+      hint: "Caption copied — paste into TikTok",
+    },
+  };
+
+  const cfg = cfgs[platform];
+  if (!cfg) return null;
+
+  const handleShare = async () => {
+    if (cfg.needsCopy) {
+      try { await navigator.clipboard.writeText(fullText); } catch { /* clipboard blocked — user can still paste from the card */ }
+    }
+    window.open(cfg.openUrl, "_blank");
+    setShareState("copied");
+    setTimeout(() => setShareState("idle"), 2500);
+  };
+
+  return (
+    <div className="flex items-center gap-2 mt-1 flex-wrap">
+      <button
+        onClick={handleShare}
+        className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-colors"
+        style={{ background: cfg.color, color: cfg.text, borderColor: cfg.border }}
+      >
+        {shareState === "copied"
+          ? <Check className="h-2.5 w-2.5" />
+          : <Share2 className="h-2.5 w-2.5" />}
+        {shareState === "copied" ? (cfg.hint ?? "Opening…") : cfg.label}
+      </button>
+    </div>
+  );
+}
+
 // ── Social Handles (stored in localStorage per project) ────────────────────────
 
 type SocialHandles = Partial<Record<string, string>>;
@@ -933,6 +1006,7 @@ export default function ProjectSocial() {
                     onPublished={(p) => showToast("success", `Published to ${p} successfully!`)}
                     onError={(msg) => showToast("error", msg)}
                   />
+                  <ShareButtons post={post} />
                   <ScheduleControls
                     postId={post.id}
                     projectId={projectId}
