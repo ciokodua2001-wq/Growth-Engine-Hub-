@@ -61,76 +61,79 @@ router.post(
 
     const businessName = ctx.project.name ?? "this business";
 
-    const prompt = `You are an elite SEO and GEO (Generative Engine Optimization) strategist with deep expertise in both traditional search engines and AI-powered discovery platforms.
+    // NOTE: Keep this prompt concise. The Vertex AI proxy has a 3-minute hard
+    // timeout. maxTokens is capped at 4000 and every list is a fixed length to
+    // ensure the response completes well within that window.
+    const prompt = `You are an elite SEO and GEO (Generative Engine Optimization) strategist.
 
 ${renderGroundingBlock(ctx)}
 
-Generate a comprehensive, highly specific SEO strategy for ${businessName}.
+Generate a specific SEO strategy for ${businessName}. Keep every string value to one concise sentence.
 
-Return ONLY valid JSON in this exact structure (no markdown, no code fences):
+Return ONLY a raw JSON object — no markdown, no code fences, no text outside the JSON:
 {
-  "overallScore": <integer 0-100, current estimated SEO maturity based on business context>,
-  "summary": "<2-3 sentence executive summary of the biggest SEO opportunity for this business>",
-  "priorityActions": ["<most impactful action>", "<second>", "<third>", "<fourth>", "<fifth>"],
+  "overallScore": <integer 0-100>,
+  "summary": "<2 sentence executive summary of the top SEO opportunity>",
+  "priorityActions": ["<action 1>", "<action 2>", "<action 3>", "<action 4>", "<action 5>"],
   "traditionalSeo": {
-    "strengths": ["<inferred strength based on business type>"],
-    "gaps": ["<likely gap for this industry>"],
+    "strengths": ["<strength 1>", "<strength 2>"],
+    "gaps": ["<gap 1>", "<gap 2>", "<gap 3>"],
     "keywordOpportunities": [
-      { "keyword": "<specific keyword phrase>", "intent": "informational|commercial|transactional|navigational", "difficulty": "low|medium|high", "opportunity": "<one sentence why this is valuable>" }
+      { "keyword": "<phrase>", "intent": "informational|commercial|transactional|navigational", "difficulty": "low|medium|high", "opportunity": "<one sentence>" },
+      { "keyword": "<phrase>", "intent": "informational|commercial|transactional|navigational", "difficulty": "low|medium|high", "opportunity": "<one sentence>" },
+      { "keyword": "<phrase>", "intent": "informational|commercial|transactional|navigational", "difficulty": "low|medium|high", "opportunity": "<one sentence>" },
+      { "keyword": "<phrase>", "intent": "informational|commercial|transactional|navigational", "difficulty": "low|medium|high", "opportunity": "<one sentence>" },
+      { "keyword": "<phrase>", "intent": "informational|commercial|transactional|navigational", "difficulty": "low|medium|high", "opportunity": "<one sentence>" }
     ],
-    "contentGapAnalysis": ["<specific content topic they are likely missing>"],
+    "contentGapAnalysis": ["<topic 1>", "<topic 2>", "<topic 3>"],
     "topicClusters": [
-      { "pillar": "<main pillar topic>", "spokes": ["<spoke 1>", "<spoke 2>", "<spoke 3>", "<spoke 4>"] }
+      { "pillar": "<pillar 1>", "spokes": ["<spoke>", "<spoke>", "<spoke>"] },
+      { "pillar": "<pillar 2>", "spokes": ["<spoke>", "<spoke>", "<spoke>"] },
+      { "pillar": "<pillar 3>", "spokes": ["<spoke>", "<spoke>", "<spoke>"] }
     ],
     "localSeo": {
-      "applicable": <true if business has local/geographic relevance, otherwise false>,
-      "recommendations": ["<specific local SEO action>"]
+      "applicable": <true|false>,
+      "recommendations": ["<recommendation>", "<recommendation>"]
     },
-    "technicalChecklist": ["<technical SEO item to implement>"],
-    "linkBuildingOpportunities": ["<specific link building opportunity for this industry>"]
+    "technicalChecklist": ["<item 1>", "<item 2>", "<item 3>"],
+    "linkBuildingOpportunities": ["<opportunity 1>", "<opportunity 2>"]
   },
   "geoStrategy": {
-    "readinessScore": <integer 0-100, readiness for AI search discovery>,
-    "readinessSummary": "<2 sentence assessment of AI search readiness>",
+    "readinessScore": <integer 0-100>,
+    "readinessSummary": "<2 sentence assessment>",
     "eatSignals": {
-      "expertise": "<how to demonstrate expertise for AI crawlers and LLMs>",
-      "authority": "<how to build domain authority for AI citation>",
-      "trustworthiness": "<trust signals to implement>"
+      "expertise": "<one sentence>",
+      "authority": "<one sentence>",
+      "trustworthiness": "<one sentence>"
     },
-    "contentStructureRecommendations": ["<how to structure content for LLM consumption>"],
-    "aiCitationRecommendations": ["<what makes content citable and quotable by AI models>"],
+    "contentStructureRecommendations": ["<recommendation 1>", "<recommendation 2>"],
+    "aiCitationRecommendations": ["<recommendation 1>", "<recommendation 2>"],
     "platformSpecific": {
-      "chatgpt": ["<optimization tip for ChatGPT/Bing AI discovery>", "<second tip>"],
-      "perplexity": ["<optimization tip for Perplexity>", "<second tip>"],
-      "gemini": ["<optimization tip for Google Gemini/AI Overviews>", "<second tip>"],
-      "claude": ["<optimization tip for Claude and Anthropic AI>", "<second tip>"]
+      "chatgpt": ["<tip 1>", "<tip 2>"],
+      "perplexity": ["<tip 1>", "<tip 2>"],
+      "gemini": ["<tip 1>", "<tip 2>"],
+      "claude": ["<tip 1>", "<tip 2>"]
     },
-    "schemaMarkupPriorities": ["<schema.org type most important for this business>"],
-    "faqOpportunities": ["<FAQ topic that AI platforms frequently answer for this niche>"]
+    "schemaMarkupPriorities": ["<schema type 1>", "<schema type 2>"],
+    "faqOpportunities": ["<faq topic 1>", "<faq topic 2>"]
   },
   "competitorVisibility": {
-    "likelyGaps": ["<area where competitors may be outranking based on industry>"],
-    "opportunities": ["<specific opportunity to outperform competitors in search>"]
+    "likelyGaps": ["<gap 1>", "<gap 2>"],
+    "opportunities": ["<opportunity 1>", "<opportunity 2>"]
   },
-  "authorityBuilding": ["<specific authority-building recommendation for this industry>"],
+  "authorityBuilding": ["<recommendation 1>", "<recommendation 2>"],
   "ninetyDayRoadmap": [
-    { "phase": "Days 1–30", "theme": "<focus theme>", "actions": ["<specific action>", "<specific action>", "<specific action>"] },
-    { "phase": "Days 31–60", "theme": "<focus theme>", "actions": ["<specific action>", "<specific action>", "<specific action>"] },
-    { "phase": "Days 61–90", "theme": "<focus theme>", "actions": ["<specific action>", "<specific action>", "<specific action>"] }
+    { "phase": "Days 1-30", "theme": "<theme>", "actions": ["<action>", "<action>", "<action>"] },
+    { "phase": "Days 31-60", "theme": "<theme>", "actions": ["<action>", "<action>", "<action>"] },
+    { "phase": "Days 61-90", "theme": "<theme>", "actions": ["<action>", "<action>", "<action>"] }
   ]
-}
-
-Requirements:
-- Minimum 6 keyword opportunities with varied intent types
-- Minimum 3 topic clusters with 4 spokes each
-- Minimum 2 tips per GEO platform
-- All recommendations must be specific to ${businessName}'s industry and business model
-- The 90-day roadmap must be sequenced so early phases enable later ones`;
+}`;
 
     try {
       const strategy = await generateJson<Record<string, unknown>>({
-        system: "You are an elite SEO and GEO strategist. Return only valid JSON with no markdown or code fences. Every recommendation must be specific and actionable based on the provided business context.",
+        system: "You are an elite SEO and GEO strategist. Return ONLY a raw JSON object — no markdown, no code fences, no text outside the JSON braces. Keep every string value to one concise sentence. Replace every placeholder with real, specific content for this business.",
         prompt,
+        maxTokens: 4000,
       });
 
       const [saved] = await db
