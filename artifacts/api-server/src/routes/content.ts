@@ -33,7 +33,6 @@ import {
 import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGeneratedBatch, recordGenerated, hashContent } from "../lib/contentIntegrity.js";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
-import { objectStorageClient, signObjectURL } from "../lib/objectStorage.js";
 import { Resend } from "resend";
 import { decryptToken, encryptToken, isEncryptedFormat } from "../lib/tokenCrypto.js";
 import { publishPostToMeta } from "../lib/metaPublisher.js";
@@ -57,14 +56,11 @@ async function generateAndUploadSocialImage(
   platform: string,
   log: { warn: (obj: object, msg: string) => void },
 ): Promise<string | null> {
-  const bucketId = process.env["DEFAULT_OBJECT_STORAGE_BUCKET_ID"];
-  if (!bucketId) return null;
   try {
     const size = PLATFORM_IMAGE_SIZE[platform] ?? "1024x1024";
     const buffer = await generateImageBuffer(imagePrompt, size);
-    const objectName = `social-images/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
-    await objectStorageClient.bucket(bucketId).file(objectName).save(buffer, { metadata: { contentType: "image/png" } });
-    return await signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 60 * 60 * 24 * 30 });
+    // Store as a self-contained data URL — avoids object-storage signing failures in production
+    return `data:image/png;base64,${buffer.toString("base64")}`;
   } catch (err) {
     log.warn({ err }, "Social post image generation failed — post saved without image");
     return null;
