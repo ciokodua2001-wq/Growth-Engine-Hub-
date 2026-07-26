@@ -1258,19 +1258,21 @@ function SeoCoachTab({ projectId, plan }: { projectId: number; plan: string }) {
     const state = execState[i] ?? "idle";
     const result = execResult[i] ?? {};
 
-    if (state === "done" && type === "comparison_page" && result.pageUrl) {
+    if (state === "done" && type === "comparison_page" && result.slug) {
+      // Use a relative URL so it works at the same origin regardless of env (dev/prod).
+      const relativePageUrl = `/api/compare/${projectId}/${result.slug}`;
+      const gscUrl = `https://search.google.com/search-console/inspect?resource_id=https://usegrowthforge.com/&url=${encodeURIComponent(`https://usegrowthforge.com${relativePageUrl}`)}`;
       return (
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 text-sm font-bold text-[#00E676] bg-[#00E676]/10 border border-[#00E676]/20 px-4 py-2.5 rounded-xl">
             <CheckCircle2 className="w-4 h-4" /> Page published!
           </div>
-          <a href={result.pageUrl} target="_blank" rel="noopener noreferrer"
+          <a href={relativePageUrl} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-2 text-sm font-bold text-white bg-white/10 border border-white/10 px-4 py-2.5 rounded-xl hover:bg-white/15 transition-colors">
             <ExternalLink className="w-4 h-4" /> View Page
           </a>
           <div className="flex flex-col gap-1">
-            <a href={`https://search.google.com/search-console/inspect?resource_id=https://usegrowthforge.com/&url=${encodeURIComponent(`https://usegrowthforge.com/api/compare/${projectId}/${result.slug}`)}`}
-              target="_blank" rel="noopener noreferrer"
+            <a href={gscUrl} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-2 text-sm font-bold text-[#00D4FF] bg-[#00D4FF]/10 border border-[#00D4FF]/20 px-4 py-2.5 rounded-xl hover:bg-[#00D4FF]/15 transition-colors">
               <ExternalLink className="w-4 h-4" /> Open in Search Console
             </a>
