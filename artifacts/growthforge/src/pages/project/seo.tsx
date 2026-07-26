@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation, useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -1234,7 +1234,8 @@ export default function ProjectSeo() {
   const id = parseInt(projectId ?? "", 10);
   
   const [, setLocation] = useLocation();
-  const currentTab = new URLSearchParams(window.location.search).get("tab") || "strategy";
+  const search = useSearch();
+  const currentTab = new URLSearchParams(search).get("tab") || "strategy";
 
   const { data: project } = useGetProject(id, { query: { queryKey: getGetProjectQueryKey(id), enabled: !!id } });
   const { data: currentUserData } = useCurrentUser();
