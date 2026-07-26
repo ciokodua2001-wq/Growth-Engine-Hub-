@@ -12,7 +12,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Globe, Zap, ArrowRight, Loader2, X, Brain, ChevronRight, Crown, Target, Share2, Bot, BarChart2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { useIsOwner } from "@/hooks/use-is-owner";
 import { Logo } from "@/components/ui/logo";
 
 const PROJECT_SHORTCUTS = [
@@ -201,8 +200,8 @@ export default function DashboardPage() {
   const [, setLocation] = useLocation();
   const { user, isLoaded } = useUser();
   const { data: projects, isLoading } = useListProjects();
-  const { isAdmin } = useCurrentUser();
-  const { isOwner } = useIsOwner();
+  const { isAdmin, data: currentUserData, isLoading: isUserLoading } = useCurrentUser();
+  const isOwner = currentUserData?.isOwner ?? false;
 
   useEffect(() => {
     if (isLoaded && !user) setLocation("/sign-in");
@@ -210,14 +209,15 @@ export default function DashboardPage() {
 
   // Admins/super admins should never land on the user dashboard — send them to the Admin Console.
   // Exception: the platform owner needs access to create content, so skip the redirect for them.
+  // Wait for the user record to load before deciding — isOwner is false until the API responds.
   useEffect(() => {
-    if (isAdmin && !isOwner) setLocation("/admin", { replace: true });
-  }, [isAdmin, isOwner, setLocation]);
+    if (!isUserLoading && isAdmin && !isOwner) setLocation("/admin", { replace: true });
+  }, [isUserLoading, isAdmin, isOwner, setLocation]);
 
   const firstName = user?.firstName ?? user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] ?? "there";
 
   if (isLoaded && !user) return null;
-  if (isAdmin && !isOwner) return null;
+  if (!isUserLoading && isAdmin && !isOwner) return null;
 
   return (
     <div className="min-h-screen bg-background">
