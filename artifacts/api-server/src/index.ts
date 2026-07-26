@@ -75,6 +75,28 @@ if (!rawPort) throw new Error("PORT environment variable is required but was not
 const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) throw new Error(`Invalid PORT value: "${rawPort}"`);
 
+async function ensureSeoComparisonPagesTable(): Promise<void> {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS seo_comparison_pages (
+        id              serial PRIMARY KEY,
+        project_id      integer NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        slug            text NOT NULL,
+        competitor      text NOT NULL,
+        title           text NOT NULL,
+        content_html    text NOT NULL,
+        meta_description text,
+        created_at      timestamptz NOT NULL DEFAULT now(),
+        updated_at      timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT seo_comparison_pages_project_slug_uniq UNIQUE (project_id, slug)
+      );
+    `);
+    logger.info("seo_comparison_pages table ready");
+  } catch (err) {
+    logger.warn({ err }, "seo_comparison_pages migration failed (non-fatal)");
+  }
+}
+
 async function ensureSeoSitemapTable(): Promise<void> {
   try {
     await db.execute(sql`
@@ -191,6 +213,7 @@ app.listen(port, (err) => {
   void runMetaTokenHealthCheck();
   void ensureOwnerMarketingTables();
   void ensureSeoSitemapTable();
+  void ensureSeoComparisonPagesTable();
   void initStripe();
   void recoverStuckAssemblies();
 });

@@ -1153,13 +1153,18 @@ function SchemaCard({ schema }: { schema: any }) {
 function SeoCoachTab({ projectId, plan }: { projectId: number; plan: string }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  
+  const [, setLocation] = useLocation();
+
   const { data, isLoading } = useGetSeoWatchdog(projectId, {
     query: { queryKey: getGetSeoWatchdogQueryKey(projectId), enabled: !!projectId }
   });
-  
+
   const [showUpgrade, setShowUpgrade] = useState(false);
-  
+  // Per-action execution state: "idle" | "loading" | "done" | "error"
+  const [execState, setExecState] = useState<Record<number, string>>({});
+  // Per-action result data (e.g. comparison page URL)
+  const [execResult, setExecResult] = useState<Record<number, Record<string, string>>>({});
+
   const generateMutation = useGenerateSeoWatchdog({
     mutation: {
       onSuccess: () => {
@@ -1176,16 +1181,150 @@ function SeoCoachTab({ projectId, plan }: { projectId: number; plan: string }) {
     }
   });
 
+  // Reuse blog post generation from within the coach
+  const blogMutation = useGenerateSeoBlogPost({ mutation: {} });
+
   const handleGenerate = () => {
-    if (plan === "trial" && data) {
-      setShowUpgrade(true);
-      return;
-    }
+    if (plan === "trial" && data) { setShowUpgrade(true); return; }
     generateMutation.mutate({ id: projectId });
   };
 
-  if (isLoading) return <div className="py-20 text-center text-white/30"><RefreshCw className="w-5 h-5 animate-spin mx-auto" /></div>;
+  const baseTabPath = () => window.location.pathname.split("?")[0];
 
+  const handleExecute = async (action: any, i: number) => {
+    const type = (action.type ?? "external") as string;
+    const meta = (action.metadata ?? {}) as Record<string, string>;
+
+    // Navigation-only actions — instant, no loading state
+    if (type === "meta_tags") { setLocation(`${baseTabPath()}?tab=meta`); return; }
+    if (type === "schema" || type === "sitemap") { setLocation(`${baseTabPath()}?tab=schema`); return; }
+    if (type === "social") { setLocation(`/projects/${projectId}/campaigns`); return; }
+    if (type === "gsc") { window.open("https://search.google.com/search-console/", "_blank"); return; }
+    if (type === "external") { window.open(meta.externalUrl || "https://search.google.com/search-console/", "_blank"); return; }
+
+    // Async actions — show loading state
+    setExecState(p => ({ ...p, [i]: "loading" }));
+
+    if (type === "blog_post") {
+      try {
+        const keyword = meta.keyword || action.title || "business growth";
+        await blogMutation.mutateAsync({ id: projectId, data: { keyword, tone: "professional" } });
+        qc.invalidateQueries({ queryKey: getListSeoBlogPostsQueryKey(projectId) });
+        setExecState(p => ({ ...p, [i]: "done" }));
+        toast({ description: `Blog post generated for "${keyword}". View it in the Blog Posts tab.` });
+      } catch (err: any) {
+        setExecState(p => ({ ...p, [i]: "error" }));
+        toast({ variant: "destructive", description: err.message || "Failed to generate blog post." });
+      }
+      return;
+    }
+
+    if (type === "comparison_page") {
+      try {
+        const competitor = meta.competitor || "Competitor";
+        const slug = meta.slug || competitor.toLowerCase().replace(/\s+/g, "-") + "-alternative";
+        const res = await fetch(`/api/projects/${projectId}/seo/comparison-page/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ competitor, slug }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const result = await res.json();
+        setExecState(p => ({ ...p, [i]: "done" }));
+        setExecResult(p => ({ ...p, [i]: { pageUrl: result.pageUrl, slug } }));
+      } catch (err: any) {
+        setExecState(p => ({ ...p, [i]: "error" }));
+        toast({ variant: "destructive", description: err.message || "Failed to generate comparison page." });
+      }
+      return;
+    }
+
+    // Fallback for unknown types
+    setExecState(p => ({ ...p, [i]: "idle" }));
+  };
+
+  // Label + styling for each action type's button
+  const getExecuteButton = (action: any, i: number) => {
+    const type = (action.type ?? "external") as string;
+    const state = execState[i] ?? "idle";
+    const result = execResult[i] ?? {};
+
+    if (state === "done" && type === "comparison_page" && result.pageUrl) {
+      return (
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-[#00E676] bg-[#00E676]/10 border border-[#00E676]/20 px-4 py-2.5 rounded-xl">
+            <CheckCircle2 className="w-4 h-4" /> Page published!
+          </div>
+          <a href={result.pageUrl} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-2 text-sm font-bold text-white bg-white/10 border border-white/10 px-4 py-2.5 rounded-xl hover:bg-white/15 transition-colors">
+            <ExternalLink className="w-4 h-4" /> View Page
+          </a>
+          <a href={`https://search.google.com/search-console/inspect?resource_id=https://usegrowthforge.com/&url=${encodeURIComponent(result.pageUrl)}`}
+            target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-2 text-sm font-bold text-[#00D4FF] bg-[#00D4FF]/10 border border-[#00D4FF]/20 px-4 py-2.5 rounded-xl hover:bg-[#00D4FF]/15 transition-colors">
+            <ExternalLink className="w-4 h-4" /> Submit to Google
+          </a>
+        </div>
+      );
+    }
+
+    if (state === "done" && type === "blog_post") {
+      return (
+        <div className="mt-5 flex items-center gap-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-[#00E676] bg-[#00E676]/10 border border-[#00E676]/20 px-4 py-2.5 rounded-xl">
+            <CheckCircle2 className="w-4 h-4" /> Post generated!
+          </div>
+          <button onClick={() => setLocation(`${baseTabPath()}?tab=blog`)}
+            className="flex items-center gap-2 text-sm font-bold text-white bg-white/10 border border-white/10 px-4 py-2.5 rounded-xl hover:bg-white/15 transition-colors">
+            View in Blog Posts →
+          </button>
+        </div>
+      );
+    }
+
+    if (state === "error") {
+      return (
+        <button onClick={() => handleExecute(action, i)}
+          className="mt-5 flex items-center gap-2 text-sm font-semibold text-red-400 bg-red-500/10 border border-red-500/20 px-4 py-2.5 rounded-xl hover:bg-red-500/15 transition-colors">
+          <RefreshCw className="w-4 h-4" /> Retry
+        </button>
+      );
+    }
+
+    const configs: Record<string, { label: string; color: string; textColor: string; icon: React.ReactNode }> = {
+      blog_post:       { label: "Generate This Post",    color: "#00E676", textColor: "#000", icon: <Zap className="w-4 h-4" /> },
+      comparison_page: { label: "Build This Page",       color: "#14F195", textColor: "#000", icon: <Zap className="w-4 h-4" /> },
+      meta_tags:       { label: "Go to Meta Tags →",     color: "transparent", textColor: "#00D4FF", icon: <ExternalLink className="w-4 h-4" /> },
+      schema:          { label: "Go to Schema →",        color: "transparent", textColor: "#00D4FF", icon: <ExternalLink className="w-4 h-4" /> },
+      sitemap:         { label: "Go to Sitemap →",       color: "transparent", textColor: "#00D4FF", icon: <ExternalLink className="w-4 h-4" /> },
+      gsc:             { label: "Open Search Console →", color: "transparent", textColor: "#00D4FF", icon: <ExternalLink className="w-4 h-4" /> },
+      social:          { label: "Go to Campaigns →",     color: "transparent", textColor: "#00D4FF", icon: <ExternalLink className="w-4 h-4" /> },
+      external:        { label: "Open Tool →",           color: "transparent", textColor: "#00D4FF", icon: <ExternalLink className="w-4 h-4" /> },
+    };
+
+    const cfg = configs[type] ?? configs.external;
+    const isLoading = state === "loading";
+    const isNav = ["meta_tags","schema","sitemap","gsc","social","external"].includes(type);
+
+    return (
+      <button
+        onClick={() => handleExecute(action, i)}
+        disabled={isLoading}
+        className="mt-5 flex items-center gap-2 text-sm font-bold px-4 py-2.5 rounded-xl transition-colors disabled:opacity-60"
+        style={{
+          background: cfg.color === "transparent" ? "rgba(0,212,255,0.08)" : cfg.color,
+          color: cfg.textColor,
+          border: `1px solid ${cfg.color === "transparent" ? "rgba(0,212,255,0.2)" : "transparent"}`,
+        }}
+      >
+        {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : cfg.icon}
+        {isLoading ? (type === "comparison_page" ? "Building page…" : "Generating…") : cfg.label}
+      </button>
+    );
+  };
+
+  if (isLoading) return <div className="py-20 text-center text-white/30"><RefreshCw className="w-5 h-5 animate-spin mx-auto" /></div>;
   if (generateMutation.isPending) return <GeneratingState />;
 
   if (!data) {
@@ -1243,7 +1382,7 @@ function SeoCoachTab({ projectId, plan }: { projectId: number; plan: string }) {
         {actions.map((action, i) => (
           <div key={i} className="p-6 md:p-8 rounded-2xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.04] transition-colors relative overflow-hidden group">
             {action.priority === "CRITICAL" && (
-               <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />
+              <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />
             )}
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -1256,24 +1395,27 @@ function SeoCoachTab({ projectId, plan }: { projectId: number; plan: string }) {
             </div>
             <h3 className="text-xl font-bold text-white mb-3 tracking-tight">{action.title}</h3>
             <p className="text-white/60 text-sm mb-6 leading-relaxed max-w-4xl">{action.why}</p>
-            
+
             <div className="bg-black/50 rounded-xl p-6 border border-white/5 shadow-inner">
               <h4 className="text-[11px] font-black text-white/30 uppercase tracking-widest mb-4">How to execute</h4>
               <ul className="space-y-4">
                 {action.how?.map((step: string, j: number) => (
                   <li key={j} className="flex gap-4 text-sm text-white/80 items-start">
-                    <span className="w-6 h-6 shrink-0 rounded-full bg-white/10 text-white flex items-center justify-center text-xs font-black shadow-sm mt-0">{j+1}</span>
+                    <span className="w-6 h-6 shrink-0 rounded-full bg-white/10 text-white flex items-center justify-center text-xs font-black shadow-sm">{j + 1}</span>
                     <span className="leading-relaxed pt-0.5">{step}</span>
                   </li>
                 ))}
               </ul>
             </div>
-            
+
             {action.expectedResult && (
               <div className="mt-6 flex items-center gap-2.5 text-sm font-semibold text-[#14F195] bg-[#14F195]/5 px-4 py-3 rounded-xl border border-[#14F195]/10 inline-flex">
                 <CheckCircle2 className="w-4 h-4" /> <span className="text-white/40 font-normal mr-1">Expected:</span> {action.expectedResult}
               </div>
             )}
+
+            {/* Do It Now button */}
+            {getExecuteButton(action, i)}
           </div>
         ))}
       </div>

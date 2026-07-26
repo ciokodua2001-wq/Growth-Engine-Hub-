@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, jsonb, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, jsonb, date, unique } from "drizzle-orm/pg-core";
 import { projectsTable } from "./projects";
 
 /* ── SEO Blog Posts ─────────────────────────────────────────────────────── */
@@ -71,3 +71,21 @@ export const seoWatchdogTable = pgTable("seo_watchdog", {
 });
 
 export type SeoWatchdog = typeof seoWatchdogTable.$inferSelect;
+
+/* ── SEO Comparison Pages ───────────────────────────────────────────────── */
+
+export const seoComparisonPagesTable = pgTable("seo_comparison_pages", {
+  id:              serial("id").primaryKey(),
+  projectId:       integer("project_id").notNull().references(() => projectsTable.id, { onDelete: "cascade" }),
+  slug:            text("slug").notNull(),
+  competitor:      text("competitor").notNull(),
+  title:           text("title").notNull(),
+  contentHtml:     text("content_html").notNull(),
+  metaDescription: text("meta_description"),
+  createdAt:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:       timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  projectSlugUniq: unique("seo_comparison_pages_project_slug_uniq").on(t.projectId, t.slug),
+}));
+
+export type SeoComparisonPage = typeof seoComparisonPagesTable.$inferSelect;

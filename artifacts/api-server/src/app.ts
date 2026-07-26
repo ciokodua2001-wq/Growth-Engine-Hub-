@@ -13,8 +13,8 @@ import resendWebhookHandler from "./routes/resendWebhook.js";
 import { logger } from "./lib/logger.js";
 import { WebhookHandlers } from "./webhookHandlers.js";
 import { db } from "@workspace/db";
-import { seoSitemapTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { seoSitemapTable, seoComparisonPagesTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 
 const app: Express = express();
 
@@ -27,6 +27,29 @@ app.use((req, res, next) => {
     return;
   }
   next();
+});
+
+// Public comparison pages — served before ALL middleware (no Clerk, no CORS)
+// URL includes projectId to guarantee uniqueness: /compare/:projectId/:slug
+// e.g. https://usegrowthforge.com/compare/20/jasper-alternative
+app.get("/compare/:projectId/:slug", async (req, res) => {
+  const projectId = parseInt(String(req.params["projectId"] ?? ""), 10);
+  const slug = req.params["slug"];
+  if (isNaN(projectId) || !slug) { res.status(400).send("Invalid URL"); return; }
+  try {
+    const [row] = await db
+      .select({ contentHtml: seoComparisonPagesTable.contentHtml })
+      .from(seoComparisonPagesTable)
+      .where(and(eq(seoComparisonPagesTable.projectId, projectId), eq(seoComparisonPagesTable.slug, slug)))
+      .limit(1);
+    if (!row) { res.status(404).send("Page not found."); return; }
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.send(row.contentHtml);
+  } catch (err) {
+    logger.error({ err }, "Comparison page fetch failed");
+    res.status(500).send("Internal error");
+  }
 });
 
 // Public sitemap — registered before ALL middleware (no Clerk, no CORS, no credentials)

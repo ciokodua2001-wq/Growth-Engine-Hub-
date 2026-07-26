@@ -7,6 +7,7 @@ import {
   seoSchemaMarkupTable,
   seoSitemapTable,
   seoWatchdogTable,
+  seoComparisonPagesTable,
   projectsTable,
 } from "@workspace/db";
 import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
@@ -455,6 +456,259 @@ router.get("/sitemap/:projectId/sitemap.xml", async (req, res): Promise<void> =>
    SEO Watchdog Coach
 ───────────────────────────────────────────────────────────────────────── */
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Comparison Page Generator
+   POST /api/projects/:id/seo/comparison-page/generate
+   { competitor: string, slug: string }
+───────────────────────────────────────────────────────────────────────── */
+
+router.post(
+  "/projects/:id/seo/comparison-page/generate",
+  requireActiveSubscription,
+  async (req, res): Promise<void> => {
+    const id = parseInt(String(req.params["id"] ?? ""), 10);
+    if (isNaN(id)) { res.status(400).json({ error: "Invalid project id" }); return; }
+
+    const [project] = await db.select({ plan: projectsTable.plan }).from(projectsTable).where(eq(projectsTable.id, id));
+    if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+    if (!req.isPlatformOwner && !meetsMinPlan(project.plan, "starter")) {
+      res.status(403).json({ error: "Comparison Page Generator requires a paid plan." });
+      return;
+    }
+
+    const body = req.body as { competitor?: string; slug?: string };
+    const competitor = body.competitor?.trim();
+    const slug = body.slug?.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-");
+    if (!competitor || !slug) { res.status(400).json({ error: "competitor and slug are required" }); return; }
+
+    const ctx = await getGroundingContext(id);
+    if (!ctx) { res.status(409).json({ error: "Business analysis must be complete first." }); return; }
+
+    const businessName = ctx.project.name ?? "GrowthForge";
+    const canonicalHost = "usegrowthforge.com";
+
+    const prompt = `You are an elite SEO copywriter. Write a complete competitor comparison landing page for ${businessName} vs ${competitor}.
+
+${renderGroundingBlock(ctx)}
+
+The page must be 900-1200 words total across all sections. Be specific about what ${competitor} does and does not do, and how ${businessName} is the better choice for SMBs.
+
+Return ONLY valid JSON (no markdown, no code fences):
+{
+  "title": "<page title: '${businessName} vs ${competitor}: [compelling angle]' — 50-60 chars>",
+  "metaDescription": "<150-160 chars, includes both brand names and a benefit>",
+  "hero": {
+    "headline": "<H1: powerful comparison headline>",
+    "subheadline": "<2 sentences positioning ${businessName} as the clear winner for their target audience>"
+  },
+  "whatCompetitorDoes": {
+    "heading": "What ${competitor} Does",
+    "body": "<2-3 paragraphs, fair and accurate description of ${competitor}'s core features>"
+  },
+  "whatCompetitorCant": {
+    "heading": "What ${competitor} Can't Do",
+    "body": "<2-3 paragraphs on ${competitor}'s gaps — no competitor analysis, no campaign strategy, no [relevant features ${businessName} has]>",
+    "bullets": ["<gap 1>", "<gap 2>", "<gap 3>", "<gap 4>"]
+  },
+  "whatWeDoInstead": {
+    "heading": "What ${businessName} Does Instead",
+    "body": "<2-3 paragraphs with specific output examples and what the user actually gets>",
+    "bullets": ["<capability 1>", "<capability 2>", "<capability 3>", "<capability 4>"]
+  },
+  "comparisonTable": {
+    "rows": [
+      { "feature": "Input required", "competitor": "<value>", "us": "<value>" },
+      { "feature": "Competitor analysis", "competitor": "<❌ or ✅ with note>", "us": "<❌ or ✅ with note>" },
+      { "feature": "Campaign strategy", "competitor": "<value>", "us": "<value>" },
+      { "feature": "Ready-to-use assets", "competitor": "<value>", "us": "<value>" },
+      { "feature": "Video blueprints", "competitor": "<value>", "us": "<value>" },
+      { "feature": "Price", "competitor": "<value>", "us": "<value>" },
+      { "feature": "Time to first output", "competitor": "<value>", "us": "<value>" }
+    ]
+  },
+  "cta": {
+    "headline": "<punchy CTA headline — max 10 words>",
+    "button": "<button text>",
+    "subtext": "<1 sentence under the button>"
+  }
+}`;
+
+    try {
+      const result = await generateJson<Record<string, any>>({
+        system: "You are an elite SEO copywriter. Return only valid JSON. Never use markdown or code fences.",
+        prompt,
+        maxTokens: 3000,
+      });
+
+      // Escape all AI-provided content before HTML interpolation to prevent XSS.
+      // This function encodes the five characters that can break HTML context.
+      const esc = (s: unknown): string =>
+        String(s ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+
+      // Build HTML from the structured content
+      // URL includes project ID for unambiguous per-project lookup.
+      const pageUrl = `https://${canonicalHost}/compare/${id}/${slug}`;
+      const title = esc(result.title ?? `${businessName} vs ${competitor}`);
+      const metaDesc = esc(result.metaDescription ?? "");
+      const hero = result.hero as any ?? {};
+      const whatDoes = result.whatCompetitorDoes as any ?? {};
+      const whatCant = result.whatCompetitorCant as any ?? {};
+      const whatWe = result.whatWeDoInstead as any ?? {};
+      const table = result.comparisonTable as any ?? { rows: [] };
+      const cta = result.cta as any ?? {};
+
+      const renderBullets = (bullets: string[] = []) =>
+        bullets.map(b => `<li class="bullet-item"><span class="bullet-dot">✓</span><span>${esc(b)}</span></li>`).join("");
+
+      const renderTableRows = (rows: any[] = []) =>
+        rows.map(r => `
+          <tr>
+            <td class="tbl-feature">${esc(r.feature)}</td>
+            <td class="tbl-competitor">${esc(r.competitor)}</td>
+            <td class="tbl-us">${esc(r.us)}</td>
+          </tr>`).join("");
+
+      const contentHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${title}</title>
+  <meta name="description" content="${metaDesc}" />
+  <meta property="og:title" content="${title}" />
+  <meta property="og:description" content="${metaDesc}" />
+  <meta property="og:url" content="${pageUrl}" />
+  <meta property="og:type" content="website" />
+  <link rel="canonical" href="${pageUrl}" />
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#040B14;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.7}
+    a{color:#00E676;text-decoration:none}
+    nav{border-bottom:1px solid rgba(255,255,255,0.08);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;max-width:1100px;margin:0 auto}
+    .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px}
+    .logo-icon{width:28px;height:28px;border-radius:8px;background:rgba(0,230,118,0.2);display:flex;align-items:center;justify-content:center;font-size:14px}
+    main{max-width:900px;margin:0 auto;padding:0 24px 80px}
+    .hero{text-align:center;padding:80px 0 60px}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;background:rgba(0,230,118,0.1);border:1px solid rgba(0,230,118,0.2);color:#00E676;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:24px}
+    h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:900;letter-spacing:-.03em;line-height:1.1;margin-bottom:20px}
+    .hero-sub{font-size:1.15rem;color:rgba(255,255,255,0.6);max-width:600px;margin:0 auto}
+    section{margin-bottom:60px}
+    h2{font-size:1.6rem;font-weight:800;letter-spacing:-.02em;margin-bottom:16px}
+    p{color:rgba(255,255,255,0.65);margin-bottom:14px;font-size:1rem}
+    .card{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:20px;padding:36px}
+    .card-red{border-color:rgba(239,68,68,0.2);background:rgba(239,68,68,0.03)}
+    .card-green{border-color:rgba(0,230,118,0.2);background:rgba(0,230,118,0.03)}
+    .bullet-list{list-style:none;margin-top:20px;display:flex;flex-direction:column;gap:12px}
+    .bullet-item{display:flex;align-items:flex-start;gap:12px;font-size:.95rem;color:rgba(255,255,255,0.8)}
+    .bullet-dot{color:#00E676;font-weight:900;flex-shrink:0;margin-top:2px}
+    .red .bullet-dot{color:#ef4444}
+    table{width:100%;border-collapse:collapse;font-size:.9rem}
+    .tbl-head th{padding:12px 16px;text-align:left;font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,0.3);border-bottom:1px solid rgba(255,255,255,0.08)}
+    tr{border-bottom:1px solid rgba(255,255,255,0.05)}
+    td{padding:14px 16px;color:rgba(255,255,255,0.7)}
+    .tbl-feature{font-weight:700;color:#fff;width:35%}
+    .tbl-competitor{color:rgba(255,255,255,0.45)}
+    .tbl-us{color:#00E676;font-weight:600}
+    .cta-section{text-align:center;padding:60px 32px;background:rgba(0,230,118,0.05);border:1px solid rgba(0,230,118,0.15);border-radius:24px}
+    .cta-section h2{font-size:2rem;margin-bottom:16px}
+    .cta-btn{display:inline-block;padding:16px 40px;background:#00E676;color:#000;font-weight:800;font-size:1rem;border-radius:14px;margin-top:20px;transition:opacity .2s}
+    .cta-btn:hover{opacity:.9}
+    .cta-sub{margin-top:14px;font-size:.85rem;color:rgba(255,255,255,0.35)}
+    @media(max-width:640px){h1{font-size:1.8rem}.card{padding:24px}table{font-size:.8rem}}
+  </style>
+</head>
+<body>
+  <div style="border-bottom:1px solid rgba(255,255,255,0.08);padding:16px 24px">
+    <div style="max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between">
+      <a href="https://${canonicalHost}" style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;color:#fff;text-decoration:none">
+        <div style="width:28px;height:28px;border-radius:8px;background:rgba(0,230,118,0.2);display:flex;align-items:center;justify-content:center">⚡</div>
+        ${esc(businessName)}
+      </a>
+      <a href="https://${canonicalHost}/sign-up" style="padding:8px 20px;background:#00E676;color:#000;font-weight:700;border-radius:10px;font-size:14px">Try Free</a>
+    </div>
+  </div>
+
+  <main>
+    <div class="hero">
+      <div class="badge">⚡ Comparison</div>
+      <h1>${esc(hero.headline) || title}</h1>
+      <p class="hero-sub">${esc(hero.subheadline)}</p>
+    </div>
+
+    <section>
+      <div class="card">
+        <h2>${esc(whatDoes.heading) || `What ${esc(competitor)} Does`}</h2>
+        <div>${String(whatDoes.body ?? "").split("\n").filter(Boolean).map((p: string) => `<p>${esc(p)}</p>`).join("")}</div>
+      </div>
+    </section>
+
+    <section>
+      <div class="card card-red">
+        <h2 style="color:#ef4444">${esc(whatCant.heading) || `What ${esc(competitor)} Can&#39;t Do`}</h2>
+        <div>${String(whatCant.body ?? "").split("\n").filter(Boolean).map((p: string) => `<p>${esc(p)}</p>`).join("")}</div>
+        <ul class="bullet-list red">${renderBullets(whatCant.bullets)}</ul>
+      </div>
+    </section>
+
+    <section>
+      <div class="card card-green">
+        <h2 style="color:#00E676">${esc(whatWe.heading) || `What ${esc(businessName)} Does Instead`}</h2>
+        <div>${String(whatWe.body ?? "").split("\n").filter(Boolean).map((p: string) => `<p>${esc(p)}</p>`).join("")}</div>
+        <ul class="bullet-list">${renderBullets(whatWe.bullets)}</ul>
+      </div>
+    </section>
+
+    <section>
+      <h2 style="text-align:center;margin-bottom:24px">${esc(businessName)} vs ${esc(competitor)} — Side-by-Side</h2>
+      <div class="card" style="padding:0;overflow:hidden">
+        <table>
+          <thead class="tbl-head">
+            <tr>
+              <th>Feature</th>
+              <th>${esc(competitor)}</th>
+              <th>${esc(businessName)}</th>
+            </tr>
+          </thead>
+          <tbody>${renderTableRows(table.rows)}</tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="cta-section">
+      <h2>${esc(cta.headline) || `Ready to switch to ${esc(businessName)}?`}</h2>
+      <a href="https://${canonicalHost}/sign-up" class="cta-btn">${esc(cta.button) || "Start Free Trial"}</a>
+      <p class="cta-sub">${esc(cta.subtext)}</p>
+    </div>
+  </main>
+</body>
+</html>`;
+
+      const [saved] = await db
+        .insert(seoComparisonPagesTable)
+        .values({ projectId: id, slug, competitor, title, contentHtml, metaDescription: metaDesc })
+        .onConflictDoUpdate({
+          target: [seoComparisonPagesTable.projectId, seoComparisonPagesTable.slug],
+          set: { title, contentHtml, metaDescription: metaDesc, updatedAt: new Date() },
+        })
+        .returning();
+
+      res.json({ slug, title, metaDescription: metaDesc, pageUrl, id: saved.id });
+    } catch (err) {
+      req.log.error({ err }, "Comparison page generation failed");
+      res.status(500).json({ error: "Failed to generate comparison page. Please try again." });
+    }
+  },
+);
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SEO Watchdog Coach
+───────────────────────────────────────────────────────────────────────── */
+
 router.get("/projects/:id/seo/watchdog", async (req, res): Promise<void> => {
   const id = parseInt(String(req.params["id"] ?? ""), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid project id" }); return; }
@@ -513,30 +767,50 @@ Today's date: ${weekOf}
 
 Generate a highly specific, actionable weekly SEO action plan. Be direct and personal — like a coach who knows their business. Tell them WHY each action matters in plain language, HOW to do it step by step, and what result to expect.
 
+CRITICAL: Every action MUST include a "type" and "metadata" field so GrowthForge can execute it automatically for the user — no manual steps.
+
 Return ONLY valid JSON (no markdown, no code fences):
 {
   "weekOf": "${weekOf}",
-  "headline": "<motivating 1-sentence summary of this week's focus, e.g. 'This week: win your first Google Featured Snippet'>",
+  "headline": "<motivating 1-sentence summary of this week's focus>",
   "summary": "<2-3 sentence coach message to the business owner — personal, direct, encouraging>",
-  "progressNote": "<honest assessment of where they stand and what's been done well or needs attention>",
+  "progressNote": "<honest assessment of where they stand>",
   "actions": [
     {
-      "priority": "critical|high|medium",
+      "priority": "CRITICAL|HIGH|MEDIUM",
       "category": "technical|content|links|local|social|monitoring",
-      "action": "<specific, one-sentence task title>",
+      "title": "<specific, one-sentence task title>",
       "why": "<1-2 sentences: why this matters for their specific business and rankings>",
       "how": ["<step 1>", "<step 2>", "<step 3>"],
       "estimatedTime": "<e.g. 30 minutes, 2 hours>",
-      "expectedResult": "<what improvement to expect and roughly when>"
+      "expectedResult": "<what improvement to expect and roughly when>",
+      "type": "<one of: blog_post | comparison_page | meta_tags | schema | sitemap | gsc | social | external>",
+      "metadata": {
+        "keyword": "<for blog_post: the exact target keyword to generate the post for>",
+        "competitor": "<for comparison_page: the competitor name e.g. Jasper, HubSpot>",
+        "slug": "<for comparison_page: URL-safe slug e.g. jasper-alternative, hubspot-alternative>",
+        "externalUrl": "<for external type: the full URL to open>"
+      }
     }
   ]
 }
 
+Type guide — pick the most specific type for each action:
+- "blog_post" → action involves writing/publishing a blog article (GrowthForge will generate it)
+- "comparison_page" → action involves creating a competitor comparison landing page (GrowthForge will build and publish it)
+- "meta_tags" → action involves updating meta titles or descriptions
+- "schema" → action involves adding schema markup / structured data
+- "sitemap" → action involves the XML sitemap
+- "gsc" → action involves Google Search Console (submitting URLs, checking coverage, etc.)
+- "social" → action involves social media posts or campaigns
+- "external" → anything else (set externalUrl to the most relevant tool)
+
 Requirements:
-- 5-7 actions total, at least 2 marked critical
+- 5-7 actions total, at least 2 marked CRITICAL
 - Every action must be specific to ${businessName} — no generic advice
 - Mix quick wins (< 1 hour) with medium tasks (1-3 hours)
-- Actions must be completable by a non-technical business owner`;
+- ALWAYS include at least one blog_post action and one comparison_page action if competitors are known
+- metadata fields not relevant to the type can be omitted`;
 
     try {
       const result = await generateJson<Record<string, unknown>>({
