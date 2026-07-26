@@ -1255,8 +1255,12 @@ function SeoCoachTab({ projectId, plan }: { projectId: number; plan: string }) {
     if (!action.type) return null;
 
     const type = action.type as string;
+    const meta = (action.metadata ?? {}) as Record<string, string>;
     const state = execState[i] ?? "idle";
     const result = execResult[i] ?? {};
+
+    // External actions without a URL have nothing to open — suppress the button entirely.
+    if (type === "external" && !meta.externalUrl) return null;
 
     if (state === "done" && type === "comparison_page" && result.slug) {
       // Use a relative URL so it works at the same origin regardless of env (dev/prod).
