@@ -245,7 +245,7 @@ export default function OwnerContacts() {
 
   return (
     <AdminLayout>
-    <div className="w-full">
+    <div className="p-6 md:p-8 w-full">
       {showImport && <ImportModal onClose={() => setShowImport(false)} allTags={allTags} />}
       {showNewSegment && <NewSegmentModal allTags={allTags} onClose={() => setShowNewSegment(false)} />}
 
