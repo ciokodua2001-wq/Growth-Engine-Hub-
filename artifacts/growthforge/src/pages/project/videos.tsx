@@ -26,6 +26,7 @@ import {
 import GenerateModal from "@/components/ui/generate-modal";
 import CommercialProductionProgress from "@/components/ui/commercial-progress";
 import VideoWalletWidget from "@/components/video-wallet-widget";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 // ── Cinematic Plan types ──────────────────────────────────────────────────────
 type AspectRatio = "16:9" | "9:16" | "1:1" | "4:5";
@@ -1147,9 +1148,12 @@ export default function ProjectVideos() {
   const generateVideos = useGenerateVideos();
   const queryClient = useQueryClient();
 
-  const isTrial      = project?.plan === "trial";
-  const isStarterPlan = project?.plan === "starter";
-  const plan          = project?.plan ?? "starter";
+  const { data: currentUserData } = useCurrentUser();
+  const isOwner       = currentUserData?.isOwner ?? false;
+  const rawPlan       = project?.plan ?? "starter";
+  const plan          = isOwner ? "pro" : rawPlan;
+  const isTrial       = plan === "trial";
+  const isStarterPlan = plan === "starter";
 
   const toggleArchive = (videoId: number) => {
     setArchivedIds(prev => {

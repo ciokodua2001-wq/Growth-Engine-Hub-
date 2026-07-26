@@ -28,6 +28,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UpgradeModal } from "@/components/ui/upgrade-modal";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -1236,7 +1237,9 @@ export default function ProjectSeo() {
   const currentTab = new URLSearchParams(window.location.search).get("tab") || "strategy";
 
   const { data: project } = useGetProject(id, { query: { queryKey: getGetProjectQueryKey(id), enabled: !!id } });
-  const plan = project?.plan ?? "trial";
+  const { data: currentUserData } = useCurrentUser();
+  const isOwner = currentUserData?.isOwner ?? false;
+  const plan = isOwner ? "pro" : (project?.plan ?? "trial");
 
   const handleTabChange = (tab: string) => {
     setLocation(`${window.location.pathname}?tab=${tab}`);
