@@ -6,6 +6,7 @@ export interface SocialPostResult {
   caption: string;
   hashtags: string;
   cta: string;
+  imagePrompt: string; // DALL-E prompt for the accompanying creative image
 }
 
 export async function generateSocialPosts(
@@ -25,7 +26,7 @@ Each post must be tailored to that platform's tone/format and to THIS business's
 proposition. Return JSON:
 {
   "posts": [
-    { "platform": "one of: ${opts.platforms.join(", ")}", "caption": "the post copy", "hashtags": "space-separated hashtags relevant to this business, or empty string", "cta": "a short call to action, or empty string" }
+    { "platform": "one of: ${opts.platforms.join(", ")}", "caption": "the post copy", "hashtags": "space-separated hashtags relevant to this business, or empty string", "cta": "a short call to action, or empty string", "imagePrompt": "a concise DALL-E image prompt (1-2 sentences) describing a high-quality, platform-appropriate marketing visual that complements this specific post — photorealistic or clean illustration style, no text or words in the image, no logos, grounded in what this business actually does" }
   ]
 }
 The "posts" array must contain exactly ${requestedTotal} items (${opts.perPlatform} per platform).`,

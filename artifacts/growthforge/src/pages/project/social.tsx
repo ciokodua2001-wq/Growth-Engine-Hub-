@@ -986,6 +986,16 @@ export default function ProjectSocial() {
                       <span className="text-[10px] text-muted-foreground ml-auto capitalize">{post.status}</span>
                     )}
                   </div>
+                  {post.imageUrl && (
+                    <div className="mb-3 rounded-lg overflow-hidden bg-secondary/30 border border-border/50">
+                      <img
+                        src={post.imageUrl}
+                        alt={`Creative for ${post.platform} post`}
+                        className="w-full object-cover max-h-64"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
                   <p className="text-sm text-foreground leading-relaxed mb-3">{post.caption}</p>
                   {post.hashtags && <p className="text-xs text-primary/70 mb-2">{post.hashtags}</p>}
                   {post.cta && <p className="text-xs text-muted-foreground mb-3 italic">{post.cta}</p>}

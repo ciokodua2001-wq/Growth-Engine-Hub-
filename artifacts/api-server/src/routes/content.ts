@@ -32,12 +32,44 @@ import {
 } from "@workspace/api-zod";
 import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGeneratedBatch, recordGenerated, hashContent } from "../lib/contentIntegrity.js";
+import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
+import { objectStorageClient, signObjectURL } from "../lib/objectStorage.js";
 import { Resend } from "resend";
 import { decryptToken, encryptToken, isEncryptedFormat } from "../lib/tokenCrypto.js";
 import { publishPostToMeta } from "../lib/metaPublisher.js";
 import { meetsMinPlan } from "../lib/planLimits.js";
 
 const router: IRouter = Router();
+
+// ── Social post image helper ───────────────────────────────────────────────────
+// Generates a DALL-E image for a social post and uploads it to object storage.
+// Failures are non-fatal — the post is saved without an image rather than erroring.
+const PLATFORM_IMAGE_SIZE: Record<string, "1024x1024" | "1536x1024" | "1024x1536"> = {
+  instagram: "1024x1536",
+  tiktok:    "1024x1536",
+  linkedin:  "1536x1024",
+  facebook:  "1536x1024",
+  x:         "1024x1024",
+};
+
+async function generateAndUploadSocialImage(
+  imagePrompt: string,
+  platform: string,
+  log: { warn: (obj: object, msg: string) => void },
+): Promise<string | null> {
+  const bucketId = process.env["DEFAULT_OBJECT_STORAGE_BUCKET_ID"];
+  if (!bucketId) return null;
+  try {
+    const size = PLATFORM_IMAGE_SIZE[platform] ?? "1024x1024";
+    const buffer = await generateImageBuffer(imagePrompt, size);
+    const objectName = `social-images/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+    await objectStorageClient.bucket(bucketId).file(objectName).save(buffer, { metadata: { contentType: "image/png" } });
+    return await signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 60 * 60 * 24 * 30 });
+  } catch (err) {
+    log.warn({ err }, "Social post image generation failed — post saved without image");
+    return null;
+  }
+}
 
 router.param("id", requireProjectOwnershipParam());
 
@@ -186,13 +218,24 @@ router.post("/projects/:id/social-posts", requireActiveSubscription, async (req,
     return;
   }
 
-  const toInsert = postResults.map(p => ({
+  // Generate one creative image per post in parallel.
+  // Image failures are silently swallowed — posts are saved without images rather than failing.
+  const imageUrls = await Promise.all(
+    postResults.map(p =>
+      p.imagePrompt
+        ? generateAndUploadSocialImage(p.imagePrompt, p.platform.toLowerCase(), req.log)
+        : Promise.resolve(null),
+    ),
+  );
+
+  const toInsert = postResults.map((p, i) => ({
     projectId,
     status: "draft" as const,
     platform: p.platform,
     caption: p.caption,
     hashtags: p.hashtags,
     cta: p.cta,
+    imageUrl: imageUrls[i] ?? null,
   }));
 
   const inserted = await db.insert(socialPostsTable).values(toInsert).returning();
