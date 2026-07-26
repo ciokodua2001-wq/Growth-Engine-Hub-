@@ -202,6 +202,12 @@ export default function OwnerCampaigns() {
                             <p className="text-white/30 text-xs">Clicks</p>
                           </div>
                         )}
+                        {c.bounceRate && parseFloat(c.bounceRate) > 0 && (
+                          <div>
+                            <p className="text-white text-base font-semibold">{c.bounceRate}%</p>
+                            <p className="text-white/30 text-xs">Bounces</p>
+                          </div>
+                        )}
                         {c.unsubscribeCount > 0 && (
                           <div>
                             <p className="text-white text-base font-semibold">{c.unsubscribeCount}</p>

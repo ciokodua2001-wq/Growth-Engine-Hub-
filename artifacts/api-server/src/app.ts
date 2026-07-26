@@ -9,6 +9,7 @@ import {
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware.js";
 import router from "./routes/index.js";
+import resendWebhookHandler from "./routes/resendWebhook.js";
 import { logger } from "./lib/logger.js";
 import { WebhookHandlers } from "./webhookHandlers.js";
 
@@ -63,6 +64,9 @@ app.post(
     }
   },
 );
+
+// 2b. Resend webhook — must be registered BEFORE express.json() to access the raw body.
+app.post("/api/owner/resend-webhook", express.raw({ type: "application/json" }), resendWebhookHandler);
 
 // 2b. Body parsers (after webhook so json() doesn't intercept the raw buffer)
 app.use(cors({ credentials: true, origin: true }));

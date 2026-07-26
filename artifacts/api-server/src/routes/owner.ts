@@ -792,7 +792,14 @@ router.post("/owner/campaigns/:id/send", requireOwner, async (req, res): Promise
         const subject = campaign.subject
           .replace(/\{\{first_name\}\}/gi, firstName || "there")
           .replace(/\{\{name\}\}/gi, firstName || "there");
-        return { from: FROM_ADDRESS, to: r.email, subject, text, html };
+        return {
+          from: FROM_ADDRESS,
+          to: r.email,
+          subject,
+          text,
+          html,
+          tags: [{ name: "campaign_id", value: String(id) }],
+        };
       });
 
       const { error } = await resend.batch.send(messages);

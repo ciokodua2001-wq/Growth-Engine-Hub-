@@ -59,10 +59,14 @@ export const ownerCampaignsTable = pgTable("owner_campaigns", {
   status: text("status").notNull().default("draft"), // 'draft' | 'sent'
   sentAt: timestamp("sent_at", { withTimezone: true }),
   recipientCount: integer("recipient_count"),
-  /** Stored as decimal strings (e.g. "24.5") — Resend webhook values */
+  /** Stored as decimal strings (e.g. "24.5") — computed from raw counters */
   openRate: text("open_rate"),
   clickRate: text("click_rate"),
   bounceRate: text("bounce_rate"),
+  /** Raw event counters incremented by the Resend webhook */
+  opensCount: integer("opens_count").notNull().default(0),
+  clicksCount: integer("clicks_count").notNull().default(0),
+  bouncesCount: integer("bounces_count").notNull().default(0),
   unsubscribeCount: integer("unsubscribe_count").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
