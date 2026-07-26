@@ -15,14 +15,22 @@ const HAIKU_COST_PER_INPUT_TOKEN  = 0.25 / 1_000_000;
 const HAIKU_COST_PER_OUTPUT_TOKEN = 1.25 / 1_000_000;
 
 function extractJsonBlock(text: string): string {
+  // Case 1: complete fenced block  ```json ... ```
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fenced) return fenced[1].trim();
-  const firstBrace = text.indexOf("{");
-  const lastBrace = text.lastIndexOf("}");
+
+  // Case 2: fenced block that was truncated before the closing ``` — strip the
+  // opening fence and fall through to brace extraction.
+  const openFence = text.match(/^```(?:json)?\s*([\s\S]*)/i);
+  const candidate = openFence ? openFence[1] : text;
+
+  // Case 3: locate the outermost { … } in whatever we have.
+  const firstBrace = candidate.indexOf("{");
+  const lastBrace  = candidate.lastIndexOf("}");
   if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    return text.slice(firstBrace, lastBrace + 1);
+    return candidate.slice(firstBrace, lastBrace + 1);
   }
-  return text.trim();
+  return candidate.trim();
 }
 
 async function callClaude<T>(params: {

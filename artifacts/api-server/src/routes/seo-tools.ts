@@ -89,6 +89,7 @@ Return ONLY valid JSON (no markdown, no code fences):
       const result = await generateJson<Record<string, unknown>>({
         system: "You are an elite SEO content strategist and writer. Return only valid JSON with no markdown or code fences.",
         prompt,
+        maxTokens: 3000,
       });
 
       const [saved] = await db
@@ -195,6 +196,7 @@ Return ONLY valid JSON (no markdown, no code fences):
       const result = await generateJson<{ pages: unknown[] }>({
         system: "You are an expert on-page SEO strategist. Return only valid JSON. Meta tags must be specific to the actual business, not generic.",
         prompt,
+        maxTokens: 2500,
       });
 
       const [saved] = await db
@@ -252,27 +254,23 @@ router.post(
 
 ${renderGroundingBlock(ctx)}
 
-Generate complete, ready-to-paste JSON-LD schema markup for ${businessName} (website: ${websiteUrl}).
+Generate exactly 3 JSON-LD schema blocks for ${businessName} (website: ${websiteUrl}): Organization, WebSite, and the single most relevant third type for this business (e.g. LocalBusiness, SoftwareApplication, Product, or Service — pick one).
 
-Create the most relevant schema types based on the business context. Always include Organization and WebSite. Add others as applicable (LocalBusiness, Product, Service, FAQPage, BreadcrumbList, etc.).
-
-For each schema block, also provide:
-- Platform-specific instructions for WordPress, Shopify, Squarespace, and Wix
-- Where exactly to paste it and how
+For each schema provide one short installation note per platform (1 sentence max).
 
 Return ONLY valid JSON (no markdown, no code fences):
 {
   "schemas": [
     {
-      "type": "<schema type e.g. Organization>",
+      "type": "<schema type>",
       "priority": "essential|recommended|optional",
-      "description": "<one sentence explaining why this schema matters for this business>",
-      "jsonLd": "<the complete JSON-LD script tag as a string, ready to paste>",
+      "description": "<one sentence why this schema matters>",
+      "jsonLd": "<complete JSON-LD script tag, ready to paste>",
       "platforms": {
-        "wordpress": "<step-by-step instructions for WordPress — be specific about which plugin or where in theme>",
-        "shopify": "<step-by-step instructions for Shopify>",
-        "squarespace": "<step-by-step instructions for Squarespace>",
-        "wix": "<step-by-step instructions for Wix>"
+        "wordpress": "<1-sentence install note>",
+        "shopify": "<1-sentence install note>",
+        "squarespace": "<1-sentence install note>",
+        "wix": "<1-sentence install note>"
       }
     }
   ]
@@ -280,8 +278,9 @@ Return ONLY valid JSON (no markdown, no code fences):
 
     try {
       const result = await generateJson<{ schemas: unknown[] }>({
-        system: "You are a technical SEO expert. Return only valid JSON. Every JSON-LD block must be valid and production-ready with real values from the business context.",
+        system: "You are a technical SEO expert. Return only valid JSON. Every JSON-LD block must be valid and production-ready with real business values.",
         prompt,
+        maxTokens: 3000,
       });
 
       const [saved] = await db
