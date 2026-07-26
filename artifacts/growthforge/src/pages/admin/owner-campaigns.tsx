@@ -111,7 +111,7 @@ export default function OwnerCampaigns() {
 
   return (
     <AdminLayout>
-    <div className="max-w-5xl mx-auto">
+    <div className="w-full">
       {preview && (
         <PreviewModal
           campaign={preview}

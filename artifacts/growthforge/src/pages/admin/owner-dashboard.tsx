@@ -141,7 +141,7 @@ export default function OwnerDashboard() {
 
   return (
     <AdminLayout>
-      <div className="p-6 md:p-8 space-y-8 max-w-7xl">
+      <div className="p-6 md:p-8 space-y-8 w-full">
 
         {/* Header */}
         <div className="flex items-start justify-between">
