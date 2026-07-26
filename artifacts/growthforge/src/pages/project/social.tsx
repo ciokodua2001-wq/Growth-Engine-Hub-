@@ -230,8 +230,7 @@ function useSocialHandles(projectId: number) {
 }
 
 
-function SocialHandlesPanel({ projectId }: { projectId: number }) {
-  const { handles, save } = useSocialHandles(projectId);
+function SocialHandlesPanel({ handles, save }: { handles: SocialHandles; save: (next: SocialHandles) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<SocialHandles>({});
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -751,7 +750,7 @@ export default function ProjectSocial() {
   const { data: posts, isLoading } = useListSocialPosts(projectId, { query: { queryKey: getListSocialPostsQueryKey(projectId), enabled: !!projectId } });
   const { data: calendar } = useGetContentCalendar(projectId, { query: { queryKey: getGetContentCalendarQueryKey(projectId), enabled: !!projectId && view === "calendar" } });
   const { data: metaConn, isLoading: metaLoading } = useGetMetaConnection(projectId, { query: { queryKey: getGetMetaConnectionQueryKey(projectId), enabled: !!projectId } });
-  const { handles } = useSocialHandles(projectId);
+  const { handles, save: saveHandles } = useSocialHandles(projectId);
   const disconnectMeta = useDisconnectMeta();
   const generatePosts = useGenerateSocialPosts();
   const queryClient = useQueryClient();
@@ -875,7 +874,7 @@ export default function ProjectSocial() {
       </div>
 
       {/* Social Handles panel */}
-      <SocialHandlesPanel projectId={projectId} />
+      <SocialHandlesPanel handles={handles} save={saveHandles} />
 
       {/* Meta connection banner */}
       {!metaLoading && (
