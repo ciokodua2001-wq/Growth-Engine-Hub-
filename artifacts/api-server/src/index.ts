@@ -9,7 +9,7 @@ import { startRenderMonitor } from "./lib/renderMonitor.js";
 import { checkEncryptionKey, isEncryptedFormat, decryptToken } from "./lib/tokenCrypto.js";
 import { db } from "@workspace/db";
 import { metaConnectionsTable, commercialAssembliesTable } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 // Startup key check — surface missing/invalid TOKEN_ENCRYPTION_KEY before any user
 // hits a publish failure.  We check the dedicated key specifically (not the
@@ -74,6 +74,37 @@ if (!rawPort) throw new Error("PORT environment variable is required but was not
 
 const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) throw new Error(`Invalid PORT value: "${rawPort}"`);
+
+async function ensureOwnerMarketingTables(): Promise<void> {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS owner_contacts (
+        id serial PRIMARY KEY, email text NOT NULL UNIQUE, first_name text, last_name text,
+        company text, tags text[] NOT NULL DEFAULT '{}', source text NOT NULL DEFAULT 'import',
+        unsubscribed boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS owner_segments (
+        id serial PRIMARY KEY, name text NOT NULL, filter_json jsonb,
+        segment_type text NOT NULL DEFAULT 'external', created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS owner_suppression_list (
+        email text PRIMARY KEY, reason text NOT NULL DEFAULT 'unsubscribed',
+        added_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS owner_campaigns (
+        id serial PRIMARY KEY, name text NOT NULL, subject text NOT NULL, body text NOT NULL,
+        target_type text NOT NULL DEFAULT 'external', segment_id integer, filter_json jsonb,
+        status text NOT NULL DEFAULT 'draft', sent_at timestamptz, recipient_count integer,
+        open_rate text, click_rate text, bounce_rate text,
+        unsubscribe_count integer NOT NULL DEFAULT 0, created_at timestamptz NOT NULL DEFAULT now()
+      );
+    `);
+    logger.info("Owner marketing tables ready");
+  } catch (err) {
+    logger.warn({ err }, "Owner marketing table migration failed (non-fatal)");
+  }
+}
 
 async function initStripe(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
@@ -140,6 +171,7 @@ app.listen(port, (err) => {
   startScheduledPublisher();
   startRenderMonitor();
   void runMetaTokenHealthCheck();
+  void ensureOwnerMarketingTables();
   void initStripe();
   void recoverStuckAssemblies();
 });
