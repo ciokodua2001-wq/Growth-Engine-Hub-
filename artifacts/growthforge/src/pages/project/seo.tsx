@@ -936,11 +936,25 @@ function SeoSchemaSitemapTab({ projectId, plan }: { projectId: number; plan: str
     }
   });
   
-  const [sitemapData, setSitemapData] = useState<any>(null);
+  // Load persisted sitemap from DB on mount
+  const { data: storedSitemap } = useQuery({
+    queryKey: ["seo-sitemap", projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/seo/sitemap`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+
+  const [generatedSitemap, setGeneratedSitemap] = useState<any>(null);
+  // Prefer freshly generated data, fall back to stored
+  const sitemapData = generatedSitemap ?? storedSitemap ?? null;
+
   const generateSitemapMutation = useGenerateSeoSitemap({
     mutation: {
       onSuccess: (data: any) => {
-        setSitemapData(data);
+        setGeneratedSitemap(data);
         toast({ description: "Sitemap generated!" });
       },
       onError: (err) => {

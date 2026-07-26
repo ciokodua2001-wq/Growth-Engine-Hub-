@@ -389,7 +389,9 @@ Return ONLY valid JSON (no markdown, no code fences):
           set: { xml, pageCount: pages.length, updatedAt: new Date() },
         });
 
-      const sitemapUrl = `${req.protocol}://${req.hostname}/api/sitemap/${id}/sitemap.xml`;
+      // Use hardcoded canonical host — req.hostname returns "localhost" behind the proxy
+      const canonicalHost = process.env["CANONICAL_HOST"] ?? "usegrowthforge.com";
+      const sitemapUrl = `https://${canonicalHost}/api/sitemap/${id}/sitemap.xml`;
 
       res.json({
         xml,
@@ -404,6 +406,25 @@ Return ONLY valid JSON (no markdown, no code fences):
     }
   },
 );
+
+/* ─────────────────────────────────────────────────────────────────────────
+   GET stored sitemap — authenticated, returns JSON with xml + sitemapUrl
+───────────────────────────────────────────────────────────────────────── */
+
+router.get("/projects/:id/seo/sitemap", async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params["id"] ?? ""), 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid project id" }); return; }
+
+  const [row] = await db.select().from(seoSitemapTable).where(eq(seoSitemapTable.projectId, id));
+  if (!row) { res.json(null); return; }
+
+  const canonicalHost = process.env["CANONICAL_HOST"] ?? "usegrowthforge.com";
+  res.json({
+    xml: row.xml,
+    pageCount: row.pageCount,
+    sitemapUrl: `https://${canonicalHost}/api/sitemap/${id}/sitemap.xml`,
+  });
+});
 
 /* ─────────────────────────────────────────────────────────────────────────
    Public sitemap endpoint — no auth required, served as application/xml
