@@ -1200,7 +1200,11 @@ function SeoCoachTab({ projectId, plan }: { projectId: number; plan: string }) {
     if (type === "schema" || type === "sitemap") { setLocation(`${baseTabPath()}?tab=schema`); return; }
     if (type === "social") { setLocation(`/projects/${projectId}/campaigns`); return; }
     if (type === "gsc") { window.open("https://search.google.com/search-console/", "_blank"); return; }
-    if (type === "external") { window.open(meta.externalUrl || "https://search.google.com/search-console/", "_blank"); return; }
+    if (type === "external") {
+      // Only open a URL if the AI provided one — never fall back to an unrelated tool.
+      if (meta.externalUrl) window.open(meta.externalUrl, "_blank");
+      return;
+    }
 
     // Async actions — show loading state
     setExecState(p => ({ ...p, [i]: "loading" }));
@@ -1246,7 +1250,11 @@ function SeoCoachTab({ projectId, plan }: { projectId: number; plan: string }) {
 
   // Label + styling for each action type's button
   const getExecuteButton = (action: any, i: number) => {
-    const type = (action.type ?? "external") as string;
+    // Old plans (generated before the prompt update) have no type field.
+    // Show nothing rather than a misleading fallback button.
+    if (!action.type) return null;
+
+    const type = action.type as string;
     const state = execState[i] ?? "idle";
     const result = execResult[i] ?? {};
 
@@ -1379,6 +1387,23 @@ function SeoCoachTab({ projectId, plan }: { projectId: number; plan: string }) {
       {/* Action Items */}
       <div className="space-y-4 pt-4">
         <h3 className="text-lg font-bold text-white mb-2 px-2 text-white/50">Your Actions for the Week</h3>
+
+        {/* Banner: plan was generated before "Do It Now" existed — prompt user to refresh */}
+        {actions.length > 0 && actions.every((a: any) => !a.type) && (
+          <div className="p-4 rounded-xl bg-[#00D4FF]/10 border border-[#00D4FF]/20 flex items-center justify-between gap-4 mb-2">
+            <div className="flex items-start gap-3">
+              <Zap className="w-5 h-5 text-[#00D4FF] shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-[#00D4FF]">"Do It Now" buttons are ready — your plan needs a refresh</p>
+                <p className="text-xs text-[#00D4FF]/70 mt-1">This plan was generated before GrowthForge could execute actions automatically. Get a fresh plan and every action will have a button that generates the content directly inside GrowthForge.</p>
+              </div>
+            </div>
+            <button onClick={handleGenerate}
+              className="shrink-0 px-4 py-2 bg-[#00D4FF] text-black font-bold text-sm rounded-xl hover:scale-[1.02] transition-transform flex items-center gap-2 shadow-lg shadow-[#00D4FF]/20">
+              <RefreshCw className="w-4 h-4" /> Refresh Plan
+            </button>
+          </div>
+        )}
         {actions.map((action, i) => (
           <div key={i} className="p-6 md:p-8 rounded-2xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.04] transition-colors relative overflow-hidden group">
             {action.priority === "CRITICAL" && (
