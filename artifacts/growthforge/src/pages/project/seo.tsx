@@ -1268,11 +1268,14 @@ function SeoCoachTab({ projectId, plan }: { projectId: number; plan: string }) {
             className="flex items-center gap-2 text-sm font-bold text-white bg-white/10 border border-white/10 px-4 py-2.5 rounded-xl hover:bg-white/15 transition-colors">
             <ExternalLink className="w-4 h-4" /> View Page
           </a>
-          <a href={`https://search.google.com/search-console/inspect?resource_id=https://usegrowthforge.com/&url=${encodeURIComponent(result.pageUrl)}`}
-            target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 text-sm font-bold text-[#00D4FF] bg-[#00D4FF]/10 border border-[#00D4FF]/20 px-4 py-2.5 rounded-xl hover:bg-[#00D4FF]/15 transition-colors">
-            <ExternalLink className="w-4 h-4" /> Submit to Google
-          </a>
+          <div className="flex flex-col gap-1">
+            <a href={`https://search.google.com/search-console/inspect?resource_id=https://usegrowthforge.com/&url=${encodeURIComponent(`https://usegrowthforge.com/api/compare/${projectId}/${result.slug}`)}`}
+              target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2 text-sm font-bold text-[#00D4FF] bg-[#00D4FF]/10 border border-[#00D4FF]/20 px-4 py-2.5 rounded-xl hover:bg-[#00D4FF]/15 transition-colors">
+              <ExternalLink className="w-4 h-4" /> Open in Search Console
+            </a>
+            <p className="text-[10px] text-white/35 px-1">Opens GSC → click "Request Indexing" inside</p>
+          </div>
         </div>
       );
     }

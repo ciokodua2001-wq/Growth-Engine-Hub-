@@ -550,9 +550,17 @@ Return ONLY valid JSON (no markdown, no code fences):
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#39;");
 
-      // Build HTML from the structured content
-      // URL includes project ID for unambiguous per-project lookup.
-      const pageUrl = `https://${canonicalHost}/compare/${id}/${slug}`;
+      // Build HTML from the structured content.
+      // canonicalPageUrl goes inside the HTML <canonical> and og:url tags (always production).
+      // viewablePageUrl is returned to the frontend for the "View Page" button — in dev it uses
+      // the Replit dev domain so the link actually resolves; in prod it matches the canonical.
+      const canonicalPageUrl = `https://${canonicalHost}/api/compare/${id}/${slug}`;
+      const devDomain = process.env["REPLIT_DEV_DOMAIN"];
+      const viewablePageUrl = devDomain
+        ? `https://${devDomain}/api/compare/${id}/${slug}`
+        : canonicalPageUrl;
+      // pageUrl alias used throughout the HTML template below (canonical value)
+      const pageUrl = canonicalPageUrl;
       const title = esc(result.title ?? `${businessName} vs ${competitor}`);
       const metaDesc = esc(result.metaDescription ?? "");
       const hero = result.hero as any ?? {};
@@ -697,7 +705,7 @@ Return ONLY valid JSON (no markdown, no code fences):
         })
         .returning();
 
-      res.json({ slug, title, metaDescription: metaDesc, pageUrl, id: saved.id });
+      res.json({ slug, title, metaDescription: metaDesc, pageUrl: viewablePageUrl, id: saved.id });
     } catch (err) {
       req.log.error({ err }, "Comparison page generation failed");
       res.status(500).json({ error: "Failed to generate comparison page. Please try again." });

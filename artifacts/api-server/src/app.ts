@@ -30,9 +30,9 @@ app.use((req, res, next) => {
 });
 
 // Public comparison pages — served before ALL middleware (no Clerk, no CORS)
-// URL includes projectId to guarantee uniqueness: /compare/:projectId/:slug
-// e.g. https://usegrowthforge.com/compare/20/jasper-alternative
-app.get("/compare/:projectId/:slug", async (req, res) => {
+// URL includes projectId to guarantee uniqueness: /api/compare/:projectId/:slug
+// e.g. https://usegrowthforge.com/api/compare/20/jasper-alternative
+app.get("/api/compare/:projectId/:slug", async (req, res) => {
   const projectId = parseInt(String(req.params["projectId"] ?? ""), 10);
   const slug = req.params["slug"];
   if (isNaN(projectId) || !slug) { res.status(400).send("Invalid URL"); return; }
