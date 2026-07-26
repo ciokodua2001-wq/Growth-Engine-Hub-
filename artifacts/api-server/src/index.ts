@@ -115,6 +115,31 @@ async function ensureSeoSitemapTable(): Promise<void> {
   }
 }
 
+async function ensureSupportTicketsTable(): Promise<void> {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS support_tickets (
+        id              serial PRIMARY KEY,
+        name            text NOT NULL,
+        email           text NOT NULL,
+        subject         text NOT NULL,
+        message         text NOT NULL,
+        category        text NOT NULL DEFAULT 'other',
+        status          text NOT NULL DEFAULT 'open',
+        ai_response     text,
+        admin_reply     text,
+        admin_replied_at timestamptz,
+        escalated_at    timestamptz,
+        created_at      timestamptz NOT NULL DEFAULT now(),
+        updated_at      timestamptz NOT NULL DEFAULT now()
+      );
+    `);
+    logger.info("support_tickets table ready");
+  } catch (err) {
+    logger.warn({ err }, "support_tickets migration failed (non-fatal)");
+  }
+}
+
 async function ensureOwnerMarketingTables(): Promise<void> {
   try {
     await db.execute(sql`
@@ -211,6 +236,7 @@ app.listen(port, (err) => {
   startScheduledPublisher();
   startRenderMonitor();
   void runMetaTokenHealthCheck();
+  void ensureSupportTicketsTable();
   void ensureOwnerMarketingTables();
   void ensureSeoSitemapTable();
   void ensureSeoComparisonPagesTable();

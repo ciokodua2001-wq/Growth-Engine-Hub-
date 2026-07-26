@@ -1,15 +1,37 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { Zap, ArrowLeft, Mail, MessageSquare, Clock, Check } from "lucide-react";
+import { Zap, ArrowLeft, Mail, MessageSquare, Clock, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function ContactPage() {
-  const [submitted, setSubmitted] = useState(false);
+  const [step, setStep] = useState<"form" | "loading" | "done">("form");
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
+  const [aiResponse, setAiResponse] = useState<string>("");
+  const [escalated, setEscalated] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setError(null);
+    setStep("loading");
+    try {
+      const res = await fetch("/api/support/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? "Something went wrong. Please try again.");
+      }
+      const data = await res.json() as { aiResponse?: string; escalated?: boolean };
+      setAiResponse(data.aiResponse ?? "We've received your message and will get back to you within 24 hours.");
+      setEscalated(!!data.escalated);
+      setStep("done");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setStep("form");
+    }
   };
 
   return (
@@ -37,7 +59,7 @@ export default function ContactPage() {
           {[
             { icon: Mail, title: "Support Email", value: "support@usegrowthforge.com", desc: "For account, billing, and technical issues" },
             { icon: MessageSquare, title: "Sales Contact", value: "sales@usegrowthforge.com", desc: "For enterprise plans and demos" },
-            { icon: Clock, title: "Response Time", value: "Within 24 hours", desc: "Monday–Friday, 9am–6pm EST" },
+            { icon: Clock, title: "AI Response", value: "Within seconds", desc: "Our AI agent responds immediately" },
           ].map(({ icon: Icon, title, value, desc }) => (
             <div key={title} className="p-6 rounded-2xl border border-white/8 text-center" style={{ background: "rgba(255,255,255,0.02)" }}>
               <div className="w-11 h-11 rounded-xl bg-[#00E676]/10 flex items-center justify-center mx-auto mb-4">
@@ -54,8 +76,13 @@ export default function ContactPage() {
           <div className="rounded-2xl border border-white/8 p-8" style={{ background: "rgba(255,255,255,0.02)" }}>
             <h2 className="text-2xl font-bold text-white mb-6">Send a Message</h2>
 
-            {!submitted ? (
+            {step === "form" && (
               <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+                {error && (
+                  <div className="px-4 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 text-sm">
+                    {error}
+                  </div>
+                )}
                 <div className="grid sm:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-sm text-white/60 mb-2">Full Name</label>
@@ -76,12 +103,12 @@ export default function ContactPage() {
                     className="w-full px-4 py-3 rounded-xl text-white text-sm focus:outline-none"
                     style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
                     <option value="" style={{ background: "#040B14" }}>Select a topic</option>
-                    <option value="support" style={{ background: "#040B14" }}>Technical Support</option>
-                    <option value="billing" style={{ background: "#040B14" }}>Billing Question</option>
-                    <option value="sales" style={{ background: "#040B14" }}>Sales / Enterprise</option>
-                    <option value="demo" style={{ background: "#040B14" }}>Book a Demo</option>
-                    <option value="partnership" style={{ background: "#040B14" }}>Partnership</option>
-                    <option value="other" style={{ background: "#040B14" }}>Other</option>
+                    <option value="Technical Support" style={{ background: "#040B14" }}>Technical Support</option>
+                    <option value="Billing Question" style={{ background: "#040B14" }}>Billing Question</option>
+                    <option value="Sales / Enterprise" style={{ background: "#040B14" }}>Sales / Enterprise</option>
+                    <option value="Book a Demo" style={{ background: "#040B14" }}>Book a Demo</option>
+                    <option value="Partnership" style={{ background: "#040B14" }}>Partnership</option>
+                    <option value="Other" style={{ background: "#040B14" }}>Other</option>
                   </select>
                 </div>
                 <div>
@@ -96,15 +123,45 @@ export default function ContactPage() {
                   Send Message
                 </button>
               </form>
-            ) : (
-              <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-10">
-                <div className="w-16 h-16 rounded-full bg-[#00E676]/15 border border-[#00E676]/30 flex items-center justify-center mx-auto mb-5">
-                  <Check className="w-8 h-8 text-[#00E676]" />
+            )}
+
+            {step === "loading" && (
+              <div className="flex flex-col items-center justify-center py-16 gap-4">
+                <Loader2 className="w-10 h-10 text-[#00E676] animate-spin" />
+                <p className="text-white/50 text-sm">Our AI agent is reviewing your message…</p>
+              </div>
+            )}
+
+            {step === "done" && (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-5">
+                <div className="flex items-center gap-3 p-4 rounded-xl border border-[#00E676]/30 bg-[#00E676]/8">
+                  <div className="w-8 h-8 rounded-lg bg-[#00E676]/20 flex items-center justify-center shrink-0">
+                    <Zap className="w-4 h-4 text-[#00E676]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white">AI Support Agent replied</p>
+                    <p className="text-xs text-white/40">A copy has also been sent to {form.email}</p>
+                  </div>
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">Message Sent!</h3>
-                <p className="text-white/50 text-sm">Thanks for reaching out. We'll get back to you within 24 hours.</p>
-                <button onClick={() => { setSubmitted(false); setForm({ name: "", email: "", subject: "", message: "" }); }}
-                  className="mt-6 px-5 py-2.5 rounded-xl text-sm text-white/50 hover:text-white transition-colors border border-white/10">
+
+                <div className="rounded-xl border border-white/8 p-5" style={{ background: "rgba(255,255,255,0.03)" }}>
+                  <p className="text-xs text-white/40 mb-3 uppercase tracking-wide font-semibold">Response</p>
+                  <p className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap">{aiResponse}</p>
+                </div>
+
+                {escalated && (
+                  <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/8">
+                    <span className="text-amber-400 text-lg">🔔</span>
+                    <p className="text-sm text-amber-300/80">
+                      This ticket has been flagged for human review. Our team will follow up with you directly within 24 hours.
+                    </p>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => { setStep("form"); setForm({ name: "", email: "", subject: "", message: "" }); setAiResponse(""); setEscalated(false); }}
+                  className="text-sm text-white/40 hover:text-white transition-colors border border-white/10 px-5 py-2.5 rounded-xl"
+                >
                   Send another message
                 </button>
               </motion.div>

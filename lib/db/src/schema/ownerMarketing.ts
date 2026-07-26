@@ -73,3 +73,26 @@ export const ownerCampaignsTable = pgTable("owner_campaigns", {
 
 export type OwnerCampaign = typeof ownerCampaignsTable.$inferSelect;
 export type InsertOwnerCampaign = typeof ownerCampaignsTable.$inferInsert;
+
+// ─── Support Tickets ──────────────────────────────────────────────────────────
+
+export const supportTicketsTable = pgTable("support_tickets", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  subject: text("subject").notNull(),
+  message: text("message").notNull(),
+  /** Auto-classified: 'technical' | 'billing' | 'sales' | 'demo' | 'partnership' | 'feedback' | 'other' */
+  category: text("category").notNull().default("other"),
+  /** 'open' | 'ai_responded' | 'escalated' | 'resolved' */
+  status: text("status").notNull().default("open"),
+  aiResponse: text("ai_response"),
+  adminReply: text("admin_reply"),
+  adminRepliedAt: timestamp("admin_replied_at", { withTimezone: true }),
+  escalatedAt: timestamp("escalated_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type SupportTicket = typeof supportTicketsTable.$inferSelect;
+export type InsertSupportTicket = typeof supportTicketsTable.$inferInsert;
