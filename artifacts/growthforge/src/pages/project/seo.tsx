@@ -1020,7 +1020,41 @@ function SeoSchemaSitemapTab({ projectId, plan }: { projectId: number; plan: str
             {generateSitemapMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : sitemapData ? "Regenerate Sitemap" : "Generate Sitemap.xml"}
           </button>
         </div>
-        
+
+        {/* ── Sitemap URL — always visible, computed from projectId ── */}
+        {(() => {
+          const sitemapUrl = `https://usegrowthforge.com/api/sitemap/${projectId}/sitemap.xml`;
+          return (
+            <div className="mb-6 p-5 rounded-2xl border border-[#00E676]/30 bg-[#00E676]/5">
+              <p className="text-[#00E676] font-black text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
+                <SearchCheck className="w-4 h-4" /> Your Sitemap URL — Paste This into Google &amp; Bing (not the XML below)
+              </p>
+              <div className="flex items-center gap-3">
+                <code className="flex-1 text-white font-mono text-sm bg-black/50 px-4 py-3 rounded-xl border border-white/10 select-all overflow-x-auto whitespace-nowrap">
+                  {sitemapUrl}
+                </code>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(sitemapUrl); toast({ description: "Sitemap URL copied!" }); }}
+                  className="flex-shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl bg-[#00E676] hover:bg-[#00E676]/90 text-black font-bold text-sm transition-colors whitespace-nowrap"
+                >
+                  <Copy className="w-4 h-4" /> Copy URL
+                </button>
+                <a
+                  href={sitemapUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 hover:text-white font-bold text-sm transition-colors whitespace-nowrap"
+                >
+                  <ExternalLink className="w-4 h-4" /> Test URL
+                </a>
+              </div>
+              <p className="text-white/40 text-xs mt-3">
+                In Google Search Console → Sitemaps → "Add a new sitemap", paste only the URL above and click <strong className="text-white/60">Submit</strong>. Do not paste the XML.
+              </p>
+            </div>
+          );
+        })()}
+
         {generateSitemapMutation.isPending && <GeneratingState />}
         
         {sitemapData && !generateSitemapMutation.isPending && (
@@ -1030,47 +1064,34 @@ function SeoSchemaSitemapTab({ projectId, plan }: { projectId: number; plan: str
               <div className="w-1 h-1 rounded-full bg-white/20" />
               <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-[#14F195]" /> Generated today</div>
             </div>
-
-            {/* Sitemap URL — this is what you submit to Google/Bing */}
-            {sitemapData.sitemapUrl && (
-              <div className="p-5 rounded-2xl border border-[#00E676]/30 bg-[#00E676]/5">
-                <p className="text-[#00E676] font-black text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <SearchCheck className="w-4 h-4" /> Your Sitemap URL — Submit This to Google &amp; Bing
-                </p>
-                <div className="flex items-center gap-3">
-                  <code className="flex-1 text-white font-mono text-sm bg-black/40 px-4 py-3 rounded-xl border border-white/10 truncate">
-                    {sitemapData.sitemapUrl}
-                  </code>
-                  <button
-                    onClick={() => { navigator.clipboard.writeText(sitemapData.sitemapUrl); toast({ description: "Sitemap URL copied!" }); }}
-                    className="flex items-center gap-2 px-4 py-3 rounded-xl bg-[#00E676]/15 hover:bg-[#00E676]/25 border border-[#00E676]/30 text-[#00E676] font-bold text-sm transition-colors whitespace-nowrap"
-                  >
-                    <Copy className="w-4 h-4" /> Copy URL
-                  </button>
-                </div>
-                <p className="text-white/40 text-xs mt-3">Paste this URL (not the XML) into Google Search Console → Sitemaps → Add new sitemap.</p>
-              </div>
-            )}
             
-            <div className="rounded-2xl border border-white/10 bg-black/60 overflow-hidden relative group shadow-2xl">
-              <button onClick={() => { navigator.clipboard.writeText(sitemapData.xml); toast({description: "Sitemap XML copied"}); }} className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm transition-colors border border-white/10">
+            <div className="rounded-2xl border border-white/10 bg-black/60 overflow-hidden relative shadow-2xl">
+              <button onClick={() => { navigator.clipboard.writeText(sitemapData.xml); toast({description: "XML copied — but submit the URL above to Google, not this XML"}); }} className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-sm transition-colors border border-white/10 z-10">
                 <Copy className="w-3.5 h-3.5" /> Copy XML
               </button>
               <pre className="p-6 overflow-x-auto text-xs text-[#00D4FF] font-mono leading-relaxed h-96">
                 <code>{sitemapData.xml}</code>
               </pre>
             </div>
-            
-            <div className="p-6 rounded-2xl border border-white/10 bg-white/5">
-              <p className="text-sm font-black text-white uppercase tracking-wider mb-5">Submission Instructions</p>
-              <div className="space-y-4">
-                <div className="p-4 rounded-xl bg-black/40 border border-[#00E676]/20 border-l-4 border-l-[#00E676]">
-                  <p className="text-[#00E676] font-bold text-sm mb-2 flex items-center gap-2"><SearchCheck className="w-4 h-4" /> Google Search Console</p>
-                  <p className="text-white/70 text-sm leading-relaxed">Go to <strong className="text-white">Google Search Console → Sitemaps → Add new sitemap</strong>. Paste the sitemap URL above (not the XML). Click Submit.</p>
+
+            <div className="p-5 rounded-2xl border border-white/10 bg-white/5">
+              <p className="text-sm font-black text-white uppercase tracking-wider mb-4">How to Submit</p>
+              <div className="space-y-3">
+                <div className="p-4 rounded-xl bg-black/40 border-l-4 border-l-[#00E676]">
+                  <p className="text-[#00E676] font-bold text-sm mb-1.5 flex items-center gap-2"><SearchCheck className="w-4 h-4" /> Google Search Console</p>
+                  <ol className="text-white/70 text-sm space-y-1 list-decimal list-inside">
+                    <li>Open <strong className="text-white">Google Search Console</strong> for your domain</li>
+                    <li>Click <strong className="text-white">Sitemaps</strong> in the left sidebar</li>
+                    <li>Paste the URL above into "Add a new sitemap" and click <strong className="text-white">Submit</strong></li>
+                  </ol>
                 </div>
-                <div className="p-4 rounded-xl bg-black/40 border border-[#00D4FF]/20 border-l-4 border-l-[#00D4FF]">
-                  <p className="text-[#00D4FF] font-bold text-sm mb-2 flex items-center gap-2"><Globe className="w-4 h-4" /> Bing Webmaster Tools</p>
-                  <p className="text-white/70 text-sm leading-relaxed">Go to <strong className="text-white">Bing Webmaster Tools → Sitemaps → Submit sitemap</strong>. Paste the sitemap URL above. Click Submit.</p>
+                <div className="p-4 rounded-xl bg-black/40 border-l-4 border-l-[#00D4FF]">
+                  <p className="text-[#00D4FF] font-bold text-sm mb-1.5 flex items-center gap-2"><Globe className="w-4 h-4" /> Bing Webmaster Tools</p>
+                  <ol className="text-white/70 text-sm space-y-1 list-decimal list-inside">
+                    <li>Open <strong className="text-white">Bing Webmaster Tools</strong> for your domain</li>
+                    <li>Click <strong className="text-white">Sitemaps</strong> → Submit sitemap</li>
+                    <li>Paste the URL above and click <strong className="text-white">Submit</strong></li>
+                  </ol>
                 </div>
               </div>
             </div>
