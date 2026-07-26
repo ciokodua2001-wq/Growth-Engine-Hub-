@@ -191,9 +191,11 @@ export default function ProjectLayout({ projectId, children }: ProjectLayoutProp
                 })}
               />
               <span className="text-xs text-muted-foreground capitalize">{project.status}</span>
-              <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                {project.plan}
-              </span>
+              {!trialInfo?.isOwner && (
+                <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                  {project.plan}
+                </span>
+              )}
             </div>
           </div>
         )}
