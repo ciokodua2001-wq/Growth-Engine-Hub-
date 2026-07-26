@@ -1023,7 +1023,7 @@ function SeoSchemaSitemapTab({ projectId, plan }: { projectId: number; plan: str
 
         {/* ── Sitemap URL — always visible, computed from projectId ── */}
         {(() => {
-          const sitemapUrl = `https://usegrowthforge.com/api/sitemap/${projectId}/sitemap.xml`;
+          const sitemapUrl = `https://usegrowthforge.com/sitemap.xml`;
           return (
             <div className="mb-6 p-5 rounded-2xl border border-[#00E676]/30 bg-[#00E676]/5">
               <p className="text-[#00E676] font-black text-xs uppercase tracking-wider mb-3 flex items-center gap-2">

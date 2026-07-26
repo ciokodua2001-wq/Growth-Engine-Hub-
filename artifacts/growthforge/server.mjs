@@ -14,6 +14,7 @@
  */
 
 import http from "node:http";
+import https from "node:https";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -127,9 +128,44 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── 4. Serve static files ─────────────────────────────────────────────────
-  // Strip query string, decode URI, prevent path traversal
+  // Compute clean path once for all subsequent handlers
   const cleanPath = decodeURIComponent(url.split("?")[0]).replace(/\.\./g, "");
+
+  // ── 3b. robots.txt ───────────────────────────────────────────────────────
+  if (cleanPath === "/robots.txt") {
+    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=86400" });
+    res.end(`User-agent: *\nAllow: /\nSitemap: https://${CANONICAL_HOST}/sitemap.xml\n`);
+    return;
+  }
+
+  // ── 3c. /sitemap.xml — standard location, no Clerk/CORS/auth cookies ────
+  //    Proxies from the API server and strips auth/cookie headers so
+  //    Google Search Console gets a clean public response.
+  if (cleanPath === "/sitemap.xml") {
+    // Project 20 = usegrowthforge.com — fetch from API, strip auth/cookie headers
+    https.get(`https://${CANONICAL_HOST}/api/sitemap/20/sitemap.xml`, (apiRes) => {
+      let body = "";
+      apiRes.on("data", (chunk) => { body += chunk; });
+      apiRes.on("end", () => {
+        if (apiRes.statusCode === 200) {
+          res.writeHead(200, {
+            "Content-Type": "application/xml; charset=utf-8",
+            "Cache-Control": "public, max-age=3600",
+          });
+          res.end(body);
+        } else {
+          res.writeHead(503, { "Content-Type": "text/plain" });
+          res.end("Sitemap not ready. Generate one from GrowthForge.");
+        }
+      });
+    }).on("error", () => {
+      res.writeHead(503, { "Content-Type": "text/plain" });
+      res.end("Sitemap temporarily unavailable.");
+    });
+    return;
+  }
+
+  // ── 4. Serve static files ─────────────────────────────────────────────────
   let filePath = path.join(PUBLIC_DIR, cleanPath);
 
   // If path ends with "/" try index.html in that directory

@@ -12,6 +12,9 @@ import router from "./routes/index.js";
 import resendWebhookHandler from "./routes/resendWebhook.js";
 import { logger } from "./lib/logger.js";
 import { WebhookHandlers } from "./webhookHandlers.js";
+import { db } from "@workspace/db";
+import { seoSitemapTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const app: Express = express();
 
@@ -24,6 +27,28 @@ app.use((req, res, next) => {
     return;
   }
   next();
+});
+
+// Public sitemap — registered before ALL middleware (no Clerk, no CORS, no credentials)
+// so Google's crawler gets a clean response with Cache-Control: public.
+app.get("/api/sitemap/:projectId/sitemap.xml", async (req, res) => {
+  const projectId = parseInt(String(req.params["projectId"] ?? ""), 10);
+  if (isNaN(projectId)) { res.status(400).send("Invalid project id"); return; }
+  try {
+    const [row] = await db
+      .select({ xml: seoSitemapTable.xml })
+      .from(seoSitemapTable)
+      .where(eq(seoSitemapTable.projectId, projectId));
+    if (!row) { res.status(404).send("Sitemap not found. Generate one from GrowthForge."); return; }
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.setHeader("X-Robots-Tag", "noindex");
+    res.removeHeader("set-cookie");
+    res.send(row.xml);
+  } catch (err) {
+    logger.error({ err }, "Sitemap fetch failed");
+    res.status(500).send("Internal error");
+  }
 });
 
 app.use(
