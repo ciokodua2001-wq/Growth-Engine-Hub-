@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import AdminLayout from "@/components/admin/admin-layout";
 import {
   Users, Upload, Search, Tag, Plus, Trash2, X, ChevronDown,
   Filter, Download, CheckCircle, AlertCircle, Loader2,
@@ -243,6 +244,7 @@ export default function OwnerContacts() {
   const allTags = data?.allTags ?? [];
 
   return (
+    <AdminLayout>
     <div className="max-w-6xl mx-auto">
       {showImport && <ImportModal onClose={() => setShowImport(false)} allTags={allTags} />}
       {showNewSegment && <NewSegmentModal allTags={allTags} onClose={() => setShowNewSegment(false)} />}
@@ -368,5 +370,6 @@ export default function OwnerContacts() {
         )}
       </div>
     </div>
+    </AdminLayout>
   );
 }

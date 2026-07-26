@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
+import AdminLayout from "@/components/admin/admin-layout";
 import {
   Mail, Plus, Trash2, Send, Eye, Loader2, X, Users, Megaphone,
   BarChart2, Clock, CheckCircle, FileText,
@@ -109,6 +110,7 @@ export default function OwnerCampaigns() {
   const list = Array.isArray(campaigns) ? campaigns : [];
 
   return (
+    <AdminLayout>
     <div className="max-w-5xl mx-auto">
       {preview && (
         <PreviewModal
@@ -261,5 +263,6 @@ export default function OwnerCampaigns() {
         </div>
       )}
     </div>
+    </AdminLayout>
   );
 }

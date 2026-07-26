@@ -105,12 +105,6 @@ export default function AdminLayout({ children }: Props) {
               </div>
             )}
             {collapsed && <div className="pt-4 pb-1 flex justify-center"><Crown className="w-3.5 h-3.5" style={{ color: "#fbbf24" }} /></div>}
-            <Link href="/admin"
-              onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all text-white/30 hover:text-white/60 ${collapsed ? "justify-center" : ""}`}>
-              <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
-              {!collapsed && <span>Back to Dashboard</span>}
-            </Link>
             {OWNER_NAV.map(({ label, href, icon: Icon }) => (
               <Link key={href} href={href}
                 onClick={() => setMobileOpen(false)}
