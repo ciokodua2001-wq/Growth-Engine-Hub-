@@ -5,7 +5,7 @@ import { requireProjectOwnershipParam } from "../lib/authz.js";
 import { consumeQuota } from "../lib/planLimits.js";
 import { getGroundingContext } from "../lib/projectContext.js";
 import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
-import { Storage } from "@google-cloud/storage";
+import { objectStorageClient, signObjectURL } from "../lib/objectStorage.js";
 
 const router = Router();
 
@@ -127,16 +127,12 @@ async function uploadImageToStorage(buffer: Buffer): Promise<string> {
     throw new Error("Object storage not configured (DEFAULT_OBJECT_STORAGE_BUCKET_ID not set)");
   }
 
-  const storage = new Storage();
-  const bucket = storage.bucket(bucketId);
-  const filename = `images/generated-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
-  const file = bucket.file(filename);
+  const objectName = `images/generated-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+  const bucket = objectStorageClient.bucket(bucketId);
+  await bucket.file(objectName).save(buffer, { metadata: { contentType: "image/png" } });
 
-  await file.save(buffer, { metadata: { contentType: "image/png" } });
-  await file.makePublic();
-
-  const [metadata] = await file.getMetadata();
-  return metadata.mediaLink as string;
+  // 30-day signed URL — long-lived enough for marketing use
+  return signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 60 * 60 * 24 * 30 });
 }
 
 export default router;
