@@ -11,6 +11,7 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 
 const SUPPORT_FROM = "GrowthForge Support <support@usegrowthforge.com>";
 const BASE_URL = process.env.PRODUCTION_URL ?? "https://usegrowthforge.com";
+const ESCALATION_EMAIL = process.env.SUPPORT_ESCALATION_EMAIL ?? "growthforge101@gmail.com";
 
 // ── Knowledge base cache ──────────────────────────────────────────────────────
 
@@ -203,15 +204,12 @@ router.post("/support/tickets", async (req, res): Promise<void> => {
     }).catch(() => {});
   }
 
-  if (aiResult.escalate) {
-    getOwnerEmail().then(ownerEmail => {
-      if (!ownerEmail || !resend) return;
-      return resend.emails.send({
-        from: SUPPORT_FROM,
-        to: ownerEmail,
-        subject: `🚨 Support escalation: ${subject.trim()}`,
-        html: escalationEmailHtml(name.trim(), email.trim(), subject.trim(), message.trim(), aiResult.response, aiResult.escalateReason),
-      });
+  if (aiResult.escalate && resend) {
+    resend.emails.send({
+      from: SUPPORT_FROM,
+      to: ESCALATION_EMAIL,
+      subject: `🚨 Support escalation: ${subject.trim()}`,
+      html: escalationEmailHtml(name.trim(), email.trim(), subject.trim(), message.trim(), aiResult.response, aiResult.escalateReason),
     }).catch(() => {});
   }
 
@@ -321,14 +319,11 @@ router.post("/owner/support/tickets/:id/escalate", requireOwner, async (req, res
       .where(eq(supportTicketsTable.id, id));
 
     if (resend) {
-      getOwnerEmail().then(ownerEmail => {
-        if (!ownerEmail) return;
-        return resend!.emails.send({
-          from: SUPPORT_FROM,
-          to: ownerEmail,
-          subject: `🚨 Manually escalated: ${ticket.subject}`,
-          html: escalationEmailHtml(ticket.name, ticket.email, ticket.subject, ticket.message, ticket.aiResponse ?? "(no AI response)", "Manually escalated by admin"),
-        });
+      resend.emails.send({
+        from: SUPPORT_FROM,
+        to: ESCALATION_EMAIL,
+        subject: `🚨 Manually escalated: ${ticket.subject}`,
+        html: escalationEmailHtml(ticket.name, ticket.email, ticket.subject, ticket.message, ticket.aiResponse ?? "(no AI response)", "Manually escalated by admin"),
       }).catch(() => {});
     }
 
