@@ -1275,14 +1275,14 @@ export default function ProjectSeo() {
       {/* Tabbed interface */}
       <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
         <div className="overflow-x-auto pb-2 scrollbar-none">
-          <TabsList className="bg-black/40 border border-white/10 p-1.5 rounded-2xl flex gap-1.5 w-max min-w-full sm:min-w-0 sm:w-auto shadow-inner">
+          <TabsList className="bg-black/40 border border-white/10 p-1.5 rounded-2xl flex gap-1.5 w-full shadow-inner">
             {TABS.map(t => (
               <TabsTrigger 
                 key={t.id} 
                 value={t.id}
-                className="flex-1 rounded-xl data-[state=active]:bg-[#00E676]/15 data-[state=active]:text-[#00E676] text-white/50 px-4 py-2.5 text-sm font-bold transition-all data-[state=active]:border data-[state=active]:border-[#00E676]/30 border border-transparent whitespace-nowrap data-[state=active]:shadow-[0_0_15px_rgba(0,230,118,0.1)]"
+                className="flex-1 rounded-xl data-[state=active]:bg-[#00E676]/15 data-[state=active]:text-[#00E676] text-white/50 px-2 py-2.5 text-xs sm:text-sm font-bold transition-all data-[state=active]:border data-[state=active]:border-[#00E676]/30 border border-transparent whitespace-nowrap data-[state=active]:shadow-[0_0_15px_rgba(0,230,118,0.1)] flex items-center justify-center gap-1.5"
               >
-                <t.icon className="w-4 h-4 mr-2" /> {t.label}
+                <t.icon className="w-3.5 h-3.5 shrink-0" /> {t.label}
               </TabsTrigger>
             ))}
           </TabsList>
