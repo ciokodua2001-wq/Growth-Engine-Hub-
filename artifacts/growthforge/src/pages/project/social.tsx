@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Share2, Zap, Calendar, Facebook, CheckCircle2, AlertCircle, Link2, Link2Off, Instagram, RefreshCw, ChevronRight, Heart, MessageCircle, Eye, Clock, AtSign, Copy, Check, Pencil } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 const platforms = ["linkedin", "instagram", "tiktok", "x", "facebook"];
 
@@ -684,7 +685,9 @@ export default function ProjectSocial() {
 
   const isConnected = metaConn?.connected === true;
   const hasInstagram = isConnected && !!metaConn?.instagramAccountId;
-  const canScheduleFeature = ["get-going", "growth", "agency"].includes(project?.plan ?? "");
+  const { data: currentUserData } = useCurrentUser();
+  const isOwnerUser = currentUserData?.isOwner ?? false;
+  const canScheduleFeature = isOwnerUser || ["get-going", "growth", "agency"].includes(project?.plan ?? "");
 
   // Auto-fetch stats on page load for published posts that have never had stats pulled,
   // and background-refresh posts whose stats are older than STATS_STALE_MS (30 min).

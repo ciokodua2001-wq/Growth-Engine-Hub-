@@ -41,7 +41,7 @@ router.post(
 
     const [project] = await db.select({ plan: projectsTable.plan }).from(projectsTable).where(eq(projectsTable.id, id));
     if (!project) { res.status(404).json({ error: "Project not found" }); return; }
-    if (!meetsMinPlan(project.plan, "starter")) {
+    if (!req.isPlatformOwner && !meetsMinPlan(project.plan, "starter")) {
       res.status(403).json({ error: "SEO Blog Post Generator requires a paid plan. Upgrade to unlock." });
       return;
     }
@@ -145,7 +145,7 @@ router.post(
 
     const [project] = await db.select({ plan: projectsTable.plan }).from(projectsTable).where(eq(projectsTable.id, id));
     if (!project) { res.status(404).json({ error: "Project not found" }); return; }
-    if (!meetsMinPlan(project.plan, "starter")) {
+    if (!req.isPlatformOwner && !meetsMinPlan(project.plan, "starter")) {
       res.status(403).json({ error: "Meta Tags Generator requires a paid plan." });
       return;
     }
@@ -234,7 +234,7 @@ router.post(
 
     const [project] = await db.select({ plan: projectsTable.plan }).from(projectsTable).where(eq(projectsTable.id, id));
     if (!project) { res.status(404).json({ error: "Project not found" }); return; }
-    if (!meetsMinPlan(project.plan, "starter")) {
+    if (!req.isPlatformOwner && !meetsMinPlan(project.plan, "starter")) {
       res.status(403).json({ error: "Schema Markup Generator requires a paid plan." });
       return;
     }
@@ -314,7 +314,7 @@ router.post(
 
     const [project] = await db.select({ plan: projectsTable.plan }).from(projectsTable).where(eq(projectsTable.id, id));
     if (!project) { res.status(404).json({ error: "Project not found" }); return; }
-    if (!meetsMinPlan(project.plan, "starter")) {
+    if (!req.isPlatformOwner && !meetsMinPlan(project.plan, "starter")) {
       res.status(403).json({ error: "Sitemap Generator requires a paid plan." });
       return;
     }

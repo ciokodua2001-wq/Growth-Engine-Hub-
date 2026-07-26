@@ -9,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Settings, Globe, Zap, Bot, Save, FileText, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 const ACCENT_PRESETS = [
   "#00E676", "#00D4FF", "#14F195", "#FF6B35",
@@ -30,7 +31,9 @@ export default function ProjectSettings() {
   const [brandingCompanyName, setBrandingCompanyName] = useState("");
   const [brandingAccentColor, setBrandingAccentColor] = useState("#00E676");
 
-  const canWhiteLabel = project?.plan === "growth" || project?.plan === "agency";
+  const { data: currentUserData } = useCurrentUser();
+  const isOwner = currentUserData?.isOwner ?? false;
+  const canWhiteLabel = isOwner || project?.plan === "growth" || project?.plan === "agency";
 
   useEffect(() => {
     if (project) {

@@ -729,7 +729,7 @@ router.post("/projects/:id/campaigns/build", requireActiveSubscription, async (r
 
   const projectId = params.data.id;
 
-  if (!meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
+  if (!req.isPlatformOwner && !meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
     res.status(403).json({ error: "AI Campaign Builder is available on the Get-Going plan and higher. Upgrade to unlock this feature." });
     return;
   }

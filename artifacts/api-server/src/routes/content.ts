@@ -62,7 +62,7 @@ router.post("/projects/:id/content", requireActiveSubscription, async (req, res)
   // Content Engine AI generation is a paid feature (Get-Going+).
   // Trial budget is at ~$0.440/$0.45 cap — long-form content generation
   // (~$0.030-0.060 per call) would breach it; see trialLimits.ts for details.
-  if (!meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
+  if (!req.isPlatformOwner && !meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
     res.status(403).json({ error: "AI Content generation is available on the Get-Going plan and higher. Upgrade to unlock blog posts, whitepapers, case studies, and more — all grounded in your business." });
     return;
   }
@@ -786,7 +786,7 @@ router.patch("/projects/:id/social-posts/:postId/schedule", requireActiveSubscri
   const params = PublishSocialPostParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  if (!meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
+  if (!req.isPlatformOwner && !meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
     res.status(403).json({ error: "Social Scheduling is available on the Get-Going plan and higher. Upgrade to unlock this feature." });
     return;
   }
@@ -832,7 +832,7 @@ router.delete("/projects/:id/social-posts/:postId/schedule", requireActiveSubscr
   const params = PublishSocialPostParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  if (!meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
+  if (!req.isPlatformOwner && !meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
     res.status(403).json({ error: "Social Scheduling is available on the Get-Going plan and higher." });
     return;
   }
@@ -865,7 +865,7 @@ router.patch("/projects/:id/emails/:emailId/schedule", requireActiveSubscription
   const params = SendEmailParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  if (!meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
+  if (!req.isPlatformOwner && !meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
     res.status(403).json({ error: "Email Scheduling is available on the Get-Going plan and higher. Upgrade to unlock this feature." });
     return;
   }

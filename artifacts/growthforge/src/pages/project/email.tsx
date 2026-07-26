@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Mail, Zap, ChevronDown, ChevronUp, Send, X, Upload, CheckCircle2, AlertCircle, AlertTriangle, Clock } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 const emailTypes = ["welcome", "sales", "nurture", "reactivation"];
 
@@ -405,7 +406,9 @@ export default function ProjectEmail() {
 
   const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
   const { data: emails, isLoading } = useListEmails(projectId, { query: { queryKey: getListEmailsQueryKey(projectId), enabled: !!projectId } });
-  const canScheduleFeature = ["get-going", "growth", "agency"].includes(project?.plan ?? "");
+  const { data: currentUserData } = useCurrentUser();
+  const isOwnerUser = currentUserData?.isOwner ?? false;
+  const canScheduleFeature = isOwnerUser || ["get-going", "growth", "agency"].includes(project?.plan ?? "");
   const generateEmails = useGenerateEmails();
   const queryClient = useQueryClient();
 

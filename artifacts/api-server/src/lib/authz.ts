@@ -9,6 +9,8 @@ declare global {
     interface Request {
       project?: Project;
       isProjectOwner?: boolean;
+      /** True when the authenticated user is the platform owner (usersTable.isOwner). */
+      isPlatformOwner?: boolean;
     }
   }
 }
@@ -128,6 +130,14 @@ export function requireProjectOwnershipParam() {
     }
     req.project = result.project;
     req.isProjectOwner = result.isOwner;
+
+    // Resolve platform-owner status so route handlers can bypass plan/quota gates.
+    const [userRow] = await db
+      .select({ isOwner: usersTable.isOwner })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId));
+    req.isPlatformOwner = userRow?.isOwner ?? false;
+
     next();
   };
 }

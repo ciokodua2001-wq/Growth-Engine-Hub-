@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Loader2, Users, UserPlus, Mail, Trash2, Crown, Clock, CheckCircle2, XCircle, Send, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useCallback } from "react";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 type TeamMember = {
   id: number;
@@ -46,7 +47,9 @@ export default function ProjectTeam() {
   const [inviting, setInviting] = useState(false);
   const [removing, setRemoving] = useState<number | null>(null);
 
-  const isAgency = project?.plan === "agency";
+  const { data: currentUserData } = useCurrentUser();
+  const isOwner = currentUserData?.isOwner ?? false;
+  const isAgency = isOwner || project?.plan === "agency";
 
   const fetchMembers = useCallback(async () => {
     try {

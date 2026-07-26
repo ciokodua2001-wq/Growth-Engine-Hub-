@@ -41,7 +41,7 @@ router.post(
 
     if (!project) { res.status(404).json({ error: "Project not found" }); return; }
 
-    if (!meetsMinPlan(project.plan, "starter")) {
+    if (!req.isPlatformOwner && !meetsMinPlan(project.plan, "starter")) {
       res.status(403).json({
         error: "AI SEO Strategy Builder requires a paid plan. Upgrade to unlock.",
       });
