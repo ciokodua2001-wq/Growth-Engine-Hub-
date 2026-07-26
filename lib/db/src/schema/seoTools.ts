@@ -43,6 +43,19 @@ export const seoSchemaMarkupTable = pgTable("seo_schema_markup", {
 
 export type SeoSchemaMarkup = typeof seoSchemaMarkupTable.$inferSelect;
 
+/* ── SEO Sitemap ────────────────────────────────────────────────────────── */
+
+export const seoSitemapTable = pgTable("seo_sitemaps", {
+  id:        serial("id").primaryKey(),
+  projectId: integer("project_id").notNull().unique().references(() => projectsTable.id, { onDelete: "cascade" }),
+  xml:       text("xml").notNull(),
+  pageCount: integer("page_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type SeoSitemap = typeof seoSitemapTable.$inferSelect;
+
 /* ── SEO Watchdog ───────────────────────────────────────────────────────── */
 
 export const seoWatchdogTable = pgTable("seo_watchdog", {

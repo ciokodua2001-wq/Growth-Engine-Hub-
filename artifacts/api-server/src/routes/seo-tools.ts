@@ -5,6 +5,7 @@ import {
   seoBlogPostsTable,
   seoMetaTagsTable,
   seoSchemaMarkupTable,
+  seoSitemapTable,
   seoWatchdogTable,
   projectsTable,
 } from "@workspace/db";
@@ -377,10 +378,24 @@ Return ONLY valid JSON (no markdown, no code fences):
         "</urlset>",
       ];
 
+      const xml = xmlLines.join("\n");
+
+      // Persist so the public endpoint can serve it without auth
+      await db
+        .insert(seoSitemapTable)
+        .values({ projectId: id, xml, pageCount: pages.length })
+        .onConflictDoUpdate({
+          target: seoSitemapTable.projectId,
+          set: { xml, pageCount: pages.length, updatedAt: new Date() },
+        });
+
+      const sitemapUrl = `${req.protocol}://${req.hostname}/api/sitemap/${id}/sitemap.xml`;
+
       res.json({
-        xml: xmlLines.join("\n"),
+        xml,
         pages: result.pages,
         pageCount: pages.length,
+        sitemapUrl,
         submissionInstructions: result.submissionInstructions,
       });
     } catch (err) {
@@ -389,6 +404,31 @@ Return ONLY valid JSON (no markdown, no code fences):
     }
   },
 );
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Public sitemap endpoint — no auth required, served as application/xml
+   URL: GET /api/sitemap/:projectId/sitemap.xml
+   Submit this URL directly to Google Search Console / Bing Webmaster Tools.
+───────────────────────────────────────────────────────────────────────── */
+
+router.get("/sitemap/:projectId/sitemap.xml", async (req, res): Promise<void> => {
+  const projectId = parseInt(String(req.params["projectId"] ?? ""), 10);
+  if (isNaN(projectId)) { res.status(400).send("Invalid project id"); return; }
+
+  const [row] = await db
+    .select({ xml: seoSitemapTable.xml })
+    .from(seoSitemapTable)
+    .where(eq(seoSitemapTable.projectId, projectId));
+
+  if (!row) {
+    res.status(404).send("Sitemap not found. Generate one from the GrowthForge SEO dashboard.");
+    return;
+  }
+
+  res.setHeader("Content-Type", "application/xml; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.send(row.xml);
+});
 
 /* ─────────────────────────────────────────────────────────────────────────
    SEO Watchdog Coach

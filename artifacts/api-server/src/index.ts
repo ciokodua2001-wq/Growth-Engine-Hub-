@@ -75,6 +75,24 @@ if (!rawPort) throw new Error("PORT environment variable is required but was not
 const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) throw new Error(`Invalid PORT value: "${rawPort}"`);
 
+async function ensureSeoSitemapTable(): Promise<void> {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS seo_sitemaps (
+        id         serial PRIMARY KEY,
+        project_id integer NOT NULL UNIQUE REFERENCES projects(id) ON DELETE CASCADE,
+        xml        text NOT NULL,
+        page_count integer NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+    `);
+    logger.info("seo_sitemaps table ready");
+  } catch (err) {
+    logger.warn({ err }, "seo_sitemaps migration failed (non-fatal)");
+  }
+}
+
 async function ensureOwnerMarketingTables(): Promise<void> {
   try {
     await db.execute(sql`
@@ -172,6 +190,7 @@ app.listen(port, (err) => {
   startRenderMonitor();
   void runMetaTokenHealthCheck();
   void ensureOwnerMarketingTables();
+  void ensureSeoSitemapTable();
   void initStripe();
   void recoverStuckAssemblies();
 });
