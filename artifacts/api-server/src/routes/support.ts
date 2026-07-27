@@ -17,6 +17,7 @@ const ESCALATION_EMAIL = process.env.SUPPORT_ESCALATION_EMAIL ?? "growthforge101
 
 let kbCache: { content: string; fetchedAt: number } | null = null;
 const KB_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const KB_MAX_CHARS = 12_000;
 
 async function getKnowledgeBase(): Promise<string> {
   if (kbCache && Date.now() - kbCache.fetchedAt < KB_CACHE_TTL_MS) {
@@ -24,7 +25,10 @@ async function getKnowledgeBase(): Promise<string> {
   }
   try {
     const [row] = await db.select().from(supportKnowledgeBaseTable).limit(1);
-    const content = row?.content ?? "";
+    let content = row?.content ?? "";
+    if (content.length > KB_MAX_CHARS) {
+      content = content.slice(0, KB_MAX_CHARS) + "\n[Knowledge base truncated due to length limit]";
+    }
     kbCache = { content, fetchedAt: Date.now() };
     return content;
   } catch {
@@ -349,8 +353,6 @@ router.get("/owner/support/knowledge-base", requireOwner, async (_req, res): Pro
 });
 
 // ── PUT /owner/support/knowledge-base ────────────────────────────────────────
-
-const KB_MAX_CHARS = 12_000;
 
 router.put("/owner/support/knowledge-base", requireOwner, async (req, res): Promise<void> => {
   try {
