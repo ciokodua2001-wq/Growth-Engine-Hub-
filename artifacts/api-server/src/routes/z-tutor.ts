@@ -94,6 +94,29 @@ router.get("/z/admin/check", async (req, res): Promise<void> => {
   }
 });
 
+// ── POST /z/admin/setup ──────────────────────────────────────────────────────
+// One-time owner claim: caller must be signed in and supply the correct secret.
+router.post("/z/admin/setup", async (req, res): Promise<void> => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const expected = process.env["OWNER_SETUP_SECRET"];
+  const { secret } = req.body as { secret?: string };
+  if (!expected || !secret || secret !== expected) {
+    res.status(403).json({ error: "Invalid or missing secret" });
+    return;
+  }
+  try {
+    const [updated] = await db
+      .update(usersTable)
+      .set({ isOwner: true, updatedAt: new Date() })
+      .where(eq(usersTable.id, userId))
+      .returning({ id: usersTable.id, isOwner: usersTable.isOwner });
+    res.json({ ok: true, user: updated });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update user" });
+  }
+});
+
 // ── GET /z/profile ──────────────────────────────────────────────────────────
 router.get("/z/profile", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
