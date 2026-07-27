@@ -288,6 +288,47 @@ async function ensureSupportKnowledgeBaseTable(): Promise<void> {
   }
 }
 
+async function ensureZTutorTables(): Promise<void> {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS z_student_profiles (
+        user_id text PRIMARY KEY,
+        country text,
+        province text,
+        grade text,
+        plan text NOT NULL DEFAULT 'free',
+        monthly_limit integer,
+        questions_used_this_session integer NOT NULL DEFAULT 0,
+        questions_used_this_month integer NOT NULL DEFAULT 0,
+        last_reset_at timestamptz,
+        stripe_customer_id text,
+        stripe_subscription_id text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS z_sessions (
+        id text PRIMARY KEY,
+        user_id text NOT NULL,
+        subject text NOT NULL,
+        lesson text NOT NULL,
+        unit text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS z_messages (
+        id text PRIMARY KEY,
+        session_id text NOT NULL,
+        role text NOT NULL,
+        content text NOT NULL,
+        audio_url text,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+    `);
+    logger.info("Z Tutor tables ready");
+  } catch (err) {
+    logger.warn({ err }, "Z Tutor table migration failed (non-fatal)");
+  }
+}
+
 async function ensureOwnerMarketingTables(): Promise<void> {
   try {
     await db.execute(sql`
@@ -389,6 +430,7 @@ app.listen(port, (err) => {
   void ensureOwnerMarketingTables();
   void ensureSeoSitemapTable();
   void ensureSeoComparisonPagesTable();
+  void ensureZTutorTables();
   void initStripe();
   void recoverStuckAssemblies();
 });

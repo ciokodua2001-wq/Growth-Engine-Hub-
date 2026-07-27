@@ -1737,3 +1737,223 @@ export const GetAgentHistoryResponseItem = zod.object({
 export const GetAgentHistoryResponse = zod.array(GetAgentHistoryResponseItem)
 
 
+/**
+ * @summary Get the current student's curriculum profile
+ */
+export const GetZProfileResponse = zod.object({
+  "userId": zod.string(),
+  "country": zod.string().nullish(),
+  "province": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "plan": zod.enum(['free', 'paid']),
+  "monthlyLimit": zod.number().nullish(),
+  "questionsUsedThisSession": zod.number(),
+  "questionsUsedThisMonth": zod.number(),
+  "lastResetAt": zod.string().nullish(),
+  "stripeCustomerId": zod.string().nullish(),
+  "stripeSubscriptionId": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Create or update the student's curriculum profile
+ */
+export const UpsertZProfileBody = zod.object({
+  "country": zod.string().optional(),
+  "province": zod.string().optional(),
+  "grade": zod.string().optional()
+})
+
+export const UpsertZProfileResponse = zod.object({
+  "userId": zod.string(),
+  "country": zod.string().nullish(),
+  "province": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "plan": zod.enum(['free', 'paid']),
+  "monthlyLimit": zod.number().nullish(),
+  "questionsUsedThisSession": zod.number(),
+  "questionsUsedThisMonth": zod.number(),
+  "lastResetAt": zod.string().nullish(),
+  "stripeCustomerId": zod.string().nullish(),
+  "stripeSubscriptionId": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Get the current student's question quota
+ */
+export const GetZQuotaResponse = zod.object({
+  "plan": zod.enum(['free', 'paid']),
+  "used": zod.number(),
+  "limit": zod.number(),
+  "remaining": zod.number(),
+  "resetAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary List all chat sessions for the current student
+ */
+export const ListZSessionsResponseItem = zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "subject": zod.string(),
+  "lesson": zod.string(),
+  "unit": zod.string(),
+  "messageCount": zod.number(),
+  "createdAt": zod.string()
+})
+export const ListZSessionsResponse = zod.array(ListZSessionsResponseItem)
+
+
+/**
+ * @summary Start a new tutoring session
+ */
+export const CreateZSessionBody = zod.object({
+  "subject": zod.string(),
+  "lesson": zod.string(),
+  "unit": zod.string()
+})
+
+export const CreateZSessionResponse = zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "subject": zod.string(),
+  "lesson": zod.string(),
+  "unit": zod.string(),
+  "messageCount": zod.number(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Get a session with its full message history
+ */
+export const GetZSessionParams = zod.object({
+  "sessionId": zod.coerce.string()
+})
+
+export const GetZSessionResponse = zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "subject": zod.string(),
+  "lesson": zod.string(),
+  "unit": zod.string(),
+  "messageCount": zod.number(),
+  "createdAt": zod.string(),
+  "messages": zod.array(zod.object({
+  "id": zod.string(),
+  "sessionId": zod.string(),
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string(),
+  "audioUrl": zod.string().nullish(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Send a message to Z and receive an AI tutoring response
+ */
+export const SendZMessageParams = zod.object({
+  "sessionId": zod.coerce.string()
+})
+
+export const SendZMessageBody = zod.object({
+  "message": zod.string()
+})
+
+export const SendZMessageResponse = zod.object({
+  "id": zod.string(),
+  "sessionId": zod.string(),
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string(),
+  "audioUrl": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Generate text-to-speech audio for a message via ElevenLabs
+ */
+export const GenerateZTtsBody = zod.object({
+  "text": zod.string(),
+  "voiceId": zod.string().optional()
+})
+
+export const GenerateZTtsResponse = zod.object({
+  "audioBase64": zod.string(),
+  "mimeType": zod.string()
+})
+
+
+/**
+ * @summary Create a Stripe Checkout session for Z Tutor subscription
+ */
+export const CreateZCheckoutResponse = zod.object({
+  "url": zod.string()
+})
+
+
+/**
+ * @summary Open the Stripe Customer Portal for Z Tutor subscription management
+ */
+export const CreateZPortalResponse = zod.object({
+  "url": zod.string()
+})
+
+
+/**
+ * @summary List all Z Tutor students (admin only)
+ */
+export const ListZAdminUsersResponseItem = zod.object({
+  "userId": zod.string(),
+  "country": zod.string().nullish(),
+  "province": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "plan": zod.enum(['free', 'paid']),
+  "monthlyLimit": zod.number().nullish(),
+  "questionsUsedThisSession": zod.number(),
+  "questionsUsedThisMonth": zod.number(),
+  "lastResetAt": zod.string().nullish(),
+  "stripeCustomerId": zod.string().nullish(),
+  "stripeSubscriptionId": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().nullish()
+})
+export const ListZAdminUsersResponse = zod.array(ListZAdminUsersResponseItem)
+
+
+/**
+ * @summary Set a student's monthly question limit and plan (admin only)
+ */
+export const UpdateZAdminUserQuotaParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const UpdateZAdminUserQuotaBody = zod.object({
+  "plan": zod.enum(['free', 'paid']).optional(),
+  "monthlyLimit": zod.number().optional()
+})
+
+export const UpdateZAdminUserQuotaResponse = zod.object({
+  "userId": zod.string(),
+  "country": zod.string().nullish(),
+  "province": zod.string().nullish(),
+  "grade": zod.string().nullish(),
+  "plan": zod.enum(['free', 'paid']),
+  "monthlyLimit": zod.number().nullish(),
+  "questionsUsedThisSession": zod.number(),
+  "questionsUsedThisMonth": zod.number(),
+  "lastResetAt": zod.string().nullish(),
+  "stripeCustomerId": zod.string().nullish(),
+  "stripeSubscriptionId": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().nullish()
+})
+
+

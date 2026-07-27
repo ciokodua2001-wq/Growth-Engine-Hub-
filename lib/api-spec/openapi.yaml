@@ -25,6 +25,7 @@ tags:
   - name: images
   - name: storage
   - name: meta
+  - name: z-tutor
 paths:
   /healthz:
     get:
@@ -1589,6 +1590,219 @@ paths:
                 items:
                   $ref: "#/components/schemas/AgentMessage"
 
+  # ── Z Tutor ───────────────────────────────────────────────────────────────
+  /z/profile:
+    get:
+      operationId: getZProfile
+      tags: [z-tutor]
+      summary: Get the current student's curriculum profile
+      responses:
+        "200":
+          description: Student profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZStudentProfile"
+        "404":
+          description: Profile not yet created
+    put:
+      operationId: upsertZProfile
+      tags: [z-tutor]
+      summary: Create or update the student's curriculum profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ZStudentProfileInput"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZStudentProfile"
+
+  /z/quota:
+    get:
+      operationId: getZQuota
+      tags: [z-tutor]
+      summary: Get the current student's question quota
+      responses:
+        "200":
+          description: Quota info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZQuota"
+
+  /z/sessions:
+    get:
+      operationId: listZSessions
+      tags: [z-tutor]
+      summary: List all chat sessions for the current student
+      responses:
+        "200":
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ZSession"
+    post:
+      operationId: createZSession
+      tags: [z-tutor]
+      summary: Start a new tutoring session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ZSessionInput"
+      responses:
+        "201":
+          description: New session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZSession"
+
+  /z/sessions/{sessionId}:
+    get:
+      operationId: getZSession
+      tags: [z-tutor]
+      summary: Get a session with its full message history
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZSessionWithMessages"
+
+  /z/sessions/{sessionId}/chat:
+    post:
+      operationId: sendZMessage
+      tags: [z-tutor]
+      summary: Send a message to Z and receive an AI tutoring response
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ZChatInput"
+      responses:
+        "200":
+          description: AI tutor response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZMessage"
+        "402":
+          description: Quota exhausted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZQuotaExhausted"
+
+  /z/tts:
+    post:
+      operationId: generateZTts
+      tags: [z-tutor]
+      summary: Generate text-to-speech audio for a message via ElevenLabs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ZTtsInput"
+      responses:
+        "200":
+          description: Audio data as base64
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZTtsResult"
+
+  /z/subscription/checkout:
+    post:
+      operationId: createZCheckout
+      tags: [z-tutor]
+      summary: Create a Stripe Checkout session for Z Tutor subscription
+      responses:
+        "200":
+          description: Checkout URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZCheckoutResult"
+
+  /z/subscription/portal:
+    post:
+      operationId: createZPortal
+      tags: [z-tutor]
+      summary: Open the Stripe Customer Portal for Z Tutor subscription management
+      responses:
+        "200":
+          description: Portal URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZCheckoutResult"
+
+  /z/admin/users:
+    get:
+      operationId: listZAdminUsers
+      tags: [z-tutor]
+      summary: List all Z Tutor students (admin only)
+      responses:
+        "200":
+          description: All student profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ZStudentProfile"
+
+  /z/admin/users/{userId}/quota:
+    patch:
+      operationId: updateZAdminUserQuota
+      tags: [z-tutor]
+      summary: Set a student's monthly question limit and plan (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ZAdminQuotaUpdate"
+      responses:
+        "200":
+          description: Updated student profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZStudentProfile"
+
 components:
   schemas:
     HealthStatus:
@@ -2776,3 +2990,187 @@ components:
           type: ["string", "null"]
         createdAt:
           type: string
+
+    # ── Z Tutor ───────────────────────────────────────────────────────────────
+    ZStudentProfile:
+      type: object
+      required: [userId, plan, questionsUsedThisSession, questionsUsedThisMonth, createdAt]
+      properties:
+        userId:
+          type: string
+        country:
+          type: ["string", "null"]
+        province:
+          type: ["string", "null"]
+        grade:
+          type: ["string", "null"]
+        plan:
+          type: string
+          enum: [free, paid]
+        monthlyLimit:
+          type: ["integer", "null"]
+        questionsUsedThisSession:
+          type: integer
+        questionsUsedThisMonth:
+          type: integer
+        lastResetAt:
+          type: ["string", "null"]
+        stripeCustomerId:
+          type: ["string", "null"]
+        stripeSubscriptionId:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: ["string", "null"]
+
+    ZStudentProfileInput:
+      type: object
+      properties:
+        country:
+          type: string
+        province:
+          type: string
+        grade:
+          type: string
+
+    ZQuota:
+      type: object
+      required: [plan, used, limit, remaining, resetAt]
+      properties:
+        plan:
+          type: string
+          enum: [free, paid]
+        used:
+          type: integer
+        limit:
+          type: integer
+        remaining:
+          type: integer
+        resetAt:
+          type: ["string", "null"]
+
+    ZSession:
+      type: object
+      required: [id, userId, subject, lesson, unit, messageCount, createdAt]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        subject:
+          type: string
+        lesson:
+          type: string
+        unit:
+          type: string
+        messageCount:
+          type: integer
+        createdAt:
+          type: string
+
+    ZSessionInput:
+      type: object
+      required: [subject, lesson, unit]
+      properties:
+        subject:
+          type: string
+        lesson:
+          type: string
+        unit:
+          type: string
+
+    ZMessage:
+      type: object
+      required: [id, sessionId, role, content, createdAt]
+      properties:
+        id:
+          type: string
+        sessionId:
+          type: string
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        audioUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    ZSessionWithMessages:
+      type: object
+      required: [id, userId, subject, lesson, unit, messageCount, createdAt, messages]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        subject:
+          type: string
+        lesson:
+          type: string
+        unit:
+          type: string
+        messageCount:
+          type: integer
+        createdAt:
+          type: string
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ZMessage"
+
+    ZChatInput:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    ZTtsInput:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+        voiceId:
+          type: string
+
+    ZTtsResult:
+      type: object
+      required: [audioBase64, mimeType]
+      properties:
+        audioBase64:
+          type: string
+        mimeType:
+          type: string
+
+    ZCheckoutResult:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+
+    ZQuotaExhausted:
+      type: object
+      required: [error, plan, used, limit]
+      properties:
+        error:
+          type: string
+        plan:
+          type: string
+        used:
+          type: integer
+        limit:
+          type: integer
+
+    ZAdminQuotaUpdate:
+      type: object
+      properties:
+        plan:
+          type: string
+          enum: [free, paid]
+        monthlyLimit:
+          type: integer

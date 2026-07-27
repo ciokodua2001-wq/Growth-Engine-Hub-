@@ -21,3 +21,4 @@ export * from "./klingSceneJobs";
 export * from "./commercialAssemblies";
 export * from "./videoWallet";
 export * from "./ownerMarketing";
+export * from "./zTutor";

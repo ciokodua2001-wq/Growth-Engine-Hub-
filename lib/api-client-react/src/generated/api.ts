@@ -75,7 +75,20 @@ import type {
   VideoInput,
   VideoRenderInput,
   VideoRenderStatus,
-  VideoUpdate
+  VideoUpdate,
+  ZAdminQuotaUpdate,
+  ZChatInput,
+  ZCheckoutResult,
+  ZMessage,
+  ZQuota,
+  ZQuotaExhausted,
+  ZSession,
+  ZSessionInput,
+  ZSessionWithMessages,
+  ZStudentProfile,
+  ZStudentProfileInput,
+  ZTtsInput,
+  ZTtsResult
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -5344,4 +5357,881 @@ export function useGetAgentHistory<TData = Awaited<ReturnType<typeof getAgentHis
 
 
 
+
+export const getGetZProfileUrl = () => {
+
+
+
+
+  return `/api/z/profile`
+}
+
+/**
+ * @summary Get the current student's curriculum profile
+ */
+export const getZProfile = async ( options?: RequestInit): Promise<ZStudentProfile> => {
+
+  return customFetch<ZStudentProfile>(getGetZProfileUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetZProfileQueryKey = () => {
+    return [
+    `/api/z/profile`
+    ] as const;
+    }
+
+
+export const getGetZProfileQueryOptions = <TData = Awaited<ReturnType<typeof getZProfile>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getZProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetZProfileQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getZProfile>>> = ({ signal }) => getZProfile({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getZProfile>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetZProfileQueryResult = NonNullable<Awaited<ReturnType<typeof getZProfile>>>
+export type GetZProfileQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the current student's curriculum profile
+ */
+
+export function useGetZProfile<TData = Awaited<ReturnType<typeof getZProfile>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getZProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetZProfileQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpsertZProfileUrl = () => {
+
+
+
+
+  return `/api/z/profile`
+}
+
+/**
+ * @summary Create or update the student's curriculum profile
+ */
+export const upsertZProfile = async (zStudentProfileInput: ZStudentProfileInput, options?: RequestInit): Promise<ZStudentProfile> => {
+
+  return customFetch<ZStudentProfile>(getUpsertZProfileUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(zStudentProfileInput)
+  }
+);}
+
+
+
+
+export const getUpsertZProfileMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertZProfile>>, TError,{data: BodyType<ZStudentProfileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof upsertZProfile>>, TError,{data: BodyType<ZStudentProfileInput>}, TContext> => {
+
+const mutationKey = ['upsertZProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upsertZProfile>>, {data: BodyType<ZStudentProfileInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  upsertZProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpsertZProfileMutationResult = NonNullable<Awaited<ReturnType<typeof upsertZProfile>>>
+    export type UpsertZProfileMutationBody = BodyType<ZStudentProfileInput>
+    export type UpsertZProfileMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create or update the student's curriculum profile
+ */
+export const useUpsertZProfile = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertZProfile>>, TError,{data: BodyType<ZStudentProfileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof upsertZProfile>>,
+        TError,
+        {data: BodyType<ZStudentProfileInput>},
+        TContext
+      > => {
+      return useMutation(getUpsertZProfileMutationOptions(options));
+    }
+
+export const getGetZQuotaUrl = () => {
+
+
+
+
+  return `/api/z/quota`
+}
+
+/**
+ * @summary Get the current student's question quota
+ */
+export const getZQuota = async ( options?: RequestInit): Promise<ZQuota> => {
+
+  return customFetch<ZQuota>(getGetZQuotaUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetZQuotaQueryKey = () => {
+    return [
+    `/api/z/quota`
+    ] as const;
+    }
+
+
+export const getGetZQuotaQueryOptions = <TData = Awaited<ReturnType<typeof getZQuota>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getZQuota>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetZQuotaQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getZQuota>>> = ({ signal }) => getZQuota({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getZQuota>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetZQuotaQueryResult = NonNullable<Awaited<ReturnType<typeof getZQuota>>>
+export type GetZQuotaQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the current student's question quota
+ */
+
+export function useGetZQuota<TData = Awaited<ReturnType<typeof getZQuota>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getZQuota>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetZQuotaQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListZSessionsUrl = () => {
+
+
+
+
+  return `/api/z/sessions`
+}
+
+/**
+ * @summary List all chat sessions for the current student
+ */
+export const listZSessions = async ( options?: RequestInit): Promise<ZSession[]> => {
+
+  return customFetch<ZSession[]>(getListZSessionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListZSessionsQueryKey = () => {
+    return [
+    `/api/z/sessions`
+    ] as const;
+    }
+
+
+export const getListZSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listZSessions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listZSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListZSessionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listZSessions>>> = ({ signal }) => listZSessions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listZSessions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListZSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listZSessions>>>
+export type ListZSessionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all chat sessions for the current student
+ */
+
+export function useListZSessions<TData = Awaited<ReturnType<typeof listZSessions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listZSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListZSessionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateZSessionUrl = () => {
+
+
+
+
+  return `/api/z/sessions`
+}
+
+/**
+ * @summary Start a new tutoring session
+ */
+export const createZSession = async (zSessionInput: ZSessionInput, options?: RequestInit): Promise<ZSession> => {
+
+  return customFetch<ZSession>(getCreateZSessionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(zSessionInput)
+  }
+);}
+
+
+
+
+export const getCreateZSessionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createZSession>>, TError,{data: BodyType<ZSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createZSession>>, TError,{data: BodyType<ZSessionInput>}, TContext> => {
+
+const mutationKey = ['createZSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createZSession>>, {data: BodyType<ZSessionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createZSession(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateZSessionMutationResult = NonNullable<Awaited<ReturnType<typeof createZSession>>>
+    export type CreateZSessionMutationBody = BodyType<ZSessionInput>
+    export type CreateZSessionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Start a new tutoring session
+ */
+export const useCreateZSession = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createZSession>>, TError,{data: BodyType<ZSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createZSession>>,
+        TError,
+        {data: BodyType<ZSessionInput>},
+        TContext
+      > => {
+      return useMutation(getCreateZSessionMutationOptions(options));
+    }
+
+export const getGetZSessionUrl = (sessionId: string,) => {
+
+
+
+
+  return `/api/z/sessions/${sessionId}`
+}
+
+/**
+ * @summary Get a session with its full message history
+ */
+export const getZSession = async (sessionId: string, options?: RequestInit): Promise<ZSessionWithMessages> => {
+
+  return customFetch<ZSessionWithMessages>(getGetZSessionUrl(sessionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetZSessionQueryKey = (sessionId: string,) => {
+    return [
+    `/api/z/sessions/${sessionId}`
+    ] as const;
+    }
+
+
+export const getGetZSessionQueryOptions = <TData = Awaited<ReturnType<typeof getZSession>>, TError = ErrorType<unknown>>(sessionId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getZSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetZSessionQueryKey(sessionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getZSession>>> = ({ signal }) => getZSession(sessionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: sessionId !== null && sessionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getZSession>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetZSessionQueryResult = NonNullable<Awaited<ReturnType<typeof getZSession>>>
+export type GetZSessionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get a session with its full message history
+ */
+
+export function useGetZSession<TData = Awaited<ReturnType<typeof getZSession>>, TError = ErrorType<unknown>>(
+ sessionId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getZSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetZSessionQueryOptions(sessionId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSendZMessageUrl = (sessionId: string,) => {
+
+
+
+
+  return `/api/z/sessions/${sessionId}/chat`
+}
+
+/**
+ * @summary Send a message to Z and receive an AI tutoring response
+ */
+export const sendZMessage = async (sessionId: string,
+    zChatInput: ZChatInput, options?: RequestInit): Promise<ZMessage> => {
+
+  return customFetch<ZMessage>(getSendZMessageUrl(sessionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(zChatInput)
+  }
+);}
+
+
+
+
+export const getSendZMessageMutationOptions = <TError = ErrorType<ZQuotaExhausted>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendZMessage>>, TError,{sessionId: string;data: BodyType<ZChatInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendZMessage>>, TError,{sessionId: string;data: BodyType<ZChatInput>}, TContext> => {
+
+const mutationKey = ['sendZMessage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendZMessage>>, {sessionId: string;data: BodyType<ZChatInput>}> = (props) => {
+          const {sessionId,data} = props ?? {};
+
+          return  sendZMessage(sessionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendZMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendZMessage>>>
+    export type SendZMessageMutationBody = BodyType<ZChatInput>
+    export type SendZMessageMutationError = ErrorType<ZQuotaExhausted>
+
+    /**
+ * @summary Send a message to Z and receive an AI tutoring response
+ */
+export const useSendZMessage = <TError = ErrorType<ZQuotaExhausted>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendZMessage>>, TError,{sessionId: string;data: BodyType<ZChatInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendZMessage>>,
+        TError,
+        {sessionId: string;data: BodyType<ZChatInput>},
+        TContext
+      > => {
+      return useMutation(getSendZMessageMutationOptions(options));
+    }
+
+export const getGenerateZTtsUrl = () => {
+
+
+
+
+  return `/api/z/tts`
+}
+
+/**
+ * @summary Generate text-to-speech audio for a message via ElevenLabs
+ */
+export const generateZTts = async (zTtsInput: ZTtsInput, options?: RequestInit): Promise<ZTtsResult> => {
+
+  return customFetch<ZTtsResult>(getGenerateZTtsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(zTtsInput)
+  }
+);}
+
+
+
+
+export const getGenerateZTtsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateZTts>>, TError,{data: BodyType<ZTtsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof generateZTts>>, TError,{data: BodyType<ZTtsInput>}, TContext> => {
+
+const mutationKey = ['generateZTts'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof generateZTts>>, {data: BodyType<ZTtsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  generateZTts(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GenerateZTtsMutationResult = NonNullable<Awaited<ReturnType<typeof generateZTts>>>
+    export type GenerateZTtsMutationBody = BodyType<ZTtsInput>
+    export type GenerateZTtsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Generate text-to-speech audio for a message via ElevenLabs
+ */
+export const useGenerateZTts = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof generateZTts>>, TError,{data: BodyType<ZTtsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof generateZTts>>,
+        TError,
+        {data: BodyType<ZTtsInput>},
+        TContext
+      > => {
+      return useMutation(getGenerateZTtsMutationOptions(options));
+    }
+
+export const getCreateZCheckoutUrl = () => {
+
+
+
+
+  return `/api/z/subscription/checkout`
+}
+
+/**
+ * @summary Create a Stripe Checkout session for Z Tutor subscription
+ */
+export const createZCheckout = async ( options?: RequestInit): Promise<ZCheckoutResult> => {
+
+  return customFetch<ZCheckoutResult>(getCreateZCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getCreateZCheckoutMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createZCheckout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createZCheckout>>, TError,void, TContext> => {
+
+const mutationKey = ['createZCheckout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createZCheckout>>, void> = () => {
+
+
+          return  createZCheckout(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateZCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof createZCheckout>>>
+
+    export type CreateZCheckoutMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a Stripe Checkout session for Z Tutor subscription
+ */
+export const useCreateZCheckout = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createZCheckout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createZCheckout>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCreateZCheckoutMutationOptions(options));
+    }
+
+export const getCreateZPortalUrl = () => {
+
+
+
+
+  return `/api/z/subscription/portal`
+}
+
+/**
+ * @summary Open the Stripe Customer Portal for Z Tutor subscription management
+ */
+export const createZPortal = async ( options?: RequestInit): Promise<ZCheckoutResult> => {
+
+  return customFetch<ZCheckoutResult>(getCreateZPortalUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getCreateZPortalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createZPortal>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createZPortal>>, TError,void, TContext> => {
+
+const mutationKey = ['createZPortal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createZPortal>>, void> = () => {
+
+
+          return  createZPortal(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateZPortalMutationResult = NonNullable<Awaited<ReturnType<typeof createZPortal>>>
+
+    export type CreateZPortalMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Open the Stripe Customer Portal for Z Tutor subscription management
+ */
+export const useCreateZPortal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createZPortal>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createZPortal>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCreateZPortalMutationOptions(options));
+    }
+
+export const getListZAdminUsersUrl = () => {
+
+
+
+
+  return `/api/z/admin/users`
+}
+
+/**
+ * @summary List all Z Tutor students (admin only)
+ */
+export const listZAdminUsers = async ( options?: RequestInit): Promise<ZStudentProfile[]> => {
+
+  return customFetch<ZStudentProfile[]>(getListZAdminUsersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListZAdminUsersQueryKey = () => {
+    return [
+    `/api/z/admin/users`
+    ] as const;
+    }
+
+
+export const getListZAdminUsersQueryOptions = <TData = Awaited<ReturnType<typeof listZAdminUsers>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listZAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListZAdminUsersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listZAdminUsers>>> = ({ signal }) => listZAdminUsers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listZAdminUsers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListZAdminUsersQueryResult = NonNullable<Awaited<ReturnType<typeof listZAdminUsers>>>
+export type ListZAdminUsersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all Z Tutor students (admin only)
+ */
+
+export function useListZAdminUsers<TData = Awaited<ReturnType<typeof listZAdminUsers>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listZAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListZAdminUsersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateZAdminUserQuotaUrl = (userId: string,) => {
+
+
+
+
+  return `/api/z/admin/users/${userId}/quota`
+}
+
+/**
+ * @summary Set a student's monthly question limit and plan (admin only)
+ */
+export const updateZAdminUserQuota = async (userId: string,
+    zAdminQuotaUpdate: ZAdminQuotaUpdate, options?: RequestInit): Promise<ZStudentProfile> => {
+
+  return customFetch<ZStudentProfile>(getUpdateZAdminUserQuotaUrl(userId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(zAdminQuotaUpdate)
+  }
+);}
+
+
+
+
+export const getUpdateZAdminUserQuotaMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateZAdminUserQuota>>, TError,{userId: string;data: BodyType<ZAdminQuotaUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateZAdminUserQuota>>, TError,{userId: string;data: BodyType<ZAdminQuotaUpdate>}, TContext> => {
+
+const mutationKey = ['updateZAdminUserQuota'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateZAdminUserQuota>>, {userId: string;data: BodyType<ZAdminQuotaUpdate>}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  updateZAdminUserQuota(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateZAdminUserQuotaMutationResult = NonNullable<Awaited<ReturnType<typeof updateZAdminUserQuota>>>
+    export type UpdateZAdminUserQuotaMutationBody = BodyType<ZAdminQuotaUpdate>
+    export type UpdateZAdminUserQuotaMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Set a student's monthly question limit and plan (admin only)
+ */
+export const useUpdateZAdminUserQuota = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateZAdminUserQuota>>, TError,{userId: string;data: BodyType<ZAdminQuotaUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateZAdminUserQuota>>,
+        TError,
+        {userId: string;data: BodyType<ZAdminQuotaUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateZAdminUserQuotaMutationOptions(options));
+    }
 
