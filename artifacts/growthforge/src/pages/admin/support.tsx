@@ -45,7 +45,14 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
-  if (!res.ok) throw new Error(`${res.status}`);
+  if (!res.ok) {
+    let message = `${res.status}`;
+    try {
+      const body = await res.json() as { error?: string };
+      if (body?.error) message = body.error;
+    } catch { /* ignore parse errors */ }
+    throw new Error(message);
+  }
   return res.json() as Promise<T>;
 }
 
@@ -247,9 +254,9 @@ function KnowledgeBaseEditor() {
     },
   });
 
-  // ~4 chars per token; warn at 3 000 tokens, hard-block at 4 000 tokens
-  const WARN_CHARS = 12_000;
-  const MAX_CHARS  = 16_000;
+  // Server rejects at 12 000 chars; warn earlier at 10 000
+  const WARN_CHARS = 10_000;
+  const MAX_CHARS  = 12_000;
 
   const charCount  = content.length;
   const wordCount  = content.trim().split(/\s+/).filter(Boolean).length;
@@ -353,7 +360,11 @@ function KnowledgeBaseEditor() {
             </div>
           </div>
           {saveMutation.isError && (
-            <p className="text-xs text-red-400">Save failed. Please try again.</p>
+            <p className="text-xs text-red-400">
+              {saveMutation.error instanceof Error && saveMutation.error.message !== "422"
+                ? saveMutation.error.message
+                : "Save failed. Please try again."}
+            </p>
           )}
         </>
       )}

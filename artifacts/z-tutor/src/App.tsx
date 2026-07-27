@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
-import { useEffect } from "react";
 
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";

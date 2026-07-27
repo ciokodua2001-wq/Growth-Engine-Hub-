@@ -350,11 +350,22 @@ router.get("/owner/support/knowledge-base", requireOwner, async (_req, res): Pro
 
 // ── PUT /owner/support/knowledge-base ────────────────────────────────────────
 
+const KB_MAX_CHARS = 12_000;
+
 router.put("/owner/support/knowledge-base", requireOwner, async (req, res): Promise<void> => {
   try {
     const { content } = req.body as { content?: string };
     if (typeof content !== "string") {
       res.status(400).json({ error: "content is required" });
+      return;
+    }
+
+    if (content.trim().length > KB_MAX_CHARS) {
+      res.status(422).json({
+        error: `Knowledge base content is too long. Maximum allowed is ${KB_MAX_CHARS.toLocaleString()} characters; your content is ${content.trim().length.toLocaleString()} characters. Please shorten it before saving.`,
+        limit: KB_MAX_CHARS,
+        length: content.trim().length,
+      });
       return;
     }
 
