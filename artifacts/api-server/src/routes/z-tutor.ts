@@ -82,6 +82,18 @@ async function requireZAdmin(req: Parameters<typeof requireUserId>[0], res: Para
   return userId;
 }
 
+// ── GET /z/admin/check ───────────────────────────────────────────────────────
+router.get("/z/admin/check", async (req, res): Promise<void> => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  try {
+    const [user] = await db.select({ isOwner: usersTable.isOwner }).from(usersTable).where(eq(usersTable.id, userId));
+    res.json({ isAdmin: !!user?.isOwner });
+  } catch {
+    res.json({ isAdmin: false });
+  }
+});
+
 // ── GET /z/profile ──────────────────────────────────────────────────────────
 router.get("/z/profile", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);

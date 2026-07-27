@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Globe, GraduationCap, CreditCard, RefreshCw } from "lucide-react";
+import { ArrowLeft, GraduationCap, CreditCard, RefreshCw } from "lucide-react";
 import { useUser } from "@clerk/clerk-react";
 import { apiFetch } from "@/lib/api";
 import type { ZStudentProfile, ZQuota } from "@/lib/types";
@@ -15,8 +15,6 @@ export default function Settings() {
   const { user } = useUser();
   const [profile, setProfile] = useState<ZStudentProfile | null>(null);
   const [quota, setQuota] = useState<ZQuota | null>(null);
-  const [country, setCountry] = useState("");
-  const [province, setProvince] = useState("");
   const [grade, setGrade] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -30,11 +28,7 @@ export default function Settings() {
     ]).then(([p, q]) => {
       setProfile(p);
       setQuota(q);
-      if (p) {
-        setCountry(p.country ?? "");
-        setProvince(p.province ?? "");
-        setGrade(p.grade ?? "");
-      }
+      if (p) setGrade(p.grade ?? "");
     });
   }, []);
 
@@ -43,7 +37,7 @@ export default function Settings() {
     try {
       const updated = await apiFetch<ZStudentProfile>("/z/profile", {
         method: "PUT",
-        body: JSON.stringify({ country: country || null, province: province || null, grade: grade || null }),
+        body: JSON.stringify({ grade: grade || null }),
       });
       setProfile(updated);
       setSaved(true);
@@ -75,7 +69,6 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen bg-[#080B14] text-white">
-      {/* Nav */}
       <header className="flex items-center gap-3 px-6 py-4 border-b border-white/5">
         <button
           onClick={() => navigate("/")}
@@ -104,52 +97,27 @@ export default function Settings() {
           </div>
         </section>
 
-        {/* Curriculum profile */}
+        {/* Grade */}
         <section className="p-5 rounded-xl bg-white/[0.03] border border-white/5">
           <div className="flex items-center gap-2 mb-4">
             <GraduationCap className="w-4 h-4 text-indigo-400" />
-            <h2 className="text-sm font-semibold text-white">Curriculum Profile</h2>
+            <h2 className="text-sm font-semibold text-white">Grade</h2>
           </div>
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs text-white/40 uppercase tracking-wider block mb-1.5">Country</label>
-              <input
-                type="text"
-                value={country}
-                onChange={(e) => setCountry(e.target.value)}
-                placeholder="e.g. Canada"
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-white/40 uppercase tracking-wider block mb-1.5">Province / State</label>
-              <input
-                type="text"
-                value={province}
-                onChange={(e) => setProvince(e.target.value)}
-                placeholder="e.g. Ontario"
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-white/40 uppercase tracking-wider block mb-1.5">Grade</label>
-              <select
-                value={grade}
-                onChange={(e) => setGrade(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
-              >
-                <option value="">Select grade…</option>
-                {GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </div>
-          </div>
+          <select
+            value={grade}
+            onChange={(e) => setGrade(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+          >
+            <option value="">Select grade…</option>
+            {GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
+          </select>
           <button
             onClick={handleSave}
             disabled={saving}
             className="mt-4 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 rounded-lg text-sm font-medium transition-colors"
           >
-            {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
-            {saved ? "Saved!" : saving ? "Saving…" : "Save changes"}
+            {saving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+            {saved ? "Saved!" : saving ? "Saving…" : "Save"}
           </button>
         </section>
 
@@ -159,7 +127,6 @@ export default function Settings() {
             <CreditCard className="w-4 h-4 text-violet-400" />
             <h2 className="text-sm font-semibold text-white">Subscription</h2>
           </div>
-
           {quota?.plan === "paid" ? (
             <div className="space-y-3">
               <div className="flex items-center gap-2">

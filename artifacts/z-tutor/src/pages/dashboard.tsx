@@ -36,7 +36,7 @@ export default function Dashboard() {
       setSessions(s ?? []);
       setQuota(q);
       setLoading(false);
-      // If profile doesn't exist or missing grade, go to onboarding
+      // If student profile missing grade, go to onboarding
       if (!p || !p.grade) {
         navigate("/onboarding");
       }
