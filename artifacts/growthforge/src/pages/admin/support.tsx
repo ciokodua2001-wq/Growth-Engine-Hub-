@@ -254,8 +254,8 @@ function KnowledgeBaseEditor() {
     },
   });
 
-  // Server rejects at 12 000 chars; warn earlier at 10 000
-  const WARN_CHARS = 10_000;
+  // Server rejects at 12 000 chars; warn at 80% (9 600)
+  const WARN_CHARS = Math.floor(12_000 * 0.8); // 9 600
   const MAX_CHARS  = 12_000;
 
   const charCount  = content.length;
