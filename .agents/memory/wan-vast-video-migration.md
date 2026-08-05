@@ -213,14 +213,124 @@ likely least effort:
    worker permanently — defeats the "scale to $0 idle cost" goal the user
    explicitly required, so likely not acceptable as a primary fix.
 
+### Diagnostic session (2026-08-05) — root cause CONFIRMED, first successful render, one NEW finding on GPU tier
+
+Per user approval, rented plain (non-serverless) on-demand instances — no
+autoscaler churn risk — and watched boot/provisioning live via SSH (temporary
+ed25519 keypair generated locally, attached per-instance via
+`POST /api/v0/instances/{id}/ssh/`, detached automatically when each instance
+was destroyed).
+
+**Root cause definitively confirmed (not a bug):** on a RTX 3090 host, the
+provisioning script's 6 sequential `curl` downloads (~85GB total) took **~39
+minutes wall-clock** at 17–50MB/s (network-bandwidth-bound, fluctuating).
+Watched `docker ps` / `ps aux` / `nvidia-smi` throughout — the container itself
+comes up within ~3–4 minutes (that part is fine), then the onstart
+`PROVISIONING_SCRIPT` runs for the remaining ~35 minutes downloading models
+into a container Vast.ai's serverless engine already considers "running" and
+is timing for its benchmark/readiness check. This categorically cannot fit in
+whatever short window (empirically ~2–3 min from the first live test) the
+serverless engine allows — confirmed via docs
+(`docs.vast.ai/guides/serverless/automated-performance-testing`) that there is
+no user-configurable "readiness timeout" parameter; the benchmark is baked
+into the PyWorker/template itself.
+
+**NEW finding — GPU generation/tier matters, not just VRAM capacity:** tested
+actual T2V generation (exact production `wanWorkflows.ts` graph, 1280×704,
+81 frames, 20 steps) on two different 24GB cards:
+- **Titan RTX (Turing, 2018, no native FP8 tensor cores):** first step alone
+  (incl. one-time model-load/compile) took 11m34s; steady-state pace settled
+  at **~694s/iteration** — 10 steps × 2 stages would be several hours per
+  5-second clip. Confirmed via `nvidia-smi` (100% util, only ~180-206W draw —
+  well under the card's TDP, consistent with FP8 ops falling back to slow
+  software emulation on hardware without native FP8 support). **Killed this
+  test early — not commercially viable at any price.**
+- **RTX 5090 (Blackwell, native FP8 support):** same exact workflow JSON,
+  same prompt. Steady-state pace **~56s/iteration**. Full 20-step two-stage
+  generation completed in **19m11s** end-to-end (`Prompt executed in
+  00:19:11` in the ComfyUI log) for a single 5-second 1280×704 clip. **~13x
+  faster than the Titan RTX** on paper-equivalent 24GB VRAM.
+- **Conclusion:** "24GB VRAM" alone is an insufficient spec — the workergroup
+  `search_params` MUST also constrain to GPU architectures with native FP8
+  tensor core support (RTX 4090/5090, L40S, H100/A100 — i.e. Ada Lovelace or
+  newer / Hopper or newer). Older Ampere/Turing 24GB cards (RTX 3090, Titan
+  RTX, A5000) that happen to satisfy the VRAM filter are NOT viable and must
+  be explicitly excluded, e.g. via `search_params` GPU name allow-list rather
+  than relying on `gpu_ram` alone.
+
+**First successful real render — pipeline validated end-to-end:** on the RTX
+5090 instance, submitted the exact production T2V workflow JSON directly to
+ComfyUI's `/prompt` API (bypassing the Vast.ai PyWorker route/generate-sync
+layer, which was already contract-verified in the first live test) with zero
+`node_errors`. Result: a clean 4.1MB WEBM
+(`growthforge-wan-diagnostic_00001_.webm`), transcoded with the exact same
+ffmpeg flags as `wanFfmpeg.ts`'s `transcodeWebmToMp4()` to a 1.6MB MP4,
+downloaded locally and shown to the user — genuinely cinematic quality,
+matching the prompt ("aerial drone shot of a modern glass office tower at
+golden hour") with correct camera motion, lighting, and no artifacts. This is
+the first real end-to-end confirmation that the ComfyUI graph in
+`wanWorkflows.ts` produces commercially usable output on correctly-specified
+hardware.
+
+**Cost + cleanup:** three instances total across this session (bad/stuck RTX
+3090 host destroyed after 15+ min frozen on a single Docker layer — unrelated
+host-level fluke, not our bug; Titan RTX ~35 min; RTX 5090 ~80 min). All under
+$1 total. All instances destroyed, confirmed zero remain via
+`GET /api/v1/instances/`. Per-instance SSH keys auto-removed with their
+instances (confirmed `GET /api/v0/ssh/` on the account returns `[]`).
+
+**Decision needed from user — how to run this in production**, given the
+confirmed ~35–40 min unavoidable cold-start for a from-scratch weights
+download, and Vast.ai's serverless engine having no tolerance for a boot that
+slow:
+
+1. **(Recommended) Self-managed on-demand worker pool** — stop using Vast.ai's
+   "Serverless" workergroup/autoscaler product entirely for this endpoint.
+   Instead, `api-server` directly manages on-demand instance lifecycle using
+   the same plain REST calls already proven in this diagnostic session
+   (`POST /api/v0/asks/{id}/` to rent, `DELETE /api/v0/instances/{id}/` to
+   destroy): rent one instance on the first queued scene job if none is
+   already warm, reuse it for subsequent jobs, and destroy it ourselves after
+   an idle timer (needs to be materially longer than 300s given the ~35-40min
+   cold start cost — e.g. 20-30 min — to avoid re-paying the cold start
+   repeatedly for closely-spaced requests). Pros: full control, no fighting an
+   opaque benchmark timeout, reuses code already written and tested today.
+   Cons: we own the idle-timer logic (not much — a simple poll/cron already
+   fits the existing queue architecture); first request after any idle
+   teardown still waits ~35-40 min (masked by the app's existing "still
+   filming, trust it" UI — but still worth setting expectations).
+2. **Custom Docker image with baked-in weights** — build `FROM vastai/comfy`
+   with all 6 model files copied in at build time, push to a registry, point
+   a NEW workergroup template at it. Only helps if Vast.ai's serverless
+   scheduler reuses the SAME physical host across worker churns (their docs
+   suggest it "converges" on preferred hardware over time, but this is
+   unconfirmed for our case) — Docker's local layer cache on that host would
+   then make subsequent pulls fast. The very first pull to any brand-new host
+   is just as slow as the raw download (~35-40 min), and Vast.ai does NOT
+   support instance-to-template snapshotting (confirmed via docs) — the image
+   must be built and pushed externally, a nontrivial one-time engineering
+   investment (~90GB image; needs a build environment with fast egress and
+   enough disk).
+3. Keep serverless but hold ≥1 warm worker permanently (`min_load`/
+   `cold_workers` ≥ 1) — guarantees fast starts but abandons the "$0 idle
+   cost" requirement entirely; not recommended given that was an explicit
+   goal.
+
 ### Still pending
-  - **Decide + implement the pre-baked-weights fix (Volume or custom image)
-    before attempting another live test** — see above.
-  - Re-create the Vast.ai Serverless endpoint + workergroup once the fix is
-    in place, and fill in the new `VAST_AI_ENDPOINT_ID`.
-  - Rent GPU time and render the first real T2V + I2V test clip end-to-end.
-  - Double-check `gpu_ram` filtering — consider adding it explicitly into
-    `search_params` as well as the top-level field.
+  - **Get user's decision on the production worker-management approach**
+    (see three options above) — blocks everything else.
+  - Implement the chosen approach (most likely: self-managed on-demand pool
+    with GPU `search_params` restricted to FP8-native architectures —
+    RTX 4090/5090/L40S/H100 — not just `gpu_ram>=24000`).
+  - Wire the chosen approach into `wanRenderer.ts` (currently written against
+    the Vast.ai Serverless `/route/` + `/generate/sync` contract — needs
+    adjustment if switching to self-managed on-demand instances, since those
+    expose ComfyUI's native `/prompt` + `/history` API directly instead, as
+    used successfully in this diagnostic session).
+  - Rent GPU time and render the first real T2V + I2V test clip through the
+    actual `api-server` code path (today's render was direct-to-ComfyUI,
+    bypassing `wanRenderer.ts`, to isolate variables — still needs a true
+    end-to-end test through the real code).
   - Wire the AI decomposition step's scene-cut decision (`newSceneCut`
     authoring) so I2V continuity actually triggers for some scenes — currently
     every scene is T2V-only.
