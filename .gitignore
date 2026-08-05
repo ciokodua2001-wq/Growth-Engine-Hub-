@@ -47,3 +47,12 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Secrets — never commit real env files
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Local Dev Toolbox marker (not secret, just local bookkeeping)
+.toolbox-project

@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth } from "./supabaseAuth.js";
 import { eq, and } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { projectsTable, usersTable, teamMembersTable, type Project } from "@workspace/db";

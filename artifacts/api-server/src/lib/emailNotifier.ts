@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 import { db } from "@workspace/db";
-import { projectsTable } from "@workspace/db";
+import { projectsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger.js";
 
@@ -13,9 +13,6 @@ export async function getOwnerEmailForProject(projectId: number): Promise<string
 
 async function getOwnerEmail(projectId: number): Promise<string | null> {
   try {
-    const secretKey = process.env.CLERK_SECRET_KEY;
-    if (!secretKey) return null;
-
     const [project] = await db
       .select({ ownerId: projectsTable.ownerId })
       .from(projectsTable)
@@ -23,13 +20,12 @@ async function getOwnerEmail(projectId: number): Promise<string | null> {
 
     if (!project?.ownerId) return null;
 
-    const r = await fetch(`https://api.clerk.com/v1/users/${project.ownerId}`, {
-      headers: { Authorization: `Bearer ${secretKey}` },
-    });
-    if (!r.ok) return null;
+    const [owner] = await db
+      .select({ email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.id, project.ownerId));
 
-    const user = await r.json() as { email_addresses?: Array<{ email_address: string }> };
-    return user.email_addresses?.[0]?.email_address ?? null;
+    return owner?.email ?? null;
   } catch {
     return null;
   }

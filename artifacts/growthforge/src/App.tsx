@@ -1,11 +1,11 @@
-import { useEffect, useRef } from "react";
-import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
-import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { ClerkProvider, useClerk } from "@clerk/react";
-import { publishableKeyFromHost } from "@clerk/react/internal";
-import { dark } from "@clerk/themes";
+import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider } from "@/contexts/auth-context";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { basePath } from "@/lib/basePath";
+import { DevEnvironmentBanner } from "@/components/dev-environment-banner";
+import { DevAccessGate } from "@/components/dev-access-gate";
 import NotFound from "@/pages/not-found";
 
 import AdminDashboard from "@/pages/admin/index";
@@ -68,109 +68,14 @@ const queryClient = new QueryClient({
   },
 });
 
-// Required verbatim — resolves publishable key per hostname for custom domains.
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
-
-// Empty in dev (intentional), auto-set in prod. Do NOT gate on PROD/NODE_ENV.
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL as string | undefined;
-
-const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-function stripBase(path: string): string {
-  return basePath && path.startsWith(basePath)
-    ? path.slice(basePath.length) || "/"
-    : path;
-}
-
-if (!clerkPubKey) {
-  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY");
-}
-
-const clerkAppearance = {
-  baseTheme: dark,
-  cssLayerName: "clerk",
-  options: {
-    logoPlacement: "inside" as const,
-    logoLinkUrl: basePath || "/",
-    logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
-  },
-  variables: {
-    colorPrimary: "#00E676",
-    colorForeground: "#ffffff",
-    colorMutedForeground: "#7a8fa6",
-    colorDanger: "#ff4757",
-    colorBackground: "#081526",
-    colorInput: "#0d1b2e",
-    colorInputForeground: "#ffffff",
-    colorNeutral: "#1e3a5f",
-    fontFamily: "Inter, -apple-system, sans-serif",
-    borderRadius: "0.5rem",
-  },
-  elements: {
-    rootBox: "w-full flex justify-center",
-    cardBox:
-      "bg-[#081526] rounded-2xl w-[440px] max-w-full overflow-hidden shadow-2xl shadow-black/60 border border-[#1e3a5f]",
-    card: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    headerTitle: "text-white font-bold",
-    headerSubtitle: "text-[#7a8fa6]",
-    socialButtonsBlockButtonText: "text-white",
-    formFieldLabel: "text-[#a8b8cc] text-sm",
-    footerActionLink: "text-[#00E676] hover:text-[#14F195]",
-    footerActionText: "text-[#7a8fa6]",
-    dividerText: "text-[#7a8fa6]",
-    identityPreviewEditButton: "text-[#00E676]",
-    formFieldSuccessText: "text-[#00E676]",
-    alertText: "text-white",
-    logoBox: "flex justify-center py-2",
-    logoImage: "h-8 w-auto",
-    socialButtonsBlockButton:
-      "bg-[#0f2035] border-[#1e3a5f] hover:bg-[#1e3a5f] text-white",
-    formButtonPrimary:
-      "bg-[#00E676] hover:bg-[#14F195] text-black font-semibold",
-    formFieldInput: "bg-[#0f2035] border-[#1e3a5f] text-white",
-    footerAction: "bg-transparent border-t border-[#1e3a5f]",
-    dividerLine: "bg-[#1e3a5f]",
-    alert: "bg-[#0f2035] border-[#1e3a5f]",
-    otpCodeFieldInput: "bg-[#0f2035] border-[#1e3a5f] text-white",
-    formFieldRow: "",
-    main: "gap-4",
-  },
-};
-
-function ClerkQueryClientCacheInvalidator() {
-  const { addListener } = useClerk();
-  const qc = useQueryClient();
-  const prevUserIdRef = useRef<string | null | undefined>(undefined);
-
-  useEffect(() => {
-    const unsubscribe = addListener(({ user }) => {
-      const userId = user?.id ?? null;
-      if (
-        prevUserIdRef.current !== undefined &&
-        prevUserIdRef.current !== userId
-      ) {
-        qc.clear();
-      }
-      prevUserIdRef.current = userId;
-    });
-    return unsubscribe;
-  }, [addListener, qc]);
-
-  return null;
-}
-
 function AppRoutes() {
   return (
     <Switch>
       <Route path="/" component={LandingPage} />
 
-      {/* Auth — /*? optional wildcard required for Clerk OAuth sub-paths */}
-      <Route path="/sign-in/*?" component={SignInPage} />
-      <Route path="/sign-up/*?" component={SignUpPage} />
+      {/* Auth */}
+      <Route path="/sign-in" component={SignInPage} />
+      <Route path="/sign-up" component={SignUpPage} />
       <Route path="/auth/redirect" component={AuthRedirectPage} />
 
       {/* Onboarding funnel */}
@@ -297,39 +202,23 @@ function AppRoutes() {
   );
 }
 
-function ClerkProviderWithRoutes() {
-  const [, setLocation] = useLocation();
-
-  return (
-    <ClerkProvider
-      publishableKey={clerkPubKey}
-      proxyUrl={clerkProxyUrl}
-      appearance={clerkAppearance}
-      signInUrl={`${basePath}/sign-in`}
-      signUpUrl={`${basePath}/sign-up`}
-      signInFallbackRedirectUrl={`${basePath}/auth/redirect`}
-      signUpFallbackRedirectUrl={`${basePath}/plans`}
-      routerPush={(to) => setLocation(stripBase(to))}
-      routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
-    >
-      <QueryClientProvider client={queryClient}>
-        <ClerkQueryClientCacheInvalidator />
-        <TooltipProvider>
-          <AppRoutes />
-        </TooltipProvider>
-        <Toaster />
-      </QueryClientProvider>
-    </ClerkProvider>
-  );
-}
-
 function App() {
   if (typeof document !== "undefined") {
     document.documentElement.classList.add("dark");
   }
   return (
     <WouterRouter base={basePath}>
-      <ClerkProviderWithRoutes />
+      <DevEnvironmentBanner />
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <TooltipProvider>
+            <DevAccessGate>
+              <AppRoutes />
+            </DevAccessGate>
+          </TooltipProvider>
+          <Toaster />
+        </AuthProvider>
+      </QueryClientProvider>
     </WouterRouter>
   );
 }

@@ -288,44 +288,20 @@ async function ensureSupportKnowledgeBaseTable(): Promise<void> {
   }
 }
 
-async function ensureZTutorTables(): Promise<void> {
+// Z Tutor (Quantivarian) has been removed from GrowthForge — it was a
+// separate product that never had real students/data here. This one-time
+// cleanup drops its leftover tables if they exist; safe to delete this
+// function entirely once confirmed run in every environment.
+async function dropLegacyZTutorTables(): Promise<void> {
   try {
     await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS z_student_profiles (
-        user_id text PRIMARY KEY,
-        country text,
-        province text,
-        grade text,
-        plan text NOT NULL DEFAULT 'free',
-        monthly_limit integer,
-        questions_used_this_session integer NOT NULL DEFAULT 0,
-        questions_used_this_month integer NOT NULL DEFAULT 0,
-        last_reset_at timestamptz,
-        stripe_customer_id text,
-        stripe_subscription_id text,
-        created_at timestamptz NOT NULL DEFAULT now(),
-        updated_at timestamptz NOT NULL DEFAULT now()
-      );
-      CREATE TABLE IF NOT EXISTS z_sessions (
-        id text PRIMARY KEY,
-        user_id text NOT NULL,
-        subject text NOT NULL,
-        lesson text NOT NULL,
-        unit text NOT NULL,
-        created_at timestamptz NOT NULL DEFAULT now()
-      );
-      CREATE TABLE IF NOT EXISTS z_messages (
-        id text PRIMARY KEY,
-        session_id text NOT NULL,
-        role text NOT NULL,
-        content text NOT NULL,
-        audio_url text,
-        created_at timestamptz NOT NULL DEFAULT now()
-      );
+      DROP TABLE IF EXISTS z_messages;
+      DROP TABLE IF EXISTS z_sessions;
+      DROP TABLE IF EXISTS z_student_profiles;
     `);
-    logger.info("Z Tutor tables ready");
+    logger.info("Legacy Z Tutor tables dropped (if present)");
   } catch (err) {
-    logger.warn({ err }, "Z Tutor table migration failed (non-fatal)");
+    logger.warn({ err }, "Legacy Z Tutor table cleanup failed (non-fatal)");
   }
 }
 
@@ -430,7 +406,7 @@ app.listen(port, (err) => {
   void ensureOwnerMarketingTables();
   void ensureSeoSitemapTable();
   void ensureSeoComparisonPagesTable();
-  void ensureZTutorTables();
+  void dropLegacyZTutorTables();
   void initStripe();
   void recoverStuckAssemblies();
 });

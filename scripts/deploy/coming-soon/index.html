@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+<title>GrowthForge — Coming Soon</title>
+<meta name="description" content="GrowthForge is an AI-powered growth operating system launching soon. Paste your URL, get your marketing department." />
+<meta name="robots" content="index, follow" />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --background: #040B14;
+    --foreground: #FFFFFF;
+    --primary: #00E676;
+    --accent: #00D4FF;
+    --muted: rgba(255,255,255,0.45);
+    --border: rgba(255,255,255,0.1);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: 'Inter', sans-serif;
+  }
+  body {
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background:
+      radial-gradient(circle at 50% 0%, rgba(0, 230, 118, 0.12), transparent 60%),
+      var(--background);
+  }
+  .card {
+    max-width: 560px;
+    width: 100%;
+    text-align: center;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin-bottom: 28px;
+  }
+  .badge .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--primary);
+    box-shadow: 0 0 0 3px rgba(0, 230, 118, 0.25);
+  }
+  .logo {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    font-weight: 800;
+    font-size: 26px;
+    color: #04140B;
+  }
+  h1 {
+    font-size: clamp(28px, 5vw, 40px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 14px;
+  }
+  h1 span {
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  p {
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0 auto 32px;
+    max-width: 440px;
+  }
+  .footer {
+    margin-top: 40px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.3);
+  }
+  .footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">G</div>
+    <div class="badge"><span class="dot"></span>Launching soon</div>
+    <h1>Your AI marketing <span>department</span> is almost here.</h1>
+    <p>GrowthForge turns any business website into a full AI marketing department — strategy, content, social, email, and video. We're putting the finishing touches on things before opening our doors — check back shortly.</p>
+    <div class="footer">&copy; 2026 Strapli Technologies Inc. &middot; <a href="mailto:hello@usegrowthforge.com">Contact us</a></div>
+  </div>
+</body>
+</html>

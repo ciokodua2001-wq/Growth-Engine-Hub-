@@ -63,9 +63,9 @@ vi.mock("drizzle-orm", () => ({
   asc: (arg: unknown) => arg,
 }));
 
-vi.mock("@clerk/express", () => ({
-  getAuth: (_req: unknown) => ({ userId: "user_clerk_test" }),
-  clerkMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+vi.mock("../lib/supabaseAuth.js", () => ({
+  getAuth: (_req: unknown) => ({ userId: "user_clerk_test", sessionClaims: null }),
+  supabaseAuthMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
 vi.mock("../lib/authz.js", () => ({

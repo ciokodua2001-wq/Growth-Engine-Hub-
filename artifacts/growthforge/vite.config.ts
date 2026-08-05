@@ -54,6 +54,9 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   root: path.resolve(import.meta.dirname),
+  // Share the monorepo-root .env (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, etc.)
+  // instead of requiring a separate .env file per frontend package.
+  envDir: path.resolve(import.meta.dirname, "..", ".."),
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
@@ -65,6 +68,16 @@ export default defineConfig({
     allowedHosts: true,
     fs: {
       strict: true,
+    },
+    // In production, /api/* is routed to the api-server by the reverse proxy in
+    // front of both processes (they share one origin). The Vite dev server has
+    // no such proxy in front of it, so replicate that routing here for local
+    // dev — otherwise every fetch("/api/...") 404s against Vite itself.
+    proxy: {
+      "/api": {
+        target: process.env.API_PROXY_TARGET ?? "http://localhost:3001",
+        changeOrigin: true,
+      },
     },
   },
   preview: {

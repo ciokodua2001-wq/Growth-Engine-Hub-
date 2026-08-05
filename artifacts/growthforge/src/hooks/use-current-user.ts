@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useUser } from "@clerk/react";
+import { useAuth } from "@/contexts/auth-context";
 
 export interface CurrentUser {
   id: string;
@@ -10,6 +10,7 @@ export interface CurrentUser {
   subscriptionStatus: string;
   suspended: boolean;
   onboardingComplete: boolean;
+  canAccessDev: boolean;
 }
 
 export function isAdminRole(role: string | undefined | null): boolean {
@@ -17,11 +18,11 @@ export function isAdminRole(role: string | undefined | null): boolean {
 }
 
 /**
- * Fetches the app-level user record (role, plan, etc.) for the signed-in Clerk user.
- * Only fires the request once Clerk has finished loading and confirms a user is present.
+ * Fetches the app-level user record (role, plan, etc.) for the signed-in user.
+ * Only fires the request once auth has finished loading and confirms a user is present.
  */
 export function useCurrentUser() {
-  const { user, isLoaded } = useUser();
+  const { user, isLoaded } = useAuth();
 
   const query = useQuery<CurrentUser>({
     queryKey: ["/api/auth/me", user?.id],

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { useUser, UserButton } from "@clerk/react";
+import { useAuth } from "@/contexts/auth-context";
+import { UserMenu } from "@/components/ui/user-menu";
 import {
   useListProjects,
   useCreateProject,
@@ -198,7 +199,7 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
 export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [, setLocation] = useLocation();
-  const { user, isLoaded } = useUser();
+  const { user, isLoaded } = useAuth();
   const { data: projects, isLoading } = useListProjects();
   const { isAdmin, data: currentUserData, isLoading: isUserLoading } = useCurrentUser();
   const isOwner = currentUserData?.isOwner ?? false;
@@ -233,15 +234,7 @@ export default function DashboardPage() {
               <Link href="/dashboard" className="text-foreground font-medium">Dashboard</Link>
               <Link href="/dashboard" className="hover:text-foreground transition-colors">Projects</Link>
             </nav>
-            <UserButton
-              appearance={{
-                variables: { colorPrimary: "#00E676" },
-                elements: {
-                  userButtonPopoverActionButtonText: { color: "#FFD600" },
-                  userButtonPopoverActionButtonIcon: { color: "#FFD600" },
-                },
-              }}
-            />
+            <UserMenu />
           </div>
         </div>
       </header>

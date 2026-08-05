@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth } from "../lib/supabaseAuth.js";
 import { db } from "@workspace/db";
 import { usersTable, videoWalletsTable, videoSecondLogsTable } from "@workspace/db";
 import { eq, desc, sql, gte, and, ilike } from "drizzle-orm";

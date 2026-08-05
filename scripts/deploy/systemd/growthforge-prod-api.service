@@ -1,0 +1,17 @@
+[Unit]
+Description=GrowthForge API server (prod)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/prod/app/artifacts/api-server
+EnvironmentFile=/home/ubuntu/prod/app/.env
+Environment=APP_ENV=production
+Environment=PORT=4002
+ExecStart=/usr/bin/node --enable-source-maps dist/index.mjs
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

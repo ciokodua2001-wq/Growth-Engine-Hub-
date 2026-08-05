@@ -1,6 +1,6 @@
-import { File } from "@google-cloud/storage";
-
-const ACL_POLICY_METADATA_KEY = "custom:aclPolicy";
+import { eq, and } from "drizzle-orm";
+import { db } from "@workspace/db";
+import { objectAclPoliciesTable } from "@workspace/db";
 
 // Can be flexibly defined according to the use case.
 //
@@ -10,7 +10,7 @@ const ACL_POLICY_METADATA_KEY = "custom:aclPolicy";
 // - GROUP_MEMBER: the users who are members of a specific group;
 // - SUBSCRIBER: the users who are subscribers of a specific service / content
 //   creator.
-export enum ObjectAccessGroupType {}
+export type ObjectAccessGroupType = string;
 
 export interface ObjectAccessGroup {
   type: ObjectAccessGroupType;
@@ -29,7 +29,17 @@ export interface ObjectAclRule {
   permission: ObjectPermission;
 }
 
-// Stored as object custom metadata under "custom:aclPolicy" (JSON string).
+/**
+ * Identifies an object in Supabase Storage. Replaces the GCS `File` handle
+ * previously passed around here — Supabase Storage has no first-class custom
+ * metadata API, so ACL state is tracked in Postgres (see schema/objectStorage.ts)
+ * instead of on the storage object itself.
+ */
+export interface StorageObjectRef {
+  bucketName: string;
+  objectName: string;
+}
+
 export interface ObjectAclPolicy {
   owner: string;
   visibility: "public" | "private";
@@ -68,42 +78,60 @@ function createObjectAccessGroup(
 }
 
 export async function setObjectAclPolicy(
-  objectFile: File,
+  ref: StorageObjectRef,
   aclPolicy: ObjectAclPolicy,
 ): Promise<void> {
-  const [exists] = await objectFile.exists();
-  if (!exists) {
-    throw new Error(`Object not found: ${objectFile.name}`);
-  }
-
-  await objectFile.setMetadata({
-    metadata: {
-      [ACL_POLICY_METADATA_KEY]: JSON.stringify(aclPolicy),
-    },
-  });
+  await db
+    .insert(objectAclPoliciesTable)
+    .values({
+      bucketName: ref.bucketName,
+      objectName: ref.objectName,
+      ownerId: aclPolicy.owner,
+      visibility: aclPolicy.visibility,
+      aclRules: aclPolicy.aclRules ?? [],
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [objectAclPoliciesTable.bucketName, objectAclPoliciesTable.objectName],
+      set: {
+        ownerId: aclPolicy.owner,
+        visibility: aclPolicy.visibility,
+        aclRules: aclPolicy.aclRules ?? [],
+        updatedAt: new Date(),
+      },
+    });
 }
 
 export async function getObjectAclPolicy(
-  objectFile: File,
+  ref: StorageObjectRef,
 ): Promise<ObjectAclPolicy | null> {
-  const [metadata] = await objectFile.getMetadata();
-  const aclPolicy = metadata?.metadata?.[ACL_POLICY_METADATA_KEY];
-  if (!aclPolicy) {
-    return null;
-  }
-  return JSON.parse(aclPolicy as string);
+  const [row] = await db
+    .select()
+    .from(objectAclPoliciesTable)
+    .where(
+      and(
+        eq(objectAclPoliciesTable.bucketName, ref.bucketName),
+        eq(objectAclPoliciesTable.objectName, ref.objectName),
+      ),
+    );
+  if (!row) return null;
+  return {
+    owner: row.ownerId,
+    visibility: row.visibility as "public" | "private",
+    aclRules: (row.aclRules ?? undefined) as ObjectAclPolicy["aclRules"],
+  };
 }
 
 export async function canAccessObject({
   userId,
-  objectFile,
+  objectRef,
   requestedPermission,
 }: {
   userId?: string;
-  objectFile: File;
+  objectRef: StorageObjectRef;
   requestedPermission: ObjectPermission;
 }): Promise<boolean> {
-  const aclPolicy = await getObjectAclPolicy(objectFile);
+  const aclPolicy = await getObjectAclPolicy(objectRef);
   if (!aclPolicy) {
     return false;
   }

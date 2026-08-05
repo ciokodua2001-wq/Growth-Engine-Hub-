@@ -34,7 +34,7 @@ The bootstrap endpoint (`POST /api/owner/bootstrap`) is a one-shot operation —
 - Build: esbuild (CJS bundle)
 - Auth: Clerk (Replit-managed, app_3GAO5duvU6bI7Y0N5ww2FwrFxlf) — email + Google
 - Frontend: React + Vite + Wouter + Tailwind v4 + Framer Motion
-- AI: Anthropic Claude (`claude-sonnet-4-6`) via Replit AI Integrations (`@workspace/integrations-anthropic-ai`)
+- AI: Google Gemini (`gemini-3.6-flash` / `gemini-3.1-flash-lite`) + Imagen image generation via `@workspace/integrations-google-genai`; narration via Google Cloud TTS (`@workspace/integrations-google-tts-server`)
 
 ## Where things live
 

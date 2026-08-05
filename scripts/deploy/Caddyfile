@@ -1,0 +1,94 @@
+# GrowthForge — Caddy reverse-proxy / static-file config for the dedicated
+# GrowthForge Lightsail instance (ca-central-1). Same pattern as
+# dev.quantivarian.com: a Basic-Auth-gated, noindexed dev host serving the
+# full app, and a public production host that shows a static "Coming Soon"
+# page until launch is approved.
+#
+# Unlike Quantivarian's current (pre-launch) setup, dev and prod here run as
+# TWO SEPARATE api-server processes against two separate build directories
+# (/home/ubuntu/dev/app vs /home/ubuntu/prod/app) — GrowthForge's active
+# video-rendering work needs dev and prod to stay independently deployable
+# even after launch, not just until launch day.
+#
+# Install: sudo cp Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+
+# --- DEVELOPMENT (internal only): full app, hidden from search. ---
+# NOTE: an earlier revision also put HTTP Basic Auth in front of this host as
+# a network-level lock on top of the app-level gate below. That was removed —
+# native browser Basic Auth prompts fire per-resource (main document, XHRs to
+# /api/*, etc.) and can fire multiple times in quick succession before the
+# browser's credential cache catches up, which produced confusing, unreliable
+# stacked login dialogs across OAuth redirects. Access control here now relies
+# entirely on the app layer, which does not have that failure mode:
+#   - DevAccessGate (frontend): blocks every route until Supabase-authenticated
+#     AND admin-approved (`users.canAccessDev = true`)
+#   - requireDevAccess (api-server, APP_ENV=development): blocks every /api/*
+#     route except sign-in/provisioning unless `canAccessDev = true`
+#   - X-Robots-Tag + robots.txt below: keeps it out of search indexes
+# If a network-level lock is wanted again later, prefer an IP allowlist for
+# known developer IPs over Basic Auth, since it has no client-visible prompt.
+dev.usegrowthforge.com {
+	route {
+		header X-Robots-Tag "noindex, nofollow"
+		handle /robots.txt {
+			root * /home/ubuntu/dev-static
+			file_server
+		}
+		handle /api/* {
+			reverse_proxy localhost:4001
+		}
+		handle {
+			root * /home/ubuntu/dev/app/artifacts/growthforge/dist/public
+			try_files {path} /index.html
+			file_server
+		}
+	}
+	encode gzip
+}
+
+# --- PRODUCTION (pre-launch): serve the "Coming Soon" static page only. ---
+# No proxy to the API and no serving of app assets here — the real app is
+# fully built and verified on dev.usegrowthforge.com above. At launch time,
+# comment out this block and the www redirect below it, then uncomment the
+# "LAUNCHED" block further down (or see docs/deployment.md §Promotion).
+usegrowthforge.com {
+	root * /home/ubuntu/coming-soon
+	file_server
+	encode gzip
+}
+
+www.usegrowthforge.com {
+	redir https://usegrowthforge.com{uri} permanent
+}
+
+# --- LAUNCHED: uncomment this block (and delete the two blocks above it)
+#     once dev has been fully tested and launch is approved. Points at the
+#     prod api-server process + the prod build directory — a separate,
+#     independently-promoted deployment from dev, not the same process. ---
+# usegrowthforge.com {
+# 	route {
+# 		handle /api/* {
+# 			reverse_proxy localhost:4002
+# 		}
+# 		handle {
+# 			root * /home/ubuntu/prod/app/artifacts/growthforge/dist/public
+# 			try_files {path} /index.html
+# 			file_server
+# 		}
+# 	}
+# 	encode gzip
+# }
+#
+# www.usegrowthforge.com {
+# 	redir https://usegrowthforge.com{uri} permanent
+# }
+
+# --- Fallback: raw IP / unmatched Host header -> Coming Soon, hidden from search. ---
+:80 {
+	route {
+		header X-Robots-Tag "noindex, nofollow"
+		root * /home/ubuntu/coming-soon
+		file_server
+	}
+	encode gzip
+}

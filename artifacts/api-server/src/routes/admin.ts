@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth } from "../lib/supabaseAuth.js";
 import { db } from "@workspace/db";
 import {
   usersTable,
@@ -212,8 +212,8 @@ router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> =
     const blocked = await guardOwner(req, res, req.params.id as string, "patch");
     if (blocked) return;
 
-    const { role, plan, subscriptionStatus, suspended } = req.body as {
-      role?: string; plan?: string; subscriptionStatus?: string; suspended?: boolean;
+    const { role, plan, subscriptionStatus, suspended, canAccessDev } = req.body as {
+      role?: string; plan?: string; subscriptionStatus?: string; suspended?: boolean; canAccessDev?: boolean;
     };
 
     // Prevent any admin from granting super_admin via this endpoint
@@ -222,6 +222,7 @@ router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> =
     const update: Partial<typeof usersTable.$inferInsert> = { updatedAt: new Date() };
     if (safeRole !== undefined) update.role = safeRole;
     if (plan !== undefined) update.plan = plan;
+    if (canAccessDev !== undefined) update.canAccessDev = canAccessDev;
     const reactivating = subscriptionStatus !== undefined && subscriptionStatus !== "cancelled";
 
     if (subscriptionStatus !== undefined) {

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, useInView, AnimatePresence } from "framer-motion";
-import { useUser, UserButton, useClerk } from "@clerk/react";
+import { useAuth } from "@/contexts/auth-context";
+import { UserMenu } from "@/components/ui/user-menu";
 import {
   Brain, Video, Target, BarChart2, Zap, ArrowRight, Check,
   Users2, FileText, Share2, Mail, Bot, Star, Bell, X, Clock,
@@ -454,8 +455,7 @@ export default function LandingPage() {
   const [activeTab, setActiveTab] = useState("Analysis");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const { user, isLoaded } = useUser();
-  const { signOut } = useClerk();
+  const { user, isLoaded, signOut } = useAuth();
   const [, setLocation] = useLocation();
 
   const isAuthed = isLoaded && !!user;
@@ -494,23 +494,13 @@ export default function LandingPage() {
                 ))}
               </div>
               <div className="flex items-center gap-3">
-                <UserButton appearance={{
-                  variables: { colorPrimary: "#00E676" },
-                  elements: {
-                    userButtonPopoverActionButtonText: { color: "#FFD600" },
-                    userButtonPopoverActionButtonIcon: { color: "#FFD600" },
-                  },
-                }}>
-                  {isAdmin && (
-                    <UserButton.MenuItems>
-                      <UserButton.Link
-                        label="👑 Admin Console"
-                        href="/admin"
-                        labelIcon={<Crown className="h-4 w-4" />}
-                      />
-                    </UserButton.MenuItems>
-                  )}
-                </UserButton>
+                <UserMenu
+                  extraLinks={
+                    isAdmin
+                      ? [{ label: "Admin Console", href: "/admin", icon: <Crown className="h-4 w-4" /> }]
+                      : []
+                  }
+                />
                 <button
                   onClick={() => setMobileNavOpen(true)}
                   className="md:hidden flex items-center justify-center h-9 w-9 rounded-lg text-white/70 hover:text-white hover:bg-white/5 transition-colors"
@@ -601,7 +591,7 @@ export default function LandingPage() {
               <button
                 onClick={() => {
                   setMobileNavOpen(false);
-                  signOut(() => setLocation("/"));
+                  void signOut({ redirectUrl: "/" });
                 }}
                 className="w-full text-center text-sm font-semibold px-4 py-3 rounded-xl text-white/70 border border-white/10 hover:text-white hover:bg-white/5 transition-colors"
               >

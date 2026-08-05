@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { useUser } from "@clerk/react";
+import { useAuth } from "@/contexts/auth-context";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
@@ -95,7 +95,7 @@ function ConfidenceBadge({ confidence }: { confidence: AnalyzeResult["detected"]
 
 export default function OnboardingPage() {
   const [, setLocation] = useLocation();
-  const { user, isLoaded } = useUser();
+  const { user, isLoaded } = useAuth();
 
   // ── Form state ──────────────────────────────────────────────────────────────
   const [step, setStep]               = useState(1);

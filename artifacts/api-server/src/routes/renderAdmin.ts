@@ -12,7 +12,7 @@
  */
 
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth } from "../lib/supabaseAuth.js";
 import { db } from "@workspace/db";
 import { klingSceneJobsTable, commercialAssembliesTable, usersTable } from "@workspace/db";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
-import { useUser } from "@clerk/react";
+import { useAuth } from "@/contexts/auth-context";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check, Zap, Loader2, Star, X,
@@ -421,7 +421,7 @@ function PlanCard({
 export default function PlansPage() {
   const [, setLocation] = useLocation();
   const search = useSearch();
-  const { user, isLoaded } = useUser();
+  const { user, isLoaded } = useAuth();
   const [startingTrial, setStartingTrial] = useState(false);
   const [priceMap, setPriceMap] = useState<StripePriceMap>({});
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);

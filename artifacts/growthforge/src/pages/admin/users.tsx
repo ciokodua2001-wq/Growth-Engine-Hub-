@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Search, ChevronLeft, ChevronRight, Crown, Shield, Ban, Trash2,
-  RefreshCw, UserCheck, X, Calendar, Clock,
+  RefreshCw, UserCheck, X, Calendar, Clock, Code2,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/admin-layout";
 
@@ -16,6 +16,7 @@ interface User {
   subscriptionStatus: string;
   suspended: boolean;
   onboardingComplete: boolean;
+  canAccessDev: boolean;
   createdAt: string;
   lastLoginAt: string | null;
 }
@@ -110,7 +111,7 @@ function Avatar({ email, isOwner, plan }: { email: string | null; isOwner: boole
 interface DrawerProps {
   user: User;
   onClose: () => void;
-  onPatch: (body: { role?: string; plan?: string; subscriptionStatus?: string; suspended?: boolean }) => void;
+  onPatch: (body: { role?: string; plan?: string; subscriptionStatus?: string; suspended?: boolean; canAccessDev?: boolean }) => void;
   onDelete: () => void;
   isPatching: boolean;
   isDeleting: boolean;
@@ -177,11 +178,25 @@ function UserDrawer({ user, onClose, onPatch, onDelete, isPatching, isDeleting }
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
           {/* Badges row */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {[
               { label: "Role", node: <RoleBadge role={user.role} isOwner={user.isOwner} /> },
               { label: "Plan", node: <PlanBadge plan={user.plan} /> },
               { label: "Status", node: <StatusBadge suspended={user.suspended} subscriptionStatus={user.subscriptionStatus} /> },
+              {
+                label: "Dev Access",
+                node: user.canAccessDev ? (
+                  <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold"
+                    style={{ background: "#38bdf815", color: "#38bdf8", border: "1px solid #38bdf825" }}>
+                    Approved
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold"
+                    style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.35)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    Not approved
+                  </span>
+                ),
+              },
             ].map(({ label, node }) => (
               <div key={label} className="rounded-xl p-3"
                 style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}>
@@ -256,6 +271,19 @@ function UserDrawer({ user, onClose, onPatch, onDelete, isPatching, isDeleting }
                 >
                   <Ban className="w-4 h-4 shrink-0" />
                   {user.suspended ? "Unsuspend Account" : "Suspend Account"}
+                </button>
+
+                {/* Dev environment access */}
+                <button
+                  onClick={() => onPatch({ canAccessDev: !user.canAccessDev })}
+                  disabled={isPatching}
+                  className={`flex items-center gap-3 w-full px-4 py-2.5 rounded-xl text-sm transition-all text-left disabled:opacity-40
+                    ${user.canAccessDev
+                      ? "text-amber-400/80 hover:text-amber-400 hover:bg-amber-400/5"
+                      : "text-sky-400/80 hover:text-sky-400 hover:bg-sky-400/5"}`}
+                >
+                  <Code2 className="w-4 h-4 shrink-0" />
+                  {user.canAccessDev ? "Revoke dev.usegrowthforge.com access" : "Grant dev.usegrowthforge.com access"}
                 </button>
 
                 {/* Plan */}
@@ -336,7 +364,7 @@ export default function AdminUsers() {
   });
 
   const patchUser = useMutation({
-    mutationFn: async ({ id, ...body }: { id: string; role?: string; plan?: string; subscriptionStatus?: string; suspended?: boolean }) => {
+    mutationFn: async ({ id, ...body }: { id: string; role?: string; plan?: string; subscriptionStatus?: string; suspended?: boolean; canAccessDev?: boolean }) => {
       const r = await fetch(`/api/admin/users/${id}`, {
         method: "PATCH", credentials: "include",
         headers: { "Content-Type": "application/json" },

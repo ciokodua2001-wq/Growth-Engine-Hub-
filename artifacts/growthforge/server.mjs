@@ -138,7 +138,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── 3c. /sitemap.xml — standard location, no Clerk/CORS/auth cookies ────
+  // ── 3c. /sitemap.xml — standard location, no CORS/auth cookies ──────────
   //    Proxies from the API server and strips auth/cookie headers so
   //    Google Search Console gets a clean public response.
   if (cleanPath === "/sitemap.xml") {

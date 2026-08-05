@@ -44,20 +44,12 @@ function invalidateKbCache(): void {
 
 async function getOwnerEmail(): Promise<string | null> {
   try {
-    const secretKey = process.env.CLERK_SECRET_KEY;
-    if (!secretKey) return null;
     const [owner] = await db
-      .select({ id: usersTable.id })
+      .select({ email: usersTable.email })
       .from(usersTable)
       .where(eq(usersTable.isOwner, true))
       .limit(1);
-    if (!owner?.id) return null;
-    const r = await fetch(`https://api.clerk.com/v1/users/${owner.id}`, {
-      headers: { Authorization: `Bearer ${secretKey}` },
-    });
-    if (!r.ok) return null;
-    const user = await r.json() as { email_addresses?: Array<{ email_address: string }> };
-    return user.email_addresses?.[0]?.email_address ?? null;
+    return owner?.email ?? null;
   } catch {
     return null;
   }

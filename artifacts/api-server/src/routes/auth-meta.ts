@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth } from "../lib/supabaseAuth.js";
 import { db } from "@workspace/db";
 import { metaConnectionsTable, metaPageSessionsTable } from "@workspace/db";
 import { eq, lt, and } from "drizzle-orm";

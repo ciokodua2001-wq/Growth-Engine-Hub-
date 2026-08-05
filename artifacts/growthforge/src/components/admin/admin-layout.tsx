@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useUser, useClerk } from "@clerk/react";
+import { useAuth } from "@/contexts/auth-context";
 import {
   LayoutDashboard, Users, FolderOpen, CreditCard, Brain,
   FileText, HeadphonesIcon, BarChart2, ToggleLeft, Settings,
@@ -41,8 +41,7 @@ export default function AdminLayout({ children }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [location, setLocation] = useLocation();
-  const { user, isLoaded, isSignedIn } = useUser();
-  const { signOut } = useClerk();
+  const { user, isLoaded, isSignedIn, signOut } = useAuth();
   const isOwner = useIsOwner();
 
   // Direct navigation to /admin (e.g. typing the URL, or a bookmark) should

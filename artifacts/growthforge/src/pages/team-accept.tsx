@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
-import { useUser } from "@clerk/react";
+import { useAuth } from "@/contexts/auth-context";
 import { Loader2, CheckCircle2, XCircle, Users } from "lucide-react";
 import { Link } from "wouter";
 
@@ -9,7 +9,7 @@ type AcceptState = "loading" | "accepting" | "success" | "error" | "needsAuth";
 export default function TeamAccept() {
   const search = useSearch();
   const [, setLocation] = useLocation();
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn } = useAuth();
   const [state, setState] = useState<AcceptState>("loading");
   const [projectId, setProjectId] = useState<number | null>(null);
   const [projectName, setProjectName] = useState<string>("");

@@ -3,7 +3,7 @@ import { stripeStorage } from "../stripeStorage.js";
 import { stripeService } from "../stripeService.js";
 import { getUncachableStripeClient } from "../stripeClient.js";
 import { requireUserId } from "../lib/authz.js";
-import { getAuth } from "@clerk/express";
+import { getAuth } from "../lib/supabaseAuth.js";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";

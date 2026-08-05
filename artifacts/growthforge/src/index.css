@@ -1,4 +1,4 @@
-@layer theme, base, clerk, components, utilities;
+@layer theme, base, components, utilities;
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -168,8 +168,3 @@
     @apply bg-background text-foreground;
   }
 }
-
-/* Clerk UserButton popover — force bright yellow on action items */
-.cl-userButtonPopoverActionButton { color: #FFD600 !important; }
-.cl-userButtonPopoverActionButtonText { color: #FFD600 !important; }
-.cl-userButtonPopoverActionButtonIcon { color: #FFD600 !important; }

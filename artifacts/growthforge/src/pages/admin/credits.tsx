@@ -385,13 +385,7 @@ interface SpendProvider {
   type: "spend";
   displayName: string; icon: string; managedBy: string;
   dashboardUrl: string; totalSpend: number; monthlySpend: number; unit: string;
-}
-interface LiveProvider {
-  type: "live";
-  displayName: string; icon: string; dashboardUrl: string;
-  keyConfigured: boolean; keyValid: boolean | null;
-  balance: number | null; used: number | null; limit: number | null;
-  pct: number | null; unit: string; note: string | null;
+  keyConfigured?: boolean; keyValid?: boolean | null; note?: string | null;
 }
 interface BankProvider {
   type: "bank";
@@ -412,11 +406,10 @@ interface BankProvider {
   monthlyCredits?: number | null;
 }
 interface UnifiedData {
-  anthropic:  SpendProvider;
-  openai:     LiveProvider;
-  elevenlabs: LiveProvider;
-  kling:      BankProvider;
-  shotstack:  BankProvider;
+  googleGenai: SpendProvider;
+  googleTts:   SpendProvider;
+  kling:       BankProvider;
+  shotstack:   BankProvider;
 }
 interface Transaction {
   id: number; provider: string; type: string; amount: number;
@@ -439,8 +432,11 @@ interface BankReport {
 
 /* ─── Helpers ────────────────────────────────────────────────── */
 
+// Keys here must exactly match the `provider` DB column values used by
+// deductPlatformCredits() in the backend (see platformCredits.ts) — the
+// transaction-history and top-up endpoints query by this exact string.
 const COLORS: Record<string, string> = {
-  anthropic: "#a78bfa", openai: "#00D4FF", elevenlabs: "#f59e0b",
+  "google-genai": "#4285f4", "google-tts": "#a142f4",
   kling: "#00E676", shotstack: "#14F195",
 };
 
@@ -873,11 +869,14 @@ function SettingsPanel({ provider, p, onSaved }: { provider: string; p: BankProv
   );
 }
 
-/* ─── Card: Anthropic (spend tracker) ───────────────────────── */
+/* ─── Card: Google GenAI / Google TTS (spend tracker) ───────── */
 
 function SpendCard({ p, provider }: { p: SpendProvider; provider: string }) {
   const [show, setShow] = useState(false);
-  const color = COLORS[provider] ?? "#a78bfa";
+  const color = COLORS[provider] ?? "#4285f4";
+  const pricingNote = provider === "googleGenai"
+    ? "Estimated spend based on token counts × Gemini 2.5 Flash / Flash-Lite pricing."
+    : "Estimated spend based on character counts × Google Cloud TTS Chirp 3: HD pricing.";
   return (
     <div className="rounded-2xl border border-white/8 p-5 space-y-4" style={{ background: "rgba(255,255,255,0.02)" }}>
       <div className="flex items-start justify-between gap-3">
@@ -894,6 +893,9 @@ function SpendCard({ p, provider }: { p: SpendProvider; provider: string }) {
           <ExternalLink className="w-3 h-3" /> Dashboard
         </a>
       </div>
+      {p.keyConfigured !== undefined && (
+        <KeyBadge configured={p.keyConfigured} valid={p.keyValid ?? null} />
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)" }}>
           <div className="text-white/40 text-xs mb-1">This month</div>
@@ -904,78 +906,12 @@ function SpendCard({ p, provider }: { p: SpendProvider; provider: string }) {
           <div className="text-white font-black text-lg">{fmtN(p.totalSpend, p.unit)}</div>
         </div>
       </div>
-      <p className="text-white/25 text-xs">Estimated spend based on token counts × Claude Sonnet pricing. Billed to Replit — manage at replit.com.</p>
+      <p className="text-white/25 text-xs">{p.note ?? pricingNote}</p>
       <button onClick={() => setShow(!show)}
         className="text-xs text-white/30 hover:text-white/60 transition-all flex items-center gap-1">
         {show ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />} Call history
       </button>
       {show && <TxnList provider={provider} />}
-    </div>
-  );
-}
-
-/* ─── Card: ElevenLabs / OpenAI (live API) ───────────────────── */
-
-function LiveCard({ p, provider }: { p: LiveProvider; provider: string }) {
-  const [show, setShow] = useState(false);
-  const color = COLORS[provider] ?? "#00D4FF";
-  const isLow = p.pct !== null && p.pct <= 30;
-  const isWarn = p.pct !== null && !isLow && p.pct <= 45;
-  return (
-    <div className="rounded-2xl border p-5 space-y-4"
-      style={{ background: "rgba(255,255,255,0.02)", borderColor: isLow ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.08)" }}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
-            style={{ background: `${color}15`, border: `1px solid ${color}25` }}>{p.icon}</div>
-          <div>
-            <div className="text-white font-bold text-sm">{p.displayName}</div>
-            <div className="mt-0.5"><KeyBadge configured={p.keyConfigured} valid={p.keyValid} /></div>
-          </div>
-        </div>
-        <a href={p.dashboardUrl} target="_blank" rel="noopener noreferrer"
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs text-white/40 hover:text-white border border-white/8 hover:border-white/20 transition-all shrink-0">
-          <ExternalLink className="w-3 h-3" /> Dashboard
-        </a>
-      </div>
-
-      {!p.keyConfigured ? (
-        <div className="px-3 py-2.5 rounded-xl text-xs text-white/40" style={{ background: "rgba(255,255,255,0.04)" }}>
-          Add <code className="font-mono text-white/60 mx-0.5">{provider.toUpperCase()}_API_KEY</code> to Replit Secrets to enable.
-        </div>
-      ) : p.keyValid === false ? (
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs text-red-400" style={{ background: "rgba(239,68,68,0.06)" }}>
-          <XCircle className="w-3 h-3 shrink-0" /> API key is invalid or revoked — update it in Replit Secrets.
-        </div>
-      ) : p.pct !== null && p.balance !== null ? (
-        <div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-white text-2xl font-black">{fmtN(p.balance, p.unit)}</span>
-            <span className="text-white/40 text-xs">{p.pct}% remaining</span>
-          </div>
-          <Bar pct={p.pct} />
-          <div className="flex gap-4 mt-1.5 text-xs text-white/30">
-            {p.used  !== null && <span>Used: {fmtN(p.used,  p.unit)}</span>}
-            {p.limit !== null && <span>Limit: {fmtN(p.limit, p.unit)}</span>}
-          </div>
-          {isLow  && <p className="text-red-400 text-xs mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Low — top up at your provider dashboard</p>}
-          {isWarn && <p className="text-amber-400 text-xs mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Getting low — consider topping up soon</p>}
-        </div>
-      ) : (
-        <div className="px-3 py-2.5 rounded-xl text-xs text-white/40" style={{ background: "rgba(255,255,255,0.04)" }}>
-          {p.note ?? "Key active · Balance data not available for this account type"}
-        </div>
-      )}
-
-      {p.keyConfigured && p.keyValid !== false && (
-        <>
-          <button onClick={() => setShow(!show)}
-            className="text-xs text-white/30 hover:text-white/60 transition-all flex items-center gap-1">
-            {show ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />} Platform usage log
-          </button>
-          {show && <TxnList provider={provider} />}
-        </>
-      )}
     </div>
   );
 }
@@ -1200,20 +1136,18 @@ export default function AdminCredits() {
 
   const providers = data
     ? [
-        { key: "anthropic",  p: data.anthropic  },
-        { key: "openai",     p: data.openai     },
-        { key: "elevenlabs", p: data.elevenlabs },
-        { key: "kling",      p: data.kling      },
-        { key: "shotstack",  p: data.shotstack  },
+        { key: "google-genai", p: data.googleGenai },
+        { key: "google-tts",   p: data.googleTts   },
+        { key: "kling",        p: data.kling       },
+        { key: "shotstack",    p: data.shotstack   },
       ]
     : [];
 
   const alerts = data ? [
-    data.elevenlabs.pct !== null && data.elevenlabs.pct <= 30 ? "ElevenLabs characters nearly exhausted" : null,
     data.kling.pct     !== null && data.kling.pct     <= data.kling.alertThresholdPct      ? "Kling credits low" : null,
     data.shotstack.pct !== null && data.shotstack.pct <= data.shotstack.alertThresholdPct ? "Shotstack credits low" : null,
-    data.openai.keyValid === false   ? "OpenAI API key invalid" : null,
-    data.elevenlabs.keyValid === false ? "ElevenLabs API key invalid" : null,
+    data.googleGenai.keyValid === false ? "Google GenAI credentials invalid" : null,
+    data.googleTts.keyValid === false   ? "Google Cloud TTS credentials invalid" : null,
     data.kling.keyValid === false     ? "Kling API key invalid" : null,
     data.shotstack.keyValid === false ? "Shotstack API key invalid" : null,
   ].filter(Boolean) : [];
@@ -1257,7 +1191,6 @@ export default function AdminCredits() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {providers.map(({ key, p }) =>
               p.type === "spend" ? <SpendCard key={key} provider={key} p={p as SpendProvider} /> :
-              p.type === "live"  ? <LiveCard  key={key} provider={key} p={p as LiveProvider}  /> :
                                    <BankCard  key={key} provider={key} p={p as BankProvider} onRefresh={refresh} />
             )}
           </div>
@@ -1270,9 +1203,8 @@ export default function AdminCredits() {
         <div className="rounded-2xl border border-white/8 p-5 space-y-2" style={{ background: "rgba(255,255,255,0.02)" }}>
           <p className="text-white/40 text-xs font-semibold uppercase tracking-widest mb-3">How each provider is tracked</p>
           <div className="space-y-1.5 text-white/35 text-sm">
-            <p>🧠 <span className="text-white/55">Anthropic (Claude)</span> — Billed by Replit. We track estimated spend from token counts automatically — no action needed.</p>
-            <p>🖼️ <span className="text-white/55">OpenAI</span> — Live API check. Balance shown if you're on a prepaid plan; pay-as-you-go shows key status only.</p>
-            <p>🎙️ <span className="text-white/55">ElevenLabs</span> — Live character usage and monthly limit pulled directly from their API.</p>
+            <p>✨ <span className="text-white/55">Google GenAI (Gemini + Imagen)</span> — Billed to Google Cloud. We track estimated spend from token counts automatically — verify exact spend at console.cloud.google.com.</p>
+            <p>🎙️ <span className="text-white/55">Google Cloud TTS</span> — Billed to Google Cloud. We track estimated spend from narration character counts automatically.</p>
             <p>🎬 <span className="text-white/55">Kling AI (Direct API)</span> — Credit balance tracked manually. Top up at klingai.com after purchasing; the system tracks clips and video count per generation.</p>
             <p>⚙️ <span className="text-white/55">Shotstack</span> — Credits are the primary unit. Supports both Pay-As-You-Go and Subscription. Top up after purchasing; renders are tracked with minutes and video count automatically.</p>
           </div>

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { getAuth, clerkClient } from "@clerk/express";
+import { getAuth } from "../lib/supabaseAuth.js";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -15,24 +15,15 @@ router.post("/auth/provision", async (req, res): Promise<void> => {
       return;
     }
 
-    // Fetch the real email from Clerk — sessionClaims.email is not a standard
-    // JWT claim and arrives as undefined for most sign-in methods.
-    let email: string | null = null;
-    try {
-      const clerkUser = await clerkClient.users.getUser(userId);
-      const primary = clerkUser.emailAddresses.find(
-        (e) => e.id === clerkUser.primaryEmailAddressId
-      );
-      email = primary?.emailAddress ?? null;
-    } catch {
-      // Non-fatal — fall back to null; email will be picked up on next provision
-    }
+    // Supabase always includes the verified email as a standard claim, so no
+    // extra admin API call is needed here (unlike the old Clerk flow).
+    const email = (auth?.sessionClaims?.email as string | undefined) ?? null;
 
     const existing = await db.select().from(usersTable).where(eq(usersTable.id, userId));
     if (existing.length === 0) {
       await db.insert(usersTable).values({ id: userId, email });
     } else {
-      // Always sync email in case user updated it in Clerk
+      // Always sync email in case the user updated it in Supabase Auth
       if (email && existing[0].email !== email) {
         await db.update(usersTable).set({ email }).where(eq(usersTable.id, userId));
       }
