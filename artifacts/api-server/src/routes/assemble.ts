@@ -3,7 +3,8 @@
  *
  * POST /projects/:id/videos/:videoId/assemble
  *   Accepts: { outputFormats, transitionType, transitionDuration, logoUrl,
- *              logoPosition, logoOpacity, backgroundMusicUrl, captionsEnabled }
+ *              logoPosition, logoOpacity, backgroundMusicUrl, captionsEnabled,
+ *              captionPreset, captionX, captionY, captionScale }
  *   Returns: { assemblyIds, assemblies[] }
  *
  *   Deduplication: if a "complete" assembly already exists for a requested format
@@ -36,7 +37,6 @@ import {
   type OutputFormat,
   type AssemblyOptions,
   type CaptionPreset,
-  type CaptionPosition,
 } from "../lib/ffmpegAssembler.js";
 import pino from "pino";
 
@@ -164,14 +164,21 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
 
   // Caption burn-in is opt-in (default: false — clean MP4, browser overlay in UI).
   const captionsEnabled = body.captionsEnabled === true;
-  const VALID_CAPTION_PRESETS = ["classic", "box", "bold", "neon", "cinematic"];
-  const VALID_CAPTION_POSITIONS = ["bottom", "middle", "top"];
+  const VALID_CAPTION_PRESETS = [
+    "clean", "boldPop", "karaoke", "neonGlow", "cinematic", "gradientChip", "retroVHS", "socialBubble",
+  ];
   const captionPreset: CaptionPreset = VALID_CAPTION_PRESETS.includes(String(body.captionPreset ?? ""))
     ? (body.captionPreset as CaptionPreset)
-    : "classic";
-  const captionPosition: CaptionPosition = VALID_CAPTION_POSITIONS.includes(String(body.captionPosition ?? ""))
-    ? (body.captionPosition as CaptionPosition)
-    : "bottom";
+    : "clean";
+
+  // Free-form position (0–1, normalized to the full output frame — matches
+  // the client's drag-box preview) and font/box scale. Clamped defensively
+  // even though ffmpegAssembler.ts clamps again internally.
+  const clampNum = (v: unknown, min: number, max: number, fallback: number): number =>
+    typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
+  const captionX = clampNum(body.captionX, 0, 1, 0.5);
+  const captionY = clampNum(body.captionY, 0, 1, 0.85);
+  const captionScale = clampNum(body.captionScale, 0.5, 2.0, 1.0);
 
   const options: AssemblyOptions = {
     outputFormats: requestedFormats,
@@ -183,7 +190,9 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
     backgroundMusicUrl: typeof body.backgroundMusicUrl === "string" ? body.backgroundMusicUrl : undefined,
     captionsEnabled,
     captionPreset,
-    captionPosition,
+    captionX,
+    captionY,
+    captionScale,
   };
 
   // ── Options fingerprint — used for assembly deduplication ──────────────────
@@ -198,7 +207,9 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
       logoOpacity: options.logoOpacity,
       captionsEnabled,
       captionPreset: captionsEnabled ? captionPreset : null,
-      captionPosition: captionsEnabled ? captionPosition : null,
+      captionX: captionsEnabled ? captionX : null,
+      captionY: captionsEnabled ? captionY : null,
+      captionScale: captionsEnabled ? captionScale : null,
       hasLogo: !!options.logoUrl,
       hasMusic: !!options.backgroundMusicUrl,
     }))

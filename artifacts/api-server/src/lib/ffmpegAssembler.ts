@@ -54,10 +54,21 @@ export type TransitionType =
   | "slideup"
   | "slidedown";
 
-/** Visual style preset for burned-in captions. */
-export type CaptionPreset = "classic" | "box" | "bold" | "neon" | "cinematic";
-/** Vertical anchor for burned-in captions. */
-export type CaptionPosition = "bottom" | "middle" | "top";
+/**
+ * Curated caption style catalogue. "karaoke" is the flagship animated style —
+ * the currently-spoken word is highlighted in sequence (TikTok/Reels-style
+ * word-by-word sweep); every other preset is a static look applied to whole
+ * caption lines.
+ */
+export type CaptionPreset =
+  | "clean"
+  | "boldPop"
+  | "karaoke"
+  | "neonGlow"
+  | "cinematic"
+  | "gradientChip"
+  | "retroVHS"
+  | "socialBubble";
 
 const FORMAT_DIMS: Record<OutputFormat, { width: number; height: number }> = {
   landscape: { width: 1920, height: 1080 },
@@ -91,8 +102,22 @@ export interface AssemblyOptions {
   captionsEnabled?: boolean;
   /** Caption visual style preset (only used when captionsEnabled=true). */
   captionPreset?: CaptionPreset;
-  /** Caption vertical position (only used when captionsEnabled=true). */
-  captionPosition?: CaptionPosition;
+  /**
+   * Normalized horizontal center of the caption block, 0 (left edge) – 1
+   * (right edge). Default 0.5 (centered). Only used when captionsEnabled=true.
+   */
+  captionX?: number;
+  /**
+   * Normalized vertical center of the caption block, 0 (top edge) – 1
+   * (bottom edge). Default 0.85 (near the bottom, matching the old "bottom"
+   * preset). Only used when captionsEnabled=true.
+   */
+  captionY?: number;
+  /**
+   * Font/box scale multiplier the client picked while dragging the resize
+   * handle. Clamped to [0.5, 2.0]. Default 1.0. Only used when captionsEnabled=true.
+   */
+  captionScale?: number;
 }
 
 // ── CommercialAssembler ───────────────────────────────────────────────────────
@@ -218,8 +243,10 @@ export class CommercialAssembler {
       // ── 4. Prepare captions (only when explicitly requested for "Export with captions" renders) ──
       // Default behaviour is clean MP4 — captions are shown as a browser overlay in the UI.
       const captionsEnabled = options.captionsEnabled === true;
-      const captionPreset: CaptionPreset = options.captionPreset ?? "classic";
-      const captionPosition: CaptionPosition = options.captionPosition ?? "bottom";
+      const captionPreset: CaptionPreset = options.captionPreset ?? "clean";
+      const captionX = clamp(options.captionX ?? 0.5, 0.05, 0.95);
+      const captionY = clamp(options.captionY ?? 0.85, 0.05, 0.95);
+      const captionScale = clamp(options.captionScale ?? 1.0, 0.5, 2.0);
       // Script text is prepared once; captions are written per-format below.
       const captionsScript = (captionsEnabled && rawVoiceover)
         ? prepareScript(rawVoiceover)
@@ -231,25 +258,28 @@ export class CommercialAssembler {
         const assemblyId = assemblyIds[fi]!;
         const { width, height } = FORMAT_DIMS[format];
 
-        // Build script-based subtitle ASS file at this format's resolution.
-        // Compute pillarbox/letterbox margins so captions stay within the actual
-        // content area when the source clip AR differs from the output AR.
+        // Build the burned-in captions ASS file at this format's resolution.
+        // captionX/captionY are normalized to the FULL output frame (not just
+        // the content area) so they match 1:1 what the client saw when
+        // dragging the caption box over the (possibly letterboxed) preview —
+        // what-you-see-is-what-you-get.
         let formatAssFile: string | null = null;
         if (captionsScript) {
           formatAssFile = path.join(tmpDir, `captions_${format}.ass`);
-          const subtitleEntries = buildScriptSubtitles(captionsScript, totalOutputDuration);
+          // buildScriptSubtitles already escapes ASS control characters internally
+          // (before inserting literal "\N" line breaks) — do not re-escape here.
+          const events = captionPreset === "karaoke"
+            ? buildKaraokeEvents(captionsScript, totalOutputDuration)
+            : buildScriptSubtitles(captionsScript, totalOutputDuration).map(e => ({
+                startSec: e.startSec,
+                endSec: e.endSec,
+                assText: e.text,
+              }));
 
-          // Parse clip AR ("9:16", "16:9", "1:1") into ratio numbers for margin calc.
-          const clipARStr = scenes[0]?.aspectRatio ?? "16:9";
-          const [clipARW, clipARH] = clipARStr.split(":").map(Number);
-          const { marginX: pillarboxPx } = computePillarboxMargins(
-            clipARW ?? 16, clipARH ?? 9, width, height,
+          fs.writeFileSync(
+            formatAssFile,
+            buildAssDocument(events, width, height, captionPreset, captionX, captionY, captionScale),
           );
-          // Add a small inset (3% of output width) beyond the pillarbox boundary
-          // so text never bumps right against the content edge.
-          const captionMarginLR = Math.max(30, pillarboxPx + Math.round(width * 0.03));
-
-          fs.writeFileSync(formatAssFile, buildSubtitleASS(subtitleEntries, width, height, captionMarginLR, captionPreset, captionPosition));
         }
 
         const outputPath = path.join(tmpDir, `output_${format}.mp4`);
@@ -669,7 +699,9 @@ function buildScriptSubtitles(script: string, totalDuration: number): SubtitleEn
     // Duration proportional to character count; minimum 1.0s, capped at remaining time
     const estimated = Math.max(1.0, (sentence.length / totalChars) * totalDuration * 0.95);
     const endSec = Math.min(currentTime + estimated, totalDuration - 0.1);
-    entries.push({ text: wrapSubtitleLine(sentence, 40), startSec: currentTime, endSec });
+    // Escape ASS control characters BEFORE wrapping so the literal "\N" line
+    // break inserted by wrapSubtitleLine is never itself escaped.
+    entries.push({ text: wrapSubtitleLine(escapeAssText(sentence), 40), startSec: currentTime, endSec });
     currentTime = endSec + 0.08; // brief gap between subtitle entries
   }
 
@@ -695,66 +727,152 @@ function wrapSubtitleLine(text: string, maxChars: number): string {
   return lines.join("\\N");
 }
 
-/**
- * Computes how much of the output frame is actually content (vs. pillarbox/letterbox black)
- * when a source clip with ratio srcW:srcH is scaled to fill outW×outH using
- * force_original_aspect_ratio=decrease + pad (which is what our FFmpeg scale filter does).
- * Returns the pixel margin on each horizontal side (marginX) and vertical side (marginY).
- */
-function computePillarboxMargins(
-  srcW: number, srcH: number,
-  outW: number, outH: number,
-): { marginX: number; marginY: number } {
-  const scale = Math.min(outW / srcW, outH / srcH);
-  const contentW = Math.round(srcW * scale);
-  const contentH = Math.round(srcH * scale);
-  return {
-    marginX: Math.floor((outW - contentW) / 2),
-    marginY: Math.floor((outH - contentH) / 2),
-  };
+/** Strips/escapes characters that have special meaning in ASS override tags. */
+function escapeAssText(text: string): string {
+  return text.replace(/\\/g, "").replace(/[{}]/g, "");
 }
 
-function buildSubtitleASS(
-  entries: SubtitleEntry[],
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
+}
+
+function toAssTime(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const sv = sec % 60;
+  const cs = Math.round((sv % 1) * 100);
+  return `${h}:${String(m).padStart(2, "0")}:${String(Math.floor(sv)).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
+}
+
+/** A single ASS Dialogue event; assText may already contain inline override tags (e.g. karaoke word colouring). */
+interface AssEvent {
+  startSec: number;
+  endSec: number;
+  assText: string;
+}
+
+/**
+ * Splits a narration script into per-word timing windows, grouped back into
+ * the same sentence-level caption cards `buildScriptSubtitles` produces, but
+ * emitting ONE event per word where only that word is tinted the highlight
+ * colour — this is what creates the TikTok/Reels-style "current word pops"
+ * animation once ffmpeg burns the sequence in (word timing is estimated
+ * proportionally by character length; we don't have real ASR word timestamps).
+ */
+function buildKaraokeEvents(script: string, totalDuration: number): AssEvent[] {
+  const BASE_COLOUR = "&H00FFFFFF"; // white
+  const HIGHLIGHT_COLOUR = "&H0000FF00"; // vivid green (ASS is &HAABBGGRR)
+  const MAX_LINE_CHARS = 24;
+  const MAX_LINES = 2;
+
+  const sentences = script.replace(/([.!?])\s+/g, "$1\n").split(/\n/).map(s => s.trim()).filter(Boolean);
+  if (sentences.length === 0) return [];
+
+  const totalChars = sentences.reduce((sum, s) => sum + s.length, 0);
+  const events: AssEvent[] = [];
+  let t = 0.1;
+
+  for (const sentence of sentences) {
+    if (t >= totalDuration - 0.3) break;
+    const estimated = Math.max(1.0, (sentence.length / totalChars) * totalDuration * 0.95);
+    const sentEnd = Math.min(t + estimated, totalDuration - 0.1);
+
+    const words = escapeAssText(sentence).split(/\s+/).filter(Boolean);
+    if (words.length === 0) continue;
+
+    // Greedy-wrap words into at most MAX_LINES display lines.
+    const lines: string[][] = [[]];
+    for (const w of words) {
+      const curLine = lines[lines.length - 1]!;
+      const curLen = curLine.reduce((n, x) => n + x.length + 1, 0);
+      if (curLen + w.length > MAX_LINE_CHARS && lines.length < MAX_LINES) {
+        lines.push([w]);
+      } else {
+        curLine.push(w);
+      }
+    }
+    const flatWords = lines.flat();
+
+    // Distribute the sentence's time window across words proportional to word length.
+    const totalWordChars = flatWords.reduce((n, w) => n + w.length, 0) || 1;
+    const windows: Array<{ start: number; end: number }> = [];
+    let wt = t;
+    for (let i = 0; i < flatWords.length; i++) {
+      const isLast = i === flatWords.length - 1;
+      const share = Math.max(0.12, (flatWords[i]!.length / totalWordChars) * (sentEnd - t));
+      const wEnd = isLast ? sentEnd : Math.min(wt + share, sentEnd - 0.02);
+      windows.push({ start: wt, end: Math.max(wEnd, wt + 0.05) });
+      wt = wEnd;
+    }
+
+    for (let activeIdx = 0; activeIdx < flatWords.length; activeIdx++) {
+      let globalIdx = 0;
+      const assLines = lines.map(lineWords =>
+        lineWords
+          .map(w => {
+            const isActive = globalIdx++ === activeIdx;
+            return isActive ? `{\\c${HIGHLIGHT_COLOUR}}${w}{\\c${BASE_COLOUR}}` : w;
+          })
+          .join(" "),
+      );
+      const { start, end } = windows[activeIdx]!;
+      events.push({ startSec: start, endSec: end, assText: assLines.join("\\N") });
+    }
+
+    t = sentEnd + 0.08;
+  }
+
+  return events;
+}
+
+/**
+ * Curated ASS style parameters per preset. Colours use ASS's &HAABBGGRR
+ * format (AA=00 → opaque; colour channels are stored BGR, not RGB).
+ * `highlightColour` is only meaningful for the "karaoke" preset (baked
+ * directly into buildKaraokeEvents' inline override tags, not read from here
+ * — kept in this table purely for documentation/consistency).
+ */
+const CAPTION_STYLES: Record<CaptionPreset, {
+  primaryColour: string; outlineColour: string; backColour: string;
+  bold: 0 | 1; italic: 0 | 1; borderStyle: 1 | 4;
+  outlineMul: number; shadowMul: number; sizeMul: number; uppercase?: boolean;
+}> = {
+  clean:        { primaryColour: "&H00FFFFFF", outlineColour: "&H00000000", backColour: "&H00000000", bold: 0, italic: 0, borderStyle: 1, outlineMul: 1.0, shadowMul: 0,   sizeMul: 1.0 },
+  boldPop:      { primaryColour: "&H0000FFFF", outlineColour: "&H00000000", backColour: "&H00000000", bold: 1, italic: 0, borderStyle: 1, outlineMul: 1.6, shadowMul: 0,   sizeMul: 1.15 },
+  karaoke:      { primaryColour: "&H00FFFFFF", outlineColour: "&H00000000", backColour: "&H00000000", bold: 1, italic: 0, borderStyle: 1, outlineMul: 1.3, shadowMul: 0,   sizeMul: 1.05 },
+  neonGlow:     { primaryColour: "&H00FFFF00", outlineColour: "&H00FFFFFF", backColour: "&H00000000", bold: 1, italic: 0, borderStyle: 1, outlineMul: 1.4, shadowMul: 0.3, sizeMul: 1.05 },
+  cinematic:    { primaryColour: "&H00FFFFFF", outlineColour: "&H00000000", backColour: "&H00000000", bold: 0, italic: 1, borderStyle: 1, outlineMul: 0.6, shadowMul: 1.2, sizeMul: 0.9 },
+  gradientChip: { primaryColour: "&H00FFFFFF", outlineColour: "&H00000000", backColour: "&H30AB47E9", bold: 1, italic: 0, borderStyle: 4, outlineMul: 0,   shadowMul: 0,   sizeMul: 0.95 },
+  retroVHS:     { primaryColour: "&H0000FFFF", outlineColour: "&H00000000", backColour: "&H00000000", bold: 1, italic: 1, borderStyle: 1, outlineMul: 1.8, shadowMul: 0,   sizeMul: 1.05, uppercase: true },
+  socialBubble: { primaryColour: "&H00FFFFFF", outlineColour: "&H00000000", backColour: "&H30993D1F", bold: 1, italic: 0, borderStyle: 4, outlineMul: 0,   shadowMul: 0,   sizeMul: 1.0 },
+};
+
+/**
+ * Builds a complete .ass subtitle document with free-form positioning: every
+ * Dialogue line gets an explicit `{\pos(x,y)}` override (Alignment=5, i.e.
+ * the text block is centered on that point) so captionX/captionY map 1:1 to
+ * wherever the client dragged the caption box on the preview — no reliance
+ * on ASS's anchor/margin system, which only supports 9 fixed positions.
+ */
+function buildAssDocument(
+  events: AssEvent[],
   videoWidth: number,
   videoHeight: number,
-  marginLR: number,
-  preset: CaptionPreset = "classic",
-  position: CaptionPosition = "bottom",
+  preset: CaptionPreset,
+  captionX: number,
+  captionY: number,
+  captionScale: number,
 ): string {
-  // Base font size; preset multipliers allow relative sizing.
+  const s = CAPTION_STYLES[preset];
   const baseFontSize = Math.max(38, Math.round(videoWidth * 0.033));
-  const sizeMultiplier = preset === "cinematic" ? 0.85 : preset === "bold" ? 1.1 : 1.0;
-  const fontSize = Math.round(baseFontSize * sizeMultiplier);
+  const fontSize = Math.round(baseFontSize * s.sizeMul * captionScale);
   const baseOutline = Math.max(2, Math.round(fontSize * 0.07));
+  const outline = Math.round(baseOutline * s.outlineMul);
+  const shadow = Math.round(fontSize * 0.1 * s.shadowMul);
 
-  // ASS colour format: &HAABBGGRR  (AA=00 → opaque, FF → transparent; colour is BGR)
-  // Preset-specific style parameters.
-  const STYLES: Record<CaptionPreset, {
-    primaryColour: string; outlineColour: string; backColour: string;
-    bold: 0 | 1; italic: 0 | 1; borderStyle: 1 | 4;
-    outline: number; shadow: number;
-  }> = {
-    classic:   { primaryColour: "&H00FFFFFF", outlineColour: "&H00000000", backColour: "&H00000000", bold: 0, italic: 0, borderStyle: 1, outline: baseOutline,                                       shadow: 0 },
-    box:       { primaryColour: "&H00FFFFFF", outlineColour: "&H00000000", backColour: "&H80000000", bold: 1, italic: 0, borderStyle: 4, outline: 0,                                                   shadow: 0 },
-    bold:      { primaryColour: "&H0000FFFF", outlineColour: "&H00000000", backColour: "&H00000000", bold: 1, italic: 0, borderStyle: 1, outline: Math.max(3, baseOutline + 1),                       shadow: 0 },
-    neon:      { primaryColour: "&H0076E600", outlineColour: "&H00FFFFFF", backColour: "&H00000000", bold: 1, italic: 0, borderStyle: 1, outline: baseOutline,                                        shadow: 0 },
-    cinematic: { primaryColour: "&H00FFFFFF", outlineColour: "&H00000000", backColour: "&H00000000", bold: 0, italic: 1, borderStyle: 1, outline: Math.max(1, Math.round(baseOutline * 0.6)), shadow: Math.max(3, Math.round(fontSize * 0.1)) },
-  };
-  const s = STYLES[preset];
-
-  // ASS Alignment: bottom=2 (centre-bottom), middle=5 (centre), top=8 (centre-top).
-  const alignment = position === "top" ? 8 : position === "middle" ? 5 : 2;
-  // marginV: distance from the anchor edge (top or bottom). Ignored for middle (Alignment=5).
-  const marginV = position === "middle" ? 0 : Math.max(60, Math.round(videoHeight * 0.07));
-
-  function toAssTime(sec: number): string {
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    const sv = sec % 60;
-    const cs = Math.round((sv % 1) * 100);
-    return `${h}:${String(m).padStart(2, "0")}:${String(Math.floor(sv)).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
-  }
+  const px = Math.round(captionX * videoWidth);
+  const py = Math.round(captionY * videoHeight);
+  const posTag = `{\\pos(${px},${py})}`;
 
   const header = [
     "[Script Info]",
@@ -766,17 +884,21 @@ function buildSubtitleASS(
     "",
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-    `Style: Default,Arial,${fontSize},${s.primaryColour},&H000000FF,${s.outlineColour},${s.backColour},${s.bold},${s.italic},0,0,100,100,0,0,${s.borderStyle},${s.outline},${s.shadow},${alignment},${marginLR},${marginLR},${marginV},1`,
+    // Alignment=5 (middle-center) — required so \pos anchors on the text block's center, matching a drag handle's semantics.
+    `Style: Default,Arial,${fontSize},${s.primaryColour},&H000000FF,${s.outlineColour},${s.backColour},${s.bold},${s.italic},0,0,100,100,0,0,${s.borderStyle},${outline},${shadow},5,10,10,10,1`,
     "",
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
   ].join("\n");
 
-  const events = entries
-    .map(e => `Dialogue: 0,${toAssTime(e.startSec)},${toAssTime(e.endSec)},Default,,0,0,0,,${e.text}`)
+  const body = events
+    .map(e => {
+      const text = s.uppercase ? e.assText.toUpperCase() : e.assText;
+      return `Dialogue: 0,${toAssTime(e.startSec)},${toAssTime(e.endSec)},Default,,0,0,0,,${posTag}${text}`;
+    })
     .join("\n");
 
-  return `${header}\n${events}\n`;
+  return `${header}\n${body}\n`;
 }
 
 // ── Object storage upload ─────────────────────────────────────────────────────

@@ -17,7 +17,7 @@ import {
   Check, AlertCircle, RefreshCw, Download,
   Loader2, Clock, Film, Music, Sparkles, BarChart2,
   Target, FileText, Clapperboard, Play,
-  Lock as LockIcon, Upload, Trash2,
+  Lock as LockIcon,
   Share2, Copy, Type,
 } from "lucide-react";
 
@@ -209,57 +209,116 @@ function buildSubtitleTimings(
   return entries;
 }
 
-type CaptionPresetKey = "classic" | "box" | "bold" | "neon" | "cinematic";
-type CaptionPosKey = "bottom" | "middle" | "top";
+// Word-level timings for the "karaoke" live preview — mirrors the proportional
+// per-word distribution the server uses when burning the real word-highlight
+// animation in, so what customers preview closely matches the final export.
+interface KaraokeSentenceTiming { words: string[]; startSec: number; endSec: number }
 
-function getCaptionOverlayStyle(
-  pos: CaptionPosKey,
-  preset: CaptionPresetKey,
-): CSSProperties {
-  const posBase: CSSProperties =
-    pos === "top"    ? { top: "8%",  transform: "translateX(-50%)" }           :
-    pos === "middle" ? { top: "50%", transform: "translateX(-50%) translateY(-50%)" } :
-                       { bottom: "12%", transform: "translateX(-50%)" };
+function buildKaraokeTimings(voiceover: string, duration: number): KaraokeSentenceTiming[] {
+  if (!voiceover || duration <= 0) return [];
+  const raw = voiceover.replace(/([.!?])\s+/g, "$1\n").split(/\n/).map(s => s.trim()).filter(Boolean);
+  if (raw.length === 0) return [];
+  const totalChars = raw.reduce((sum, s) => sum + s.length, 0);
+  const entries: KaraokeSentenceTiming[] = [];
+  let t = 0.1;
+  for (const sentence of raw) {
+    if (t >= duration - 0.3) break;
+    const dur = Math.max(1.0, (sentence.length / totalChars) * duration * 0.95);
+    const end = Math.min(t + dur, duration - 0.1);
+    entries.push({ words: sentence.split(/\s+/).filter(Boolean), startSec: t, endSec: end });
+    t = end + 0.08;
+  }
+  return entries;
+}
 
-  const presetStyle: CSSProperties =
-    preset === "box" ? {
-      color: "#FFFFFF", fontWeight: "700",
-      fontSize: "clamp(10px, 2.8vw, 15px)",
-      background: "rgba(0,0,0,0.75)", padding: "5px 10px", borderRadius: "5px",
-    } :
-    preset === "bold" ? {
-      color: "#FFFF00", fontWeight: "900",
-      fontSize: "clamp(11px, 3.1vw, 16px)",
-      textShadow: "-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000",
-    } :
-    preset === "neon" ? {
-      color: "#00E676", fontWeight: "700",
-      fontSize: "clamp(10px, 2.8vw, 15px)",
-      textShadow: "0 0 8px rgba(0,230,118,0.5), -1px -1px 0 rgba(255,255,255,0.5), 1px -1px 0 rgba(255,255,255,0.5), -1px 1px 0 rgba(255,255,255,0.5), 1px 1px 0 rgba(255,255,255,0.5)",
-    } :
-    preset === "cinematic" ? {
-      color: "rgba(255,255,255,0.92)", fontStyle: "italic", fontWeight: "400",
-      fontSize: "clamp(9px, 2.5vw, 13px)",
-      textShadow: "0 2px 10px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.6)",
-    } :
-    /* classic */ {
-      color: "#FFFFFF", fontWeight: "600",
-      fontSize: "clamp(10px, 2.8vw, 15px)",
-      textShadow: "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, -2px 0 0 #000, 2px 0 0 #000",
-    };
+/** Which word within an active karaoke sentence is "live" right now. */
+function activeKaraokeWordIndex(entry: KaraokeSentenceTiming, t: number): number {
+  const span = entry.endSec - entry.startSec;
+  const totalChars = entry.words.reduce((sum, w) => sum + w.length, 0) || 1;
+  let wt = entry.startSec;
+  for (let i = 0; i < entry.words.length; i++) {
+    const isLast = i === entry.words.length - 1;
+    const share = Math.max(0.12, (entry.words[i]!.length / totalChars) * span);
+    const wEnd = isLast ? entry.endSec : wt + share;
+    if (t < wEnd || isLast) return i;
+    wt = wEnd;
+  }
+  return entry.words.length - 1;
+}
 
+// ── Curated caption style catalogue (mirrors ffmpegAssembler.ts CAPTION_STYLES) ─
+
+export type CaptionPreset =
+  | "clean" | "boldPop" | "karaoke" | "neonGlow" | "cinematic"
+  | "gradientChip" | "retroVHS" | "socialBubble";
+
+const CAPTION_PRESET_ORDER: CaptionPreset[] = [
+  "clean", "boldPop", "karaoke", "neonGlow", "cinematic", "gradientChip", "retroVHS", "socialBubble",
+];
+
+const CAPTION_PRESET_LABELS: Record<CaptionPreset, string> = {
+  clean: "Clean", boldPop: "Bold Pop", karaoke: "Karaoke", neonGlow: "Neon Glow",
+  cinematic: "Cinematic", gradientChip: "Gradient Chip", retroVHS: "Retro VHS", socialBubble: "Social Bubble",
+};
+
+const KARAOKE_HIGHLIGHT_COLOR = "#00E676";
+
+/** Base text styling for each preset (position/size are applied separately). */
+const CAPTION_PRESET_STYLES: Record<CaptionPreset, CSSProperties> = {
+  clean: {
+    color: "#FFFFFF", fontWeight: 600,
+    textShadow: "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, -2px 0 0 #000, 2px 0 0 #000",
+  },
+  boldPop: {
+    color: "#FFEA00", fontWeight: 900,
+    textShadow: "-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000",
+  },
+  karaoke: {
+    color: "#FFFFFF", fontWeight: 800,
+    textShadow: "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000",
+  },
+  neonGlow: {
+    color: "#00FFFF", fontWeight: 800,
+    textShadow: "0 0 8px rgba(0,255,255,0.85), -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff",
+  },
+  cinematic: {
+    color: "rgba(255,255,255,0.92)", fontStyle: "italic", fontWeight: 400,
+    textShadow: "0 2px 10px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.6)",
+  },
+  gradientChip: {
+    color: "#FFFFFF", fontWeight: 700,
+    background: "linear-gradient(135deg, #e9479b, #7c3aed)",
+    padding: "4px 12px", borderRadius: "8px", boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
+  },
+  retroVHS: {
+    color: "#FFEA00", fontWeight: 800, fontStyle: "italic", textTransform: "uppercase",
+    textShadow: "-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000",
+  },
+  socialBubble: {
+    color: "#FFFFFF", fontWeight: 700, background: "#1f3d99",
+    padding: "4px 12px", borderRadius: "14px", boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
+  },
+};
+
+/** Live overlay for a plain (non-karaoke) caption preset — positioned & scaled by the drag box. */
+function getCaptionOverlayStyle(x: number, y: number, scale: number, preset: CaptionPreset): CSSProperties {
   return {
     position: "absolute",
-    left: "50%",
-    width: "82%",
+    left: `${x * 100}%`,
+    top: `${y * 100}%`,
+    transform: `translate(-50%, -50%) scale(${scale})`,
+    width: "min(80%, 480px)",
     textAlign: "center",
-    zIndex: 10,
-    pointerEvents: "none",
-    lineHeight: "1.45",
+    lineHeight: 1.45,
     letterSpacing: "0.01em",
-    ...posBase,
-    ...presetStyle,
+    fontSize: "clamp(11px, 3vw, 17px)",
+    whiteSpace: "pre-wrap",
+    ...CAPTION_PRESET_STYLES[preset],
   };
+}
+
+function clampNum(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -297,11 +356,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const [finalVideoUrl, setFinalVideoUrl] = useState<string | null>(video.videoUrl ?? null);
   const [error, setError] = useState<string | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
-  const [musicUrl, setMusicUrl] = useState<string | null>(null);
-  const [musicFileName, setMusicFileName] = useState<string | null>(null);
-  const [uploadingMusic, setUploadingMusic] = useState(false);
-  const musicInputRef = useRef<HTMLInputElement>(null);
-  const musicUrlRef = useRef<string | null>(null); // keeps startAssembly closure fresh
+  const musicUrlRef = useRef<string | null>(null); // keeps startAssembly closure fresh; always null now that custom upload UI is removed — assembly always uses the default ambient track
   const startedRef = useRef(false);
   const mountedRef = useRef(true);
   // Tracks scene IDs we've already auto-triggered a client-side retry for,
@@ -315,19 +370,41 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const [selectedFormats, setSelectedFormats] = useState<OutputFormat[]>(["landscape"]);
   const selectedFormatsRef = useRef<OutputFormat[]>(["landscape"]);
 
-  // ── Caption overlay state (post-render, browser-side) ──────────────────────
-  type CaptionPreset = "classic" | "box" | "bold" | "neon" | "cinematic";
-  type CaptionPos = "bottom" | "middle" | "top";
-  const [captionsVisible, setCaptionsVisible] = useState(true);
-  const [captionPreset, setCaptionPreset] = useState<CaptionPreset>("classic");
-  const [captionPos, setCaptionPos] = useState<CaptionPos>("bottom");
+  // ── Caption editor state (post-render, browser-side) ───────────────────────
+  // Default OFF ("leave blank") — captions are entirely opt-in.
+  const [captionsEnabled, setCaptionsEnabled] = useState(false);
+  const [captionPreset, setCaptionPreset] = useState<CaptionPreset>("clean");
+  // Normalized to the full video frame, 0..1 — (0.5, 0.85) = centered, near the bottom.
+  const [captionX, setCaptionX] = useState(0.5);
+  const [captionY, setCaptionY] = useState(0.85);
+  const [captionScale, setCaptionScale] = useState(1.0);
   const [currentCaptionText, setCurrentCaptionText] = useState<string | null>(null);
-  const [captionExportState, setCaptionExportState] = useState<"idle" | "rendering" | "done" | "error">("idle");
+  const [currentKaraokeWords, setCurrentKaraokeWords] = useState<Array<{ word: string; active: boolean }> | null>(null);
   const [finalAssemblyId, setFinalAssemblyId] = useState<number | null>(null);
+  // Cached captioned render — reused across Share/Download clicks as long as
+  // the caption settings haven't changed since it was produced.
+  const [captionedAssemblyId, setCaptionedAssemblyId] = useState<number | null>(null);
+  const [captionedVideoUrl, setCaptionedVideoUrl] = useState<string | null>(null);
+  // "preparing" only ever shows calm, non-alarming language — never "error"/"retry"
+  // (matches the same philosophy as scene/assembly auto-retry elsewhere in this file).
+  // A "Share the standard version now" escape hatch is always available while preparing,
+  // so customers are never stuck waiting on the captioned render.
+  const [captionPrepState, setCaptionPrepState] = useState<"idle" | "preparing">("idle");
+  const captionFingerprintRef = useRef<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoStageRef = useRef<HTMLDivElement>(null);
   const subtitleTimingsRef = useRef<Array<{ text: string; startSec: number; endSec: number }>>([]);
+  const karaokeTimingsRef = useRef<KaraokeSentenceTiming[]>([]);
+  // Mirrors of drag-related state so pointer-move handlers always read the
+  // latest values without needing to be re-created (and re-attached) every render.
+  const captionXRef = useRef(0.5);
+  const captionYRef = useRef(0.85);
+  const captionScaleRef = useRef(1.0);
+  useEffect(() => { captionXRef.current = captionX; }, [captionX]);
+  useEffect(() => { captionYRef.current = captionY; }, [captionY]);
+  useEffect(() => { captionScaleRef.current = captionScale; }, [captionScale]);
 
   // ── Detect resume state on mount ───────────────────────────────────────────
   useEffect(() => {
@@ -363,12 +440,21 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     const buildTimings = () => {
       if (v.duration && isFinite(v.duration)) {
         subtitleTimingsRef.current = buildSubtitleTimings(video.voiceover!, v.duration);
+        karaokeTimingsRef.current = buildKaraokeTimings(video.voiceover!, v.duration);
       }
     };
     const onTimeUpdate = () => {
       const t = v.currentTime;
       const entry = subtitleTimingsRef.current.find(e => t >= e.startSec && t < e.endSec) ?? null;
       setCurrentCaptionText(entry?.text ?? null);
+
+      const kEntry = karaokeTimingsRef.current.find(e => t >= e.startSec && t < e.endSec) ?? null;
+      if (!kEntry) {
+        setCurrentKaraokeWords(null);
+      } else {
+        const activeIdx = activeKaraokeWordIndex(kEntry, t);
+        setCurrentKaraokeWords(kEntry.words.map((word, i) => ({ word, active: i === activeIdx })));
+      }
     };
 
     v.addEventListener("loadedmetadata", buildTimings);
@@ -475,9 +561,47 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     }
   }, [apiBase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Caption export — POST /assemble with captions burned in ───────────────
-  const handleExportWithCaptions = useCallback(async () => {
-    setCaptionExportState("rendering");
+  // ── Share / copy-link / download handlers ──────────────────────────────────
+
+  // Returns the proxy download URL for the current clean (caption-free) assembly.
+  // Proxy route handles GCS auth + forces Content-Disposition: attachment.
+  const getProxyDownloadUrl = useCallback((assemblyId: number | null) => {
+    if (!assemblyId) return null;
+    return `${apiBase}/assemblies/${assemblyId}/download`;
+  }, [apiBase]);
+
+  // Polls /assemblies for a specific assembly, within a bounded time budget.
+  // Returns null (never throws) on failure/timeout — callers always have a
+  // silent, ready-made fallback (the plain video) so nobody is ever stuck.
+  const pollForAssembly = useCallback(async (assemblyId: number, budgetMs: number) => {
+    const startedAt = Date.now();
+    while (mountedRef.current && !skipCaptionWaitRef.current && Date.now() - startedAt < budgetMs) {
+      await new Promise(r => setTimeout(r, 4_000));
+      try {
+        const pr = await fetch(`${apiBase}/assemblies`);
+        if (!pr.ok) continue;
+        const data = (await pr.json()) as AssembliesResponse;
+        const target = data.assemblies.find(a => a.id === assemblyId);
+        if (target?.status === "complete" && target.videoUrl) return target;
+        if (target?.status === "failed") return null;
+      } catch { /* transient — keep polling within budget */ }
+    }
+    return null;
+  }, [apiBase]);
+
+  /**
+   * Ensures a captioned render exists for the CURRENT caption settings,
+   * reusing a cached one if the style/position/scale haven't changed since
+   * it was produced. Returns null (never throws) if it can't be produced in
+   * time — callers fall back to sharing the plain video rather than blocking.
+   */
+  const ensureCaptionedAssembly = useCallback(async (): Promise<{ id: number; videoUrl: string } | null> => {
+    const fingerprint = `${captionPreset}|${captionX.toFixed(3)}|${captionY.toFixed(3)}|${captionScale.toFixed(3)}`;
+    if (captionedAssemblyId && captionedVideoUrl && captionFingerprintRef.current === fingerprint) {
+      return { id: captionedAssemblyId, videoUrl: captionedVideoUrl };
+    }
+
+    setCaptionPrepState("preparing");
     try {
       const r = await fetch(`${apiBase}/assemble`, {
         method: "POST",
@@ -486,88 +610,86 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
           outputFormats: selectedFormatsRef.current.length > 0 ? selectedFormatsRef.current : ["landscape"],
           captionsEnabled: true,
           captionPreset,
-          captionPosition: captionPos,
+          captionX,
+          captionY,
+          captionScale,
           transitionType: "fade",
           transitionDuration: 0.5,
           ...(musicUrlRef.current ? { backgroundMusicUrl: musicUrlRef.current } : {}),
           force: true,
         }),
       });
-      if (!r.ok) throw new Error(`Assembly start failed (${r.status})`);
+      if (!r.ok) return null;
       const { assemblyIds } = (await r.json()) as { assemblyIds: number[] };
       const targetId = assemblyIds[0];
+      if (!targetId) return null;
 
-      // Poll until the captioned assembly completes, then auto-download
-      while (mountedRef.current) {
-        await new Promise(res => setTimeout(res, 8_000));
-        const pr = await fetch(`${apiBase}/assemblies`);
-        if (!pr.ok) continue;
-        const data = (await pr.json()) as AssembliesResponse;
-        const target = data.assemblies.find(a => a.id === targetId);
-        if (target?.status === "complete" && target.videoUrl && target.id) {
-          setCaptionExportState("done");
-          // Use the proxy route to force a real file download on mobile Chrome
-          const proxyUrl = `${apiBase}/assemblies/${target.id}/download`;
-          try {
-            const dr = await fetch(proxyUrl);
-            if (dr.ok) {
-              const blob = await dr.blob();
-              const objectUrl = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = objectUrl;
-              a.download = `${video.title ?? "commercial"}-captioned.mp4`;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(objectUrl);
-            }
-          } catch { /* non-fatal — user can manually download */ }
-          return;
-        }
-        if (target?.status === "failed") throw new Error("Caption export failed on server");
-      }
-    } catch (err) {
-      setCaptionExportState("error");
-      toast({ title: "Export failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
-      setTimeout(() => setCaptionExportState("idle"), 4_000);
+      const result = await pollForAssembly(targetId, 90_000);
+      if (!result?.videoUrl) return null;
+
+      captionFingerprintRef.current = fingerprint;
+      setCaptionedAssemblyId(result.id);
+      setCaptionedVideoUrl(result.videoUrl);
+      return { id: result.id, videoUrl: result.videoUrl };
+    } catch {
+      return null;
+    } finally {
+      setCaptionPrepState("idle");
     }
-  }, [apiBase, captionPreset, captionPos, video.title, toast]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [apiBase, captionPreset, captionX, captionY, captionScale, captionedAssemblyId, captionedVideoUrl, pollForAssembly]);
 
-  // ── Share / copy-link / download handlers ──────────────────────────────────
+  /**
+   * Resolves which video to actually hand to Share/Download: the captioned
+   * render when captions are on, silently falling back to the plain video if
+   * the captioned one isn't ready/available yet — so these actions never
+   * present an error state or leave the customer stuck.
+   */
+  const resolveShareTarget = useCallback(async (): Promise<{ assemblyId: number | null; videoUrl: string | null }> => {
+    if (!captionsEnabled) {
+      return { assemblyId: finalAssemblyId, videoUrl: finalVideoUrl };
+    }
+    const captioned = await ensureCaptionedAssembly();
+    if (captioned) return { assemblyId: captioned.id, videoUrl: captioned.videoUrl };
+    return { assemblyId: finalAssemblyId, videoUrl: finalVideoUrl };
+  }, [captionsEnabled, ensureCaptionedAssembly, finalAssemblyId, finalVideoUrl]);
 
-  // Returns the proxy download URL for the current clean assembly.
-  // Proxy route handles GCS auth + forces Content-Disposition: attachment.
-  const getProxyDownloadUrl = useCallback(() => {
-    if (!finalAssemblyId) return null;
-    return `${apiBase}/assemblies/${finalAssemblyId}/download`;
-  }, [apiBase, finalAssemblyId]);
+  /** Bails out of waiting for the captioned render — shares/downloads the plain video right now. */
+  const skipCaptionWaitRef = useRef(false);
 
   const handleDownload = useCallback(async () => {
-    const proxyUrl = getProxyDownloadUrl();
-    if (!proxyUrl) return;
     setDownloading(true);
+    skipCaptionWaitRef.current = false;
     try {
+      const { assemblyId } = await resolveShareTarget();
+      if (skipCaptionWaitRef.current) return; // user already bailed out via the escape hatch
+      const proxyUrl = getProxyDownloadUrl(assemblyId);
+      if (!proxyUrl) return;
       const res = await fetch(proxyUrl);
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = objectUrl;
-      a.download = `${video.title ?? "commercial"}.mp4`;
+      a.download = `${video.title ?? "commercial"}${captionsEnabled ? "-captioned" : ""}.mp4`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(objectUrl);
-    } catch (err) {
-      toast({ title: "Download failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    } catch {
+      // Silent, calm fallback — never surface "error"/"failed" language.
+      toast({ title: "Still preparing", description: "Your download will be ready shortly — feel free to try again in a moment." });
     } finally {
       setDownloading(false);
+      setCaptionPrepState("idle");
     }
-  }, [getProxyDownloadUrl, video.title, toast]);
+  }, [resolveShareTarget, getProxyDownloadUrl, video.title, captionsEnabled, toast]);
 
   const handleShare = useCallback(async () => {
-    if (!finalVideoUrl) return;
-    const proxyUrl = getProxyDownloadUrl();
+    skipCaptionWaitRef.current = false;
+    const { assemblyId, videoUrl } = await resolveShareTarget();
+    if (skipCaptionWaitRef.current) return; // user already bailed out via the escape hatch
+    if (!videoUrl) return;
+    const proxyUrl = getProxyDownloadUrl(assemblyId);
 
     // Try native file-share first (mobile share sheet sends the actual video)
     if (proxyUrl && navigator.share && typeof navigator.canShare === "function") {
@@ -587,46 +709,113 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     // URL share (desktop / browsers without file-share)
     if (navigator.share) {
       try {
-        await navigator.share({ title: video.title, text: "Check out this commercial made with GrowthForge AI", url: finalVideoUrl });
+        await navigator.share({ title: video.title, text: "Check out this commercial made with GrowthForge AI", url: videoUrl });
         return;
       } catch { /* user cancelled */ }
     }
 
     // Clipboard fallback
-    await navigator.clipboard.writeText(finalVideoUrl).catch(() => {});
+    await navigator.clipboard.writeText(videoUrl).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2_500);
-  }, [finalVideoUrl, getProxyDownloadUrl, video.title]);
+  }, [resolveShareTarget, getProxyDownloadUrl, video.title]);
 
+  // Copy Link stays instant — it never triggers a new captioned render, only
+  // uses one if already cached, so this lightweight action never makes anyone wait.
   const handleCopyLink = useCallback(async () => {
-    if (!finalVideoUrl) return;
-    await navigator.clipboard.writeText(finalVideoUrl).catch(() => {});
+    const url = (captionsEnabled && captionedVideoUrl) ? captionedVideoUrl : finalVideoUrl;
+    if (!url) return;
+    await navigator.clipboard.writeText(url).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2_500);
-  }, [finalVideoUrl]);
+  }, [captionsEnabled, captionedVideoUrl, finalVideoUrl]);
+
+  // Escape hatch shown while a captioned render is preparing — immediately
+  // shares/downloads the plain video instead of waiting any longer.
+  const handleShareWithoutCaptions = useCallback(async () => {
+    skipCaptionWaitRef.current = true;
+    setCaptionPrepState("idle");
+    const proxyUrl = getProxyDownloadUrl(finalAssemblyId);
+    if (navigator.share && proxyUrl) {
+      try {
+        const res = await fetch(proxyUrl);
+        if (res.ok) {
+          const blob = await res.blob();
+          const file = new File([blob], `${video.title ?? "commercial"}.mp4`, { type: "video/mp4" });
+          if (navigator.canShare?.({ files: [file] })) {
+            await navigator.share({ title: video.title ?? "GrowthForge Commercial", files: [file] });
+            return;
+          }
+        }
+      } catch { /* fall through */ }
+    }
+    if (finalVideoUrl) {
+      await navigator.clipboard.writeText(finalVideoUrl).catch(() => {});
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2_500);
+    }
+  }, [finalAssemblyId, finalVideoUrl, getProxyDownloadUrl, video.title]);
+
+  // ── Caption drag / resize ───────────────────────────────────────────────────
+  // Any settings change invalidates the cached captioned render so the next
+  // Share/Download re-renders with the latest position/size/style.
+  const invalidateCaptionCache = useCallback(() => {
+    captionFingerprintRef.current = null;
+  }, []);
+
+  const handleCaptionDragStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const stage = videoStageRef.current;
+    if (!stage) return;
+    const rect = stage.getBoundingClientRect();
+    const startPointerX = e.clientX;
+    const startPointerY = e.clientY;
+    const startX = captionXRef.current;
+    const startY = captionYRef.current;
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = (ev.clientX - startPointerX) / rect.width;
+      const dy = (ev.clientY - startPointerY) / rect.height;
+      setCaptionX(clampNum(startX + dx, 0.06, 0.94));
+      setCaptionY(clampNum(startY + dy, 0.06, 0.94));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      invalidateCaptionCache();
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }, [invalidateCaptionCache]);
+
+  const handleCaptionResizeStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startPointerY = e.clientY;
+    const startScale = captionScaleRef.current;
+
+    const onMove = (ev: PointerEvent) => {
+      const dy = startPointerY - ev.clientY; // drag the handle up to grow, down to shrink
+      setCaptionScale(clampNum(startScale + dy / 140, 0.5, 2.0));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      invalidateCaptionCache();
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }, [invalidateCaptionCache]);
+
+  const handleResetCaptionPosition = useCallback(() => {
+    setCaptionX(0.5);
+    setCaptionY(0.85);
+    setCaptionScale(1.0);
+    invalidateCaptionCache();
+  }, [invalidateCaptionCache]);
 
   // ── Assembly trigger ───────────────────────────────────────────────────────
-  const handleMusicUpload = useCallback(async (file: File) => {
-    setUploadingMusic(true);
-    try {
-      const form = new FormData();
-      form.append("music", file);
-      const r = await fetch(`${apiBase}/music`, { method: "POST", body: form });
-      if (!r.ok) {
-        const b = (await r.json().catch(() => ({}))) as { error?: string };
-        throw new Error(b.error ?? `Upload failed (${r.status})`);
-      }
-      const { url, name } = (await r.json()) as { url: string; name: string };
-      setMusicUrl(url);
-      setMusicFileName(name);
-      musicUrlRef.current = url; // keep ref in sync so startAssembly gets the latest
-    } catch (err) {
-      toast({ title: "Music upload failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
-    } finally {
-      setUploadingMusic(false);
-    }
-  }, [apiBase, toast]);
-
   // Assembly hiccups (a stitching failure, a stuck/idle job, a timeout) are
   // never shown to the customer as an error. We quietly re-trigger assembly
   // a bounded number of times in the background first — only after that
@@ -917,41 +1106,6 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             </>
           )}
 
-          {/* ── Music upload ───────────────────────────────────────────────── */}
-          <div className="mb-3">
-            <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-1.5">Background Music</p>
-            <input
-              ref={musicInputRef}
-              type="file"
-              accept="audio/mp3,audio/mpeg,audio/wav,audio/aac,audio/m4a,audio/ogg,.mp3,.wav,.aac,.m4a,.ogg"
-              className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) void handleMusicUpload(f); e.target.value = ""; }}
-            />
-            {musicUrl && musicFileName ? (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#00E676]/8 border border-[#00E676]/20">
-                <Music className="w-3.5 h-3.5 text-[#00E676] shrink-0" />
-                <span className="text-xs text-[#00E676] font-medium flex-1 truncate">{musicFileName}</span>
-                <button
-                  onClick={() => { setMusicUrl(null); setMusicFileName(null); }}
-                  className="text-white/30 hover:text-red-400 transition-colors"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => musicInputRef.current?.click()}
-                disabled={uploadingMusic}
-                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-white/15 text-[11px] font-semibold text-white/40 hover:border-white/30 hover:text-white/60 transition-colors disabled:opacity-40"
-              >
-                {uploadingMusic
-                  ? <><Loader2 className="w-3 h-3 animate-spin" /> Uploading…</>
-                  : <><Upload className="w-3 h-3" /> Upload your music (MP3 / WAV / AAC) — or we'll use our ambient track</>
-                }
-              </button>
-            )}
-          </div>
-
           <button
             disabled={!hasBlueprint}
             onClick={() => void startProduction()}
@@ -976,8 +1130,8 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     return (
       <div className="mt-4 pt-4 border-t border-white/8 space-y-3">
 
-        {/* Video player with live caption overlay */}
-        <div className="relative rounded-xl overflow-hidden border border-[#00E676]/30 bg-black">
+        {/* Video player with live, draggable caption preview — exactly what will be shared/published */}
+        <div ref={videoStageRef} className="relative rounded-xl overflow-hidden border border-[#00E676]/30 bg-black select-none">
           <video
             ref={videoRef}
             controls
@@ -985,16 +1139,58 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             style={{ maxHeight: "300px", display: "block" }}
             src={finalVideoUrl}
           />
-          {captionsVisible && currentCaptionText && (
-            <div style={getCaptionOverlayStyle(captionPos, captionPreset)}>
-              {currentCaptionText.split("\n").map((line, i) => (
-                <span key={i} style={{ display: "block" }}>{line}</span>
-              ))}
+          {captionsEnabled && (currentCaptionText || currentKaraokeWords) && (
+            // Outer wrapper is pointerEvents:none so it never blocks the native
+            // video controls underneath — only the small drag/resize handles
+            // (explicitly pointerEvents:auto below) are actually interactive.
+            <div style={{ ...getCaptionOverlayStyle(captionX, captionY, captionScale, captionPreset), pointerEvents: "none" }}>
+              {/* inline-block so the wrapper shrinks to the actual caption box size —
+                  otherwise the drag/resize handles below would anchor to the full
+                  (much wider) text-centering column instead of the visible box. */}
+              <div style={{ position: "relative", display: "inline-block" }}>
+                <div
+                  onPointerDown={handleCaptionDragStart}
+                  title="Drag to move"
+                  style={{
+                    position: "absolute", top: -20, left: "50%", transform: "translateX(-50%)",
+                    width: 24, height: 16, borderRadius: 4, background: "rgba(0,0,0,0.6)",
+                    border: "1px solid rgba(255,255,255,0.45)", cursor: "grab", pointerEvents: "auto",
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", color: "#fff",
+                  }}
+                >
+                  ⠿
+                </div>
+                <div style={{ border: "1px dashed rgba(255,255,255,0.35)", borderRadius: "6px", padding: "4px 6px" }}>
+                  {captionPreset === "karaoke" && currentKaraokeWords ? (
+                    <span>
+                      {currentKaraokeWords.map((w, i) => (
+                        <span key={i} style={{ color: w.active ? KARAOKE_HIGHLIGHT_COLOR : undefined }}>
+                          {w.word}{i < currentKaraokeWords.length - 1 ? " " : ""}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    currentCaptionText?.split("\n").map((line, i) => (
+                      <span key={i} style={{ display: "block" }}>{line}</span>
+                    ))
+                  )}
+                </div>
+                {/* Resize handle — drag to grow/shrink the caption */}
+                <div
+                  onPointerDown={handleCaptionResizeStart}
+                  title="Drag to resize"
+                  style={{
+                    position: "absolute", right: -6, bottom: -6, width: 14, height: 14,
+                    borderRadius: "50%", background: "#00E676", border: "2px solid #051", cursor: "nwse-resize",
+                    pointerEvents: "auto",
+                  }}
+                />
+              </div>
             </div>
           )}
         </div>
 
-        {/* Caption editor — always shown so users can export with any preset */}
+        {/* Caption editor — post-render, before Share/Publish. Default is OFF ("leave blank"). */}
         <div className="rounded-xl bg-white/3 border border-white/8 p-3 space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -1002,56 +1198,71 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                 <span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider">Captions</span>
               </div>
               <button
-                onClick={() => setCaptionsVisible(v => !v)}
-                className={`w-8 h-4 rounded-full transition-all relative ${captionsVisible ? "bg-[#00E676]" : "bg-white/10"}`}
+                onClick={() => setCaptionsEnabled(v => !v)}
+                className={`w-8 h-4 rounded-full transition-all relative ${captionsEnabled ? "bg-[#00E676]" : "bg-white/10"}`}
               >
-                <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${captionsVisible ? "left-4" : "left-0.5"}`} />
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${captionsEnabled ? "left-4" : "left-0.5"}`} />
               </button>
             </div>
-            {captionsVisible && (
+            {captionsEnabled && (
               <>
                 <div>
                   <p className="text-[9px] text-white/30 uppercase tracking-wider mb-1.5">Style</p>
-                  <div className="flex gap-1">
-                    {(["classic", "box", "bold", "neon", "cinematic"] as CaptionPreset[]).map(p => (
+                  <div className="grid grid-cols-4 gap-1">
+                    {CAPTION_PRESET_ORDER.map(p => (
                       <button
                         key={p}
                         onClick={() => setCaptionPreset(p)}
-                        className={`flex-1 py-1.5 rounded text-[9px] font-bold transition-all capitalize ${
+                        className={`py-2 rounded text-[9px] font-bold transition-all overflow-hidden ${
                           captionPreset === p
-                            ? "bg-[#00E676]/20 border border-[#00E676]/40 text-[#00E676]"
-                            : "bg-white/4 border border-white/8 text-white/40 hover:text-white/60"
+                            ? "bg-[#00E676]/15 border border-[#00E676]/50"
+                            : "bg-black/30 border border-white/8 hover:border-white/25"
                         }`}
-                      >{p}</button>
+                      >
+                        <span style={{ ...CAPTION_PRESET_STYLES[p], fontSize: "9px", display: "inline-block" }}>
+                          {p === "karaoke" ? (
+                            <>Kara<span style={{ color: KARAOKE_HIGHLIGHT_COLOR }}>oke</span></>
+                          ) : (
+                            CAPTION_PRESET_LABELS[p]
+                          )}
+                        </span>
+                      </button>
                     ))}
                   </div>
                 </div>
-                <div>
-                  <p className="text-[9px] text-white/30 uppercase tracking-wider mb-1.5">Position</p>
-                  <div className="flex gap-1">
-                    {(["top", "middle", "bottom"] as CaptionPos[]).map(pos => (
-                      <button
-                        key={pos}
-                        onClick={() => setCaptionPos(pos)}
-                        className={`flex-1 py-1.5 rounded text-[9px] font-bold transition-all capitalize ${
-                          captionPos === pos
-                            ? "bg-[#00D4FF]/20 border border-[#00D4FF]/40 text-[#00D4FF]"
-                            : "bg-white/4 border border-white/8 text-white/40 hover:text-white/60"
-                        }`}
-                      >{pos}</button>
-                    ))}
-                  </div>
+                <div className="flex items-center justify-between pt-0.5">
+                  <p className="text-[9px] text-white/30">Drag the caption on the preview above to position &amp; resize it — the green handle resizes.</p>
+                  <button
+                    onClick={handleResetCaptionPosition}
+                    className="shrink-0 ml-2 text-[9px] font-semibold text-white/40 hover:text-white/70 transition-colors"
+                  >
+                    Reset
+                  </button>
                 </div>
               </>
             )}
           </div>
 
-        {/* Export options */}
+        {/* Share / download — captions (if enabled) are applied automatically before either action */}
         <div className="space-y-2">
+          {captionPrepState === "preparing" && (
+            <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-[#00D4FF]/8 border border-[#00D4FF]/20">
+              <span className="text-[10px] text-[#00D4FF] flex items-center gap-1.5">
+                <Loader2 className="w-3 h-3 animate-spin" /> Getting your captioned video ready — this usually takes under a minute…
+              </span>
+              <button
+                onClick={() => void handleShareWithoutCaptions()}
+                className="shrink-0 text-[10px] font-bold text-white/60 hover:text-white/90 underline transition-colors"
+              >
+                Share standard version now
+              </button>
+            </div>
+          )}
           <div className="flex gap-2">
             <button
               onClick={() => void handleShare()}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-[#00E676] text-black hover:bg-[#14F195] transition-all"
+              disabled={captionPrepState === "preparing"}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-[#00E676] text-black hover:bg-[#14F195] transition-all disabled:opacity-60"
             >
               <Share2 className="w-3.5 h-3.5" /> Share
             </button>
@@ -1067,24 +1278,12 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
 
           <button
             onClick={() => void handleDownload()}
-            disabled={downloading || !finalAssemblyId}
+            disabled={downloading || !finalAssemblyId || captionPrepState === "preparing"}
             className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-white/55 hover:bg-white/8 transition-all disabled:opacity-40"
           >
             {downloading
               ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Downloading…</>
-              : <><Download className="w-3.5 h-3.5" /> Download (no captions)</>}
-          </button>
-
-          <button
-            onClick={() => void handleExportWithCaptions()}
-            disabled={captionExportState === "rendering"}
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold bg-[#00D4FF]/10 border border-[#00D4FF]/25 text-[#00D4FF] hover:bg-[#00D4FF]/18 transition-all disabled:opacity-50"
-          >
-            {captionExportState === "rendering"
-              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rendering with captions…</>
-              : captionExportState === "done"
-                ? <><Check className="w-3.5 h-3.5" /> Done — click to re-download</>
-                : <><Film className="w-3.5 h-3.5" /> Export with {captionPreset.charAt(0).toUpperCase() + captionPreset.slice(1)} captions</>}
+              : <><Download className="w-3.5 h-3.5" /> Download{captionsEnabled ? " with captions" : ""}</>}
           </button>
         </div>
 
