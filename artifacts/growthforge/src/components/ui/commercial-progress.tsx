@@ -963,18 +963,14 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     setCurrentStage("scene_0");
     setPhase("scenes");
     try {
-      // Map the selected output format to a Kling aspect ratio so Kling clips
-      // are generated natively in the right format (not scaled/letterboxed later).
-      const FORMAT_TO_AR: Record<string, string> = {
-        landscape: "landscape",
-        square: "square",
-        vertical: "vertical",
-      };
+      // Send the selected output format as-is — the server (scenes.ts) maps it
+      // to the real Kling/Wan aspect ratio (e.g. "vertical" -> "9:16") and
+      // persists it so scene generation and final assembly stay in sync.
       const selectedFormat = selectedFormatsRef.current[0] ?? "landscape";
       const r = await fetch(`${apiBase}/scenes/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aspectRatio: FORMAT_TO_AR[selectedFormat] ?? "landscape" }),
+        body: JSON.stringify({ aspectRatio: selectedFormat }),
       });
       if (!r.ok) {
         const body = (await r.json().catch(() => ({}))) as { error?: string; message?: string };
