@@ -425,10 +425,13 @@ export class SceneManager {
   }
 
   /**
-   * Renders a scene via the self-hosted Wan 2.7 worker (Vast.ai). Currently a
-   * thin pass-through to WanRenderer, which is scaffolding-only until the
-   * worker container + serverless endpoint are provisioned — see
-   * .agents/memory/wan-vast-video-migration.md.
+   * Renders a scene via the self-hosted Wan 2.2 (14B, T2V-A14B + I2V-A14B)
+   * worker on Vast.ai Serverless (min_workers=0 — scales to zero between
+   * renders). Full implementation lives in wanRenderer.ts: resolves a worker
+   * via Vast's /route/, submits a ComfyUI T2V or I2V workflow_json to
+   * /generate/sync, and stores the transcoded MP4 in our own Supabase bucket
+   * (the worker uploads directly there via an S3-compatible passthrough — see
+   * .agents/memory/wan-vast-video-migration.md for the full contract).
    *
    * On failure, marks the scene "failed" with the error message — same as a
    * genuine Kling failure — rather than silently switching providers. This
@@ -459,6 +462,24 @@ export class SceneManager {
           updatedAt: new Date(),
         })
         .where(eq(klingSceneJobsTable.id, scene.id));
+
+      // Feed this clip's last frame forward so a FUTURE continuity scene
+      // (newSceneCut=false) can use it as its I2V source frame. Scene-cut
+      // decisions aren't authored by the AI decomposition step yet (all
+      // scenes currently default newSceneCut=true / pure T2V) — this just
+      // keeps the data ready for when that authoring logic lands.
+      if (result.lastFrameUrl) {
+        await db
+          .update(klingSceneJobsTable)
+          .set({ sourceFrameUrl: result.lastFrameUrl, updatedAt: new Date() })
+          .where(
+            and(
+              eq(klingSceneJobsTable.videoId, scene.videoId),
+              eq(klingSceneJobsTable.sceneIndex, scene.sceneIndex + 1),
+              eq(klingSceneJobsTable.newSceneCut, false),
+            ),
+          );
+      }
 
       logger.info(
         { sceneJobId: scene.id, sceneIndex: scene.sceneIndex, videoUrl: result.videoUrl },
