@@ -6,6 +6,8 @@ import { eq, and } from "drizzle-orm";
 import { generateJson } from "./aiJson.js";
 import { getGroundingContext, renderGroundingBlock } from "./projectContext.js";
 import { getRenderQueue } from "./renderQueue.js";
+import { getActiveVideoProvider } from "./videoProviderConfig.js";
+import { getWanRenderer } from "./wanRenderer.js";
 import type { CommercialSceneType, KlingSceneJob } from "@workspace/db";
 
 const logger = pino({ name: "sceneManager" });
@@ -399,6 +401,87 @@ export class SceneManager {
       { sceneJobId, sceneIndex: scene.sceneIndex, sceneName: scene.sceneName },
       "[SceneManager] Processing scene",
     );
+
+    // ── Provider dispatch ──────────────────────────────────────────────────
+    // ACTIVE_VIDEO_PROVIDER selects the EXCLUSIVE renderer for new scenes —
+    // there is deliberately NO automatic per-scene fallback to Kling. If Wan
+    // is active and a scene fails, it fails visibly (status="failed",
+    // errorMessage set) exactly like a Kling failure would. Kling's own code
+    // path is left fully intact and untouched below, but it is only reached
+    // by an operator explicitly setting ACTIVE_VIDEO_PROVIDER=kling — a
+    // deliberate business decision (e.g. to keep serving customers during an
+    // extended Wan outage), never a silent, automatic per-request switch.
+    if (getActiveVideoProvider() === "wan") {
+      await db
+        .update(klingSceneJobsTable)
+        .set({ provider: "wan", updatedAt: new Date() })
+        .where(eq(klingSceneJobsTable.id, sceneJobId));
+
+      await this.processSceneViaWan(scene);
+      return;
+    }
+
+    await this.processSceneViaKling(scene);
+  }
+
+  /**
+   * Renders a scene via the self-hosted Wan 2.7 worker (Vast.ai). Currently a
+   * thin pass-through to WanRenderer, which is scaffolding-only until the
+   * worker container + serverless endpoint are provisioned — see
+   * .agents/memory/wan-vast-video-migration.md.
+   *
+   * On failure, marks the scene "failed" with the error message — same as a
+   * genuine Kling failure — rather than silently switching providers. This
+   * makes a Wan outage immediately visible (failed scenes, error messages,
+   * metrics) so a human can decide whether to temporarily flip
+   * ACTIVE_VIDEO_PROVIDER to "kling" for new renders.
+   */
+  private async processSceneViaWan(scene: KlingSceneJob): Promise<void> {
+    try {
+      const renderer = getWanRenderer();
+      const result = await renderer.renderScene({
+        sceneJobId: scene.id,
+        videoId: scene.videoId,
+        sceneIndex: scene.sceneIndex,
+        prompt: scene.prompt,
+        aspectRatio: scene.aspectRatio,
+        durationSec: KLING_DURATION_SEC,
+        newSceneCut: scene.newSceneCut,
+        sourceFrameUrl: scene.sourceFrameUrl,
+      });
+
+      await db
+        .update(klingSceneJobsTable)
+        .set({
+          status: "succeed",
+          videoUrl: result.videoUrl,
+          durationSec: result.durationSec,
+          updatedAt: new Date(),
+        })
+        .where(eq(klingSceneJobsTable.id, scene.id));
+
+      logger.info(
+        { sceneJobId: scene.id, sceneIndex: scene.sceneIndex, videoUrl: result.videoUrl },
+        "[SceneManager] Scene rendered via Wan provider",
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error(
+        { err: msg, sceneJobId: scene.id, sceneIndex: scene.sceneIndex },
+        "[SceneManager] Wan render failed — marking scene failed (no automatic Kling fallback by design)",
+      );
+      await this.markSceneFailed(scene.id, `Wan render failed: ${msg}`);
+    }
+  }
+
+  /**
+   * Handles the full Kling lifecycle for one scene: submit → poll → download
+   * → store. This is the original, battle-tested render path (unchanged),
+   * now reachable either directly (ACTIVE_VIDEO_PROVIDER=kling) or as the
+   * automatic fallback when the Wan provider errors.
+   */
+  private async processSceneViaKling(scene: KlingSceneJob): Promise<void> {
+    const sceneJobId = scene.id;
 
     // ── Auto-retry loop ──────────────────────────────────────────────────────
     // Kling generation is occasionally flaky. We silently re-submit up to
@@ -840,8 +923,18 @@ Generate exactly ${targetSceneCount} scenes. Make every scene visually distinct 
 
 export function checkSceneManagerRequirements(): { ready: boolean; missing: string[] } {
   const missing: string[] = [];
-  if (!process.env.KLING_API_KEY) missing.push("KLING_API_KEY");
   if (!process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID) missing.push("DEFAULT_OBJECT_STORAGE_BUCKET_ID");
+
+  // At least one video render provider must be usable. If ACTIVE_VIDEO_PROVIDER=wan
+  // but Wan isn't configured yet, Kling being configured is still sufficient
+  // (sceneManager.ts falls back to it automatically) — so we only report
+  // missing vars if NEITHER provider is usable.
+  const klingReady = Boolean(process.env.KLING_API_KEY);
+  const wanReady = Boolean(process.env.VAST_AI_API_KEY && process.env.VAST_AI_ENDPOINT_ID);
+  if (!klingReady && !wanReady) {
+    missing.push("KLING_API_KEY (or VAST_AI_API_KEY + VAST_AI_ENDPOINT_ID for the Wan provider)");
+  }
+
   return { ready: missing.length === 0, missing };
 }
 

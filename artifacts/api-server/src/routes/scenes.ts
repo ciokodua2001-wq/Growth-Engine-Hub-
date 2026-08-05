@@ -35,13 +35,16 @@ router.post("/projects/:id/videos/:videoId/scenes/generate", async (req, res) =>
     return;
   }
 
-  // Check Kling is configured
+  // Check at least one video render provider (Wan or Kling) is configured.
+  // Never surface the specific missing env vars / vendor names to the client —
+  // that's internal infrastructure detail. Full detail goes to the server log
+  // only, for the operator to act on.
   const { ready, missing } = checkSceneManagerRequirements();
   if (!ready) {
+    logger.error({ missing }, "[scenes] Video generation unavailable — missing configuration");
     res.status(503).json({
-      error: "Scene generation is not configured",
-      missing,
-      message: `Set the following environment variables to enable scene generation: ${missing.join(", ")}`,
+      error: "Video generation is temporarily unavailable",
+      message: "Please try again later or contact support if this persists.",
     });
     return;
   }
@@ -142,9 +145,12 @@ router.post("/projects/:id/videos/:videoId/scenes/generate", async (req, res) =>
     // Returns cached scenes if the blueprint hasn't changed.
     scenes = await manager.decomposeBlueprint(videoId, projectId);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Scene decomposition failed";
+    // Full error (may reference internal AI providers) stays server-side only.
     logger.error({ err, videoId }, "[scenes] Blueprint decomposition failed");
-    res.status(500).json({ error: "Failed to decompose blueprint into scenes", detail: msg });
+    res.status(500).json({
+      error: "Failed to generate scenes",
+      message: "Please try again in a moment. Contact support if this keeps happening.",
+    });
     return;
   } finally {
     releaseLock();
@@ -314,6 +320,18 @@ function buildProgress(
 }
 
 // ── Response formatter ────────────────────────────────────────────────────────
+//
+// IMPORTANT: this response is customer-facing. Never include internal
+// implementation details here — render provider name, vendor task/job IDs,
+// model identifiers, or raw provider error text all reveal which backend
+// vendors/APIs power the product. Keep those fields DB-only / admin-only
+// (see routes/renderAdmin.ts, which is behind requireAdmin) and sanitize the
+// error message shown to customers to a generic, actionable-but-anonymous string.
+
+function sanitizeSceneError(errorMessage: string | null): string | null {
+  if (!errorMessage) return null;
+  return "Scene generation failed. We're retrying automatically — please check back shortly.";
+}
 
 function formatScene(s: typeof klingSceneJobsTable.$inferSelect) {
   return {
@@ -334,16 +352,12 @@ function formatScene(s: typeof klingSceneJobsTable.$inferSelect) {
       brandStyle: s.brandStyle,
       marketingObjective: s.marketingObjective,
     },
-    // Kling render info
-    klingTaskId: s.klingTaskId,
-    externalTaskId: s.externalTaskId,
-    model: s.model,
     aspectRatio: s.aspectRatio,
     // Result
     videoUrl: s.videoUrl,
     durationSec: s.durationSec,
-    // Error & retry
-    errorMessage: s.errorMessage,
+    // Error & retry (sanitized — no internal/vendor detail)
+    errorMessage: sanitizeSceneError(s.errorMessage),
     retryCount: s.retryCount,
     lastRetryAt: s.lastRetryAt,
     // Timestamps

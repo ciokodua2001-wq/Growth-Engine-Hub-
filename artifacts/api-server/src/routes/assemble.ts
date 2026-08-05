@@ -80,10 +80,11 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
   // ── Check requirements ──────────────────────────────────────────────────────
   const { ready, missing } = checkAssemblerRequirements();
   if (!ready) {
+    // Full detail (may reference internal vendors/infra) stays server-side only.
+    logger.error({ missing }, "[assemble] Assembly pipeline unavailable — missing configuration");
     res.status(503).json({
-      error: "Assembly pipeline is not configured",
-      missing,
-      message: `Set these environment variables to enable assembly: ${missing.join(", ")}`,
+      error: "Video assembly is temporarily unavailable",
+      message: "Please try again later or contact support if this persists.",
     });
     return;
   }

@@ -5,8 +5,10 @@ import { eq, and } from "drizzle-orm";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
 import { checkRenderRequirements, startVideoRender, type RenderResolution, type AspectRatio } from "../lib/videoRenderPipeline.js";
 import { checkVideoSeconds } from "../lib/videoWallet.js";
+import pino from "pino";
 
 const router = Router();
+const logger = pino({ name: "render.route" });
 
 router.param("id", requireProjectOwnershipParam());
 
@@ -59,10 +61,11 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
 
   const { ready, missing } = checkRenderRequirements();
   if (!ready) {
+    // Full detail (may reference internal vendors/infra) stays server-side only.
+    logger.error({ missing }, "[render] Video rendering unavailable — missing configuration");
     res.status(503).json({
-      error:   "Video rendering is not yet configured",
-      missing,
-      message: `Set the following environment variables to enable video rendering: ${missing.join(", ")}`,
+      error: "Video rendering is temporarily unavailable",
+      message: "Please try again later or contact support if this persists.",
     });
     return;
   }

@@ -27,6 +27,7 @@ import GenerateModal from "@/components/ui/generate-modal";
 import CommercialProductionProgress from "@/components/ui/commercial-progress";
 import VideoWalletWidget from "@/components/video-wallet-widget";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { downloadFile } from "@/lib/utils";
 
 // ── Cinematic Plan types ──────────────────────────────────────────────────────
 type AspectRatio = "16:9" | "9:16" | "1:1" | "4:5";
@@ -512,13 +513,13 @@ function RenderPanel({
         <div className="rounded-xl overflow-hidden border border-[#00E676]/30 bg-[#00E676]/5">
           <video controls className="w-full max-h-48 bg-black" src={currentVideoUrl} />
           <div className="flex gap-2 p-3">
-            <a
-              href={currentVideoUrl}
-              download
+            <button
+              type="button"
+              onClick={() => void downloadFile(currentVideoUrl, "growthforge-video.mp4")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/70 transition-colors"
             >
               <Download className="w-3 h-3" /> Download
-            </a>
+            </button>
             <a
               href={currentVideoUrl}
               target="_blank"
@@ -708,8 +709,8 @@ function ImageStudio({ projectId, isTrial }: { projectId: number; isTrial: boole
       });
       setGeneratedUrls((prev) => [...(result.urls ?? []), ...prev]);
     } catch (err) {
-      const e = err as { response?: { data?: { error?: string } }; message?: string };
-      setError(e?.response?.data?.error ?? e?.message ?? "Image generation failed");
+      const e = err as { response?: { data?: { error?: string; message?: string } }; message?: string };
+      setError(e?.response?.data?.message ?? e?.response?.data?.error ?? e?.message ?? "Image generation failed");
     } finally {
       setGenerating(false);
     }
@@ -844,14 +845,16 @@ function ImageStudio({ projectId, isTrial }: { projectId: number; isTrial: boole
                 <div key={`${url}-${i}`} className="relative group rounded-xl overflow-hidden border border-white/8 aspect-video bg-white/3">
                   <img src={url} alt={`Generated ${i + 1}`} className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <a
-                      href={url}
-                      download
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void downloadFile(url, `growthforge-image-${i + 1}.png`);
+                      }}
                       className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
-                      onClick={(e) => e.stopPropagation()}
                     >
                       <Download className="w-3.5 h-3.5 text-white" />
-                    </a>
+                    </button>
                     <a
                       href={url}
                       target="_blank"

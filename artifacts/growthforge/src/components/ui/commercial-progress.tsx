@@ -17,7 +17,7 @@ import {
   Check, AlertCircle, RefreshCw, Download,
   Loader2, Clock, Film, Music, Sparkles, BarChart2,
   Target, FileText, Clapperboard, Play,
-  RotateCcw, X, Lock as LockIcon, Upload, Trash2,
+  Lock as LockIcon, Upload, Trash2,
   Share2, Copy, Type,
 } from "lucide-react";
 
@@ -129,46 +129,30 @@ const MAX_SCENE_RETRIES = 10;
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function SceneTile({
-  scene,
-  onRetry,
-  retrying,
-}: {
-  scene: SceneRecord;
-  onRetry: (id: number) => void;
-  retrying: number | null;
-}) {
+function SceneTile({ scene }: { scene: SceneRecord }) {
   const name = scene.sceneName ?? `Scene ${scene.sceneIndex + 1}`;
-  const isActive = scene.status === "submitted" || scene.status === "processing";
   const isSuccess = scene.status === "succeed";
-  const isFailed = scene.status === "failed";
-  const isPending = scene.status === "pending";
-  const isRetrying = retrying === scene.id;
-  // Only surface the "truly failed" state after several full retry cycles.
-  // Below this threshold the tile looks like it's still filming — the system
-  // is auto-retrying silently and the user doesn't need to know.
-  const AUTO_HIDE_THRESHOLD = 3;
-  const showAsActive = isFailed && scene.retryCount < AUTO_HIDE_THRESHOLD;
-  const showAsFailed = isFailed && scene.retryCount >= AUTO_HIDE_THRESHOLD;
-  const isRetryCapped = showAsFailed && scene.retryCount >= MAX_SCENE_RETRIES;
+  // Anything that isn't succeeded yet — including a scene that's silently
+  // being retried behind the scenes — reads as "still filming" to the
+  // customer. We never surface failure/retry language here: the system
+  // keeps working automatically until the scene comes back succeeded, and
+  // customers should simply trust the video is on its way.
+  const isInProgress = !isSuccess;
 
   return (
     <div className={`relative rounded-xl border p-2.5 transition-all duration-500 ${
-      isSuccess   ? "border-[#00E676]/30 bg-[#00E676]/6"
-      : showAsFailed ? "border-red-500/30 bg-red-500/6"
-      : (isActive || showAsActive) ? "border-[#00D4FF]/25 bg-[#00D4FF]/5"
+      isSuccess ? "border-[#00E676]/30 bg-[#00E676]/6"
+      : isInProgress ? "border-[#00D4FF]/25 bg-[#00D4FF]/5"
       : "border-white/6 bg-white/2"
     }`}>
       {/* Status icon */}
       <div className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto mb-1.5 ${
         isSuccess ? "bg-[#00E676] text-black"
-        : showAsFailed ? "bg-red-500/20 border border-red-500/40"
-        : (isActive || showAsActive) ? "bg-[#00D4FF]/15 border border-[#00D4FF]/30"
+        : isInProgress ? "bg-[#00D4FF]/15 border border-[#00D4FF]/30"
         : "bg-white/5 border border-white/10"
       }`}>
         {isSuccess ? <Check className="w-3 h-3" />
-          : showAsFailed ? <X className="w-2.5 h-2.5 text-red-400" />
-          : (isActive || showAsActive) ? (
+          : isInProgress ? (
             <motion.div
               className="w-1.5 h-1.5 rounded-full bg-[#00D4FF]"
               animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
@@ -180,35 +164,11 @@ function SceneTile({
       {/* Label */}
       <p className={`text-[9px] font-semibold text-center truncate ${
         isSuccess ? "text-[#00E676]"
-        : showAsFailed ? "text-red-400"
-        : (isActive || showAsActive) ? "text-[#00D4FF]"
+        : isInProgress ? "text-[#00D4FF]"
         : "text-white/30"
       }`}>
         {name.split(" — ")[1] ?? name}
       </p>
-
-      {/* Retry count badge (only when truly active and has been retried) */}
-      {scene.retryCount > 0 && (isActive || showAsActive) && (
-        <p className="text-[8px] text-white/25 text-center mt-0.5">retry #{scene.retryCount}</p>
-      )}
-
-      {/* Manual retry button — only shown after auto-retries are exhausted */}
-      {showAsFailed && (
-        isRetryCapped ? (
-          <p className="mt-1.5 text-[8px] text-red-400/60 text-center">Limit reached</p>
-        ) : (
-          <button
-            onClick={() => onRetry(scene.id)}
-            disabled={isRetrying}
-            className="mt-1.5 w-full flex items-center justify-center gap-1 px-1.5 py-1 rounded-lg text-[8px] font-bold bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/25 transition-colors disabled:opacity-50"
-          >
-            {isRetrying
-              ? <Loader2 className="w-2 h-2 animate-spin" />
-              : <RotateCcw className="w-2 h-2" />}
-            {isRetrying ? "…" : `Retry${scene.retryCount > 0 ? ` (${scene.retryCount}/${MAX_SCENE_RETRIES})` : ""}`}
-          </button>
-        )
-      )}
     </div>
   );
 }
@@ -337,7 +297,6 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const [finalVideoUrl, setFinalVideoUrl] = useState<string | null>(video.videoUrl ?? null);
   const [error, setError] = useState<string | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
-  const [retryingScene, setRetryingScene] = useState<number | null>(null);
   const [musicUrl, setMusicUrl] = useState<string | null>(null);
   const [musicFileName, setMusicFileName] = useState<string | null>(null);
   const [uploadingMusic, setUploadingMusic] = useState(false);
@@ -348,6 +307,9 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   // Tracks scene IDs we've already auto-triggered a client-side retry for,
   // so we don't fire multiple retries from successive poll ticks.
   const autoRetriedRef = useRef<Set<number>>(new Set());
+  // Counts silent assembly retries — mirrors the scene auto-retry philosophy:
+  // the customer never sees a stitching failure, we just quietly try again.
+  const assemblyAutoRetryCountRef = useRef(0);
 
   type OutputFormat = "landscape" | "square" | "vertical";
   const [selectedFormats, setSelectedFormats] = useState<OutputFormat[]>(["landscape"]);
@@ -501,6 +463,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
           });
           setCurrentStage("rendering");
           setPhase("assembling");
+          assemblyAutoRetryCountRef.current = 0;
           await startAssembly();
           return;
         }
@@ -664,6 +627,14 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     }
   }, [apiBase, toast]);
 
+  // Assembly hiccups (a stitching failure, a stuck/idle job, a timeout) are
+  // never shown to the customer as an error. We quietly re-trigger assembly
+  // a bounded number of times in the background first — only after that
+  // budget is exhausted do we fall back to the visible error screen, as a
+  // last-resort safety net for genuinely unrecoverable cases.
+  const ASSEMBLY_AUTO_RETRY_LIMIT = 5;
+  const ASSEMBLY_AUTO_RETRY_DELAY_MS = 8_000;
+
   const startAssembly = useCallback(async (force = false) => {
     try {
       const r = await fetch(`${apiBase}/assemble`, {
@@ -678,15 +649,20 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
         }),
       });
       if (!r.ok) {
-        const body = (await r.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? `Assembly start failed (${r.status})`);
+        throw new Error(`Assembly start failed (${r.status})`);
       }
       // Kick off assembly polling
       await pollAssembly();
     } catch (err) {
       if (!mountedRef.current) return;
-      const msg = err instanceof Error ? err.message : "Assembly failed to start";
-      setError(msg);
+      if (assemblyAutoRetryCountRef.current < ASSEMBLY_AUTO_RETRY_LIMIT) {
+        assemblyAutoRetryCountRef.current += 1;
+        await new Promise(res => setTimeout(res, ASSEMBLY_AUTO_RETRY_DELAY_MS));
+        if (!mountedRef.current) return;
+        await startAssembly(true);
+        return;
+      }
+      setError("This is taking longer than expected. Please try again in a few minutes.");
       setPhase("error");
     }
   }, [apiBase]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -694,18 +670,29 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   // ── Assembly polling with simulated sub-stages ─────────────────────────────
   const pollAssembly = useCallback(async () => {
     const INTERVAL = 6_000;
-    const MAX_WAIT_MS = 8 * 60 * 1000; // 8 minutes — generous even for slow presets
+    const MAX_WAIT_MS = 8 * 60 * 1000; // 8 minutes per attempt — generous even for slow presets
     const assemblySubStages: StageId[] = ["rendering", "music", "finalizing"];
     let subStageIdx = 0;
     const startedAt = Date.now();
 
-    while (mountedRef.current) {
-      // Hard timeout: if assembly hasn't finished in MAX_WAIT_MS, surface an error
-      // so the user sees "Retry Assembly" instead of an infinite spinner.
-      if (Date.now() - startedAt > MAX_WAIT_MS) {
+    // Silently re-triggers assembly, or — only once the retry budget is
+    // exhausted — falls back to a plain, non-technical error message.
+    const retryOrGiveUp = async (): Promise<void> => {
+      if (!mountedRef.current) return;
+      if (assemblyAutoRetryCountRef.current < ASSEMBLY_AUTO_RETRY_LIMIT) {
+        assemblyAutoRetryCountRef.current += 1;
+        await new Promise(res => setTimeout(res, ASSEMBLY_AUTO_RETRY_DELAY_MS));
         if (!mountedRef.current) return;
-        setError("Assembly is taking too long — the server may have been restarted mid-encode. Tap 'Retry Assembly' to re-stitch your scenes.");
-        setPhase("error");
+        await startAssembly(true);
+        return;
+      }
+      setError("This is taking longer than expected. Please try again in a few minutes.");
+      setPhase("error");
+    };
+
+    while (mountedRef.current) {
+      if (Date.now() - startedAt > MAX_WAIT_MS) {
+        await retryOrGiveUp();
         return;
       }
 
@@ -734,6 +721,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
         }
 
         if (data.overallStatus === "complete") {
+          assemblyAutoRetryCountRef.current = 0;
           // Pick the primary selected format first, then any completed assembly
           const primaryAssembly =
             data.assemblies.find(
@@ -753,27 +741,22 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
           return;
         }
 
-        if (data.overallStatus === "failed") {
-          const firstError = data.assemblies.find(a => a.errorMessage)?.errorMessage;
-          throw new Error(firstError ?? "Assembly failed");
+        // "failed" (a stitching error) or "idle" (no assembly row exists —
+        // unexpected after POST /assemble) are both silently retried rather
+        // than surfaced to the customer.
+        if (data.overallStatus === "failed" || data.overallStatus === "idle") {
+          await retryOrGiveUp();
+          return;
         }
 
-        // "idle" means no assembly row exists for this video — unexpected after POST /assemble.
-        // Surface it as an error rather than spinning forever.
-        if (data.overallStatus === "idle") {
-          throw new Error("Assembly record not found. Tap 'Retry Assembly' to restart stitching.");
-        }
-
-      } catch (err) {
+      } catch {
+        // Transient poll error (e.g. a network blip) — not a real assembly
+        // failure, so just keep polling quietly.
         if (!mountedRef.current) return;
-        const msg = err instanceof Error ? err.message : "Assembly error";
-        setError(msg);
-        setPhase("error");
-        return;
       }
       await new Promise(r => setTimeout(r, INTERVAL));
     }
-  }, [apiBase]);
+  }, [apiBase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Production start ───────────────────────────────────────────────────────
   const startProduction = useCallback(async () => {
@@ -819,30 +802,6 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     }
   }, [apiBase, runBlueprintStages, pollScenes]);
 
-  // ── Per-scene retry ────────────────────────────────────────────────────────
-  const retryScene = useCallback(async (sceneId: number) => {
-    setRetryingScene(sceneId);
-    try {
-      const r = await fetch(`${apiBase}/scenes/${sceneId}/retry`, { method: "POST" });
-      if (!r.ok) {
-        let msg = `Retry failed (${r.status})`;
-        try {
-          const body = await r.json() as { error?: string; message?: string };
-          msg = body.error ?? body.message ?? msg;
-        } catch { /* ignore parse error */ }
-        toast({ title: "Scene retry failed", description: msg, variant: "destructive" });
-        return;
-      }
-      // Optimistically update status to pending in local state
-      setScenes(prev => prev.map(s => s.id === sceneId ? { ...s, status: "pending" as const } : s));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Network error — please try again";
-      toast({ title: "Scene retry failed", description: msg, variant: "destructive" });
-    } finally {
-      setRetryingScene(null);
-    }
-  }, [apiBase, toast]);
-
   // ── Progress calculation ───────────────────────────────────────────────────
   const sceneProgressPct = scenes.length > 0
     ? Math.round((scenes.filter(s => s.status === "succeed").length / scenes.length) * 100)
@@ -864,10 +823,9 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const etaMinutes = remainingScenes * SCENE_ETA_MINUTES + (assemblyNotStarted ? ASSEMBLY_ETA_MINUTES : phase === "assembling" ? 3 : 0);
 
   // Only surface the "needs attention" banner when a scene is truly stuck —
-  // i.e. failed AND has exhausted enough auto-retry cycles (retryCount ≥ 3).
-  // Below that threshold, the client is silently retrying and the user
-  // should never see a failure state.
-  const hasFailedScene = scenes.some(s => s.status === "failed" && s.retryCount >= 3);
+  // We intentionally never surface a "failed"/"needs retry" state to the
+  // customer — the system retries silently in the background until each
+  // scene succeeds, so the UI always reads as ordinary, ongoing progress.
   const allScenesSucceeded = scenes.length > 0 && scenes.every(s => s.status === "succeed");
   const activeSceneCount = scenes.filter(s => s.status === "submitted" || s.status === "processing").length;
 
@@ -1137,6 +1095,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             setAssemblies([]);
             setCompletedStages(new Set());
             setPhase("assembling");
+            assemblyAutoRetryCountRef.current = 0;
             void startAssembly(true);
           }}
           className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-semibold text-white/35 hover:text-white/60 border border-white/8 hover:border-white/15 bg-transparent transition-colors"
@@ -1177,6 +1136,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                   setError(null);
                   setAssemblies([]);
                   setPhase("assembling");
+                  assemblyAutoRetryCountRef.current = 0;
                   void startAssembly(true);
                 }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-[#00D4FF]/15 hover:bg-[#00D4FF]/25 text-[#00D4FF] border border-[#00D4FF]/25 transition-colors"
@@ -1187,6 +1147,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
               <button
                 onClick={() => {
                   startedRef.current = false;
+                  assemblyAutoRetryCountRef.current = 0;
                   setPhase("idle");
                   setError(null);
                   setCompletedStages(new Set());
@@ -1262,18 +1223,10 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             {activeSceneCount > 0 && (
               <span className="text-[9px] text-[#00D4FF]/70">{activeSceneCount} filming in parallel</span>
             )}
-            {hasFailedScene && !allScenesSucceeded && (
-              <span className="text-[9px] text-amber-400/60">One scene needs a re-film — tap retry</span>
-            )}
           </div>
           <div className="grid grid-cols-6 gap-1.5">
             {scenes.map(scene => (
-              <SceneTile
-                key={scene.id}
-                scene={scene}
-                onRetry={retryScene}
-                retrying={retryingScene}
-              />
+              <SceneTile key={scene.id} scene={scene} />
             ))}
           </div>
         </div>
