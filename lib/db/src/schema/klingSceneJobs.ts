@@ -4,10 +4,13 @@ import { videosTable } from "./videos";
 export type KlingSceneJobStatus = "pending" | "submitted" | "processing" | "succeed" | "failed";
 
 // Which backend actually rendered (or will render) this scene. "wan" = the
-// self-hosted Wan 2.7 worker on Vast.ai (default, cheap); "kling" = the
-// legacy Kling AI 2.5 API (fallback, used automatically if the Wan worker
-// errors — see ACTIVE_VIDEO_PROVIDER + sceneManager.ts).
-export type VideoRenderProvider = "wan" | "kling";
+// self-hosted Wan 2.2 worker on Vast.ai (cheapest, self-hosted GPU); "veo" =
+// Google Veo 3.1 Lite (managed API, native audio, chosen production-quality
+// winner); "kling" = the original Kling AI API (manual fallback only — see
+// ACTIVE_VIDEO_PROVIDER + sceneManager.ts). There is deliberately NO automatic
+// per-scene fallback between providers — an operator flips ACTIVE_VIDEO_PROVIDER
+// explicitly.
+export type VideoRenderProvider = "wan" | "veo" | "kling";
 
 export type CommercialSceneType =
   | "hook"

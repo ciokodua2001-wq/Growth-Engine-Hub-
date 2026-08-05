@@ -8,6 +8,7 @@ import { getGroundingContext, renderGroundingBlock } from "./projectContext.js";
 import { getRenderQueue } from "./renderQueue.js";
 import { getActiveVideoProvider } from "./videoProviderConfig.js";
 import { getWanRenderer } from "./wanRenderer.js";
+import { getVeoRenderer, VEO_SCENE_DURATION_SEC } from "./veoRenderer.js";
 import type { CommercialSceneType, KlingSceneJob } from "@workspace/db";
 
 const logger = pino({ name: "sceneManager" });
@@ -50,18 +51,26 @@ const MAX_USER_RETRIES = 10;
 const MAX_AUTO_RETRIES = 3;
 
 /**
- * Returns the number of 5-second Kling scenes to generate for a given target duration.
- * With 0.5 s xfade transitions: assembled output = n×5 − (n−1)×0.5 = n×4.5 + 0.5 s.
+ * Returns the number of scenes to generate for a given target duration, given
+ * the active provider's per-clip length (5 s for Kling/Wan, 8 s for Veo — see
+ * VEO_SCENE_DURATION_SEC). With 0.5 s xfade transitions: assembled output =
+ * n×clipLen − (n−1)×0.5.
+ *
+ * At clipLen=5 (Kling/Wan):
  *   3 scenes → ~14 s   (target ≤ 15 s)
  *   6 scenes → ~27.5 s (target ≤ 30 s)
  *   9 scenes → ~41 s   (target ≤ 45 s)
  *  12 scenes → ~54.5 s (target > 45 s)
+ *
+ * At clipLen=8 (Veo): 2/4/6/8 scenes land on the same four duration tiers
+ * (~15.5 s / ~30.5 s / ~45.5 s / ~60.5 s).
  */
-function computeTargetSceneCount(durationSec: number): number {
-  if (durationSec <= 15) return 3;
-  if (durationSec <= 30) return 6;
-  if (durationSec <= 45) return 9;
-  return 12;
+function computeTargetSceneCount(durationSec: number, clipLenSec: number): number {
+  const tiers = clipLenSec >= 8 ? [2, 4, 6, 8] : [3, 6, 9, 12];
+  if (durationSec <= 15) return tiers[0]!;
+  if (durationSec <= 30) return tiers[1]!;
+  if (durationSec <= 45) return tiers[2]!;
+  return tiers[3]!;
 }
 
 // ── 6-Scene commercial structure ──────────────────────────────────────────────
@@ -179,18 +188,23 @@ export class SceneManager {
     const klingAspectRatio = this.normaliseAspectRatio(aspectRatio);
 
     // ── Target scene count ─────────────────────────────────────────────────
-    // Each Kling clip is 5 s; with 0.5 s xfade transitions the assembled
-    // output is n×5 − (n−1)×0.5 seconds.  Pick n so the output matches the
-    // user-selected duration as closely as possible.
-    const targetSceneCount = computeTargetSceneCount(Number(video.duration) || 30);
+    // Each provider has a fixed clip length (5 s Kling/Wan, 8 s Veo); with
+    // 0.5 s xfade transitions the assembled output is n×clipLen − (n−1)×0.5
+    // seconds. Pick n so the output matches the user-selected duration as
+    // closely as possible. Read once up front so a mid-flight provider flip
+    // doesn't change scene count for a video already being decomposed.
+    const activeProvider = getActiveVideoProvider();
+    const clipLenSec = activeProvider === "veo" ? VEO_SCENE_DURATION_SEC : KLING_DURATION_SEC;
+    const targetSceneCount = computeTargetSceneCount(Number(video.duration) || 30, clipLenSec);
 
     // ── Prompt fingerprint ─────────────────────────────────────────────────
-    // Includes klingAspectRatio AND targetSceneCount so that changing either
-    // the output format or the requested duration produces a cache miss and
-    // forces fresh Kling submissions with the correct parameters.
+    // Includes klingAspectRatio, targetSceneCount, AND the active provider so
+    // that changing the output format, the requested duration, or the
+    // provider (different clip length → different scene count) all produce a
+    // cache miss and force fresh submissions with the correct parameters.
     const blueprintContent =
       (video.script ?? "") + (video.storyboard ?? "") + (video.cinematicPlan ?? "") +
-      klingAspectRatio + String(targetSceneCount);
+      klingAspectRatio + String(targetSceneCount) + activeProvider;
     const promptHash = createHash("sha256").update(blueprintContent).digest("hex");
 
     // ── Cache hit check ────────────────────────────────────────────────────
@@ -405,19 +419,31 @@ export class SceneManager {
     // ── Provider dispatch ──────────────────────────────────────────────────
     // ACTIVE_VIDEO_PROVIDER selects the EXCLUSIVE renderer for new scenes —
     // there is deliberately NO automatic per-scene fallback to Kling. If Wan
-    // is active and a scene fails, it fails visibly (status="failed",
+    // or Veo is active and a scene fails, it fails visibly (status="failed",
     // errorMessage set) exactly like a Kling failure would. Kling's own code
     // path is left fully intact and untouched below, but it is only reached
     // by an operator explicitly setting ACTIVE_VIDEO_PROVIDER=kling — a
     // deliberate business decision (e.g. to keep serving customers during an
-    // extended Wan outage), never a silent, automatic per-request switch.
-    if (getActiveVideoProvider() === "wan") {
+    // extended Wan/Veo outage), never a silent, automatic per-request switch.
+    const activeProvider = getActiveVideoProvider();
+
+    if (activeProvider === "wan") {
       await db
         .update(klingSceneJobsTable)
         .set({ provider: "wan", updatedAt: new Date() })
         .where(eq(klingSceneJobsTable.id, sceneJobId));
 
       await this.processSceneViaWan(scene);
+      return;
+    }
+
+    if (activeProvider === "veo") {
+      await db
+        .update(klingSceneJobsTable)
+        .set({ provider: "veo", updatedAt: new Date() })
+        .where(eq(klingSceneJobsTable.id, sceneJobId));
+
+      await this.processSceneViaVeo(scene);
       return;
     }
 
@@ -492,6 +518,67 @@ export class SceneManager {
         "[SceneManager] Wan render failed — marking scene failed (no automatic Kling fallback by design)",
       );
       await this.markSceneFailed(scene.id, `Wan render failed: ${msg}`);
+    }
+  }
+
+  /**
+   * Renders a scene via Google Veo 3.1 Lite (managed API, native audio) —
+   * the chosen production-quality winner from the Veo Fast vs. Lite vs.
+   * Kling comparison. Full implementation lives in veoRenderer.ts.
+   *
+   * Same visibility contract as processSceneViaWan: on failure the scene is
+   * marked "failed" with the error message rather than silently switching
+   * providers, so a Veo outage is immediately visible.
+   */
+  private async processSceneViaVeo(scene: KlingSceneJob): Promise<void> {
+    try {
+      const renderer = getVeoRenderer();
+      const result = await renderer.renderScene({
+        sceneJobId: scene.id,
+        videoId: scene.videoId,
+        sceneIndex: scene.sceneIndex,
+        prompt: scene.prompt,
+        aspectRatio: scene.aspectRatio,
+        durationSec: VEO_SCENE_DURATION_SEC,
+        newSceneCut: scene.newSceneCut,
+        sourceFrameUrl: scene.sourceFrameUrl,
+      });
+
+      await db
+        .update(klingSceneJobsTable)
+        .set({
+          status: "succeed",
+          videoUrl: result.videoUrl,
+          durationSec: result.durationSec,
+          updatedAt: new Date(),
+        })
+        .where(eq(klingSceneJobsTable.id, scene.id));
+
+      // Feed this clip's last frame forward for a future continuity (I2V) scene.
+      if (result.lastFrameUrl) {
+        await db
+          .update(klingSceneJobsTable)
+          .set({ sourceFrameUrl: result.lastFrameUrl, updatedAt: new Date() })
+          .where(
+            and(
+              eq(klingSceneJobsTable.videoId, scene.videoId),
+              eq(klingSceneJobsTable.sceneIndex, scene.sceneIndex + 1),
+              eq(klingSceneJobsTable.newSceneCut, false),
+            ),
+          );
+      }
+
+      logger.info(
+        { sceneJobId: scene.id, sceneIndex: scene.sceneIndex, videoUrl: result.videoUrl },
+        "[SceneManager] Scene rendered via Veo provider",
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error(
+        { err: msg, sceneJobId: scene.id, sceneIndex: scene.sceneIndex },
+        "[SceneManager] Veo render failed — marking scene failed (no automatic Kling fallback by design)",
+      );
+      await this.markSceneFailed(scene.id, `Veo render failed: ${msg}`);
     }
   }
 
@@ -946,14 +1033,18 @@ export function checkSceneManagerRequirements(): { ready: boolean; missing: stri
   const missing: string[] = [];
   if (!process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID) missing.push("DEFAULT_OBJECT_STORAGE_BUCKET_ID");
 
-  // At least one video render provider must be usable. If ACTIVE_VIDEO_PROVIDER=wan
-  // but Wan isn't configured yet, Kling being configured is still sufficient
-  // (sceneManager.ts falls back to it automatically) — so we only report
-  // missing vars if NEITHER provider is usable.
+  // At least one video render provider must be usable. Note there is NO
+  // automatic per-scene fallback between providers at render time (see
+  // processScene) — this check only guards against launching a video with
+  // literally nothing configured. We report missing vars only if NONE of
+  // the three providers are usable.
   const klingReady = Boolean(process.env.KLING_API_KEY);
   const wanReady = Boolean(process.env.VAST_AI_API_KEY && process.env.VAST_AI_ENDPOINT_ID);
-  if (!klingReady && !wanReady) {
-    missing.push("KLING_API_KEY (or VAST_AI_API_KEY + VAST_AI_ENDPOINT_ID for the Wan provider)");
+  const veoReady = Boolean(process.env.GOOGLE_GENAI_API_KEY);
+  if (!klingReady && !wanReady && !veoReady) {
+    missing.push(
+      "KLING_API_KEY (or VAST_AI_API_KEY + VAST_AI_ENDPOINT_ID for Wan, or GOOGLE_GENAI_API_KEY for Veo)",
+    );
   }
 
   return { ready: missing.length === 0, missing };

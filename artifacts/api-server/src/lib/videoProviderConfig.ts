@@ -1,6 +1,6 @@
 import type { VideoRenderProvider } from "@workspace/db";
 
-const VALID_PROVIDERS: VideoRenderProvider[] = ["wan", "kling"];
+const VALID_PROVIDERS: VideoRenderProvider[] = ["wan", "veo", "kling"];
 
 /**
  * Reads ACTIVE_VIDEO_PROVIDER and returns the currently selected primary
