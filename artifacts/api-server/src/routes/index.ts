@@ -32,7 +32,6 @@ import adminVideoRouter from "./admin-video.js";
 import analyzeWebsiteRouter from "./analyze-website.js";
 import ownerRouter from "./owner.js";
 import supportRouter from "./support.js";
-import zTutorRouter from "./z-tutor.js";
 
 const router: IRouter = Router();
 
@@ -69,6 +68,5 @@ router.use(adminVideoRouter);
 router.use(analyzeWebsiteRouter);
 router.use(ownerRouter);
 router.use(supportRouter);
-router.use(zTutorRouter);
 
 export default router;

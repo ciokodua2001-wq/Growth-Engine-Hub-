@@ -28,6 +28,8 @@ export interface Project {
   brandingCompanyName?: string | null;
   /** @nullable */
   brandingAccentColor?: string | null;
+  /** @nullable */
+  detectedLocale?: string | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -835,144 +837,6 @@ export interface AgentMessage {
   /** @nullable */
   actionResult?: string | null;
   createdAt: string;
-}
-
-export type ZStudentProfilePlan = typeof ZStudentProfilePlan[keyof typeof ZStudentProfilePlan];
-
-
-export const ZStudentProfilePlan = {
-  free: 'free',
-  paid: 'paid',
-} as const;
-
-export interface ZStudentProfile {
-  userId: string;
-  /** @nullable */
-  country?: string | null;
-  /** @nullable */
-  province?: string | null;
-  /** @nullable */
-  grade?: string | null;
-  plan: ZStudentProfilePlan;
-  /** @nullable */
-  monthlyLimit?: number | null;
-  questionsUsedThisSession: number;
-  questionsUsedThisMonth: number;
-  /** @nullable */
-  lastResetAt?: string | null;
-  /** @nullable */
-  stripeCustomerId?: string | null;
-  /** @nullable */
-  stripeSubscriptionId?: string | null;
-  createdAt: string;
-  /** @nullable */
-  updatedAt?: string | null;
-}
-
-export interface ZStudentProfileInput {
-  country?: string;
-  province?: string;
-  grade?: string;
-}
-
-export type ZQuotaPlan = typeof ZQuotaPlan[keyof typeof ZQuotaPlan];
-
-
-export const ZQuotaPlan = {
-  free: 'free',
-  paid: 'paid',
-} as const;
-
-export interface ZQuota {
-  plan: ZQuotaPlan;
-  used: number;
-  limit: number;
-  remaining: number;
-  /** @nullable */
-  resetAt: string | null;
-}
-
-export interface ZSession {
-  id: string;
-  userId: string;
-  subject: string;
-  lesson: string;
-  unit: string;
-  messageCount: number;
-  createdAt: string;
-}
-
-export interface ZSessionInput {
-  subject: string;
-  lesson: string;
-  unit: string;
-}
-
-export type ZMessageRole = typeof ZMessageRole[keyof typeof ZMessageRole];
-
-
-export const ZMessageRole = {
-  user: 'user',
-  assistant: 'assistant',
-} as const;
-
-export interface ZMessage {
-  id: string;
-  sessionId: string;
-  role: ZMessageRole;
-  content: string;
-  /** @nullable */
-  audioUrl?: string | null;
-  createdAt: string;
-}
-
-export interface ZSessionWithMessages {
-  id: string;
-  userId: string;
-  subject: string;
-  lesson: string;
-  unit: string;
-  messageCount: number;
-  createdAt: string;
-  messages: ZMessage[];
-}
-
-export interface ZChatInput {
-  message: string;
-}
-
-export interface ZTtsInput {
-  text: string;
-  voiceId?: string;
-}
-
-export interface ZTtsResult {
-  audioBase64: string;
-  mimeType: string;
-}
-
-export interface ZCheckoutResult {
-  url: string;
-}
-
-export interface ZQuotaExhausted {
-  error: string;
-  plan: string;
-  used: number;
-  limit: number;
-}
-
-export type ZAdminQuotaUpdatePlan = typeof ZAdminQuotaUpdatePlan[keyof typeof ZAdminQuotaUpdatePlan];
-
-
-export const ZAdminQuotaUpdatePlan = {
-  free: 'free',
-  paid: 'paid',
-} as const;
-
-export interface ZAdminQuotaUpdate {
-  plan?: ZAdminQuotaUpdatePlan;
-  monthlyLimit?: number;
 }
 
 export type GetMetaPagesParams = {

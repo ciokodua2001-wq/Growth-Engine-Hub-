@@ -23,6 +23,8 @@ export interface Project {
   brandingCompanyName?: string | null;
   /** @nullable */
   brandingAccentColor?: string | null;
+  /** @nullable */
+  detectedLocale?: string | null;
   createdAt: string;
   updatedAt?: string;
 }
