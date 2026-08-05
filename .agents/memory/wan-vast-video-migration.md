@@ -137,22 +137,90 @@ actual ModelScope page directly.
 
 ## Status (as of 2026-08-04)
 - `VAST_AI_API_KEY` obtained and stored in root `.env` + toolbox secrets.
+- `SUPABASE_S3_ACCESS_KEY_ID` / `SUPABASE_S3_SECRET_ACCESS_KEY` generated and
+  confirmed present in `.env` (Supabase Dashboard → Storage → Settings → S3
+  Access Keys).
 - DB migration done (see prior status, unchanged).
 - Provider abstraction + feature flag wired end-to-end (see prior status).
-- **NEW — real implementation shipped, replacing the scaffolding stub:**
+- Real implementation shipped, replacing the scaffolding stub:
   `wanWorkflows.ts` (graph builders), `wanFfmpeg.ts` (WEBM→MP4 transcode +
   last-frame extraction), `wanRenderer.ts` (full Vast.ai HTTP client). All
-  typecheck clean against `api-server`.
-- **Still pending before a real GPU test clip:**
-  - Generate `SUPABASE_S3_ACCESS_KEY_ID` / `SUPABASE_S3_SECRET_ACCESS_KEY` via
-    the Supabase dashboard and fill them into `.env` (blocks any real render —
-    without these, `checkWanRequirements()` reports not-ready).
-  - Host `infra/vast-ai/wan22-provisioning.sh` at a public raw URL and create
-    the actual Vast.ai Serverless endpoint (console UI action — template edit,
-    provisioning script URL, `min_workers=0`/`inactivity_timeout=300`, 24GB+
-    GPU filter) — this is a real-money action requiring the user's go-ahead.
-  - Fill in `VAST_AI_ENDPOINT_ID` once that endpoint exists.
+  typecheck clean against `api-server`. Committed + pushed to `main`.
+- `infra/vast-ai/wan22-provisioning.sh` confirmed publicly fetchable at
+  `https://raw.githubusercontent.com/ciokodua2001-wq/Growth-Engine-Hub-/main/infra/vast-ai/wan22-provisioning.sh`.
+
+### First live hardware test (2026-08-04/05) — FAILED, root cause found, all resources torn down
+
+Created a real Vast.ai Serverless endpoint (`wan22-video`, id `32821`) +
+workergroup (id `41205`) via the raw REST API (`POST /api/v0/endptjobs` +
+`POST /api/v0/workergroups`) referencing the official "ComfyUI (Serverless)"
+template (`hash_id fca5654f5074d225a432edfe90bddd90`, image `vastai/comfy`),
+with `launch_args` overriding `disk=120` and `PROVISIONING_SCRIPT` to our repo
+URL, `max_workers=1`, `cold_workers=0`, `test_workers=1`, `gpu_ram=24`.
+
+**What worked:** `/route/` correctly recruited a real GPU worker (confirmed
+RTX 5090 32GB and once an under-spec RTX 5070 Ti 16GB — see bug below),
+ComfyUI + the PyWorker API wrapper booted successfully inside the container
+(`Uvicorn running on http://127.0.0.1:18288`, `To see the GUI go to:
+http://127.0.0.1:18188`) — confirming the template, image, and our
+`wanRenderer.ts` `/route/` + `/generate/sync` contract (URLs, payload shape,
+auth header) are all correct and match the live API exactly.
+
+**What failed:** the recruited worker was destroyed and replaced with a
+**fresh** instance roughly every 2–3 minutes, repeatedly, before our
+provisioning script could ever finish downloading the ~85GB of Wan 2.2
+weights (each fresh instance starts the download from zero — no caching
+between churns). Observed 5 different instance IDs churned through in ~13
+minutes. One replacement recruited a 16GB card (below our 24GB requirement)
+— `gpu_ram` on `create workergroup` may not be a hard filter, worth
+double-checking `search_params` syntax next time (e.g. explicitly embedding
+`gpu_ram>=24576` — MB — into the `search_params` string too, not just the
+top-level `gpu_ram: 24` field, in case that field is advisory-only).
+
+**Root cause hypothesis:** Vast.ai's serverless engine has some worker
+readiness/benchmark timeout budget (looks like ~2–3 min) that a worker must
+hit before being marked ready ("standby"); ours can never make it because a
+fresh 85GB-from-scratch download per boot takes far longer than that. This
+is a **download-on-every-boot vs. serverless readiness-timeout mismatch**,
+not a bug in our HTTP client code.
+
+**Cost:** small — roughly 10–13 total instance-minutes across 5 churned
+instances at ~$0.35–0.42/hr each (well under $1, consistent with what was
+disclosed before starting). **All resources fully torn down** immediately
+once the pattern was spotted: destroyed every churned instance individually
+(`DELETE /api/v0/instances/{id}/`), then deleted the workergroup (`DELETE
+/api/v0/workergroups/41205/`) and the endpoint (`DELETE
+/api/v0/endptjobs/32821/`) — confirmed zero instances remain. `.env`'s
+`VAST_AI_ENDPOINT_ID` was intentionally left blank (that endpoint no longer
+exists).
+
+**Recommended fix before retrying (NOT yet implemented — needs a decision):**
+stop downloading weights fresh on every cold boot. Options, in order of
+likely least effort:
+1. **Vast.ai persistent Volume** — rent a plain on-demand instance once,
+   run the provisioning script to completion into a Volume-backed path,
+   then point the workergroup's `launch_args`/template at that Volume via
+   `volume_info` so every future worker mounts the pre-downloaded weights
+   instantly instead of re-fetching them. (Needs to confirm workergroup/
+   template creation actually supports `volume_info` — only confirmed so far
+   for direct single-instance creation via `PUT /api/v0/asks/{id}/`.)
+2. **Custom Docker image** — build our own image `FROM vastai/comfy` with
+   the 6 Wan 2.2 model files baked in at build time, push to Docker Hub,
+   point the template at that image instead of using `PROVISIONING_SCRIPT`.
+   Simpler mentally, but a ~60GB image is slow to build/push and updates
+   require a full rebuild.
+3. Increase `min_workers`/`cold_workers` to keep at least one **warm**
+   worker permanently — defeats the "scale to $0 idle cost" goal the user
+   explicitly required, so likely not acceptable as a primary fix.
+
+### Still pending
+  - **Decide + implement the pre-baked-weights fix (Volume or custom image)
+    before attempting another live test** — see above.
+  - Re-create the Vast.ai Serverless endpoint + workergroup once the fix is
+    in place, and fill in the new `VAST_AI_ENDPOINT_ID`.
   - Rent GPU time and render the first real T2V + I2V test clip end-to-end.
+  - Double-check `gpu_ram` filtering — consider adding it explicitly into
+    `search_params` as well as the top-level field.
   - Wire the AI decomposition step's scene-cut decision (`newSceneCut`
     authoring) so I2V continuity actually triggers for some scenes — currently
     every scene is T2V-only.
