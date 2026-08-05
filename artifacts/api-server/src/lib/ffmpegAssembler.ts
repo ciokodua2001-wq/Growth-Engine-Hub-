@@ -35,7 +35,7 @@ import {
 import { eq, and } from "drizzle-orm";
 import pino from "pino";
 import { objectStorageClient, signObjectURL } from "./objectStorage.js";
-import { prepareScript } from "./elevenLabsNarrator.js";
+import { prepareScript } from "./googleNarrator.js";
 
 const FFMPEG_BIN = "ffmpeg";
 const logger = pino({ name: "ffmpegAssembler" });

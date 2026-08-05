@@ -16,15 +16,15 @@ export const ACTION_COST_USD: Record<string, number> = {
   email_campaigns:   0.020,
   video_blueprints:  0.030,   // per batch call (clamped on trial)
   ads:               0.005,   // per ad
-  agent_messages:    0.0023,  // Claude Haiku (switched from Sonnet $0.012)
+  agent_messages:    0.0023,  // Gemini 2.5 Flash-Lite (switched from Claude Sonnet $0.012)
   image_generation:  0.005,   // per image (managed billing)
   seo_strategy:      0.040,   // long-form SEO strategy generation
   campaign_reports:  0.040,   // AI campaign analytics report
 
   // Video render pipeline — all-in cost per 30-second render segment
-  video_render_footage_30s:  0.068,  // FAL Kling v1.6 T2V clips ($0.045/5s clip × ~6 clips) + ElevenLabs TTS + Shotstack 1080p
-  video_render_avatar_30s:   0.095,  // FAL Kling v1.6 I2V (image-to-video) + ElevenLabs TTS + Shotstack
-  video_render_combined_30s: 0.130,  // FAL Kling v1.6 I2V + T2V clips + ElevenLabs TTS + Shotstack
+  video_render_footage_30s:  0.068,  // FAL Kling v1.6 T2V clips ($0.045/5s clip × ~6 clips) + Google Cloud TTS + Shotstack 1080p
+  video_render_avatar_30s:   0.095,  // FAL Kling v1.6 I2V (image-to-video) + Google Cloud TTS + Shotstack
+  video_render_combined_30s: 0.130,  // FAL Kling v1.6 I2V + T2V clips + Google Cloud TTS + Shotstack
   video_render_4k_surcharge: 0.009,  // Shotstack 4K vs 1080p delta per 30s render
 
   // Legacy per-minute costs retained for backward compatibility with existing refund records

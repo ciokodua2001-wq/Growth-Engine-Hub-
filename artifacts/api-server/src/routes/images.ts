@@ -4,7 +4,7 @@ import { requireUserId, loadOwnedProject } from "../lib/authz.js";
 import { requireProjectOwnershipParam } from "../lib/authz.js";
 import { consumeQuota } from "../lib/planLimits.js";
 import { getGroundingContext } from "../lib/projectContext.js";
-import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
+import { generateImageBuffer } from "@workspace/integrations-google-genai/image";
 import { objectStorageClient, signObjectURL } from "../lib/objectStorage.js";
 
 const router = Router();
@@ -64,9 +64,13 @@ router.post("/projects/:id/images/generate", async (req, res) => {
     );
     buffers = await Promise.all(imagePromises);
   } catch (err: unknown) {
+    // Full error (may reference internal providers/billing) stays server-side only.
     req.log.error({ err }, "Image generation failed");
-    const message = err instanceof Error ? err.message : String(err);
-    res.status(502).json({ error: `Image generation failed: ${message}` });
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    const clientMessage = /safety filter/i.test(rawMessage)
+      ? "Your prompt may have been blocked by our content safety filters. Try rephrasing it and generating again."
+      : "Image generation is temporarily unavailable. Please try again later or contact support if this persists.";
+    res.status(502).json({ error: "Image generation failed", message: clientMessage });
     return;
   }
 

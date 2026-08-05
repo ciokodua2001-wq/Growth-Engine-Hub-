@@ -1,9 +1,11 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth } from "../lib/supabaseAuth.js";
 import { db } from "@workspace/db";
 import { usersTable, platformCreditBanksTable, platformCreditTransactionsTable } from "@workspace/db";
 import { eq, desc, and, sql, gte, lte } from "drizzle-orm";
 import { seedManualBanks } from "../lib/platformCredits.js";
+import { genai } from "@workspace/integrations-google-genai";
+import { ttsClient } from "@workspace/integrations-google-tts-server";
 
 const router: IRouter = Router();
 
@@ -19,50 +21,41 @@ async function requireAdmin(req: Request, res: Response, next: NextFunction): Pr
 }
 
 // ── Live API checks ────────────────────────────────────────────────────────────
+// Google doesn't expose a simple "balance remaining" REST endpoint the way
+// ElevenLabs/OpenAI did — GCP billing lives behind the separate Cloud Billing
+// API (needs its own IAM grant). We instead do a cheap, non-generating
+// metadata call to confirm the credentials actually authenticate, and point
+// admins to the GCP console for real-time spend.
 
-async function fetchElevenLabsStatus() {
-  const key = process.env["ELEVENLABS_API_KEY"];
-  if (!key) return { keyConfigured: false, keyValid: null, used: null, limit: null, balance: null, pct: null };
+function hasGoogleCredentials(): boolean {
+  return !!(
+    process.env["GOOGLE_GENAI_API_KEY"] ||
+    (process.env["GOOGLE_CLOUD_PROJECT_ID"] && process.env["GOOGLE_APPLICATION_CREDENTIALS_JSON_STRING"])
+  );
+}
+
+async function fetchGoogleGenAiStatus() {
+  if (!hasGoogleCredentials()) {
+    return { keyConfigured: false, keyValid: null as boolean | null, note: null as string | null };
+  }
   try {
-    const r = await fetch("https://api.elevenlabs.io/v1/user", {
-      headers: { "xi-api-key": key }, signal: AbortSignal.timeout(8000),
-    });
-    if (!r.ok) return { keyConfigured: true, keyValid: false, used: null, limit: null, balance: null, pct: null };
-    const d = await r.json() as { subscription?: { character_count?: number; character_limit?: number } };
-    const sub = d.subscription ?? {};
-    const used  = sub.character_count  ?? null;
-    const limit = sub.character_limit  ?? null;
-    const balance = (used !== null && limit !== null) ? limit - used : null;
-    const pct   = (balance !== null && limit && limit > 0) ? Math.round((balance / limit) * 100) : null;
-    return { keyConfigured: true, keyValid: true, used, limit, balance, pct };
+    // models.get() is metadata-only — confirms auth without generating tokens.
+    await genai.models.get({ model: "gemini-3.6-flash" });
+    return { keyConfigured: true, keyValid: true, note: null };
   } catch {
-    return { keyConfigured: true, keyValid: null, used: null, limit: null, balance: null, pct: null };
+    return { keyConfigured: true, keyValid: false, note: null };
   }
 }
 
-async function fetchOpenAIStatus() {
-  const key = process.env["OPENAI_API_KEY"];
-  if (!key) return { keyConfigured: false, keyValid: null, balance: null, used: null, limit: null, pct: null, note: null };
+async function fetchGoogleTtsStatus() {
+  if (!hasGoogleCredentials()) {
+    return { keyConfigured: false, keyValid: null as boolean | null, note: null as string | null };
+  }
   try {
-    const r = await fetch("https://api.openai.com/v1/models", {
-      headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8000),
-    });
-    if (!r.ok) return { keyConfigured: true, keyValid: false, balance: null, used: null, limit: null, pct: null, note: null };
-    const br = await fetch("https://api.openai.com/dashboard/billing/credit_grants", {
-      headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8000),
-    });
-    if (br.ok) {
-      const bd = await br.json() as { total_granted?: number; total_used?: number; total_available?: number };
-      const balance = bd.total_available ?? null;
-      const used    = bd.total_used     ?? null;
-      const limit   = bd.total_granted  ?? null;
-      const pct     = (balance !== null && limit && limit > 0) ? Math.round((balance / limit) * 100) : null;
-      return { keyConfigured: true, keyValid: true, balance, used, limit, pct, note: null };
-    }
-    return { keyConfigured: true, keyValid: true, balance: null, used: null, limit: null, pct: null,
-      note: "Key active · Pay-as-you-go account — no fixed balance to display" };
+    await ttsClient.listVoices({ languageCode: "en-CA" });
+    return { keyConfigured: true, keyValid: true, note: null };
   } catch {
-    return { keyConfigured: true, keyValid: null, balance: null, used: null, limit: null, pct: null, note: null };
+    return { keyConfigured: true, keyValid: false, note: null };
   }
 }
 
@@ -102,10 +95,10 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
   try {
     await seedManualBanks();
 
-    const [elevenLabsLive, openAILive, klingKey, shotstackKey, banks, anthropicSpend] =
+    const [googleGenAiLive, googleTtsLive, klingKey, shotstackKey, banks, googleGenAiSpend, googleTtsSpend] =
       await Promise.all([
-        fetchElevenLabsStatus(),
-        fetchOpenAIStatus(),
+        fetchGoogleGenAiStatus(),
+        fetchGoogleTtsStatus(),
         fetchKlingKeyValid(),
         fetchShotstackKeyValid(),
         db.select().from(platformCreditBanksTable)
@@ -116,7 +109,16 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
         })
         .from(platformCreditTransactionsTable)
         .where(and(
-          eq(platformCreditTransactionsTable.provider, "anthropic"),
+          eq(platformCreditTransactionsTable.provider, "google-genai"),
+          eq(platformCreditTransactionsTable.type, "deduction"),
+        )),
+        db.select({
+          total:   sql<number>`COALESCE(SUM(${platformCreditTransactionsTable.amount}), 0)`,
+          monthly: sql<number>`COALESCE(SUM(CASE WHEN ${platformCreditTransactionsTable.createdAt} >= date_trunc('month', now()) THEN ${platformCreditTransactionsTable.amount} ELSE 0 END), 0)`,
+        })
+        .from(platformCreditTransactionsTable)
+        .where(and(
+          eq(platformCreditTransactionsTable.provider, "google-tts"),
           eq(platformCreditTransactionsTable.type, "deduction"),
         )),
       ]);
@@ -126,7 +128,8 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
     const ssBank    = bankMap["shotstack"] ?? null;
     const klingPct  = klingBank && klingBank.peakBalance > 0 ? Math.round((klingBank.balance / klingBank.peakBalance) * 100) : null;
     const ssPct     = ssBank && ssBank.peakBalance > 0 ? Math.round((ssBank.balance / ssBank.peakBalance) * 100) : null;
-    const spend     = anthropicSpend[0] ?? { total: 0, monthly: 0 };
+    const genAiSpend = googleGenAiSpend[0] ?? { total: 0, monthly: 0 };
+    const ttsSpend   = googleTtsSpend[0] ?? { total: 0, monthly: 0 };
 
     const klingCostPerClip = klingBank && klingBank.totalAdded > 0 && (klingBank.totalUsdSpent ?? 0) > 0
       ? klingBank.totalUsdSpent! / klingBank.totalAdded
@@ -136,40 +139,29 @@ router.get("/admin/credits/unified", requireAdmin, async (req, res): Promise<voi
       : 0.2; // default: ~$0.20/credit (Shotstack pay-as-you-go estimate)
 
     res.json({
-      anthropic: {
+      googleGenai: {
         type: "spend",
-        displayName: "Anthropic (Claude)", icon: "🧠",
-        managedBy: "Replit AI Integrations",
-        dashboardUrl: "https://replit.com/account",
-        totalSpend:   Number(spend.total)   ?? 0,
-        monthlySpend: Number(spend.monthly) ?? 0,
+        displayName: "Google GenAI (Gemini + Imagen)", icon: "✨",
+        managedBy: "Google Cloud / AI Studio",
+        dashboardUrl: "https://console.cloud.google.com/billing",
+        keyConfigured: googleGenAiLive.keyConfigured,
+        keyValid:      googleGenAiLive.keyValid,
+        totalSpend:   Number(genAiSpend.total)   ?? 0,
+        monthlySpend: Number(genAiSpend.monthly) ?? 0,
         unit: "USD",
+        note: "Estimated from internal token accounting — verify exact spend in the GCP Billing console.",
       },
-      openai: {
-        type: "live",
-        displayName: "OpenAI (GPT Image)", icon: "🖼️",
-        keyConfigured: openAILive.keyConfigured,
-        keyValid:      openAILive.keyValid,
-        balance:       openAILive.balance,
-        used:          openAILive.used,
-        limit:         openAILive.limit,
-        pct:           openAILive.pct,
+      googleTts: {
+        type: "spend",
+        displayName: "Google Cloud Text-to-Speech (Narration)", icon: "🎙️",
+        managedBy: "Google Cloud",
+        dashboardUrl: "https://console.cloud.google.com/billing",
+        keyConfigured: googleTtsLive.keyConfigured,
+        keyValid:      googleTtsLive.keyValid,
+        totalSpend:   Number(ttsSpend.total)   ?? 0,
+        monthlySpend: Number(ttsSpend.monthly) ?? 0,
         unit: "USD",
-        note: openAILive.note,
-        dashboardUrl: "https://platform.openai.com/settings/organization/billing/overview",
-      },
-      elevenlabs: {
-        type: "live",
-        displayName: "ElevenLabs (Voice)", icon: "🎙️",
-        keyConfigured: elevenLabsLive.keyConfigured,
-        keyValid:      elevenLabsLive.keyValid,
-        balance:       elevenLabsLive.balance,
-        used:          elevenLabsLive.used,
-        limit:         elevenLabsLive.limit,
-        pct:           elevenLabsLive.pct,
-        unit: "characters",
-        note: null,
-        dashboardUrl: "https://elevenlabs.io/subscription",
+        note: "Estimated from internal character accounting — verify exact spend in the GCP Billing console.",
       },
       kling: {
         type: "bank",

@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { logger } from "./logger.js";
 
-export type Provider = "anthropic" | "openai" | "minimax" | "kling" | "elevenlabs" | "heygen";
+export type Provider = "google-genai" | "google-tts" | "minimax" | "kling" | "heygen";
 
 const MANUAL_BANKS: Array<{ provider: Provider; displayName: string; unit: string }> = [
   { provider: "kling",  displayName: "Kling AI (Video)",  unit: "clips"   },
@@ -33,7 +33,8 @@ export interface CreditDeductMeta {
 
 /**
  * Deduct credits from a provider's bank (if one exists) and always log the transaction.
- * For Anthropic/ElevenLabs/OpenAI: logs spend for reporting without touching any bank row.
+ * For Google GenAI/Google TTS: logs spend for reporting without touching any bank row
+ * (Google is billed directly to the GCP project, not a prepaid credit bank).
  * For FAL/Shotstack: also updates the bank balance, production totals, and fires alerts.
  * Pass CreditDeductMeta to record per-event production metrics (minutes, videos, project).
  */

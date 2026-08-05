@@ -6,6 +6,7 @@ import { db } from "@workspace/db";
 import { videosTable, projectsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import pino from "pino";
+import { synthesizeSpeech, type NarrationLocale } from "@workspace/integrations-google-tts-server";
 import { deductPlatformCredits } from "./platformCredits.js";
 import { deductVideoSeconds } from "./videoWallet.js";
 
@@ -18,48 +19,22 @@ const KLING_CLIP_DURATION_S = 5;
 const CLIP_BATCH_SIZE = 5;
 
 // ── API constants ─────────────────────────────────────────────────────────────
-const ELEVENLABS_API_URL = "https://api.elevenlabs.io";
 const KLING_BASE_URL = "https://api-singapore.klingai.com";
 const KLING_DEFAULT_MODEL = "kling-v2-5-turbo";
 const KLING_MODE = "std";
 const KLING_NEGATIVE_PROMPT =
   "blurry, low quality, distorted, ugly, pixelated, amateur, watermark, text overlay";
 
-// ── ElevenLabs voice resolution ───────────────────────────────────────────────
+// ── Google Cloud TTS voice resolution ─────────────────────────────────────────
+// Chirp 3: HD speaker names — shared across locales (en-CA / fr-CA), so the
+// same "character" can narrate in either language.
+const VOICE_SPEAKER_MALE   = "Charon";
+const VOICE_SPEAKER_FEMALE = "Kore";
+const NARRATION_LOCALE: NarrationLocale = "en-CA";
 
-const VOICE_MALE_DEFAULT   = "pNInz6obpgDQGcFmaJgB";
-const VOICE_FEMALE_DEFAULT = "oWAxZDx7w5VEj9dCyTzz";
-
-interface ElevenLabsVoice {
-  voice_id: string;
-  name: string;
-  category: string;
-  labels?: Record<string, string>;
-}
-
-let _cachedVoices: ElevenLabsVoice[] | null = null;
-
-async function fetchElevenLabsVoices(apiKey: string): Promise<ElevenLabsVoice[]> {
-  if (_cachedVoices) return _cachedVoices;
-  try {
-    const res = await fetch(`${ELEVENLABS_API_URL}/v1/voices`, {
-      headers: { "xi-api-key": apiKey },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) return [];
-    const data = await res.json() as { voices: ElevenLabsVoice[] };
-    _cachedVoices = data.voices ?? [];
-    logger.info({ count: _cachedVoices.length }, "ElevenLabs voices fetched");
-    return _cachedVoices;
-  } catch {
-    return [];
-  }
-}
-
-async function resolveVoiceId(apiKey: string, characterDescription?: string | null): Promise<string> {
-  if (process.env.ELEVENLABS_VOICE_ID) return process.env.ELEVENLABS_VOICE_ID;
-
-  const voices = await fetchElevenLabsVoices(apiKey);
+function resolveVoiceName(characterDescription?: string | null): string {
+  const envOverride = process.env.GOOGLE_TTS_VOICE_NAME;
+  if (envOverride) return envOverride;
 
   let genderHint: "male" | "female" | null = null;
   if (characterDescription) {
@@ -70,26 +45,8 @@ async function resolveVoiceId(apiKey: string, characterDescription?: string | nu
     else if (maleScore > femaleScore) genderHint = "male";
   }
 
-  const ownedCategories = ["cloned", "professional", "generated"];
-  const ownedVoices = voices.filter(v => ownedCategories.includes(v.category));
-  const premadeVoices = voices.filter(v => v.category === "premade");
-
-  const pick = (pool: ElevenLabsVoice[]): string | null => {
-    if (!pool.length) return null;
-    if (!genderHint) return pool[0].voice_id;
-    const genderLabels = genderHint === "female"
-      ? ["female", "woman", "girl"]
-      : ["male", "man", "boy", "guy"];
-    const match = pool.find(v =>
-      genderLabels.some(g =>
-        v.name.toLowerCase().includes(g) ||
-        Object.values(v.labels ?? {}).some(l => l.toLowerCase().includes(g))
-      )
-    );
-    return match?.voice_id ?? pool[0].voice_id;
-  };
-
-  return pick(ownedVoices) ?? pick(premadeVoices) ?? (genderHint === "female" ? VOICE_FEMALE_DEFAULT : VOICE_MALE_DEFAULT);
+  const speaker = genderHint === "female" ? VOICE_SPEAKER_FEMALE : VOICE_SPEAKER_MALE;
+  return `${NARRATION_LOCALE}-Chirp3-HD-${speaker}`;
 }
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -104,7 +61,10 @@ export interface RenderRequirementsResult {
 
 export function checkRenderRequirements(): RenderRequirementsResult {
   const missing: string[] = [];
-  if (!process.env.ELEVENLABS_API_KEY) missing.push("ELEVENLABS_API_KEY");
+  const hasGoogleTts =
+    (process.env.GOOGLE_CLOUD_PROJECT_ID && process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON_STRING) ||
+    process.env.GOOGLE_GENAI_API_KEY;
+  if (!hasGoogleTts) missing.push("GOOGLE_CLOUD_PROJECT_ID + GOOGLE_APPLICATION_CREDENTIALS_JSON_STRING (or GOOGLE_GENAI_API_KEY)");
   if (!process.env.KLING_API_KEY) missing.push("KLING_API_KEY");
   return { ready: missing.length === 0, missing };
 }
@@ -156,7 +116,7 @@ async function runRenderPipeline(
     renderError: null,
   }).where(eq(videosTable.id, videoId));
 
-  // Step 1: ElevenLabs TTS
+  // Step 1: Google Cloud TTS voiceover
   const rawScript = video.voiceover ?? video.script ?? video.title;
   const scriptText = rawScript.replace(/\[[^\]]*\]/g, " ").replace(/\s+/g, " ").trim();
 
@@ -168,21 +128,20 @@ async function runRenderPipeline(
     } catch { /* ignore */ }
   }
 
-  const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY ?? "";
-  const voiceId = await resolveVoiceId(elevenLabsApiKey, characterDescription);
-  logger.info({ videoId, voiceId, characterDescription }, "Resolved ElevenLabs voice");
+  const voiceName = resolveVoiceName(characterDescription);
+  logger.info({ videoId, voiceName, characterDescription }, "Resolved Google Cloud TTS voice");
 
   let voiceoverUrl: string;
   try {
-    voiceoverUrl = await generateElevenLabsVoiceover(scriptText ?? "", voiceId);
+    voiceoverUrl = await generateGoogleVoiceover(scriptText ?? "", voiceName);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    logger.error({ err, videoId }, "ElevenLabs TTS failed");
+    logger.error({ err, videoId }, "Google Cloud TTS failed");
     await markFailed(videoId, `Voiceover failed: ${detail}`);
     return;
   }
   const ttsChars = Math.min((scriptText ?? "").length, 800);
-  deductPlatformCredits("elevenlabs", ttsChars, `TTS voiceover — video #${videoId}`).catch(() => {});
+  deductPlatformCredits("google-tts", ttsChars, `TTS voiceover — video #${videoId}`).catch(() => {});
   await db.update(videosTable).set({ voiceoverUrl }).where(eq(videosTable.id, videoId));
 
   const duration = video.duration ?? 60;
@@ -251,71 +210,16 @@ async function runRenderPipeline(
   }
 }
 
-// ── ElevenLabs TTS ────────────────────────────────────────────────────────────
+// ── Google Cloud TTS ──────────────────────────────────────────────────────────
 
-class ElevenLabsPlanError extends Error {
-  constructor(detail: string) {
-    super(detail);
-    this.name = "ElevenLabsPlanError";
-  }
-}
-
-async function generateElevenLabsVoiceover(text: string, voiceId?: string): Promise<string> {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  if (!apiKey) throw new Error("ELEVENLABS_API_KEY not configured");
-
-  const selectedVoice = voiceId ?? VOICE_MALE_DEFAULT;
+async function generateGoogleVoiceover(text: string, voiceName: string): Promise<string> {
   const cappedText = text.length > 800 ? text.slice(0, 800) + "..." : text;
 
-  let elevenLabsBuffer: Buffer | null = null;
-  try {
-    elevenLabsBuffer = await withRetry(async () => {
-      const response = await fetch(
-        `${ELEVENLABS_API_URL}/v1/text-to-speech/${selectedVoice}?output_format=mp3_44100_128`,
-        {
-          method: "POST",
-          headers: {
-            "xi-api-key": apiKey,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            text: cappedText,
-            model_id: "eleven_turbo_v2_5",
-            voice_settings: { stability: 0.5, similarity_boost: 0.8 },
-          }),
-          signal: AbortSignal.timeout(30_000),
-        }
-      );
-      if (response.status === 402 || response.status === 403) {
-        const body = await response.text();
-        throw new ElevenLabsPlanError(`ElevenLabs plan restriction (${response.status}): ${body.slice(0, 300)}`);
-      }
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`ElevenLabs: ${response.status} ${body.slice(0, 200)}`);
-      }
-      return Buffer.from(await response.arrayBuffer());
-    });
-  } catch (err) {
-    if (err instanceof ElevenLabsPlanError) {
-      logger.warn({ msg: err.message }, "ElevenLabs plan restriction — falling back to OpenAI TTS");
-    } else {
-      throw err;
-    }
-  }
+  const audioBuffer = await withRetry(() =>
+    synthesizeSpeech({ text: cappedText, voiceName, locale: NARRATION_LOCALE, format: "mp3" }),
+  );
 
-  if (elevenLabsBuffer) {
-    return await uploadAudioToStorage(elevenLabsBuffer, "mp3");
-  }
-
-  const { textToSpeech } = await import("@workspace/integrations-openai-ai-server/audio");
-  const cachedVoice = _cachedVoices?.find(v => v.voice_id === selectedVoice);
-  const isFemaleVoice = cachedVoice?.labels?.["gender"] === "female"
-    || ["female", "woman", "girl"].some(g => cachedVoice?.name.toLowerCase().includes(g));
-  const openAiVoice = isFemaleVoice ? "nova" : "onyx";
-  logger.info({ openAiVoice }, "Generating voiceover via OpenAI gpt-audio TTS");
-  const wavBuffer = await textToSpeech(cappedText, openAiVoice, "wav");
-  return await uploadAudioToStorage(wavBuffer, "wav");
+  return await uploadAudioToStorage(audioBuffer, "mp3");
 }
 
 // ── Kling AI Direct API (api-singapore.klingai.com) ───────────────────────────

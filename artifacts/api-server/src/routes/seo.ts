@@ -61,9 +61,11 @@ router.post(
 
     const businessName = ctx.project.name ?? "this business";
 
-    // NOTE: Keep this prompt concise. The Vertex AI proxy has a 3-minute hard
-    // timeout. maxTokens is capped at 4000 and every list is a fixed length to
-    // ensure the response completes well within that window.
+    // NOTE: Keep this prompt concise — every list below is a fixed length so
+    // the schema itself stays bounded. maxTokens is set well above what this
+    // schema needs (this is the largest structured-JSON schema in the app) to
+    // leave headroom for Gemini's thinking tokens without truncating the
+    // actual JSON output (see aiJson.ts's thinkingLevel handling).
     const prompt = `You are an elite SEO and GEO (Generative Engine Optimization) strategist.
 
 ${renderGroundingBlock(ctx)}
@@ -133,7 +135,7 @@ Return ONLY a raw JSON object — no markdown, no code fences, no text outside t
       const strategy = await generateJson<Record<string, unknown>>({
         system: "You are an elite SEO and GEO strategist. Return ONLY a raw JSON object — no markdown, no code fences, no text outside the JSON braces. Keep every string value to one concise sentence. Replace every placeholder with real, specific content for this business.",
         prompt,
-        maxTokens: 4000,
+        maxTokens: 8000,
       });
 
       const [saved] = await db

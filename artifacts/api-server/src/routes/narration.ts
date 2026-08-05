@@ -1,5 +1,5 @@
 /**
- * Narration routes — generate, retrieve, and clear ElevenLabs narration
+ * Narration routes — generate, retrieve, and clear Google Cloud TTS narration
  * for a commercial video.
  *
  * POST /projects/:id/videos/:videoId/narration/generate
@@ -28,7 +28,7 @@ import {
   getVoiceStyleCatalogue,
   VOICE_STYLES,
   type VoiceStyle,
-} from "../lib/elevenLabsNarrator.js";
+} from "../lib/googleNarrator.js";
 import pino from "pino";
 
 const router = Router();
@@ -45,8 +45,7 @@ router.get("/projects/:id/videos/:videoId/narration/voices", async (req, res) =>
   const req_ = checkNarratorRequirements();
   res.json({
     voices: getVoiceStyleCatalogue(),
-    provider: req_.provider,
-    elevenLabsConfigured: req_.elevenLabsConfigured,
+    configured: req_.configured,
   });
 });
 
@@ -87,6 +86,14 @@ router.post("/projects/:id/videos/:videoId/narration/generate", async (req, res)
   }
   const voiceStyle = rawStyle as VoiceStyle;
 
+  // Bilingual Canadian localization — defaults to English, pass "fr-CA" for French.
+  const rawLocale = String(body.locale ?? "en-CA");
+  if (rawLocale !== "en-CA" && rawLocale !== "fr-CA") {
+    res.status(400).json({ error: "Invalid locale", valid: ["en-CA", "fr-CA"], received: rawLocale });
+    return;
+  }
+  const locale = rawLocale as "en-CA" | "fr-CA";
+
   // Use caller-supplied script, video.voiceover, then video.script
   const rawScript =
     (typeof body.script === "string" && body.script.trim()) ||
@@ -117,11 +124,14 @@ router.post("/projects/:id/videos/:videoId/narration/generate", async (req, res)
   // ── Generate narration (synchronous — typically 2-8 s) ────────────────────
   let result;
   try {
-    result = await generateNarration({ script: rawScript, voiceStyle, videoId });
+    result = await generateNarration({ script: rawScript, voiceStyle, videoId, locale });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Narration generation failed";
+    // Full error (may reference internal providers) stays server-side only.
     logger.error({ err, videoId, voiceStyle }, "[narration] Generation failed");
-    res.status(500).json({ error: "Narration generation failed", detail: msg });
+    res.status(500).json({
+      error: "Narration generation failed",
+      message: "Please try again in a moment. Contact support if this keeps happening.",
+    });
     return;
   }
 
@@ -143,11 +153,12 @@ router.post("/projects/:id/videos/:videoId/narration/generate", async (req, res)
     videoId,
     voiceStyle,
     provider: result.voiceProvider,
-    openAiVoice: result.openAiVoice,
+    voiceName: result.voiceName,
+    locale: result.locale,
     narrationUrl: result.narrationUrl,
     scriptText: result.scriptText,
     scriptChars: result.scriptChars,
-    message: `Narration generated using ${result.voiceProvider === "elevenlabs" ? "ElevenLabs" : "OpenAI TTS"} (${voiceStyle} voice)`,
+    message: `Narration generated using Google Cloud TTS (${voiceStyle} voice, ${result.locale})`,
     // Convenience: include this URL directly in assemble options
     assembleHint: "Pass narrationUrl to POST /assemble to mix narration into the final commercial.",
   });
@@ -175,15 +186,14 @@ router.get("/projects/:id/videos/:videoId/narration", async (req, res) => {
     return;
   }
 
-  const { provider, elevenLabsConfigured } = checkNarratorRequirements();
+  const { configured } = checkNarratorRequirements();
 
   res.json({
     videoId,
     narrationEnabled: !!video.voiceoverUrl,
     narrationUrl: video.voiceoverUrl ?? null,
     voiceStyle: (video.narrationVoiceStyle as VoiceStyle | null) ?? null,
-    provider,
-    elevenLabsConfigured,
+    configured,
     // Show what script would be used if generating now
     availableScript: !!(video.voiceover || video.script),
   });

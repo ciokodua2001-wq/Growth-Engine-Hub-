@@ -9,19 +9,17 @@ import pRetry, { AbortError } from "p-retry";
  *
  * USAGE:
  * ```typescript
- * import { batchProcess } from "@workspace/integrations-anthropic-ai/batch";
- * import { anthropic } from "@workspace/integrations-anthropic-ai";
+ * import { batchProcess } from "@workspace/integrations-google-genai/batch";
+ * import { genai } from "@workspace/integrations-google-genai";
  *
  * const results = await batchProcess(
  *   artworks,
  *   async (artwork) => {
- *     const message = await anthropic.messages.create({
- *       model: "claude-sonnet-4-6",
- *       max_tokens: 8192,
- *       messages: [{ role: "user", content: `Categorize: ${artwork.name}` }],
+ *     const response = await genai.models.generateContent({
+ *       model: "gemini-3.6-flash",
+ *       contents: `Categorize: ${artwork.name}`,
  *     });
- *     const block = message.content[0];
- *     return block.type === "text" ? block.text : "";
+ *     return response.text ?? "";
  *   },
  *   { concurrency: 2, retries: 5 }
  * );
@@ -42,7 +40,8 @@ export function isRateLimitError(error: unknown): boolean {
     errorMsg.includes("429") ||
     errorMsg.includes("RATELIMIT_EXCEEDED") ||
     errorMsg.toLowerCase().includes("quota") ||
-    errorMsg.toLowerCase().includes("rate limit")
+    errorMsg.toLowerCase().includes("rate limit") ||
+    errorMsg.toLowerCase().includes("resource_exhausted")
   );
 }
 

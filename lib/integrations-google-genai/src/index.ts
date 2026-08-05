@@ -1,3 +1,2 @@
-export { openai } from "./client";
-export { generateImageBuffer, editImages } from "./image";
+export { genai } from "./client";
 export { batchProcess, batchProcessWithSSE, isRateLimitError, type BatchOptions } from "./batch";

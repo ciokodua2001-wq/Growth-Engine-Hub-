@@ -10,7 +10,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth } from "../lib/supabaseAuth.js";
 import { z } from "zod/v4";
 import { detectLocaleFromUrl, mapToSupportedLocale } from "../utils/urlLocaleDetector.js";
 import { getSupportedLocales, getLocaleProfile } from "../lib/localization.js";

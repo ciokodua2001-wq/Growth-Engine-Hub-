@@ -32,7 +32,7 @@ import {
 } from "@workspace/api-zod";
 import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGeneratedBatch, recordGenerated, hashContent } from "../lib/contentIntegrity.js";
-import { generateImageBuffer } from "@workspace/integrations-openai-ai-server/image";
+import { generateImageBuffer } from "@workspace/integrations-google-genai/image";
 import { Resend } from "resend";
 import { decryptToken, encryptToken, isEncryptedFormat } from "../lib/tokenCrypto.js";
 import { publishPostToMeta } from "../lib/metaPublisher.js";
@@ -41,7 +41,7 @@ import { meetsMinPlan } from "../lib/planLimits.js";
 const router: IRouter = Router();
 
 // ── Social post image helper ───────────────────────────────────────────────────
-// Generates a DALL-E image for a social post and uploads it to object storage.
+// Generates an Imagen image for a social post and uploads it to object storage.
 // Failures are non-fatal — the post is saved without an image rather than erroring.
 const PLATFORM_IMAGE_SIZE: Record<string, "1024x1024" | "1536x1024" | "1024x1536"> = {
   instagram: "1024x1536",
