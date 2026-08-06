@@ -20,6 +20,7 @@ import {
   Lock as LockIcon,
   Share2, Copy, Type,
   Facebook, Twitter, Linkedin, MessageCircle,
+  Maximize, Minimize, X as CloseIcon,
 } from "lucide-react";
 
 // ── API types ─────────────────────────────────────────────────────────────────
@@ -448,6 +449,15 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const captionFingerprintRef = useRef<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  // Custom "theater mode" fullscreen — a CSS-only, full-viewport overlay used
+  // INSTEAD of the browser's native Fullscreen API. Mobile browsers commonly
+  // force native video fullscreen into landscape orientation regardless of
+  // the video's own aspect ratio, which pillarboxes (and visually rotates)
+  // portrait 9:16 videos. Theater mode sidesteps that entirely: it never
+  // calls requestFullscreen(), so there's no OS/browser orientation lock —
+  // the video simply fills the current viewport at its own aspect ratio via
+  // object-fit: contain, correctly edge-to-edge for 9:16 on a portrait phone.
+  const [isTheaterMode, setIsTheaterMode] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoStageRef = useRef<HTMLDivElement>(null);
   const subtitleTimingsRef = useRef<Array<{ text: string; startSec: number; endSec: number }>>([]);
@@ -460,6 +470,19 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   useEffect(() => { captionXRef.current = captionX; }, [captionX]);
   useEffect(() => { captionYRef.current = captionY; }, [captionY]);
   useEffect(() => { captionScaleRef.current = captionScale; }, [captionScale]);
+
+  // Lock page scroll while theater mode is open, and allow Escape to close it.
+  useEffect(() => {
+    if (!isTheaterMode) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === "Escape") setIsTheaterMode(false); };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [isTheaterMode]);
 
   // ── Detect resume state on mount ───────────────────────────────────────────
   useEffect(() => {
@@ -789,13 +812,43 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
 
   type SocialPlatform = "facebook" | "x" | "linkedin" | "whatsapp";
 
-  // Direct platform share intents — real, working share URLs (not a stub).
-  // Same instant/cache-only URL resolution as Copy Link: never blocks on a
-  // fresh captioned render, since these open in a new tab immediately on
-  // click and a delayed popup would get blocked by the browser anyway.
-  const handleSocialShare = useCallback((platform: SocialPlatform) => {
+  // Direct platform share intents.
+  //
+  // IMPORTANT, verified platform limitation (not a bug): wa.me / Facebook's
+  // sharer / Twitter's intent / LinkedIn's share-offsite links are web
+  // "share intent" URLs — by design, every one of them can only carry a
+  // link + text, never an attached file. There is no client-side way to
+  // make a plain link open WhatsApp/Facebook/etc. WITH the real MP4 bytes
+  // attached. On a phone, a raw link to a video often previews strangely
+  // (or not at all) in the receiving app — which reads as "sharing some
+  // weird format" even though nothing is actually broken.
+  //
+  // The one path that DOES attach the real .mp4 file is the OS's native
+  // share sheet (navigator.share with a File), same mechanism the main
+  // "Share" button uses — the user just picks the app themselves from the
+  // sheet instead of us being able to pre-select it. So on devices that
+  // support file sharing, every platform button below now shares the real
+  // file through that same native path; only when file sharing truly isn't
+  // available (mainly desktop browsers) do we fall back to the plain link.
+  const handleSocialShare = useCallback(async (platform: SocialPlatform) => {
     const url = (captionsEnabled && captionedVideoUrl) ? captionedVideoUrl : finalVideoUrl;
     if (!url) return;
+
+    const proxyUrl = getProxyDownloadUrl((captionsEnabled && captionedAssemblyId) ? captionedAssemblyId : finalAssemblyId);
+    if (proxyUrl && navigator.share && typeof navigator.canShare === "function") {
+      try {
+        const res = await fetch(proxyUrl);
+        if (res.ok) {
+          const blob = await res.blob();
+          const file = new File([blob], `${video.title ?? "commercial"}.mp4`, { type: "video/mp4" });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ title: video.title ?? "GrowthForge Commercial", files: [file] });
+            return;
+          }
+        }
+      } catch { /* fall through to the platform link below */ }
+    }
+
     const encodedUrl = encodeURIComponent(url);
     const text = encodeURIComponent(`Check out this commercial made with GrowthForge AI: ${video.title ?? ""}`);
     const shareLinks: Record<SocialPlatform, string> = {
@@ -805,7 +858,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       whatsapp: `https://wa.me/?text=${text}%20${encodedUrl}`,
     };
     window.open(shareLinks[platform], "_blank", "noopener,noreferrer,width=600,height=650");
-  }, [captionsEnabled, captionedVideoUrl, finalVideoUrl, video.title]);
+  }, [captionsEnabled, captionedVideoUrl, finalVideoUrl, captionedAssemblyId, finalAssemblyId, getProxyDownloadUrl, video.title]);
 
   // Escape hatch shown while a captioned render is preparing — immediately
   // shares/downloads the plain video instead of waiting any longer.
@@ -845,6 +898,13 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     e.stopPropagation();
     const stage = videoStageRef.current;
     if (!stage) return;
+    // Pointer capture is the key fix for the "jumps all over the place" touch
+    // behavior: without it, a fast finger drag can slide off the tiny handle
+    // element, at which point the browser hands the gesture to whatever's
+    // now underneath (often triggering a native scroll/zoom) instead of
+    // keeping it locked to this handle for the rest of the drag.
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
     const rect = stage.getBoundingClientRect();
     const startPointerX = e.clientX;
     const startPointerY = e.clientY;
@@ -858,6 +918,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       setCaptionY(clampNum(startY + dy, 0.06, 0.94));
     };
     const onUp = () => {
+      target.releasePointerCapture(e.pointerId);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       invalidateCaptionCache();
@@ -869,6 +930,11 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const handleCaptionResizeStart = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    // Same pointer-capture fix as the drag handle above — locks the entire
+    // drag gesture to this handle so it can't be hijacked by a native
+    // scroll/zoom gesture mid-drag on touch devices.
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
     const startPointerY = e.clientY;
     const startScale = captionScaleRef.current;
 
@@ -877,6 +943,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       setCaptionScale(clampNum(startScale + dy / 140, 0.5, 2.0));
     };
     const onUp = () => {
+      target.releasePointerCapture(e.pointerId);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       invalidateCaptionCache();
@@ -1215,15 +1282,45 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     return (
       <div className="mt-4 pt-4 border-t border-white/8 space-y-3">
 
-        {/* Video player with live, draggable caption preview — exactly what will be shared/published */}
-        <div ref={videoStageRef} className="relative rounded-xl overflow-hidden border border-[#00E676]/30 bg-black select-none">
+        {/* Video player with live, draggable caption preview — exactly what will be shared/published.
+            Theater mode (the outer backdrop below) is a CSS-only full-viewport overlay, used INSTEAD
+            of the browser's native Fullscreen API — native video fullscreen on mobile commonly forces
+            landscape orientation regardless of the video's own aspect ratio, which is exactly what
+            pillarboxed/rotated the 9:16 video in testing. This approach never touches orientation,
+            so a 9:16 video fills a portrait phone screen edge-to-edge, exactly as expected. */}
+        <div className={isTheaterMode ? "fixed inset-0 z-[999] bg-black flex items-center justify-center" : ""}>
+        <div
+          ref={videoStageRef}
+          className={isTheaterMode ? "relative select-none" : "relative rounded-xl overflow-hidden border border-[#00E676]/30 bg-black select-none"}
+          style={isTheaterMode ? { maxWidth: "100vw", maxHeight: "100vh" } : undefined}
+        >
           <video
             ref={videoRef}
             controls
-            className="w-full"
-            style={{ maxHeight: "300px", display: "block" }}
+            controlsList="nofullscreen"
+            playsInline
+            className={isTheaterMode ? undefined : "w-full"}
+            style={isTheaterMode ? { maxWidth: "100vw", maxHeight: "100vh", display: "block" } : { maxHeight: "300px", display: "block" }}
             src={finalVideoUrl}
           />
+          <button
+            type="button"
+            onClick={() => setIsTheaterMode(v => !v)}
+            title={isTheaterMode ? "Exit full screen" : "Full screen"}
+            className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white border border-white/20 transition-colors"
+          >
+            {isTheaterMode ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+          </button>
+          {isTheaterMode && (
+            <button
+              type="button"
+              onClick={() => setIsTheaterMode(false)}
+              title="Close full screen"
+              className="absolute top-2 left-2 z-10 p-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white border border-white/20 transition-colors"
+            >
+              <CloseIcon className="w-4 h-4" />
+            </button>
+          )}
           {captionsEnabled && (() => {
             // Show a caption box the moment captions are turned on / a style is
             // picked — never gated on the video actually being mid-playback.
@@ -1256,6 +1353,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                       width: 24, height: 16, borderRadius: 4, background: "rgba(0,0,0,0.6)",
                       border: "1px solid rgba(255,255,255,0.45)", cursor: "grab", pointerEvents: "auto",
                       display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", color: "#fff",
+                      touchAction: "none",
                     }}
                   >
                     ⠿
@@ -1282,15 +1380,24 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                     onPointerDown={handleCaptionResizeStart}
                     title="Drag to resize"
                     style={{
-                      position: "absolute", right: -6, bottom: -6, width: 14, height: 14,
-                      borderRadius: "50%", background: "#00E676", border: "2px solid #051", cursor: "nwse-resize",
-                      pointerEvents: "auto", zIndex: 2,
+                      position: "absolute", right: -14, bottom: -14, width: 28, height: 28,
+                      borderRadius: "50%", background: "rgba(0,0,0,0.35)",
+                      pointerEvents: "auto", zIndex: 2, touchAction: "none",
+                      display: "flex", alignItems: "center", justifyContent: "center", cursor: "nwse-resize",
                     }}
-                  />
+                  >
+                    {/* Larger invisible touch target (28px) wrapping a visible 14px green
+                        dot — keeps the handle easy to grab on mobile without looking oversized. */}
+                    <div style={{
+                      width: 14, height: 14, borderRadius: "50%",
+                      background: "#00E676", border: "2px solid #051",
+                    }} />
+                  </div>
                 </div>
               </div>
             );
           })()}
+        </div>
         </div>
 
         {/* Caption editor — post-render, before Share/Publish. Default is OFF ("leave blank"). */}
