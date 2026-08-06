@@ -10,7 +10,8 @@
  *   - Background music (ducked under narration)
  *   - Optional narration audio sync
  *   - Multi-format output: landscape (16:9), square (1:1), vertical (9:16)
- *   - Web optimisation: H.264 High, CRF 22 (~8 Mbps ceiling), `+faststart`
+ *   - Web optimisation: H.264 High, CRF 22 (duration-scaled bitrate ceiling
+ *     targeting a fixed ~32MB total output regardless of length), `+faststart`
  */
 
 import { spawn } from "child_process";
@@ -595,17 +596,22 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   // (however complex) can ever balloon past a safe delivery size again.
   // NOTE: ultrafast forced baseline profile; veryfast supports High, so we
   // set that explicitly for better quality-per-bit.
-  // ~4 Mbps ceiling at 1920x1080-equivalent pixel counts, scaled down for
-  // smaller frames (e.g. the 1080x1080 square fallback) — only bites on
-  // unusually complex/high-motion content; CRF 22 governs typical output.
-  // Kept deliberately conservative: Supabase Storage enforces a project-wide
-  // max object size (bucket-level `file_size_limit` came back `null` — no
-  // per-bucket override — and this project's ceiling isn't raiseable via the
-  // service-role API, only the Supabase Dashboard's Storage settings) that
-  // commonly defaults to ~50MB. At 4 Mbps even the longest 60s commercial
-  // tier lands around ~30MB — safe margin under that regardless of the
-  // account's exact configured limit.
-  const targetMaxrateKbps = Math.round(width * height * 0.002);
+  // Cap by TOTAL OUTPUT DURATION (not resolution) — Supabase Storage's
+  // per-object size ceiling is a fixed byte count regardless of whether the
+  // clip is landscape, square, or vertical, and the platform's commercials
+  // range 15-90s (see the targetDuration picker), so a flat per-resolution
+  // bitrate cap under-protects the longest tier. Budget a fixed ~32MB total
+  // (bucket-level `file_size_limit` came back `null` — no per-bucket
+  // override, and the project-wide ceiling isn't raiseable via the
+  // service-role API, only the Supabase Dashboard — commonly ~50MB by
+  // default) so every duration tier keeps the same ~18MB safety margin: a
+  // 90s commercial caps around 2.8 Mbps (~31MB), while a 15s spot gets a
+  // generous ~17 Mbps ceiling that CRF 22 will never actually reach — the
+  // cap only bites on unusually complex/high-motion content either way.
+  const TOTAL_SIZE_BUDGET_MB = 32;
+  const audioBudgetMB = (128 * totalOutputDuration) / 8 / 1024; // 128kbps AAC track
+  const videoBudgetMB = Math.max(TOTAL_SIZE_BUDGET_MB - audioBudgetMB, TOTAL_SIZE_BUDGET_MB * 0.5);
+  const targetMaxrateKbps = Math.round((videoBudgetMB * 8192) / totalOutputDuration);
   args.push("-c:v", "libx264");
   args.push("-preset", "veryfast");
   args.push("-profile:v", "high");

@@ -56,21 +56,33 @@ const MAX_AUTO_RETRIES = 3;
  * VEO_SCENE_DURATION_SEC). With 0.5 s xfade transitions: assembled output =
  * n×clipLen − (n−1)×0.5.
  *
- * At clipLen=5 (Kling/Wan):
- *   3 scenes → ~14 s   (target ≤ 15 s)
- *   6 scenes → ~27.5 s (target ≤ 30 s)
- *   9 scenes → ~41 s   (target ≤ 45 s)
- *  12 scenes → ~54.5 s (target > 45 s)
+ * Matches the platform's 5 selectable targetDuration options (15/30/45/60/90
+ * — see videos.tsx). Previously only had 4 tiers topping out at "durationSec
+ * > 45", which silently gave 60s AND 90s requests the exact same (~55-60s)
+ * scene count — neither actually reached its selected length. Now every
+ * option gets its own tier.
  *
- * At clipLen=8 (Veo): 2/4/6/8 scenes land on the same four duration tiers
- * (~15.5 s / ~30.5 s / ~45.5 s / ~60.5 s).
+ * At clipLen=5 (Kling/Wan):
+ *    3 scenes → ~14 s   (target ≤ 15 s)
+ *    6 scenes → ~27.5 s (target ≤ 30 s)
+ *    9 scenes → ~41 s   (target ≤ 45 s)
+ *   13 scenes → ~59 s   (target ≤ 60 s)
+ *   20 scenes → ~90.5 s (target > 60 s, i.e. 90 s)
+ *
+ * At clipLen=8 (Veo):
+ *   2 scenes  → ~15.5 s (target ≤ 15 s)
+ *   4 scenes  → ~30.5 s (target ≤ 30 s)
+ *   6 scenes  → ~45.5 s (target ≤ 45 s)
+ *   8 scenes  → ~60.5 s (target ≤ 60 s)
+ *  12 scenes  → ~90.5 s (target > 60 s, i.e. 90 s)
  */
 function computeTargetSceneCount(durationSec: number, clipLenSec: number): number {
-  const tiers = clipLenSec >= 8 ? [2, 4, 6, 8] : [3, 6, 9, 12];
+  const tiers = clipLenSec >= 8 ? [2, 4, 6, 8, 12] : [3, 6, 9, 13, 20];
   if (durationSec <= 15) return tiers[0]!;
   if (durationSec <= 30) return tiers[1]!;
   if (durationSec <= 45) return tiers[2]!;
-  return tiers[3]!;
+  if (durationSec <= 60) return tiers[3]!;
+  return tiers[4]!;
 }
 
 // ── 6-Scene commercial structure ──────────────────────────────────────────────
