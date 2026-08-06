@@ -10,6 +10,9 @@
  *   Deduplication: if a "complete" assembly already exists for a requested format
  *   with the same options fingerprint, it is returned immediately without re-running
  *   FFmpeg — preventing redundant CPU/storage spend when users click assemble twice.
+ *   This check runs even for force=true retries (button or client auto-retry), so a
+ *   retry that races a genuinely slow-but-successful encode resolves instantly
+ *   instead of burying the real result behind a second full re-encode.
  *
  * GET /projects/:id/videos/:videoId/assemblies
  *   Returns: { assemblies[], overallStatus, progress }
@@ -160,8 +163,6 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
     ? Math.min(Math.max(body.logoOpacity, 0), 1)
     : 0.85;
 
-  const forceReassemble = body.force === true;
-
   // Caption burn-in is opt-in (default: false — clean MP4, browser overlay in UI).
   const captionsEnabled = body.captionsEnabled === true;
   const VALID_CAPTION_PRESETS = [
@@ -218,28 +219,40 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
   // ── Deduplication: check for existing complete assemblies ──────────────────
   // If a complete assembly exists for each requested format with the same options
   // fingerprint, return it immediately — no FFmpeg needed.
-  // Skip entirely when force=true (re-assemble request from the UI).
+  //
+  // Runs even when force=true. force is set both by the user-facing "Retry
+  // Assembly" button AND by the client's silent auto-retry-on-timeout logic
+  // (commercial-progress.tsx) — and that timeout is a client-side clock that
+  // can race a genuinely slow-but-successful encode (this box's encode times
+  // and the client's poll budget are close enough that this isn't rare). If
+  // force unconditionally skipped this check, a race would spawn a fully
+  // redundant re-encode AND — because GET /assemblies reports status from
+  // the LATEST row per format — bury the assembly that had just succeeded
+  // behind a brand new "processing" row, so the client waits through a
+  // second full encode for a video it already had. Always checking first
+  // makes retries idempotent against real completions: a genuinely stuck
+  // job still gets a fresh attempt (nothing here is "complete" yet), but a
+  // race against a real success now resolves instantly instead of doubling
+  // the wait.
   type AssemblyRow = typeof commercialAssembliesTable.$inferSelect;
   const cachedByFormat = new Map<OutputFormat, AssemblyRow>();
 
-  if (!forceReassemble) {
-    const existingAssemblies = await db
-      .select()
-      .from(commercialAssembliesTable)
-      .where(
-        and(
-          eq(commercialAssembliesTable.videoId, videoId),
-          eq(commercialAssembliesTable.status, "complete"),
-          inArray(commercialAssembliesTable.outputFormat, requestedFormats),
-        ),
-      );
+  const existingAssemblies = await db
+    .select()
+    .from(commercialAssembliesTable)
+    .where(
+      and(
+        eq(commercialAssembliesTable.videoId, videoId),
+        eq(commercialAssembliesTable.status, "complete"),
+        inArray(commercialAssembliesTable.outputFormat, requestedFormats),
+      ),
+    );
 
-    // Build a map: format → existing complete assembly with matching fingerprint
-    for (const a of existingAssemblies) {
-      const opts = a.options as Record<string, unknown> | null;
-      if (opts?.optionsFingerprint === optionsFingerprint) {
-        cachedByFormat.set(a.outputFormat as OutputFormat, a);
-      }
+  // Build a map: format → existing complete assembly with matching fingerprint
+  for (const a of existingAssemblies) {
+    const opts = a.options as Record<string, unknown> | null;
+    if (opts?.optionsFingerprint === optionsFingerprint) {
+      cachedByFormat.set(a.outputFormat as OutputFormat, a);
     }
   }
 

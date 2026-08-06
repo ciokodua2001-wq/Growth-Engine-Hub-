@@ -907,7 +907,13 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   // ── Assembly polling with simulated sub-stages ─────────────────────────────
   const pollAssembly = useCallback(async () => {
     const INTERVAL = 6_000;
-    const MAX_WAIT_MS = 8 * 60 * 1000; // 8 minutes per attempt — generous even for slow presets
+    // 15 minutes — the render box is small enough that even a "fast" x264
+    // preset can occasionally run 5-8+ min for one clip (see ffmpegAssembler
+    // comments). This budget just needs to comfortably outlast that AND the
+    // server's own dedup-on-retry safety net (assemble.ts now always checks
+    // for a just-completed match before starting fresh, so a timeout that
+    // still fires here resolves instantly instead of doubling the wait).
+    const MAX_WAIT_MS = 15 * 60 * 1000;
     const assemblySubStages: StageId[] = ["rendering", "music", "finalizing"];
     let subStageIdx = 0;
     const startedAt = Date.now();

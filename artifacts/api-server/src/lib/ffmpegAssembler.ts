@@ -10,8 +10,9 @@
  *   - Background music (ducked under narration)
  *   - Optional narration audio sync
  *   - Multi-format output: landscape (16:9), square (1:1), vertical (9:16)
- *   - Web optimisation: H.264 High, CRF 22 (duration-scaled bitrate ceiling
- *     targeting a fixed ~32MB total output regardless of length), `+faststart`
+ *   - Web optimisation: H.264 (superfast, no B-frames — CPU-light for the
+ *     small render box), CRF 22 with a duration-scaled bitrate ceiling
+ *     targeting a fixed ~32MB total output regardless of length, `+faststart`
  */
 
 import { spawn } from "child_process";
@@ -580,22 +581,23 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   args.push("-map", "[vout]");
   args.push("-map", "[aout]");
 
-  // Video codec — H.264, CRF 22, veryfast preset.
+  // Video codec — H.264, CRF 22, superfast preset, B-frames disabled.
   //
-  // Was previously "ultrafast" + "zerolatency" tune + CRF 18. That combo is
-  // meant for live/low-latency streaming, not batch VOD encodes — ultrafast
-  // disables almost every x264 compression tool and zerolatency strips
-  // B-frames/lookahead, so at CRF 18 a plain 15.5s 1080p clip came out at
-  // ~33 Mbps (61MB) — 5-10x higher than normal social/streaming delivery
-  // bitrates. That silently blew past Supabase Storage's per-object size
-  // cap, so the assembly never got past "Preparing for Delivery" (upload
-  // failed, client saw a stuck/looping retry, see .agents/memory).
-  // "veryfast" (no realtime constraint) + CRF 22 gets a visually
-  // indistinguishable result at a fraction of the bitrate, and an explicit
-  // maxrate/bufsize cap below is a hard backstop so no source content
-  // (however complex) can ever balloon past a safe delivery size again.
-  // NOTE: ultrafast forced baseline profile; veryfast supports High, so we
-  // set that explicitly for better quality-per-bit.
+  // Was previously "ultrafast" + "zerolatency" tune + CRF 18, which produced
+  // ~33 Mbps (61MB for 15.5s) — 5-10x over normal delivery bitrates and
+  // enough to blow past Supabase Storage's per-object size cap on its own
+  // (see .agents/memory). Fixing that by switching to "veryfast" + CRF 22
+  // fixed the size, but on this box's very limited CPU/RAM, "veryfast"'s
+  // B-frame analysis (re-enabled once "zerolatency" was dropped) turned out
+  // to cost FAR more than expected: the same 15.5s clip went from ~30s of
+  // encode time (ultrafast, no B-frames) to over 7 minutes (veryfast, ~88%
+  // B-frames) — close enough to the client's poll budget that it started
+  // racing genuinely-slow-but-successful encodes against the auto-retry
+  // timeout (see assemble.ts's dedup-runs-even-when-forced fix for the other
+  // half of that bug). "superfast" + explicit `-bf 0` removes B-frames
+  // entirely while CRF 22 + the maxrate cap below still fully control
+  // output size — restoring near-ultrafast encode speed without giving back
+  // the size fix.
   // Cap by TOTAL OUTPUT DURATION (not resolution) — Supabase Storage's
   // per-object size ceiling is a fixed byte count regardless of whether the
   // clip is landscape, square, or vertical, and the platform's commercials
@@ -613,8 +615,8 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   const videoBudgetMB = Math.max(TOTAL_SIZE_BUDGET_MB - audioBudgetMB, TOTAL_SIZE_BUDGET_MB * 0.5);
   const targetMaxrateKbps = Math.round((videoBudgetMB * 8192) / totalOutputDuration);
   args.push("-c:v", "libx264");
-  args.push("-preset", "veryfast");
-  args.push("-profile:v", "high");
+  args.push("-preset", "superfast");
+  args.push("-bf", "0"); // no B-frames — the single biggest CPU cost on this box; CRF+maxrate still control size
   args.push("-crf", "22");
   args.push("-maxrate", `${targetMaxrateKbps}k`);
   args.push("-bufsize", `${targetMaxrateKbps * 2}k`);
