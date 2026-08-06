@@ -19,6 +19,7 @@ import {
   Target, FileText, Clapperboard, Play,
   Lock as LockIcon,
   Share2, Copy, Type,
+  Facebook, Twitter, Linkedin, MessageCircle,
 } from "lucide-react";
 
 // ── API types ─────────────────────────────────────────────────────────────────
@@ -428,6 +429,12 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const [captionScale, setCaptionScale] = useState(1.0);
   const [currentCaptionText, setCurrentCaptionText] = useState<string | null>(null);
   const [currentKaraokeWords, setCurrentKaraokeWords] = useState<Array<{ word: string; active: boolean }> | null>(null);
+  // Static fallback shown whenever the video is paused / hasn't reached a
+  // timed caption window yet — set once when timings are built so a client
+  // can preview + drag + resize a style immediately after picking it,
+  // without needing to hit Play first.
+  const [previewCaptionText, setPreviewCaptionText] = useState<string | null>(null);
+  const [previewKaraokeWords, setPreviewKaraokeWords] = useState<string[] | null>(null);
   const [finalAssemblyId, setFinalAssemblyId] = useState<number | null>(null);
   // Cached captioned render — reused across Share/Download clicks as long as
   // the caption settings haven't changed since it was produced.
@@ -489,6 +496,8 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       if (v.duration && isFinite(v.duration)) {
         subtitleTimingsRef.current = buildSubtitleTimings(video.voiceover!, v.duration);
         karaokeTimingsRef.current = buildKaraokeTimings(video.voiceover!, v.duration);
+        setPreviewCaptionText(subtitleTimingsRef.current[0]?.text ?? null);
+        setPreviewKaraokeWords(karaokeTimingsRef.current[0]?.words ?? null);
       }
     };
     const onTimeUpdate = () => {
@@ -778,6 +787,26 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     setTimeout(() => setCopied(false), 2_500);
   }, [captionsEnabled, captionedVideoUrl, finalVideoUrl]);
 
+  type SocialPlatform = "facebook" | "x" | "linkedin" | "whatsapp";
+
+  // Direct platform share intents — real, working share URLs (not a stub).
+  // Same instant/cache-only URL resolution as Copy Link: never blocks on a
+  // fresh captioned render, since these open in a new tab immediately on
+  // click and a delayed popup would get blocked by the browser anyway.
+  const handleSocialShare = useCallback((platform: SocialPlatform) => {
+    const url = (captionsEnabled && captionedVideoUrl) ? captionedVideoUrl : finalVideoUrl;
+    if (!url) return;
+    const encodedUrl = encodeURIComponent(url);
+    const text = encodeURIComponent(`Check out this commercial made with GrowthForge AI: ${video.title ?? ""}`);
+    const shareLinks: Record<SocialPlatform, string> = {
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+      x: `https://twitter.com/intent/tweet?text=${text}&url=${encodedUrl}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`,
+      whatsapp: `https://wa.me/?text=${text}%20${encodedUrl}`,
+    };
+    window.open(shareLinks[platform], "_blank", "noopener,noreferrer,width=600,height=650");
+  }, [captionsEnabled, captionedVideoUrl, finalVideoUrl, video.title]);
+
   // Escape hatch shown while a captioned render is preparing — immediately
   // shares/downloads the plain video instead of waiting any longer.
   const handleShareWithoutCaptions = useCallback(async () => {
@@ -856,10 +885,14 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     window.addEventListener("pointerup", onUp);
   }, [invalidateCaptionCache]);
 
+  /** Fully resets the caption editor — position, size, AND style — back to
+   * the default "clean" look, so a client who's been experimenting can get
+   * back to a plain, regular caption in one click. */
   const handleResetCaptionPosition = useCallback(() => {
     setCaptionX(0.5);
     setCaptionY(0.85);
     setCaptionScale(1.0);
+    setCaptionPreset("clean");
     invalidateCaptionCache();
   }, [invalidateCaptionCache]);
 
@@ -1191,55 +1224,73 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             style={{ maxHeight: "300px", display: "block" }}
             src={finalVideoUrl}
           />
-          {captionsEnabled && (currentCaptionText || currentKaraokeWords) && (
-            // Outer wrapper is pointerEvents:none so it never blocks the native
-            // video controls underneath — only the small drag/resize handles
-            // (explicitly pointerEvents:auto below) are actually interactive.
-            <div style={{ ...getCaptionOverlayStyle(captionX, captionY, captionScale, captionPreset), pointerEvents: "none" }}>
-              {/* inline-block so the wrapper shrinks to the actual caption box size —
-                  otherwise the drag/resize handles below would anchor to the full
-                  (much wider) text-centering column instead of the visible box. */}
-              <div style={{ position: "relative", display: "inline-block" }}>
-                <div
-                  onPointerDown={handleCaptionDragStart}
-                  title="Drag to move"
-                  style={{
-                    position: "absolute", top: -20, left: "50%", transform: "translateX(-50%)",
-                    width: 24, height: 16, borderRadius: 4, background: "rgba(0,0,0,0.6)",
-                    border: "1px solid rgba(255,255,255,0.45)", cursor: "grab", pointerEvents: "auto",
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", color: "#fff",
-                  }}
-                >
-                  ⠿
+          {captionsEnabled && (() => {
+            // Show a caption box the moment captions are turned on / a style is
+            // picked — never gated on the video actually being mid-playback.
+            // While playing, the live time-synced line/word takes over; while
+            // paused (or before Play is first pressed) it falls back to the
+            // first line so clients can position, resize, and preview a style
+            // immediately, exactly as requested.
+            const displayKaraokeWords =
+              captionPreset === "karaoke"
+                ? (currentKaraokeWords ?? (previewKaraokeWords ?? ["Your", "caption", "preview"]).map((w, i) => ({ word: w, active: i === 0 })))
+                : null;
+            const displayCaptionText =
+              captionPreset !== "karaoke"
+                ? (currentCaptionText ?? previewCaptionText ?? "Your caption preview")
+                : null;
+            return (
+              // Outer wrapper is pointerEvents:none so it never blocks the native
+              // video controls underneath — only the small drag/resize handles
+              // (explicitly pointerEvents:auto below) are actually interactive.
+              <div style={{ ...getCaptionOverlayStyle(captionX, captionY, captionScale, captionPreset), pointerEvents: "none" }}>
+                {/* inline-block so the wrapper shrinks to the actual caption box size —
+                    otherwise the drag/resize handles below would anchor to the full
+                    (much wider) text-centering column instead of the visible box. */}
+                <div style={{ position: "relative", display: "inline-block" }}>
+                  <div
+                    onPointerDown={handleCaptionDragStart}
+                    title="Drag to move"
+                    style={{
+                      position: "absolute", top: -20, left: "50%", transform: "translateX(-50%)",
+                      width: 24, height: 16, borderRadius: 4, background: "rgba(0,0,0,0.6)",
+                      border: "1px solid rgba(255,255,255,0.45)", cursor: "grab", pointerEvents: "auto",
+                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", color: "#fff",
+                    }}
+                  >
+                    ⠿
+                  </div>
+                  <div style={{ border: "1px dashed rgba(255,255,255,0.35)", borderRadius: "6px", padding: "4px 6px" }}>
+                    {displayKaraokeWords ? (
+                      <span>
+                        {displayKaraokeWords.map((w, i) => (
+                          <span key={i} style={{ color: w.active ? KARAOKE_HIGHLIGHT_COLOR : undefined }}>
+                            {w.word}{i < displayKaraokeWords.length - 1 ? " " : ""}
+                          </span>
+                        ))}
+                      </span>
+                    ) : (
+                      displayCaptionText?.split("\n").map((line, i) => (
+                        <span key={i} style={{ display: "block" }}>{line}</span>
+                      ))
+                    )}
+                  </div>
+                  {/* Resize handle — drag to grow/shrink the caption. Always
+                      rendered (not conditional on any live text) so it's never
+                      missing while captions are on. */}
+                  <div
+                    onPointerDown={handleCaptionResizeStart}
+                    title="Drag to resize"
+                    style={{
+                      position: "absolute", right: -6, bottom: -6, width: 14, height: 14,
+                      borderRadius: "50%", background: "#00E676", border: "2px solid #051", cursor: "nwse-resize",
+                      pointerEvents: "auto", zIndex: 2,
+                    }}
+                  />
                 </div>
-                <div style={{ border: "1px dashed rgba(255,255,255,0.35)", borderRadius: "6px", padding: "4px 6px" }}>
-                  {captionPreset === "karaoke" && currentKaraokeWords ? (
-                    <span>
-                      {currentKaraokeWords.map((w, i) => (
-                        <span key={i} style={{ color: w.active ? KARAOKE_HIGHLIGHT_COLOR : undefined }}>
-                          {w.word}{i < currentKaraokeWords.length - 1 ? " " : ""}
-                        </span>
-                      ))}
-                    </span>
-                  ) : (
-                    currentCaptionText?.split("\n").map((line, i) => (
-                      <span key={i} style={{ display: "block" }}>{line}</span>
-                    ))
-                  )}
-                </div>
-                {/* Resize handle — drag to grow/shrink the caption */}
-                <div
-                  onPointerDown={handleCaptionResizeStart}
-                  title="Drag to resize"
-                  style={{
-                    position: "absolute", right: -6, bottom: -6, width: 14, height: 14,
-                    borderRadius: "50%", background: "#00E676", border: "2px solid #051", cursor: "nwse-resize",
-                    pointerEvents: "auto",
-                  }}
-                />
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* Caption editor — post-render, before Share/Publish. Default is OFF ("leave blank"). */}
@@ -1283,12 +1334,12 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                   </div>
                 </div>
                 <div className="flex items-center justify-between pt-0.5">
-                  <p className="text-[9px] text-white/30">Drag the caption on the preview above to position &amp; resize it — the green handle resizes.</p>
+                  <p className="text-[9px] text-white/30">Drag the ⠿ handle above the caption to move it, or the green dot to resize it.</p>
                   <button
                     onClick={handleResetCaptionPosition}
-                    className="shrink-0 ml-2 text-[9px] font-semibold text-white/40 hover:text-white/70 transition-colors"
+                    className="shrink-0 ml-2 text-[9px] font-semibold text-white/40 hover:text-white/70 transition-colors underline"
                   >
-                    Reset
+                    Reset to Clean
                   </button>
                 </div>
               </>
@@ -1328,6 +1379,40 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             </button>
           </div>
 
+          {/* Direct social platform share — real share-intent links (open in a
+              new tab), so this works everywhere, not just on devices/browsers
+              that support the native Web Share sheet used by the Share button above. */}
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => handleSocialShare("whatsapp")}
+              title="Share to WhatsApp"
+              className="flex-1 flex items-center justify-center py-2 rounded-lg bg-white/5 border border-white/10 text-[#25D366] hover:bg-white/10 transition-all"
+            >
+              <MessageCircle className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleSocialShare("facebook")}
+              title="Share to Facebook"
+              className="flex-1 flex items-center justify-center py-2 rounded-lg bg-white/5 border border-white/10 text-[#1877F2] hover:bg-white/10 transition-all"
+            >
+              <Facebook className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleSocialShare("x")}
+              title="Share to X"
+              className="flex-1 flex items-center justify-center py-2 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all"
+            >
+              <Twitter className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleSocialShare("linkedin")}
+              title="Share to LinkedIn"
+              className="flex-1 flex items-center justify-center py-2 rounded-lg bg-white/5 border border-white/10 text-[#0A66C2] hover:bg-white/10 transition-all"
+            >
+              <Linkedin className="w-4 h-4" />
+            </button>
+          </div>
+
           <button
             onClick={() => void handleDownload()}
             disabled={downloading || !finalAssemblyId || captionPrepState === "preparing"}
@@ -1338,21 +1423,6 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
               : <><Download className="w-3.5 h-3.5" /> Download{captionsEnabled ? " with captions" : ""}</>}
           </button>
         </div>
-
-        <button
-          onClick={() => {
-            setFinalVideoUrl(null);
-            setError(null);
-            setAssemblies([]);
-            setCompletedStages(new Set());
-            setPhase("assembling");
-            assemblyAutoRetryCountRef.current = 0;
-            void startAssembly(true);
-          }}
-          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-semibold text-white/35 hover:text-white/60 border border-white/8 hover:border-white/15 bg-transparent transition-colors"
-        >
-          <RefreshCw className="w-3 h-3" /> Re-assemble with latest settings
-        </button>
       </div>
     );
   }
