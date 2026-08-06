@@ -263,6 +263,17 @@ const CAPTION_PRESET_LABELS: Record<CaptionPreset, string> = {
 
 const KARAOKE_HIGHLIGHT_COLOR = "#00E676";
 
+type OutputFormat = "landscape" | "square" | "vertical";
+
+/** Maps the server's provider-agnostic aspect-ratio strings to picker keys. */
+const AR_TO_FORMAT: Record<string, OutputFormat> = {
+  "16:9": "landscape",
+  "1:1": "square",
+  "9:16": "vertical",
+};
+
+const ALL_OUTPUT_FORMATS: OutputFormat[] = ["landscape", "square", "vertical"];
+
 /** Base text styling for each preset (position/size are applied separately). */
 const CAPTION_PRESET_STYLES: Record<CaptionPreset, CSSProperties> = {
   clean: {
@@ -366,9 +377,46 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   // the customer never sees a stitching failure, we just quietly try again.
   const assemblyAutoRetryCountRef = useRef(0);
 
-  type OutputFormat = "landscape" | "square" | "vertical";
   const [selectedFormats, setSelectedFormats] = useState<OutputFormat[]>(["landscape"]);
   const selectedFormatsRef = useRef<OutputFormat[]>(["landscape"]);
+
+  // Which formats the currently active render provider can actually produce —
+  // fetched from the server so the picker never drifts out of sync with a
+  // manual ACTIVE_VIDEO_PROVIDER flip (e.g. Veo has no native square/1:1
+  // mode). Defaults to all 3 until the check resolves, and fails open (keeps
+  // all 3) if the request errors, rather than ever blocking production.
+  const [availableFormats, setAvailableFormats] = useState<OutputFormat[]>(ALL_OUTPUT_FORMATS);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/video-provider-capabilities");
+        if (!r.ok || cancelled) return;
+        const data = (await r.json()) as { supportedAspectRatios?: string[] };
+        const formats = (data.supportedAspectRatios ?? [])
+          .map(ar => AR_TO_FORMAT[ar])
+          .filter((f): f is OutputFormat => Boolean(f));
+        if (cancelled || formats.length === 0) return;
+
+        setAvailableFormats(formats);
+
+        // A previously-selected format may no longer be supported (e.g. the
+        // operator switched providers between visits) — fall back rather
+        // than let a stale selection submit an unsupported aspect ratio.
+        const current = selectedFormatsRef.current;
+        const stillValid = current.filter(f => formats.includes(f));
+        const next = stillValid.length > 0 ? stillValid : [formats.includes("landscape") ? "landscape" : formats[0]!];
+        selectedFormatsRef.current = next;
+        setSelectedFormats(next);
+      } catch {
+        // Non-fatal — keep the default 3-option picker if the check fails.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ── Caption editor state (post-render, browser-side) ───────────────────────
   // Default OFF ("leave blank") — captions are entirely opt-in.
@@ -1072,7 +1120,9 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                     { key: "landscape" as const, label: "Landscape", sub: "16:9", w: 16, h: 9 },
                     { key: "square"    as const, label: "Square",    sub: "1:1",  w: 9,  h: 9 },
                     { key: "vertical"  as const, label: "Vertical",  sub: "9:16", w: 9,  h: 16 },
-                  ]).map(({ key, label, sub, w, h }) => {
+                  ])
+                    .filter(({ key }) => availableFormats.includes(key))
+                    .map(({ key, label, sub, w, h }) => {
                     const active = selectedFormats.includes(key);
                     return (
                       <button

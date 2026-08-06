@@ -5,10 +5,21 @@ import { eq, and } from "drizzle-orm";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
 import { getSceneManager, checkSceneManagerRequirements, COMMERCIAL_SCENE_STRUCTURE } from "../lib/sceneManager.js";
 import { getRenderQueue } from "../lib/renderQueue.js";
+import { getVideoProviderCapabilities } from "../lib/videoProviderConfig.js";
 import pino from "pino";
 
 const router = Router();
 const logger = pino({ name: "scenes.route" });
+
+// ── GET /video-provider-capabilities ──────────────────────────────────────────
+// Not project-scoped (registered before the :id param hook below) — lets the
+// format picker know which aspect ratios the currently active render provider
+// actually supports, without ever exposing which provider that is.
+router.get("/video-provider-capabilities", (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  res.json(getVideoProviderCapabilities());
+});
 
 router.param("id", requireProjectOwnershipParam());
 
