@@ -18,6 +18,9 @@ const DEV_ACCESS_ALLOWLIST = new Set([
   "/auth/provision",
   "/auth/me",
   "/healthz",
+  // Public on production (called from the public Contact page) — must stay
+  // reachable on dev too, matching the frontend's PUBLIC_DURING_GATE list.
+  "/support/tickets",
 ]);
 
 /**

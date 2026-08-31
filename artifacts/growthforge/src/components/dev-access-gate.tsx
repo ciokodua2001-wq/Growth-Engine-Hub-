@@ -5,12 +5,21 @@ import { useAuth } from "@/contexts/auth-context";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
 /**
- * Routes that must stay reachable on dev.usegrowthforge.com even before an
- * account is signed in / approved, so a real developer can actually get in.
- * Everything else — including the public marketing landing page, which IS
- * public on production — requires a signed-in, admin-approved account here.
+ * Routes that stay reachable on dev.usegrowthforge.com without signing in —
+ * this must mirror exactly what's genuinely public (no auth) on production,
+ * so dev gives the same pre-launch experience as the real launch site:
+ * the marketing/legal pages are open to everyone, while the actual app
+ * (dashboard, projects, admin, onboarding) still requires a signed-in,
+ * admin-approved (`canAccessDev`) account, same as it always has.
  */
-const PUBLIC_DURING_GATE = new Set(["/sign-in", "/sign-up", "/auth/redirect"]);
+const PUBLIC_DURING_GATE = new Set([
+  "/", // landing page — public on production, must be public on dev too
+  "/sign-in", "/sign-up", "/auth/redirect",
+  "/privacy", "/terms", "/contact", "/about", "/refund-policy",
+  // SEO-friendly redirect aliases (see App.tsx) — these just bounce to an
+  // already-public destination, so they must be reachable pre-auth too.
+  "/pricing", "/login", "/signup", "/features", "/how-it-works",
+]);
 
 function CenteredScreen({ children }: { children: ReactNode }) {
   return (
