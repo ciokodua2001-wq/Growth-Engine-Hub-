@@ -13,21 +13,15 @@
 # Install: sudo cp Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
 
 # --- DEVELOPMENT (internal only): full app, hidden from search. ---
-# NOTE: an earlier revision also put HTTP Basic Auth in front of this host as
-# a network-level lock on top of the app-level gate below. That was removed —
-# native browser Basic Auth prompts fire per-resource (main document, XHRs to
-# /api/*, etc.) and can fire multiple times in quick succession before the
-# browser's credential cache catches up, which produced confusing, unreliable
-# stacked login dialogs across OAuth redirects. Access control here now relies
-# entirely on the app layer, which does not have that failure mode:
-#   - DevAccessGate (frontend): blocks every route until Supabase-authenticated
-#     AND admin-approved (`users.canAccessDev = true`)
-#   - requireDevAccess (api-server, APP_ENV=development): blocks every /api/*
-#     route except sign-in/provisioning unless `canAccessDev = true`
-#   - X-Robots-Tag + robots.txt below: keeps it out of search indexes
-# If a network-level lock is wanted again later, prefer an IP allowlist for
-# known developer IPs over Basic Auth, since it has no client-visible prompt.
+# Intended visit flow:
+#   browser Basic Auth (username gf-dev) → real landing page + orange banner
+# Dashboard / projects still use the app-level canAccessDev check.
+# bcrypt hashes in this file must escape $ as $$ so Caddy does not treat them
+# as environment variables.
 dev.usegrowthforge.com {
+	basic_auth {
+		gf-dev $$2a$$14$$Y6wkUYHRx7OUboduIurfLu3Gpf4lsIIrfrjFquQpkpkCvCf.FKuvW
+	}
 	route {
 		header X-Robots-Tag "noindex, nofollow"
 		handle /robots.txt {

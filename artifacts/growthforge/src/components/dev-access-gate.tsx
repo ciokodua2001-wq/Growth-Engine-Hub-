@@ -5,12 +5,28 @@ import { useAuth } from "@/contexts/auth-context";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
 /**
- * Routes that must stay reachable on dev.usegrowthforge.com even before an
- * account is signed in / approved, so a real developer can actually get in.
- * Everything else — including the public marketing landing page, which IS
- * public on production — requires a signed-in, admin-approved account here.
+ * After Caddy HTTP Basic Auth, these routes behave like production: a first
+ * visit to / shows the real landing page (with the development banner).
+ * Dashboard / project / admin still require a signed-in, canAccessDev account.
  */
-const PUBLIC_DURING_GATE = new Set(["/sign-in", "/sign-up", "/auth/redirect"]);
+const PUBLIC_DURING_GATE = new Set([
+  "/",
+  "/sign-in",
+  "/sign-up",
+  "/auth/redirect",
+  "/privacy",
+  "/terms",
+  "/contact",
+  "/about",
+  "/refund-policy",
+  "/plans",
+  "/pricing",
+  "/login",
+  "/signup",
+  "/features",
+  "/how-it-works",
+  "/team/accept",
+]);
 
 function CenteredScreen({ children }: { children: ReactNode }) {
   return (
@@ -21,14 +37,10 @@ function CenteredScreen({ children }: { children: ReactNode }) {
 }
 
 /**
- * Gates every route on dev.usegrowthforge.com behind Supabase auth + an
- * admin-approved `canAccessDev` flag — "the development application must
- * require authentication before any content, features, dashboards,
- * rendering tools, or platform functionality can be accessed." This is the
- * app-level layer; Caddy's Basic Auth in front of the whole host is the
- * network-level layer on top of it.
- *
- * A no-op on production, where the public landing page etc. remain public.
+ * After the Caddy Basic Auth gate, marketing pages stay reachable without a
+ * GrowthForge account so you can test the site as a first-time visitor.
+ * App surfaces (dashboard, projects, admin, onboarding) still need a signed-in
+ * account with `canAccessDev`. No-op on production.
  */
 export function DevAccessGate({ children }: { children: ReactNode }) {
   const isDev = isDevHost();

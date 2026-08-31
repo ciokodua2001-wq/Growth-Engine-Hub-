@@ -18,6 +18,8 @@ const DEV_ACCESS_ALLOWLIST = new Set([
   "/auth/provision",
   "/auth/me",
   "/healthz",
+  "/support/tickets",
+  "/stripe/products",
 ]);
 
 /**
