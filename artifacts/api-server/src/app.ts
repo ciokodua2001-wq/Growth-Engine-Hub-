@@ -2,7 +2,6 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { supabaseAuthMiddleware } from "./lib/supabaseAuth.js";
-import { requireDevAccess } from "./middlewares/devAccess.js";
 import router from "./routes/index.js";
 import resendWebhookHandler from "./routes/resendWebhook.js";
 import { logger } from "./lib/logger.js";
@@ -116,14 +115,6 @@ app.use(express.urlencoded({ extended: true }));
 // 3. Supabase session middleware — verifies the Bearer token (if any) and
 //    attaches the result to req.auth for downstream routes (see lib/supabaseAuth.ts).
 app.use(supabaseAuthMiddleware);
-
-// 3b. Dev-environment access gate — only installed on the dev api-server
-//     process (APP_ENV=development). Requires an admin-approved account
-//     before any route below runs, on top of the Caddy Basic Auth already
-//     in front of dev.usegrowthforge.com. See middlewares/devAccess.ts.
-if (process.env.APP_ENV === "development") {
-  app.use("/api", requireDevAccess);
-}
 
 // 4. API routes
 app.use("/api", router);

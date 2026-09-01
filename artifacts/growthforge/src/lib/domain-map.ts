@@ -10,9 +10,9 @@ const DEV_HOSTNAME = "dev.usegrowthforge.com";
 
 /**
  * True when running on the non-public dev host, or the local Vite dev
- * server. Used to show the "development environment" banner, enforce the
- * `canAccessDev` gate, and keep the host out of search engines — never true
- * for the production domain (usegrowthforge.com / www.usegrowthforge.com).
+ * server. Used to show the development banner and keep the host out of
+ * search engines — never true for usegrowthforge.com. Access is gated by
+ * Caddy HTTP Basic Auth only.
  */
 export function isDevHost(): boolean {
   if (import.meta.env.DEV) return true;

@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { basePath } from "@/lib/basePath";
 import { DevEnvironmentBanner } from "@/components/dev-environment-banner";
-import { DevAccessGate } from "@/components/dev-access-gate";
 import NotFound from "@/pages/not-found";
 
 import AdminDashboard from "@/pages/admin/index";
@@ -212,9 +211,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <TooltipProvider>
-            <DevAccessGate>
-              <AppRoutes />
-            </DevAccessGate>
+            <AppRoutes />
           </TooltipProvider>
           <Toaster />
         </AuthProvider>
