@@ -21,11 +21,13 @@ router.post("/auth/provision", async (req, res): Promise<void> => {
 
     const existing = await db.select().from(usersTable).where(eq(usersTable.id, userId));
     if (existing.length === 0) {
-      await db.insert(usersTable).values({ id: userId, email });
+      await db.insert(usersTable).values({ id: userId, email, canAccessDev: true });
     } else {
-      // Always sync email in case the user updated it in Supabase Auth
-      if (email && existing[0].email !== email) {
-        await db.update(usersTable).set({ email }).where(eq(usersTable.id, userId));
+      const patch: { email?: string | null; canAccessDev?: boolean } = {};
+      if (email && existing[0].email !== email) patch.email = email;
+      if (!existing[0].canAccessDev) patch.canAccessDev = true;
+      if (Object.keys(patch).length > 0) {
+        await db.update(usersTable).set(patch).where(eq(usersTable.id, userId));
       }
     }
 

@@ -14,19 +14,21 @@
 
 # --- DEVELOPMENT (internal only): full app, hidden from search. ---
 # Intended visit flow:
-#   browser Basic Auth (username gf-dev) → landing page + orange banner.
-# That is the only access gate. Do not add an in-app Sign in / canAccessDev wall.
-# Skip Basic Auth on /auth/redirect* so Google OAuth can return without a
-# second browser prompt. Caddy 2.11 treats the bcrypt string as a literal.
+#   one browser Basic Auth prompt (gf-dev) → landing page + orange banner.
+# After that, set a cookie so Sign-in / Google OAuth do not show a second
+# username/password dialog. Caddy 2.11 treats the bcrypt hash as a literal.
 dev.usegrowthforge.com {
 	@need_auth {
-		not path /auth/redirect*
-	}
-	basic_auth @need_auth {
-		gf-dev $2a$14$WNw5bilgavSqNQLq0O75EeaaoDURZAfX7ROf0EXUYA8EfU56ECN8C
+		not header Cookie *gf_dev_ok=*
 	}
 	route {
-		header X-Robots-Tag "noindex, nofollow"
+		basic_auth @need_auth {
+			gf-dev $2a$14$WNw5bilgavSqNQLq0O75EeaaoDURZAfX7ROf0EXUYA8EfU56ECN8C
+		}
+		header {
+			Set-Cookie "gf_dev_ok=1; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=2592000"
+			X-Robots-Tag "noindex, nofollow"
+		}
 		handle /robots.txt {
 			root * /home/ubuntu/dev-static
 			file_server
