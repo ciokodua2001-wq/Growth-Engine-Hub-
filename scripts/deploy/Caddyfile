@@ -16,11 +16,11 @@
 # Intended visit flow:
 #   browser Basic Auth (username gf-dev) → real landing page + orange banner
 # Dashboard / projects still use the app-level canAccessDev check.
-# bcrypt hashes in this file must escape $ as $$ so Caddy does not treat them
-# as environment variables.
+# Caddy 2.11 treats the bcrypt string as a literal. Do not $$ -escape it;
+# doubling the dollars made every login fail with 401.
 dev.usegrowthforge.com {
 	basic_auth {
-		gf-dev $$2a$$14$$Y6wkUYHRx7OUboduIurfLu3Gpf4lsIIrfrjFquQpkpkCvCf.FKuvW
+		gf-dev $2a$14$WNw5bilgavSqNQLq0O75EeaaoDURZAfX7ROf0EXUYA8EfU56ECN8C
 	}
 	route {
 		header X-Robots-Tag "noindex, nofollow"
