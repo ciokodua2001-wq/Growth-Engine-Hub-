@@ -35,6 +35,7 @@ dev.usegrowthforge.com {
 			reverse_proxy localhost:4001
 		}
 		handle {
+			header Cache-Control "no-store"
 			root * /home/ubuntu/dev/app/artifacts/growthforge/dist/public
 			try_files {path} /index.html
 			file_server
