@@ -21,7 +21,7 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     social_posts: 50,
     email_campaigns: 10,
     ads: 10,
-    video_blueprints: 3,
+    video_blueprints: 5,
     agent_messages: 200,
     image_generation: 15,
     seo_strategy: 1,
@@ -38,7 +38,7 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     social_posts: 100,
     email_campaigns: 30,
     ads: 30,
-    video_blueprints: 8,
+    video_blueprints: 13,
     agent_messages: 600,
     image_generation: 30,
     seo_strategy: 3,
@@ -55,7 +55,7 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     social_posts: 200,
     email_campaigns: 60,
     ads: 60,
-    video_blueprints: 20,
+    video_blueprints: 35,
     agent_messages: 1000,
     image_generation: 60,
     seo_strategy: 6,
@@ -72,7 +72,7 @@ export const PLAN_LIMITS: Record<PaidPlan, Record<PlanFeature, number | null>> =
     social_posts: 400,
     email_campaigns: 120,
     ads: 120,
-    video_blueprints: 48,
+    video_blueprints: 70,
     agent_messages: 4000,
     image_generation: 120,
     seo_strategy: 20,
@@ -240,10 +240,10 @@ export async function getQuotaRemaining(
 
   if (project.ownerId) {
     const [owner] = await db
-      .select({ role: usersTable.role })
+      .select({ role: usersTable.role, isOwner: usersTable.isOwner })
       .from(usersTable)
       .where(eq(usersTable.id, project.ownerId));
-    if (owner && (owner.role === "admin" || owner.role === "super_admin")) {
+    if (owner && (owner.role === "admin" || owner.role === "super_admin" || owner.isOwner)) {
       return Infinity;
     }
   }

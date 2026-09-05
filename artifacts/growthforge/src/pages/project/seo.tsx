@@ -3,7 +3,7 @@ import { useParams, useLocation, useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  SearchCheck, Zap, RefreshCw, ChevronDown, ChevronUp, Lock,
+  SearchCheck, Zap, RefreshCw, ChevronDown, ChevronUp,
   Globe, Bot, TrendingUp, MapPin, Shield, Link as LinkIcon, Lightbulb,
   AlertTriangle, CheckCircle2, Target, Calendar, Star, ExternalLink,
   FileText, Code2, ListTree, Presentation, Copy, Trash2, Clock,
@@ -28,7 +28,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UpgradeModal } from "@/components/ui/upgrade-modal";
+import { TrialGate } from "@/components/ui/trial-gate";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { hasPlanBypass } from "@/lib/plan-access";
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -146,23 +148,6 @@ function PlatformCard({ platform, tips, logoChar, color }: { platform: string; t
       {tips.map((tip, i) => (
         <p key={i} className="text-white/55 text-xs leading-relaxed pl-8">{tip}</p>
       ))}
-    </div>
-  );
-}
-
-function TrialGate({ featureName, description }: { featureName: string; description: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 p-8 text-center space-y-4 bg-white/5">
-      <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: "rgba(0,230,118,0.1)", border: "1px solid rgba(0,230,118,0.2)" }}>
-        <Lock className="w-6 h-6 text-[#00E676]" />
-      </div>
-      <div>
-        <p className="text-white font-bold text-lg">{featureName}</p>
-        <p className="text-white/40 text-sm mt-1 max-w-sm mx-auto">{description}</p>
-      </div>
-      <a href="/plans" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-black hover:scale-[1.02] transition-transform" style={{ background: "#00E676" }}>
-        <Zap className="w-4 h-4" /> Upgrade to Unlock
-      </a>
     </div>
   );
 }
@@ -1471,7 +1456,7 @@ export default function ProjectSeo() {
 
   const { data: project } = useGetProject(id, { query: { queryKey: getGetProjectQueryKey(id), enabled: !!id } });
   const { data: currentUserData } = useCurrentUser();
-  const isOwner = currentUserData?.isOwner ?? false;
+  const isOwner = hasPlanBypass(currentUserData);
   const plan = isOwner ? "pro" : (project?.plan ?? "trial");
 
   const handleTabChange = (tab: string) => {

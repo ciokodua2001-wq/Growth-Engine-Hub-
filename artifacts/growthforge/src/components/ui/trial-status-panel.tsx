@@ -12,21 +12,21 @@ interface TrialStatusPanelProps {
 
 const METERS = [
   { key: "analyses" as const, label: "Analyses", limit: 1 },
-  { key: "competitors" as const, label: "Competitors", limit: 2 },
+  { key: "competitors" as const, label: "Competitors", limit: 1 },
+  { key: "personas" as const, label: "Personas", limit: 2 },
   { key: "strategies" as const, label: "Strategy", limit: 1 },
   { key: "socialPosts" as const, label: "Social Posts", limit: 5 },
   { key: "emailCampaigns" as const, label: "Emails", limit: 1 },
-  { key: "videoBlueprints" as const, label: "Video Blueprints", limit: 1 },
   { key: "agentMessages" as const, label: "AI Messages", limit: 10 },
 ];
 
 const CHECKLIST = [
   { key: "analyses" as const, label: "Website Analyzed" },
   { key: "competitors" as const, label: "Competitors Reviewed" },
+  { key: "personas" as const, label: "Personas Generated" },
   { key: "strategies" as const, label: "Strategy Generated" },
   { key: "socialPosts" as const, label: "Social Content Created" },
   { key: "emailCampaigns" as const, label: "Email Campaign Created" },
-  { key: "videoBlueprints" as const, label: "Video Blueprint Created" },
   { key: "agentMessages" as const, label: "Forge AI Used" },
 ];
 

@@ -12,23 +12,38 @@
 #
 # Install: sudo cp Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
 
-# --- DEVELOPMENT (internal only): full app, hidden from search. ---
-# Intended visit flow:
-#   one browser Basic Auth prompt (gf-dev) → landing page + orange banner.
-# After that, set a cookie so Sign-in / Google OAuth do not show a second
-# username/password dialog. Caddy 2.11 treats the bcrypt hash as a literal.
+# --- DEVELOPMENT (internal only): full app, basic auth, hidden from search. ---
+#
+# Gate design copied from Quantivarian (dev.quantivarian.com), which is the
+# working model: a ONE-TIME Basic Auth challenge that sets a long-lived
+# cookie. Plain `basic_auth` on every request (including /api/* and OAuth
+# return) makes the browser pop its native credential dialog again — that
+# is the "second blocker" after landing-page sign-in.
+#
+# /api/* is excluded from the gate. Sign-in/sign-up fetch /api/auth/*;
+# a Caddy 401 WWW-Authenticate on those calls pops the gf-dev dialog
+# again. API routes already require a Supabase session where needed.
+#
+# /sign-in, /sign-up, and /auth/redirect must also be excluded. Google
+# (and email-confirm) return here as a top-level GET. If the gf_gate
+# cookie is missing, Caddy's basic_auth challenge swallows the OAuth
+# `code` and the SPA never completes sign-in — the user lands back on
+# the same page and thinks Continue with Google did nothing.
+# Caddy 2.11 treats the bcrypt hash as a literal (do not $$ -escape it).
 dev.usegrowthforge.com {
-	@need_auth {
-		not header Cookie *gf_dev_ok=*
-	}
 	route {
-		basic_auth @need_auth {
+		@needs_gate {
+			not path /api/*
+			not path /sign-in
+			not path /sign-up
+			not path /auth/redirect
+			not header_regexp Cookie "gf_gate=9c4e7a1f2b8d6e0c5a3f9b7d1e8c4a6f"
+		}
+		basic_auth @needs_gate {
 			gf-dev $2a$14$WNw5bilgavSqNQLq0O75EeaaoDURZAfX7ROf0EXUYA8EfU56ECN8C
 		}
-		header {
-			Set-Cookie "gf_dev_ok=1; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=2592000"
-			X-Robots-Tag "noindex, nofollow"
-		}
+		header Set-Cookie "gf_gate=9c4e7a1f2b8d6e0c5a3f9b7d1e8c4a6f; Path=/; Max-Age=31536000; HttpOnly; Secure; SameSite=Lax"
+		header X-Robots-Tag "noindex, nofollow"
 		handle /robots.txt {
 			root * /home/ubuntu/dev-static
 			file_server
@@ -36,8 +51,13 @@ dev.usegrowthforge.com {
 		handle /api/* {
 			reverse_proxy localhost:4001
 		}
+		handle /assets/* {
+			header Cache-Control "public, max-age=31536000, immutable"
+			root * /home/ubuntu/dev/app/artifacts/growthforge/dist/public
+			file_server
+		}
 		handle {
-			header Cache-Control "no-store"
+			header Cache-Control "no-cache, no-store, must-revalidate"
 			root * /home/ubuntu/dev/app/artifacts/growthforge/dist/public
 			try_files {path} /index.html
 			file_server

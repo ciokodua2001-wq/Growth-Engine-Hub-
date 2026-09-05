@@ -6,12 +6,12 @@ import { eq, lt, and } from "drizzle-orm";
 import crypto from "node:crypto";
 import { requireUserId, loadOwnedProject } from "../lib/authz.js";
 import { encryptToken, decryptToken, signState, verifyState } from "../lib/tokenCrypto.js";
+import { oauthRedirectUri } from "../lib/appOrigin.js";
 
 const router: IRouter = Router();
 
 const META_APP_ID = process.env.META_APP_ID ?? "";
 const META_APP_SECRET = process.env.META_APP_SECRET ?? "";
-const REDIRECT_URI = "https://usegrowthforge.com/api/auth/meta/callback";
 const SCOPES = [
   "pages_manage_posts",
   "pages_read_engagement",
@@ -130,7 +130,7 @@ router.get("/auth/meta/start", async (req, res): Promise<void> => {
 
   const url = new URL("https://www.facebook.com/v20.0/dialog/oauth");
   url.searchParams.set("client_id", META_APP_ID);
-  url.searchParams.set("redirect_uri", REDIRECT_URI);
+  url.searchParams.set("redirect_uri", oauthRedirectUri(req, "/api/auth/meta/callback", "META_REDIRECT_URI"));
   url.searchParams.set("scope", SCOPES);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", state);
@@ -197,7 +197,7 @@ router.get("/auth/meta/callback", async (req, res): Promise<void> => {
     const tokenUrl = new URL("https://graph.facebook.com/v20.0/oauth/access_token");
     tokenUrl.searchParams.set("client_id", META_APP_ID);
     tokenUrl.searchParams.set("client_secret", META_APP_SECRET);
-    tokenUrl.searchParams.set("redirect_uri", REDIRECT_URI);
+    tokenUrl.searchParams.set("redirect_uri", oauthRedirectUri(req, "/api/auth/meta/callback", "META_REDIRECT_URI"));
     tokenUrl.searchParams.set("code", code);
 
     const tokenRes = await fetch(tokenUrl.toString());

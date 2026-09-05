@@ -38,7 +38,8 @@ export function useCurrentUser() {
     },
     enabled: isLoaded && !!user,
     staleTime: 60_000,
-    retry: false,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 
   return {

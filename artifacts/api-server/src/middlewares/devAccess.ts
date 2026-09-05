@@ -20,6 +20,9 @@ const DEV_ACCESS_ALLOWLIST = new Set([
   "/healthz",
   "/support/tickets",
   "/stripe/products",
+  "/auth/google-ads/callback",
+  "/auth/meta/callback",
+  "/auth/meta-ads/callback",
 ]);
 
 /**

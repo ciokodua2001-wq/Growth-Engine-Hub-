@@ -14,6 +14,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Mail, Zap, ChevronDown, ChevronUp, Send, X, Upload, CheckCircle2, AlertCircle, AlertTriangle, Clock } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useTrialUsage } from "@/hooks/use-trial-usage";
+import { isTrialPlan } from "@/lib/plan-access";
 
 const emailTypes = ["welcome", "sales", "nurture", "reactivation"];
 
@@ -411,6 +413,11 @@ export default function ProjectEmail() {
   const canScheduleFeature = isOwnerUser || ["get-going", "growth", "agency"].includes(project?.plan ?? "");
   const generateEmails = useGenerateEmails();
   const queryClient = useQueryClient();
+  const { usage, refetch: refetchUsage } = useTrialUsage(projectId);
+  const isTrial = isTrialPlan(project?.plan, currentUserData);
+  const emailLockedMessage = isTrial && usage && usage.emailCampaigns >= usage.limits.emailCampaigns
+    ? "You've used your 1 email campaign included in the trial. Upgrade to keep generating campaigns."
+    : null;
 
   const showToast = (type: Toast["type"], message: string) => {
     const id = Date.now();
@@ -425,6 +432,7 @@ export default function ProjectEmail() {
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getListEmailsQueryKey(projectId) });
+            refetchUsage();
             resolve();
           },
           onError: reject,
@@ -602,6 +610,7 @@ export default function ProjectEmail() {
         processingSteps={EMAIL_STEPS}
         onSubmit={handleSubmit}
         ctaLabel="Generate Campaign"
+        lockedMessage={emailLockedMessage}
       />
 
       <AnimatePresence>

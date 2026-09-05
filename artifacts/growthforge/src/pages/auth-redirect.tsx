@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@/contexts/auth-context";
 import { Loader2 } from "lucide-react";
@@ -18,9 +18,39 @@ export default function AuthRedirectPage() {
   const redirectUrl = new URLSearchParams(search).get("redirect_url");
   const { isLoaded, user } = useAuth();
   const { data: currentUser, isSuccess, isError } = useCurrentUser();
+  const [oauthTimedOut, setOauthTimedOut] = useState(false);
 
   useEffect(() => {
-    if (isLoaded && !user) {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("code") && !window.location.hash.includes("access_token")) return;
+    const t = window.setTimeout(() => setOauthTimedOut(true), 12000);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const hash = window.location.hash;
+    const oauthPending =
+      params.has("code") ||
+      hash.includes("access_token") ||
+      hash.includes("refresh_token");
+    const oauthError = params.get("error_description") || params.get("error");
+
+    if (!user) {
+      if (oauthError || oauthTimedOut) {
+        const next = new URLSearchParams(params);
+        if (oauthTimedOut && !next.get("error_description")) {
+          next.set("error_description", "Google sign-in timed out. Try email and password, or Continue with Google again.");
+        }
+        const qs = next.toString();
+        setLocation(qs ? `/sign-in?${qs}` : "/sign-in", { replace: true });
+        return;
+      }
+      // PKCE exchange is still in flight — stay on the spinner instead of
+      // bouncing to /sign-in and dropping the `code` query param.
+      if (oauthPending) return;
       setLocation("/sign-in", { replace: true });
       return;
     }
@@ -29,14 +59,16 @@ export default function AuthRedirectPage() {
       return;
     }
     if (isSuccess && currentUser) {
-      const target = currentUser.role === "admin" || currentUser.role === "super_admin" ? "/admin" : "/dashboard";
+      const target =
+        currentUser.isOwner || currentUser.role === "admin" || currentUser.role === "super_admin"
+          ? "/admin"
+          : "/dashboard";
       setLocation(target, { replace: true });
     }
     if (isError) {
-      // Fall back to the standard dashboard if the role lookup fails.
       setLocation("/dashboard", { replace: true });
     }
-  }, [isLoaded, user, redirectUrl, isSuccess, currentUser, isError, setLocation]);
+  }, [isLoaded, user, redirectUrl, isSuccess, currentUser, isError, oauthTimedOut, setLocation]);
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "#040B14" }}>

@@ -14,6 +14,9 @@ import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Users2, TrendingUp, Globe, FileText, Zap, Download } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useTrialUsage } from "@/hooks/use-trial-usage";
+import { isTrialPlan } from "@/lib/plan-access";
 
 const DISCOVER_STEPS = [
   "Searching competitor landscape...",
@@ -59,6 +62,15 @@ export default function ProjectCompetitors() {
   const discoverCompetitors = useDiscoverCompetitors();
   const generateReport = useGenerateCompetitorReport();
   const queryClient = useQueryClient();
+  const { data: currentUser } = useCurrentUser();
+  const { usage } = useTrialUsage(projectId);
+  const isTrial = isTrialPlan(project?.plan, currentUser);
+  const discoverLockedMessage = isTrial && usage && usage.competitors >= usage.limits.competitors
+    ? "You've used your 1 competitor discovery included in the trial. Upgrade to keep scanning the market."
+    : null;
+  const reportLockedMessage = isTrial && usage && (usage.competitorReports ?? 0) >= (usage.limits.competitorReports ?? 1)
+    ? "You've used your 1 competitor report included in the trial. Upgrade to generate more."
+    : null;
 
   const handleDiscover = (_websiteUrl: string, _instructions: string): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -229,6 +241,7 @@ export default function ProjectCompetitors() {
         processingSteps={DISCOVER_STEPS}
         onSubmit={handleDiscover}
         ctaLabel="Discover Competitors"
+        lockedMessage={discoverLockedMessage}
       />
 
       <GenerateModal
@@ -241,6 +254,7 @@ export default function ProjectCompetitors() {
         processingSteps={REPORT_STEPS}
         onSubmit={handleGenerateReport}
         ctaLabel="Generate Report"
+        lockedMessage={reportLockedMessage}
       />
     </div>
   );

@@ -3,13 +3,13 @@ import { videoConfigTable } from "@workspace/db";
 
 export const VIDEO_CONFIG_DEFAULTS: Record<string, string> = {
   kling_cost_per_credit_usd:    "0.145",
-  retail_price_per_second_usd:  "1.25",
+  retail_price_per_second_usd:  "0.2222",
   low_balance_warning_pct:      "25",
   trial_monthly_seconds:        "0",
-  starter_monthly_seconds:      "45",
-  get_going_monthly_seconds:    "120",
-  growth_monthly_seconds:       "300",
-  agency_monthly_seconds:       "720",
+  starter_monthly_seconds:      "80",
+  get_going_monthly_seconds:    "200",
+  growth_monthly_seconds:       "560",
+  agency_monthly_seconds:       "1120",
 };
 
 let _configCache: Record<string, string> | null = null;
@@ -57,11 +57,8 @@ export async function getMonthlySecondsByPlan(plan: string): Promise<number> {
 }
 
 export const CREDIT_BUNDLES: Array<{ seconds: number; priceUsd: number; label: string }> = [
-  { seconds: 5,   priceUsd: 6.25,   label: "5 seconds"   },
-  { seconds: 15,  priceUsd: 18.75,  label: "15 seconds"  },
-  { seconds: 30,  priceUsd: 37.50,  label: "30 seconds"  },
-  { seconds: 60,  priceUsd: 75.00,  label: "60 seconds"  },
-  { seconds: 120, priceUsd: 150.00, label: "120 seconds" },
+  { seconds: 45, priceUsd: 10, label: "45 seconds" },
+  { seconds: 90, priceUsd: 20, label: "90 seconds" },
 ];
 
 export function getBundleBySeconds(seconds: number): (typeof CREDIT_BUNDLES)[number] | null {

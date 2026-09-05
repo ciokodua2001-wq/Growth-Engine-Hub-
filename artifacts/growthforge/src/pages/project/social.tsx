@@ -23,6 +23,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Share2, Zap, Calendar, Facebook, CheckCircle2, AlertCircle, Link2, Link2Off, Instagram, RefreshCw, ChevronRight, Heart, MessageCircle, Eye, Clock, AtSign, Copy, Check, Pencil } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useTrialUsage } from "@/hooks/use-trial-usage";
+import { isTrialPlan } from "@/lib/plan-access";
 
 const platforms = ["linkedin", "instagram", "tiktok", "x", "facebook"];
 
@@ -760,6 +762,14 @@ export default function ProjectSocial() {
   const { data: currentUserData } = useCurrentUser();
   const isOwnerUser = currentUserData?.isOwner ?? false;
   const canScheduleFeature = isOwnerUser || ["get-going", "growth", "agency"].includes(project?.plan ?? "");
+  const { usage, refetch: refetchUsage } = useTrialUsage(projectId);
+  const isTrial = isTrialPlan(project?.plan, currentUserData);
+  const socialRemaining = !isTrial || !usage
+    ? Infinity
+    : Math.max(0, usage.limits.socialPosts - usage.socialPosts);
+  const socialLockedMessage = isTrial && usage && socialRemaining <= 0
+    ? "You've used all 5 social posts included in your trial. Upgrade to keep generating platform-native content."
+    : null;
 
   // Auto-fetch stats on page load for published posts that have never had stats pulled,
   // and background-refresh posts whose stats are older than STATS_STALE_MS (30 min).
@@ -819,11 +829,15 @@ export default function ProjectSocial() {
 
   const handleSubmit = (_websiteUrl: string, _instructions: string, locale: string): Promise<void> => {
     return new Promise((resolve, reject) => {
+      const platforms = Number.isFinite(socialRemaining)
+        ? selectedPlatforms.slice(0, Math.max(1, socialRemaining))
+        : selectedPlatforms;
       generatePosts.mutate(
-        { id: projectId, data: { platforms: selectedPlatforms, targetLocale: locale || undefined } },
+        { id: projectId, data: { platforms, count: isTrial ? 1 : undefined, targetLocale: locale || undefined } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getListSocialPostsQueryKey(projectId) });
+            refetchUsage();
             resolve();
           },
           onError: reject,
@@ -1087,6 +1101,7 @@ export default function ProjectSocial() {
         processingSteps={SOCIAL_STEPS}
         onSubmit={handleSubmit}
         ctaLabel="Generate Posts"
+        lockedMessage={socialLockedMessage}
       />
 
       {/* Page picker modal (shown after OAuth redirect with multiple pages) */}

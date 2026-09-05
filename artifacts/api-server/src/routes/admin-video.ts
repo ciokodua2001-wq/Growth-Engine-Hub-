@@ -142,7 +142,7 @@ router.get("/admin/video-analytics", requireAdmin, async (req, res) => {
 
     const config = await getVideoConfig();
     const klingCostPerSecond = (parseFloat(config.kling_cost_per_credit_usd ?? "0.145") / 5);
-    const retailPerSecond    = parseFloat(config.retail_price_per_second_usd ?? "1.25");
+    const retailPerSecond    = parseFloat(config.retail_price_per_second_usd ?? "0.2222");
 
     const totalRenderedEver  = Number(walletStats[0]?.totalRenderedEver ?? 0);
     const platformCost       = totalRenderedEver * klingCostPerSecond;

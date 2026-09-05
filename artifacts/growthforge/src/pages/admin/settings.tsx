@@ -33,7 +33,7 @@ const PLAN_KEYS = [
 ];
 
 const PRICE_KEYS = [
-  { key: "retail_price_per_second_usd", label: "Retail price / second (USD)", placeholder: "1.25" },
+  { key: "retail_price_per_second_usd", label: "Retail price / second (USD)", placeholder: "0.2222" },
   { key: "kling_cost_per_credit_usd",   label: "Kling cost / credit (USD)",   placeholder: "0.145" },
   { key: "low_balance_warning_pct",     label: "Low-balance warning threshold (%)", placeholder: "25" },
 ];

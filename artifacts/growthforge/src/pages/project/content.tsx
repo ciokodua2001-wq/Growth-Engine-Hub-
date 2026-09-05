@@ -13,6 +13,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, FileText, Zap, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import GenerateModal from "@/components/ui/generate-modal";
+import { TrialGate } from "@/components/ui/trial-gate";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { meetsMinPlanClient } from "@/lib/plan-access";
 
 const typeOptions = ["blog", "whitepaper", "case-study", "landing-page", "email-sequence", "press-release"];
 
@@ -63,6 +66,8 @@ export default function ProjectContent() {
   const deleteContent = useDeleteContent();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { data: currentUser } = useCurrentUser();
+  const canGenerate = meetsMinPlanClient(project?.plan, "get-going", currentUser);
 
   const handleSubmit = (_websiteUrl: string, _instructions: string, locale: string): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -97,24 +102,33 @@ export default function ProjectContent() {
           <p className="text-muted-foreground mt-1">AI-generated content tailored to your brand voice and ICP</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            className="bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-          >
-            {typeOptions.map((t) => <option key={t} value={t}>{t.replace(/-/g, " ")}</option>)}
-          </select>
-          <button
-            onClick={() => setModalOpen(true)}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
-          >
-            <Zap className="h-4 w-4" />
-            Generate Content
-          </button>
+          {canGenerate && (
+            <>
+              <select
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+                className="bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                {typeOptions.map((t) => <option key={t} value={t}>{t.replace(/-/g, " ")}</option>)}
+              </select>
+              <button
+                onClick={() => setModalOpen(true)}
+                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
+              >
+                <Zap className="h-4 w-4" />
+                Generate Content
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {isLoading ? (
+      {!canGenerate ? (
+        <TrialGate
+          featureName="AI Content Engine"
+          description="Included on Get-Going and higher. Generate blog posts, whitepapers, case studies, landing pages, and press releases grounded in your brand voice and ICP."
+        />
+      ) : isLoading ? (
         <div className="flex items-center justify-center py-32"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
       ) : content && content.length > 0 ? (
         <div className="space-y-3">

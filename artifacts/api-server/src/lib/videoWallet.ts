@@ -113,8 +113,8 @@ export async function getOrCreateWallet(userId: string, plan?: string): Promise<
     return toBalance(updated!);
   }
 
-  // Sync plan change without full reset
-  if (plan && plan !== existing.plan) {
+  // Sync plan change or allotment config change without resetting usage
+  if ((plan && plan !== existing.plan) || existing.monthlyVideoSeconds !== monthlyAlloc) {
     const [updated] = await db
       .update(videoWalletsTable)
       .set({ plan: resolvedPlan, monthlyVideoSeconds: monthlyAlloc, updatedAt: new Date() })

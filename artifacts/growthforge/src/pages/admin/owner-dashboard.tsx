@@ -30,7 +30,7 @@ function fmt$(n: number) {
 }
 function fmtPct(n: number) { return `${n.toFixed(1)}%`; }
 
-const PLAN_PRICE: Record<string, number> = { starter: 39, "get-going": 99, growth: 299, scale: 799, agency: 799 };
+const PLAN_PRICE: Record<string, number> = { starter: 39, "get-going": 99, growth: 249, agency: 599 };
 
 /* ─── Inline SVG bar chart ─────────────────────────────────────────────────── */
 function SignupSparkline({ data }: { data: Array<{ day: string; count: number }> }) {

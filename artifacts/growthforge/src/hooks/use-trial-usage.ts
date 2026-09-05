@@ -3,7 +3,9 @@ import { useState, useEffect, useCallback } from "react";
 export interface TrialUsage {
   analyses: number;
   competitors: number;
+  personas: number;
   strategies: number;
+  competitorReports?: number;
   socialPosts: number;
   emailCampaigns: number;
   videoBlueprints: number;
@@ -11,7 +13,9 @@ export interface TrialUsage {
   limits: {
     analyses: number;
     competitors: number;
+    personas: number;
     strategies: number;
+    competitorReports?: number;
     socialPosts: number;
     emailCampaigns: number;
     videoBlueprints: number;
@@ -21,11 +25,12 @@ export interface TrialUsage {
 
 export const TRIAL_LIMITS = {
   analyses: 1,
-  competitors: 2,
+  competitors: 1,
+  personas: 2,
   strategies: 1,
   socialPosts: 5,
   emailCampaigns: 1,
-  videoBlueprints: 1,
+  videoBlueprints: 0,
   agentMessages: 10,
 };
 

@@ -3,8 +3,10 @@ import {
   useGetProjectAnalytics,
   useListReports,
   useGenerateReport,
+  useGetProject,
   getListReportsQueryKey,
   getGetProjectAnalyticsQueryKey,
+  getGetProjectQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
@@ -18,6 +20,9 @@ import {
   BarChart2, TrendingUp, Mail, Share2, Megaphone, Video,
   Database, CheckCircle2, AlertCircle,
 } from "lucide-react";
+import { TrialGate } from "@/components/ui/trial-gate";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { isTrialPlan, isUpgradeError } from "@/lib/plan-access";
 
 /* ── helpers ─────────────────────────────────────────────────── */
 
@@ -115,8 +120,16 @@ export default function ProjectAnalytics() {
   const generateReport = useGenerateReport();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
+  const { data: currentUser } = useCurrentUser();
+  const reportsLocked = isTrialPlan(project?.plan, currentUser);
+  const [showReportGate, setShowReportGate] = useState(false);
 
   const handleGenerateReport = () => {
+    if (reportsLocked) {
+      setShowReportGate(true);
+      return;
+    }
     generateReport.mutate(
       { id: projectId, data: { type: "performance", period: "monthly" } },
       {
@@ -124,7 +137,14 @@ export default function ProjectAnalytics() {
           queryClient.invalidateQueries({ queryKey: getListReportsQueryKey(projectId) });
           toast({ title: "Report generated" });
         },
-        onError: () => toast({ title: "Failed to generate report", variant: "destructive" }),
+        onError: (err) => {
+          const msg = err instanceof Error ? err.message.replace(/^HTTP \d+[^:]*:\s*/i, "") : "";
+          if (isUpgradeError(msg)) {
+            setShowReportGate(true);
+            return;
+          }
+          toast({ title: "Failed to generate report", variant: "destructive" });
+        },
       }
     );
   };
@@ -153,14 +173,25 @@ export default function ProjectAnalytics() {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             Live Data
           </span>
-          <button
-            onClick={handleGenerateReport}
-            disabled={generateReport.isPending}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
-          >
-            {generateReport.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-            Generate Report
-          </button>
+          {reportsLocked ? (
+            <a
+              href="/plans"
+              className="flex items-center gap-2 font-bold px-5 py-2.5 rounded-xl text-sm text-black transition-transform hover:scale-[1.02]"
+              style={{ background: "#00E676" }}
+            >
+              <Zap className="h-4 w-4" />
+              Upgrade to Unlock
+            </a>
+          ) : (
+            <button
+              onClick={handleGenerateReport}
+              disabled={generateReport.isPending}
+              className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
+            >
+              {generateReport.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+              Generate Report
+            </button>
+          )}
         </div>
       </div>
 
@@ -356,6 +387,11 @@ export default function ProjectAnalytics() {
                   </motion.div>
                 ))}
               </div>
+            ) : reportsLocked || showReportGate ? (
+              <TrialGate
+                featureName="AI Campaign Reports"
+                description="Included in all paid plans. Generate AI performance reports with recommendations from your live campaign data."
+              />
             ) : (
               <div className="text-center py-10 rounded-xl border border-dashed border-border">
                 <p className="text-muted-foreground text-sm">

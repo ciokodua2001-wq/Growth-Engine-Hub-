@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { connectedAdAccountsTable, campaignsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireProjectOwnershipParam } from "../lib/authz.js";
+import { appOrigin, oauthRedirectUri } from "../lib/appOrigin.js";
 
 const router: IRouter = Router();
 router.param("id", requireProjectOwnershipParam());
@@ -10,13 +11,13 @@ router.param("id", requireProjectOwnershipParam());
 const META_GRAPH = "https://graph.facebook.com/v20.0";
 const META_AUTH  = "https://www.facebook.com/v20.0/dialog/oauth";
 const META_TOKEN = `${META_GRAPH}/oauth/access_token`;
-const SCOPE      = "ads_read";
+const SCOPE      = "ads_read,business_management";
+const CALLBACK_PATH = "/api/auth/meta-ads/callback";
 
 function appId()     { return process.env["META_APP_ID"]     ?? ""; }
 function appSecret() { return process.env["META_APP_SECRET"] ?? ""; }
-function redirectUri() {
-  return process.env["META_REDIRECT_URI"] ??
-    "https://usegrowthforge.com/api/auth/meta/callback";
+function redirectUri(req: Request) {
+  return oauthRedirectUri(req, CALLBACK_PATH, "META_ADS_REDIRECT_URI");
 }
 
 // ── Token helpers ──────────────────────────────────────────────────────────────
@@ -70,7 +71,7 @@ router.get("/projects/:id/meta/auth-url", async (req, res): Promise<void> => {
   const state = Buffer.from(JSON.stringify({ projectId: req.project!.id })).toString("base64url");
   const params = new URLSearchParams({
     client_id: appId(),
-    redirect_uri: redirectUri(),
+    redirect_uri: redirectUri(req),
     scope: SCOPE,
     response_type: "code",
     state,
@@ -80,11 +81,11 @@ router.get("/projects/:id/meta/auth-url", async (req, res): Promise<void> => {
 
 // ── OAuth Callback ─────────────────────────────────────────────────────────────
 
-router.get("/auth/meta/callback", async (req: Request, res: Response): Promise<void> => {
+router.get("/auth/meta-ads/callback", async (req: Request, res: Response): Promise<void> => {
   const { code, state, error } = req.query as Record<string, string>;
 
   if (error || !code || !state) {
-    res.redirect(`/?meta_error=${encodeURIComponent(error ?? "cancelled")}`);
+    res.redirect(`${appOrigin(req)}/?meta_error=${encodeURIComponent(error ?? "cancelled")}`);
     return;
   }
 
@@ -102,7 +103,7 @@ router.get("/auth/meta/callback", async (req: Request, res: Response): Promise<v
     const tokenUrl = new URL(META_TOKEN);
     tokenUrl.searchParams.set("client_id", appId());
     tokenUrl.searchParams.set("client_secret", appSecret());
-    tokenUrl.searchParams.set("redirect_uri", redirectUri());
+    tokenUrl.searchParams.set("redirect_uri", redirectUri(req));
     tokenUrl.searchParams.set("code", code);
     const tokenRes = await fetch(tokenUrl.toString(), { signal: AbortSignal.timeout(15_000) });
     if (!tokenRes.ok) throw new Error(await tokenRes.text());
@@ -169,10 +170,10 @@ router.get("/auth/meta/callback", async (req: Request, res: Response): Promise<v
       });
     }
 
-    res.redirect(`/projects/${projectId}/campaigns?meta=connected`);
+    res.redirect(`${appOrigin(req)}/projects/${projectId}/campaigns?meta=connected`);
   } catch (err) {
     req.log.error({ err }, "Meta OAuth callback error");
-    res.redirect(`/projects/${projectId}/campaigns?meta=error`);
+    res.redirect(`${appOrigin(req)}/projects/${projectId}/campaigns?meta=error`);
   }
 });
 

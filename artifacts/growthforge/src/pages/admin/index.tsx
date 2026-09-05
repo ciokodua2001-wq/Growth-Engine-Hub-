@@ -300,7 +300,7 @@ export default function AdminDashboard() {
                     (stats.planBreakdown ?? [])
                       .sort((a, b) => b.count - a.count)
                       .map(({ plan, count }) => {
-                        const prices: Record<string, number> = { starter: 39, "get-going": 99, growth: 299, scale: 799 };
+                        const prices: Record<string, number> = { starter: 39, "get-going": 99, growth: 249, agency: 599 };
                         const mrr = (prices[plan] ?? 0) * count;
                         return (
                           <div key={plan} className="px-5 py-3 grid grid-cols-3 gap-2 text-sm items-center">

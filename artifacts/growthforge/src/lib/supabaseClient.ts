@@ -14,3 +14,20 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * contexts/auth-context.tsx).
  */
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+/** Start Google OAuth and return the provider URL (caller must navigate). */
+export async function googleOAuthUrl(redirectTo: string): Promise<string> {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo,
+      skipBrowserRedirect: true,
+      queryParams: { prompt: "select_account" },
+    },
+  });
+  if (error) throw error;
+  if (!data.url) {
+    throw new Error("Google sign-in did not return a redirect URL. Try email and password.");
+  }
+  return data.url;
+}

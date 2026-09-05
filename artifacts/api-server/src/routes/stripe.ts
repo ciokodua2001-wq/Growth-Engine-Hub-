@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type Stripe from "stripe";
 import { stripeStorage } from "../stripeStorage.js";
 import { stripeService } from "../stripeService.js";
 import { getUncachableStripeClient } from "../stripeClient.js";
@@ -43,15 +44,21 @@ router.get("/stripe/products", async (_req, res) => {
     const map = new Map<string, ProductEntry>();
     for (const product of productsPage.data) {
       const meta = product.metadata as Record<string, string> | null;
-      if (!meta?.plan) continue;
-      const productPrices = (pricesByProduct.get(product.id) ?? [])
-        .filter((p) => p.recurring?.interval === "month")
-        .map((p) => ({
-          id: p.id,
-          unit_amount: p.unit_amount ?? 0,
-          currency: p.currency,
-          recurring: p.recurring,
-        }));
+      if (!meta?.plan || meta.type === "video_seconds") continue;
+      const defaultPriceId =
+        typeof product.default_price === "string"
+          ? product.default_price
+          : product.default_price?.id;
+      const monthly = (pricesByProduct.get(product.id) ?? []).filter(
+        (p) => p.recurring?.interval === "month",
+      );
+      const preferred = monthly.find((p) => p.id === defaultPriceId) ?? monthly[0];
+      const productPrices = (preferred ? [preferred] : []).map((p) => ({
+        id: p.id,
+        unit_amount: p.unit_amount ?? 0,
+        currency: p.currency,
+        recurring: p.recurring,
+      }));
       map.set(product.id, {
         id: product.id,
         name: product.name,
@@ -118,7 +125,7 @@ router.post("/stripe/checkout", async (req, res) => {
 /**
  * POST /stripe/checkout/video-credits
  * Auth required. Creates a one-time Stripe Checkout session for video second bundles.
- * Body: { seconds: 5 | 15 | 30 | 60 | 120 }
+ * Body: { seconds: 45 | 90 }
  */
 router.post("/stripe/checkout/video-credits", async (req, res) => {
   const userId = requireUserId(req, res);
@@ -159,23 +166,35 @@ router.post("/stripe/checkout/video-credits", async (req, res) => {
     const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? req.get("host") ?? "localhost";
     const base   = `https://${domain}`;
 
+    const catalog = await stripe.products.list({ active: true, limit: 100 });
+    const catalogProduct = catalog.data.find(
+      (p) => p.metadata?.type === "video_seconds" && p.metadata?.seconds === String(bundle.seconds),
+    );
+    let lineItem: Stripe.Checkout.SessionCreateParams.LineItem | undefined;
+    if (catalogProduct) {
+      const prices = await stripe.prices.list({ product: catalogProduct.id, active: true, limit: 10 });
+      const oneTime = prices.data.find((p) => !p.recurring && p.unit_amount === Math.round(bundle.priceUsd * 100));
+      if (oneTime) {
+        lineItem = { price: oneTime.id, quantity: 1 };
+      }
+    }
+    lineItem ??= {
+      price_data: {
+        currency:    "usd",
+        unit_amount: Math.round(bundle.priceUsd * 100),
+        product_data: {
+          name:        `GrowthForge Video Credits — ${bundle.label}`,
+          description: `${bundle.seconds} seconds of AI video generation (${Math.floor(bundle.seconds / 15)} × 15s promo videos)`,
+        },
+      },
+      quantity: 1,
+    };
+
     const session = await stripe.checkout.sessions.create({
       customer:             customerId,
       payment_method_types: ["card"],
       mode:                 "payment",
-      line_items: [
-        {
-          price_data: {
-            currency:    "usd",
-            unit_amount: Math.round(bundle.priceUsd * 100),
-            product_data: {
-              name:        `GrowthForge Video Credits — ${bundle.label}`,
-              description: `${bundle.seconds} seconds of AI video generation time`,
-            },
-          },
-          quantity: 1,
-        },
-      ],
+      line_items:           [lineItem],
       metadata: {
         type:    "video_seconds",
         userId,

@@ -150,7 +150,7 @@ export default function AdminLayout({ children }: Props) {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "#040B14" }}>
+    <div className="flex h-[calc(100dvh-var(--gf-dev-banner-height,0px))] overflow-hidden" style={{ background: "#040B14" }}>
       {/* Desktop sidebar */}
       <aside className={`hidden md:flex flex-col shrink-0 border-r border-white/8 transition-all duration-200 relative ${collapsed ? "w-16" : "w-56"}`}
         style={{ background: "#060f1e" }}>

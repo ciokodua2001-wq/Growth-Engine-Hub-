@@ -36,7 +36,7 @@ router.get("/video-wallet", async (req, res) => {
       lowMonthlyBalance,
       pctMonthlyLeft: pctLeft,
       bundles: CREDIT_BUNDLES,
-      retailPricePerSecond: parseFloat(config.retail_price_per_second_usd ?? "1.25"),
+      retailPricePerSecond: parseFloat(config.retail_price_per_second_usd ?? "0.2222"),
     });
   } catch (err) {
     req.log.error({ err }, "GET /video-wallet failed");

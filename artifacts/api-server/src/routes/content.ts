@@ -2,8 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, and, isNull } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { contentTable, socialPostsTable, emailCampaignsTable, adCreativesTable, activityTable, metaConnectionsTable } from "@workspace/db";
-import { consumeQuota } from "../lib/planLimits.js";
-import { getGroundingContext } from "../lib/projectContext.js";
+import { consumeQuota, meetsMinPlan, getQuotaRemaining } from "../lib/planLimits.js";
 import { generateSocialPosts, generateEmailCampaign, generateContentPieces, type SocialPostResult, type EmailResult, type ContentPieceResult } from "../lib/contentGenerators.js";
 import {
   ListContentParams,
@@ -36,7 +35,6 @@ import { generateImageBuffer } from "@workspace/integrations-google-genai/image"
 import { Resend } from "resend";
 import { decryptToken, encryptToken, isEncryptedFormat } from "../lib/tokenCrypto.js";
 import { publishPostToMeta } from "../lib/metaPublisher.js";
-import { meetsMinPlan } from "../lib/planLimits.js";
 
 const router: IRouter = Router();
 
@@ -189,8 +187,8 @@ router.post("/projects/:id/social-posts", requireActiveSubscription, async (req,
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const projectId = params.data.id;
-  const platforms = parsed.data.platforms;
-  const perPlatform = parsed.data.count ?? 2;
+  let platforms = parsed.data.platforms;
+  let perPlatform = parsed.data.count ?? 2;
 
   const ctx = await getGroundingContext(projectId);
   if (!ctx) {
@@ -198,7 +196,22 @@ router.post("/projects/:id/social-posts", requireActiveSubscription, async (req,
     return;
   }
 
-  const requestedTotal = platforms.length * perPlatform;
+  // Trial (and paid monthly) quotas are small; a default of 3 platforms × 2 posts
+  // would exceed the 5-post trial cap on the first click. Shrink the request to
+  // whatever remaining quota exists instead of returning a hard error.
+  const remaining = await getQuotaRemaining(projectId, "social_posts");
+  if (remaining <= 0) {
+    const quota = await consumeQuota(projectId, "social_posts", 1);
+    res.status(403).json({ error: quota.allowed ? "Trial limit reached: social post generation is limited during your trial. Upgrade your plan to continue." : quota.message });
+    return;
+  }
+  let requestedTotal = platforms.length * perPlatform;
+  if (requestedTotal > remaining) {
+    perPlatform = 1;
+    platforms = platforms.slice(0, remaining);
+    requestedTotal = platforms.length * perPlatform;
+  }
+
   const quota = await consumeQuota(projectId, "social_posts", requestedTotal);
   if (!quota.allowed) {
     res.status(403).json({ error: quota.message });

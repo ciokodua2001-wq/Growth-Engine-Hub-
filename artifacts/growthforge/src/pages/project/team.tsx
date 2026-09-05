@@ -1,9 +1,10 @@
 import { useParams } from "wouter";
 import { useGetProject, getGetProjectQueryKey } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
-import { Loader2, Users, UserPlus, Mail, Trash2, Crown, Clock, CheckCircle2, XCircle, Send, Shield } from "lucide-react";
+import { Loader2, Users, UserPlus, Mail, Trash2, Crown, Clock, CheckCircle2, XCircle, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useCallback } from "react";
+import { TrialGate } from "@/components/ui/trial-gate";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
 type TeamMember = {
@@ -124,15 +125,10 @@ export default function ProjectTeam() {
       </div>
 
       {!isAgency ? (
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="p-6 rounded-xl border border-amber-500/20 bg-amber-500/5">
-          <div className="flex items-start gap-3">
-            <Shield className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
-            <div>
-              <div className="font-bold text-amber-300 mb-1">Agency Plan Required</div>
-              <p className="text-sm text-amber-300/70">Team Members is an Agency plan feature. Upgrade to invite collaborators to your projects.</p>
-            </div>
-          </div>
-        </motion.div>
+        <TrialGate
+          featureName="Team Members"
+          description="Agency plan only. Invite collaborators to access this project, assign roles, and manage client work together."
+        />
       ) : (
         <div className="space-y-6">
           {/* Invite form */}

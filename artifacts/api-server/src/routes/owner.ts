@@ -43,9 +43,8 @@ export async function requireOwner(req: Request, res: Response, next: NextFuncti
 const PLAN_MONTHLY_PRICE: Record<string, number> = {
   starter: 39,
   "get-going": 99,
-  growth: 299,
-  scale: 799,
-  agency: 799,
+  growth: 249,
+  agency: 599,
 };
 
 export async function ownerAuditLog(

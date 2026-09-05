@@ -15,11 +15,11 @@ const TRIAL_FEATURES = [
   "1 Website Analysis",
   "1 Competitor Report",
   "1 Marketing Strategy",
-  "3 AI Customer Personas",
-  "10 Social Posts",
-  "2 Email Campaigns",
-  "3 Video Blueprints (scripts, no rendering)",
-  "40 Forge AI Chats",
+  "2 AI Customer Personas",
+  "5 Social Posts",
+  "1 Email Campaign",
+  "No video blueprints or rendering",
+  "10 Forge AI Chats",
   "Full Dashboard Access",
 ];
 
@@ -50,7 +50,7 @@ const PLANS: Plan[] = [
     description: "For solo founders and small businesses",
     stats: [
       { value: "1", label: "Project" },
-      { value: "3", label: "Promo Videos / mo" },
+      { value: "5", label: "Promo Videos / mo" },
       { value: "50", label: "Posts / mo" },
     ],
     groups: [
@@ -80,7 +80,7 @@ const PLANS: Plan[] = [
         highlight: true,
         items: [
           "AI Video Generation",
-          "Up to 3 Promotional Videos / month (45s included)",
+          "Up to 5 Promotional Videos / month (80s included)",
           "1080p HD · AI-rendered commercials",
         ],
       },
@@ -105,7 +105,7 @@ const PLANS: Plan[] = [
     description: "For growing creators ready to scale",
     stats: [
       { value: "3", label: "Projects" },
-      { value: "8", label: "Promo Videos / mo" },
+      { value: "13", label: "Promo Videos / mo" },
       { value: "100", label: "Posts / mo" },
     ],
     groups: [
@@ -135,7 +135,7 @@ const PLANS: Plan[] = [
         highlight: true,
         items: [
           "AI Video Generation",
-          "Up to 8 Promotional Videos / month (120s included)",
+          "Up to 13 Promotional Videos / month (200s included)",
           "1080p HD · AI-rendered commercials",
         ],
       },
@@ -163,7 +163,7 @@ const PLANS: Plan[] = [
     description: "For teams serious about growth",
     stats: [
       { value: "6", label: "Projects" },
-      { value: "20", label: "Promo Videos / mo" },
+      { value: "35", label: "Promo Videos / mo" },
       { value: "200", label: "Posts / mo" },
     ],
     groups: [
@@ -193,7 +193,7 @@ const PLANS: Plan[] = [
         highlight: true,
         items: [
           "AI Video Generation",
-          "Up to 20 Promotional Videos / month (300s included)",
+          "Up to 35 Promotional Videos / month (560s included)",
           "1080p HD · AI-rendered commercials",
         ],
       },
@@ -224,7 +224,7 @@ const PLANS: Plan[] = [
     description: "For agencies managing multiple clients",
     stats: [
       { value: "20", label: "Projects" },
-      { value: "48", label: "Promo Videos / mo" },
+      { value: "70", label: "Promo Videos / mo" },
       { value: "400", label: "Posts / mo" },
     ],
     groups: [
@@ -254,7 +254,7 @@ const PLANS: Plan[] = [
         highlight: true,
         items: [
           "AI Video Generation",
-          "Up to 48 Promotional Videos / month (720s included)",
+          "Up to 70 Promotional Videos / month (1,120s included)",
           "1080p HD · AI-rendered commercials",
         ],
       },

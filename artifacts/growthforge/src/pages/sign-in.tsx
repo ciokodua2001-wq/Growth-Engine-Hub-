@@ -1,9 +1,9 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { FcGoogle } from "react-icons/fc";
 import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, googleOAuthUrl } from "@/lib/supabaseClient";
 import { basePath } from "@/lib/basePath";
 
 const inputClasses =
@@ -39,6 +39,17 @@ export default function SignInPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const desc =
+      params.get("error_description") ||
+      hash.get("error_description") ||
+      params.get("error") ||
+      hash.get("error");
+    if (desc) setError(desc.replace(/\+/g, " "));
+  }, []);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -58,17 +69,13 @@ export default function SignInPage() {
   const handleGoogle = async () => {
     setError(null);
     setGoogleLoading(true);
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: authRedirectAbsoluteUrl(redirectUrl),
-      },
-    });
-    if (oauthError) {
-      setError(oauthError.message);
+    try {
+      const url = await googleOAuthUrl(authRedirectAbsoluteUrl(redirectUrl));
+      window.location.assign(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google sign-in failed");
       setGoogleLoading(false);
     }
-    // On success the browser navigates away to Google, so no further state update needed.
   };
 
   return (

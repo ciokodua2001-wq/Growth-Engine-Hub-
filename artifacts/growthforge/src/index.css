@@ -167,4 +167,19 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Dev environment banner offset — same pattern as Quantivarian.
+     The banner is a fixed portal, so without this it covers the nav tabs.
+     Body padding handles normal-flow and sticky headers. Fixed top bars
+     (landing nav, project chrome) need their `top` nudged too. The banner
+     itself is excluded so it stays flush with the real viewport edge. */
+  html.gf-dev-banner-active body {
+    padding-top: var(--gf-dev-banner-height, 0px);
+  }
+  html.gf-dev-banner-active .fixed.top-0:not(.inset-0):not(.gf-dev-banner) {
+    top: var(--gf-dev-banner-height, 0px);
+  }
+  html.gf-dev-banner-active .sticky.top-0 {
+    top: var(--gf-dev-banner-height, 0px);
+  }
 }

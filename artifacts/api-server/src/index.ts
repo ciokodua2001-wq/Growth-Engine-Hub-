@@ -150,12 +150,12 @@ All plans are billed monthly. Every plan includes a **7-day free trial** — no 
 
 | Plan | Price | Projects | Videos/mo |
 |---|---|---|---|
-| Starter | $39/mo | 1 | 3 (up to 45s each) |
-| Get Going | $99/mo | 3 | 8 (up to 120s each) |
-| Growth | $249/mo | 6 | 20 (up to 300s each) |
-| Agency | $599/mo | 20 | 48 (up to 720s each) |
+| Starter | $39/mo | 1 | 5 (80s included) |
+| Get Going | $99/mo | 3 | 13 (200s included) |
+| Growth | $249/mo | 6 | 35 (560s included) |
+| Agency | $599/mo | 20 | 70 (1,120s included) |
 
-Extra video credits can be purchased separately in the Video Studio if monthly limits are exceeded.
+Extra video credits can be purchased in Video Studio: 45 seconds for $10, or 90 seconds for $20. Purchased seconds never expire.
 
 ## Free Trial Limits
 The 7-day trial includes (per project):

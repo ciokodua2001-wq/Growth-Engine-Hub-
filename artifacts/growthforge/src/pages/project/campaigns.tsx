@@ -2,7 +2,9 @@ import { useParams, useSearch } from "wouter";
 import {
   useListCampaigns,
   useCreateCampaign,
+  useGetProject,
   getListCampaignsQueryKey,
+  getGetProjectQueryKey,
 } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
@@ -12,6 +14,9 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
+import { TrialGate } from "@/components/ui/trial-gate";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { isTrialPlan, meetsMinPlanClient, isUpgradeError } from "@/lib/plan-access";
 
 const statusColors: Record<string, string> = {
   draft:     "bg-slate-500/15 text-slate-400 border-slate-500/20",
@@ -130,6 +135,28 @@ function GoogleAdsPanel({ projectId }: { projectId: number }) {
     );
   }
 
+  if (statusQuery.isError) {
+    return (
+      <div className="mb-6 p-5 rounded-xl border border-border bg-card/50">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="p-2 rounded-lg bg-[#4285F4]/10">
+            <GoogleAdsIcon />
+          </div>
+          <div>
+            <p className="font-semibold text-sm">Connect Google Ads</p>
+            <p className="text-xs text-muted-foreground">Sign in again to check this connection</p>
+          </div>
+          <span className="ml-auto flex items-center gap-1.5 text-xs text-yellow-400 font-medium">
+            <AlertCircle className="h-3.5 w-3.5" /> Session required
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          The API could not verify Google Ads because this tab is signed out or the session expired. Sign in, then reopen Campaign Manager.
+        </p>
+      </div>
+    );
+  }
+
   // OAuth not configured yet
   if (!status?.oauthConfigured) {
     return (
@@ -147,7 +174,7 @@ function GoogleAdsPanel({ projectId }: { projectId: number }) {
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
-          Add <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">GOOGLE_ADS_CLIENT_ID</code> and <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">GOOGLE_ADS_CLIENT_SECRET</code> to Replit Secrets to enable Google Ads sync.
+          Add <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">GOOGLE_ADS_CLIENT_ID</code> and <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">GOOGLE_ADS_CLIENT_SECRET</code> to the server <code className="bg-secondary px-1 py-0.5 rounded">.env</code>, register the OAuth redirect URI, then restart the API.
         </p>
       </div>
     );
@@ -224,7 +251,7 @@ function GoogleAdsPanel({ projectId }: { projectId: number }) {
         )}
         {!status.devTokenConfigured && (
           <p className="mt-3 text-xs text-yellow-400/80">
-            Your developer token is awaiting Google's approval. Once approved, add <code className="bg-black/20 px-1 rounded">GOOGLE_ADS_DEVELOPER_TOKEN</code> to Replit Secrets and click Sync.
+            Your developer token is awaiting Google's approval. Once approved, add <code className="bg-black/20 px-1 rounded">GOOGLE_ADS_DEVELOPER_TOKEN</code> to the server <code className="bg-black/20 px-1 rounded">.env</code> and click Sync.
           </p>
         )}
       </div>
@@ -346,6 +373,26 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
   const status = statusQuery.data;
   if (statusQuery.isLoading) return null;
 
+  if (statusQuery.isError) {
+    return (
+      <div className="mb-3 p-4 rounded-xl border border-border bg-card/50">
+        <div className="flex items-center gap-2.5 mb-2">
+          <div className="p-2 rounded-lg bg-[#1877F2]/10 shrink-0"><MetaIcon /></div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm">Connect Meta Ads</p>
+            <p className="text-xs text-muted-foreground">Sign in again to check this connection</p>
+          </div>
+          <span className="flex items-center gap-1.5 text-xs text-yellow-400 font-medium shrink-0">
+            <AlertCircle className="h-3.5 w-3.5" /> Session required
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          The API could not verify Meta Ads because this tab is signed out or the session expired. Sign in, then reopen Campaign Manager.
+        </p>
+      </div>
+    );
+  }
+
   if (!status?.oauthConfigured) {
     return (
       <div className="mb-3 p-4 rounded-xl border border-border bg-card/50">
@@ -360,7 +407,7 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
-          Add <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">META_APP_ID</code> and <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">META_APP_SECRET</code> to Replit Secrets to enable Meta sync.
+          Add <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">META_APP_ID</code> and <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">META_APP_SECRET</code> to the server <code className="bg-secondary px-1 py-0.5 rounded">.env</code>, register the OAuth redirect URI, then restart the API.
         </p>
       </div>
     );
@@ -605,7 +652,17 @@ function AICampaignBuilderModal({ projectId, onClose, onBuilt }: { projectId: nu
                   </div>
                 </button>
               ))}
-              {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
+              {error && (
+                isUpgradeError(error) ? (
+                  <TrialGate
+                    className="mt-2"
+                    featureName="Upgrade to Unlock"
+                    description={error}
+                  />
+                ) : (
+                  <p className="text-xs text-red-400 mt-2">{error}</p>
+                )
+              )}
             </div>
           )}
 
@@ -685,6 +742,25 @@ export default function ProjectCampaigns() {
   const [showBuilder, setShowBuilder] = useState(false);
   const queryClient = useQueryClient();
   const { data: campaigns, isLoading } = useListCampaigns(projectId, { query: { queryKey: getListCampaignsQueryKey(projectId), enabled: !!projectId } });
+  const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
+  const { data: currentUser } = useCurrentUser();
+  const trialLocked = isTrialPlan(project?.plan, currentUser);
+  const canUseBuilder = meetsMinPlanClient(project?.plan, "get-going", currentUser);
+
+  if (trialLocked) {
+    return (
+      <div className="p-4 sm:p-6 md:p-8 w-full">
+        <div className="mb-8">
+          <h1 className="text-3xl font-black tracking-tight">Campaign Manager</h1>
+          <p className="text-muted-foreground mt-1">AI-managed campaigns with autonomous optimization</p>
+        </div>
+        <TrialGate
+          featureName="Campaign Manager"
+          description="Included in all paid plans. Connect ad accounts, build coordinated campaigns across channels, and generate AI performance reports."
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 md:p-8 w-full">
@@ -797,14 +873,28 @@ export default function ProjectCampaigns() {
       {showModal && <NewCampaignModal projectId={projectId} onClose={() => setShowModal(false)} />}
       <AnimatePresence>
         {showBuilder && (
-          <AICampaignBuilderModal
-            projectId={projectId}
-            onClose={() => setShowBuilder(false)}
-            onBuilt={() => {
-              void queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) });
-              setShowBuilder(false);
-            }}
-          />
+          canUseBuilder ? (
+            <AICampaignBuilderModal
+              projectId={projectId}
+              onClose={() => setShowBuilder(false)}
+              onBuilt={() => {
+                void queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) });
+                setShowBuilder(false);
+              }}
+            />
+          ) : (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowBuilder(false)}
+            >
+              <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+                <TrialGate
+                  featureName="AI Campaign Builder"
+                  description="Included on Get-Going and higher. Generate a coordinated campaign across social, email, and ads in one shot."
+                />
+              </div>
+            </div>
+          )
         )}
       </AnimatePresence>
     </div>

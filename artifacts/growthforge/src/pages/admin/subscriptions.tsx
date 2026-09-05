@@ -77,7 +77,7 @@ const REASON_LABEL: Record<string, string> = {
 };
 
 const PLAN_PRICES: Record<string, number> = {
-  starter: 39, "get-going": 99, growth: 299, agency: 799,
+  starter: 39, "get-going": 99, growth: 249, agency: 599,
 };
 
 function planColor(plan: string) {

@@ -11,6 +11,9 @@ import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Rss, Zap } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
+import { TrialGate } from "@/components/ui/trial-gate";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { isTrialPlan } from "@/lib/plan-access";
 
 const adPlatforms = ["Meta", "Google", "LinkedIn", "TikTok", "YouTube"];
 
@@ -59,6 +62,8 @@ export default function ProjectAds() {
   const { data: ads, isLoading } = useListAds(projectId, { query: { queryKey: getListAdsQueryKey(projectId), enabled: !!projectId } });
   const generateAds = useGenerateAds();
   const queryClient = useQueryClient();
+  const { data: currentUser } = useCurrentUser();
+  const locked = isTrialPlan(project?.plan, currentUser);
 
   const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -83,24 +88,33 @@ export default function ProjectAds() {
           <p className="text-muted-foreground mt-1">AI-generated ad creatives with hooks optimized for each platform</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <select
-            value={selectedPlatform}
-            onChange={(e) => setSelectedPlatform(e.target.value)}
-            className="bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-          >
-            {adPlatforms.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <button
-            onClick={() => setModalOpen(true)}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
-          >
-            <Zap className="h-4 w-4" />
-            Generate Ads
-          </button>
+          {!locked && (
+            <>
+              <select
+                value={selectedPlatform}
+                onChange={(e) => setSelectedPlatform(e.target.value)}
+                className="bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                {adPlatforms.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <button
+                onClick={() => setModalOpen(true)}
+                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
+              >
+                <Zap className="h-4 w-4" />
+                Generate Ads
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {isLoading ? (
+      {locked ? (
+        <TrialGate
+          featureName="Ad Creative Engine"
+          description="Included in all paid plans. Generate high-converting ad creatives with hooks optimized for Meta, Google, LinkedIn, TikTok, and YouTube."
+        />
+      ) : isLoading ? (
         <div className="flex items-center justify-center py-32"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
       ) : ads && ads.length > 0 ? (
         <div className="grid md:grid-cols-2 gap-4">

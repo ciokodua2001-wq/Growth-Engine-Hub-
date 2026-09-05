@@ -4,20 +4,24 @@ import { db } from "@workspace/db";
 import { connectedAdAccountsTable, campaignsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireProjectOwnershipParam } from "../lib/authz.js";
+import { appOrigin, oauthRedirectUri } from "../lib/appOrigin.js";
 
 const router: IRouter = Router();
 router.param("id", requireProjectOwnershipParam());
 
 const GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
-const SCOPE = "https://www.googleapis.com/auth/adwords";
+const SCOPE = [
+  "https://www.googleapis.com/auth/adwords",
+  "https://www.googleapis.com/auth/userinfo.email",
+  "https://www.googleapis.com/auth/userinfo.profile",
+].join(" ");
 
 function clientId()     { return process.env["GOOGLE_ADS_CLIENT_ID"]     ?? ""; }
 function clientSecret() { return process.env["GOOGLE_ADS_CLIENT_SECRET"] ?? ""; }
 function devToken()     { return process.env["GOOGLE_ADS_DEVELOPER_TOKEN"] ?? ""; }
-function redirectUri()  {
-  return process.env["GOOGLE_ADS_REDIRECT_URI"] ??
-    "https://usegrowthforge.com/api/auth/google-ads/callback";
+function redirectUri(req: Request) {
+  return oauthRedirectUri(req, "/api/auth/google-ads/callback", "GOOGLE_ADS_REDIRECT_URI");
 }
 
 function makeClient() {
@@ -41,7 +45,6 @@ async function fetchCampaignsViaSDK(refreshToken: string, customerId: string) {
   const customer = client.Customer({
     customer_id: customerId,
     refresh_token: refreshToken,
-    login_customer_id: customerId,
   });
 
   const results = await customer.query(`
@@ -124,7 +127,7 @@ router.get("/projects/:id/google-ads/auth-url", async (req, res): Promise<void> 
   const state = Buffer.from(JSON.stringify({ projectId: req.project!.id })).toString("base64url");
   const params = new URLSearchParams({
     client_id: clientId(),
-    redirect_uri: redirectUri(),
+    redirect_uri: redirectUri(req),
     response_type: "code",
     scope: SCOPE,
     access_type: "offline",
@@ -140,7 +143,7 @@ router.get("/auth/google-ads/callback", async (req: Request, res: Response): Pro
   const { code, state, error } = req.query as Record<string, string>;
 
   if (error || !code || !state) {
-    res.redirect(`/?google_ads_error=${encodeURIComponent(error ?? "cancelled")}`);
+    res.redirect(`${appOrigin(req)}/?google_ads_error=${encodeURIComponent(error ?? "cancelled")}`);
     return;
   }
 
@@ -162,7 +165,7 @@ router.get("/auth/google-ads/callback", async (req: Request, res: Response): Pro
         code,
         client_id: clientId(),
         client_secret: clientSecret(),
-        redirect_uri: redirectUri(),
+        redirect_uri: redirectUri(req),
         grant_type: "authorization_code",
       }),
     });
@@ -227,10 +230,10 @@ router.get("/auth/google-ads/callback", async (req: Request, res: Response): Pro
       });
     }
 
-    res.redirect(`/projects/${projectId}/campaigns?google_ads=connected`);
+    res.redirect(`${appOrigin(req)}/projects/${projectId}/campaigns?google_ads=connected`);
   } catch (err) {
     req.log.error({ err }, "Google Ads OAuth callback error");
-    res.redirect(`/projects/${projectId}/campaigns?google_ads=error`);
+    res.redirect(`${appOrigin(req)}/projects/${projectId}/campaigns?google_ads=error`);
   }
 });
 

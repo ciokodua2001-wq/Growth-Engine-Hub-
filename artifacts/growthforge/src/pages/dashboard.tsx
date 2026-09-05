@@ -200,7 +200,9 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [, setLocation] = useLocation();
   const { user, isLoaded } = useAuth();
-  const { data: projects, isLoading } = useListProjects();
+  const { data: projects, isLoading, isError: projectsFailed } = useListProjects({
+    query: { enabled: isLoaded && !!user },
+  });
   const { isAdmin, data: currentUserData, isLoading: isUserLoading } = useCurrentUser();
   const isOwner = currentUserData?.isOwner ?? false;
 
@@ -233,8 +235,20 @@ export default function DashboardPage() {
             <nav className="hidden md:flex items-center gap-4 text-sm text-muted-foreground">
               <Link href="/dashboard" className="text-foreground font-medium">Dashboard</Link>
               <Link href="/dashboard" className="hover:text-foreground transition-colors">Projects</Link>
+              {isAdmin && (
+                <Link href="/admin" className="hover:text-foreground transition-colors flex items-center gap-1.5">
+                  <Crown className="h-3.5 w-3.5" />
+                  Admin
+                </Link>
+              )}
             </nav>
-            <UserMenu />
+            <UserMenu
+              extraLinks={
+                isAdmin
+                  ? [{ label: "Admin Console", href: "/admin", icon: <Crown className="h-4 w-4" /> }]
+                  : []
+              }
+            />
           </div>
         </div>
       </header>
@@ -275,6 +289,14 @@ export default function DashboardPage() {
         {isLoading ? (
           <div className="flex items-center justify-center py-32">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : projectsFailed ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <AlertTriangle className="h-10 w-10 text-amber-400 mb-4" />
+            <h2 className="text-xl font-bold mb-2">Couldn’t load your projects</h2>
+            <p className="text-muted-foreground max-w-sm">
+              The server didn’t return your project list. Refresh the page — if this keeps happening, the API is down.
+            </p>
           </div>
         ) : projects && projects.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">

@@ -14,6 +14,9 @@ import {
   Globe, TrendingUp, Filter, Download, Bot, ExternalLink,
 } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useTrialUsage } from "@/hooks/use-trial-usage";
+import { isTrialPlan } from "@/lib/plan-access";
 
 const SECTION_RESOURCES: Record<string, Array<{ name: string; url: string; description: string }>> = {
   positioningStatement: [
@@ -246,6 +249,12 @@ export default function ProjectStrategy() {
   });
   const generateStrategy = useGenerateMarketingStrategy();
   const queryClient = useQueryClient();
+  const { data: currentUser } = useCurrentUser();
+  const { usage } = useTrialUsage(projectId);
+  const isTrial = isTrialPlan(project?.plan, currentUser);
+  const strategyLockedMessage = isTrial && usage && usage.strategies >= usage.limits.strategies
+    ? "You've used your 1 marketing strategy included in the trial. Upgrade to regenerate and keep iterating."
+    : null;
 
   const handleSubmit = (_websiteUrl: string, _instructions: string): Promise<void> =>
     new Promise((resolve, reject) => {
@@ -366,6 +375,7 @@ export default function ProjectStrategy() {
         processingSteps={STRATEGY_STEPS}
         onSubmit={handleSubmit}
         ctaLabel={strategy ? "Re-Generate" : "Generate Strategy"}
+        lockedMessage={strategyLockedMessage}
       />
     </div>
   );

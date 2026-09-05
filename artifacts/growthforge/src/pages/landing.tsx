@@ -167,11 +167,11 @@ const PRICING = [
   {
     name: "Starter", price: 39, color: "#00E676", highlight: false,
     desc: "For solo founders and small businesses",
-    stats: [{ value: "1", label: "Project" }, { value: "3", label: "Promo Videos/mo" }, { value: "70", label: "Content/mo" }],
+    stats: [{ value: "1", label: "Project" }, { value: "5", label: "Promo Videos/mo" }, { value: "70", label: "Content/mo" }],
     groups: [
       { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["3 Website Re-analyses / month", "2 Competitor Reports / month", "1 Marketing Strategy / month", "3 AI Customer Personas / month"] },
       { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["50 Social Posts / month", "10 Email Campaigns / month", "10 AI Ad Creatives / month"] },
-      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["AI Video Generation", "Up to 3 Promotional Videos / month", "1080p HD · AI-rendered commercials"] },
+      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["AI Video Generation", "Up to 5 Promotional Videos / month (80s included)", "1080p HD · AI-rendered commercials"] },
       { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["1 AI Campaign Report / month"] },
       { label: "Forge AI Agent", icon: <Bot className="w-3 h-3" />, isVideo: false, items: ["200 Forge AI Chats / month", "Full Analytics Dashboard"] },
     ],
@@ -179,11 +179,11 @@ const PRICING = [
   {
     name: "Get-Going", price: 99, color: "#00D4FF", highlight: true, highlightLabel: "Most Popular",
     desc: "For growing creators ready to scale",
-    stats: [{ value: "3", label: "Projects" }, { value: "8", label: "Promo Videos/mo" }, { value: "160", label: "Content/mo" }],
+    stats: [{ value: "3", label: "Projects" }, { value: "13", label: "Promo Videos/mo" }, { value: "160", label: "Content/mo" }],
     groups: [
       { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["8 Website Re-analyses / month", "6 Competitor Reports / month", "3 Marketing Strategies / month", "10 AI Customer Personas / month"] },
       { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["100 Social Posts / month", "30 Email Campaigns / month", "30 AI Ad Creatives / month"] },
-      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["AI Video Generation", "Up to 8 Promotional Videos / month", "1080p HD · AI-rendered commercials"] },
+      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["AI Video Generation", "Up to 13 Promotional Videos / month (200s included)", "1080p HD · AI-rendered commercials"] },
       { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["2 AI Campaign Reports / month", "AI Campaign Builder ✓", "Social Scheduling ✓"] },
       { label: "Forge AI Agent", icon: <Bot className="w-3 h-3" />, isVideo: false, items: ["600 Forge AI Chats / month", "Priority Support"] },
     ],
@@ -191,11 +191,11 @@ const PRICING = [
   {
     name: "Growth", price: 249, color: "#14F195", highlight: false,
     desc: "For teams serious about growth",
-    stats: [{ value: "6", label: "Projects" }, { value: "20", label: "Promo Videos/mo" }, { value: "320", label: "Content/mo" }],
+    stats: [{ value: "6", label: "Projects" }, { value: "35", label: "Promo Videos/mo" }, { value: "320", label: "Content/mo" }],
     groups: [
       { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["15 Website Re-analyses / month", "12 Competitor Reports / month", "6 Marketing Strategies / month", "20 AI Customer Personas / month"] },
       { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["200 Social Posts / month", "60 Email Campaigns / month", "60 AI Ad Creatives / month"] },
-      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["AI Video Generation", "Up to 20 Promotional Videos / month", "1080p HD · AI-rendered commercials"] },
+      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["AI Video Generation", "Up to 35 Promotional Videos / month (560s included)", "1080p HD · AI-rendered commercials"] },
       { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["5 AI Campaign Reports / month", "AI Campaign Builder ✓", "Social Scheduling ✓", "White-Label Reports", "Dedicated Onboarding"] },
       { label: "Forge AI Agent", icon: <Bot className="w-3 h-3" />, isVideo: false, items: ["1,000 Forge AI Chats / month"] },
     ],
@@ -203,11 +203,11 @@ const PRICING = [
   {
     name: "Agency", price: 599, color: "#FF6B35", highlight: false, highlightLabel: "Best Value",
     desc: "For agencies managing multiple clients",
-    stats: [{ value: "20", label: "Projects" }, { value: "48", label: "Promo Videos/mo" }, { value: "640", label: "Content/mo" }],
+    stats: [{ value: "20", label: "Projects" }, { value: "70", label: "Promo Videos/mo" }, { value: "640", label: "Content/mo" }],
     groups: [
       { label: "Analytics & Intelligence", icon: <BarChart2 className="w-3 h-3" />, isVideo: false, items: ["30 Website Re-analyses / month", "25 Competitor Reports / month", "15 Marketing Strategies / month", "50 AI Customer Personas / month"] },
       { label: "Content Studio", icon: <FileText className="w-3 h-3" />, isVideo: false, items: ["400 Social Posts / month", "120 Email Campaigns / month", "120 AI Ad Creatives / month"] },
-      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["AI Video Generation", "Up to 48 Promotional Videos / month", "1080p HD · AI-rendered commercials"] },
+      { label: "Video Studio", icon: <Video className="w-3 h-3" />, isVideo: true, items: ["AI Video Generation", "Up to 70 Promotional Videos / month (1,120s included)", "1080p HD · AI-rendered commercials"] },
       { label: "Performance", icon: <TrendingUp className="w-3 h-3" />, isVideo: false, items: ["10 AI Campaign Reports / month", "AI Campaign Builder ✓", "Social Scheduling ✓", "AI Managed Campaigns (Coming Soon)", "Autonomous Growth Mode (Coming Soon)", "White-Label Reports"] },
       { label: "Agency Tools", icon: <Users2 className="w-3 h-3" />, isVideo: false, items: ["4,000 Forge AI Chats / month", "Team Members", "Dedicated Success Manager"] },
     ],
@@ -218,12 +218,12 @@ const FAQ = [
   { q: "What is GrowthForge?", a: "GrowthForge is an AI Growth Operating System built by Strapli Technologies. You paste your business website URL and it builds your entire marketing department in minutes — competitive intelligence, brand strategy, social and email content, video campaigns, ad creatives, and an AI agent that can execute tasks on demand. It replaces tools and headcount that would otherwise cost $150K+ per year." },
   { q: "How does GrowthForge work?", a: "Three steps: (1) Paste your website URL. (2) GrowthForge's AI reads your site, discovers your top competitors, identifies market gaps, and builds a complete marketing strategy tailored to your brand. (3) Use the strategy to generate content, videos, campaigns, and more — all in one place. No setup, no learning curve." },
   { q: "Do I need marketing experience?", a: "No. GrowthForge is built for founders, operators, and lean teams who want results without needing to hire a marketing director. The platform handles strategy, positioning, and execution — you just review and publish." },
-  { q: "What plans are available?", a: "GrowthForge offers four paid tiers: Starter ($39/mo, 1 project, 3 Promotional Videos/mo), Get-Going ($99/mo, 3 projects, 8 Promotional Videos/mo), Growth ($249/mo, 6 projects, 20 Promotional Videos/mo), and Agency ($599/mo, 20 projects, 48 Promotional Videos/mo). All plans include AI video generation at 1080p HD. Start with a free 7-day trial — no credit card required." },
+  { q: "What plans are available?", a: "GrowthForge offers four paid tiers: Starter ($39/mo, 1 project, 5 Promotional Videos/mo with 80s included), Get-Going ($99/mo, 3 projects, 13 Promotional Videos/mo with 200s included), Growth ($249/mo, 6 projects, 35 Promotional Videos/mo with 560s included), and Agency ($599/mo, 20 projects, 70 Promotional Videos/mo with 1,120s included). All plans include AI video generation at 1080p HD. Start with a free 7-day trial — no credit card required." },
   { q: "Can I analyze competitors?", a: "Yes. GrowthForge automatically discovers your top competitors, analyzes their positioning, identifies weaknesses in their messaging, and generates a full competitive report — including exactly how to position your brand to win against each one." },
   { q: "Can I generate written content?", a: "Yes. GrowthForge generates social media posts, email campaigns, ad copy, and ad creatives — all grounded in your actual business analysis and brand voice. Content is produced in batches so you always have a pipeline ready to publish." },
-  { q: "How does video generation work?", a: "GrowthForge renders complete AI Promotional Videos — scene-by-scene with voiceover, brand visuals, and captions — all at 1080p HD using Kling AI. On the free trial you get 1 Promotional Video to see the full production quality. Paid plans include 3–48 Promotional Videos per month depending on your tier, ready to post directly to any platform." },
+  { q: "How does video generation work?", a: "GrowthForge renders complete AI Promotional Videos — scene-by-scene with voiceover, brand visuals, and captions — all at 1080p HD. Video generation is a paid-plan feature (5–70 Promotional Videos per month depending on your tier, with included render seconds). The free trial does not include video blueprints or rendering." },
   { q: "What is Forge AI and what can it do?", a: "Forge AI is GrowthForge's built-in AI agent — it's not a generic chatbot. It knows your business, your competitors, your strategy, and your content history. You can ask it to generate new social posts, draft an email campaign, produce video concepts, or surface competitor insights. It executes tasks using the same AI pipelines as the platform's core tools, so everything it produces is grounded in your real business data." },
-  { q: "What happens during the free trial?", a: "The 7-day free trial gives you real access to the core platform — business analysis, competitor discovery, customer personas, marketing strategy, and Forge AI. Content and video outputs during the trial are quota-limited so you can fully evaluate the platform before committing. No credit card is required to start." },
+  { q: "What happens during the free trial?", a: "The 7-day free trial includes 1 project, 1 website analysis, 1 competitor report, 1 marketing strategy, 2 customer personas, 5 social posts, 1 email campaign, and 10 Forge AI chats. There are no video blueprints or video rendering on trial. No credit card is required to start." },
   { q: "Can I cancel or change plans later?", a: "Yes. You can upgrade, downgrade, or cancel at any time from your account settings. Cancellations take effect at the end of the current billing period and you keep access until then. See our Refund Policy for eligibility details." },
 ];
 

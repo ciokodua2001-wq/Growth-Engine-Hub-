@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, Globe, Loader2, Check, AlertCircle, Sparkles, Languages } from "lucide-react";
+import { isUpgradeError } from "@/lib/plan-access";
+import { TrialGate } from "@/components/ui/trial-gate";
 
 const LOCALE_OPTIONS = [
   { value: "",      flag: "🌐", label: "English (default)" },
@@ -27,9 +29,14 @@ interface GenerateModalProps {
    * an "auto-detected" badge. They can still override it manually.
    */
   detectedLocale?: string;
+  /**
+   * When set, the modal opens on the upgrade CTA instead of the generate form.
+   * Used when the user has already exhausted trial/plan quota for this feature.
+   */
+  lockedMessage?: string | null;
 }
 
-type Phase = "form" | "loading" | "success" | "error";
+type Phase = "form" | "loading" | "success" | "error" | "upgrade";
 
 const STEP_DURATION = 1100;
 
@@ -50,6 +57,7 @@ export default function GenerateModal({
   onSubmit,
   ctaLabel = "Generate",
   detectedLocale,
+  lockedMessage,
 }: GenerateModalProps) {
   const [phase, setPhase] = useState<Phase>("form");
   const [websiteUrl, setWebsiteUrl] = useState(defaultWebsiteUrl);
@@ -74,16 +82,21 @@ export default function GenerateModal({
 
   useEffect(() => {
     if (isOpen) {
-      setPhase("form");
       setWebsiteUrl(defaultWebsiteUrl);
       setInstructions("");
       setLocale(resolvedDetectedLocale);
       setLocaleIsAutoDetected(resolvedDetectedLocale !== "");
       setCurrentStep(0);
-      setErrorMsg("");
+      if (lockedMessage) {
+        setPhase("upgrade");
+        setErrorMsg(lockedMessage);
+      } else {
+        setPhase("form");
+        setErrorMsg("");
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, defaultWebsiteUrl, detectedLocale]);
+  }, [isOpen, defaultWebsiteUrl, detectedLocale, lockedMessage]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,13 +124,13 @@ export default function GenerateModal({
       setTimeout(onClose, 1800);
     } catch (err: unknown) {
       clearInterval(interval);
-      setPhase("error");
       let msg = "Generation failed. Please try again.";
       if (err instanceof Error) {
         // Strip the "HTTP NNN StatusText: " prefix that ApiError prepends
         msg = err.message.replace(/^HTTP \d+[^:]*:\s*/i, "").trim() || msg;
       }
       setErrorMsg(msg);
+      setPhase(isUpgradeError(msg) ? "upgrade" : "error");
     }
   };
 
@@ -318,6 +331,15 @@ export default function GenerateModal({
                 <h3 className="font-black text-xl mb-1">All done!</h3>
                 <p className="text-sm text-muted-foreground">Content saved to your project.</p>
               </motion.div>
+            )}
+
+            {phase === "upgrade" && (
+              <div className="p-6">
+                <TrialGate
+                  featureName="Upgrade to Unlock"
+                  description={errorMsg || "This feature isn't included in your current plan. Upgrade to keep generating."}
+                />
+              </div>
             )}
 
             {phase === "error" && (

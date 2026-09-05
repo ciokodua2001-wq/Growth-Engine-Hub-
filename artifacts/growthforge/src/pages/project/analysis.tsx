@@ -14,6 +14,9 @@ import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Zap, Users2, Brain, Target, MessageCircle, TrendingUp } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useTrialUsage } from "@/hooks/use-trial-usage";
+import { isTrialPlan } from "@/lib/plan-access";
 
 const ANALYZE_STEPS = [
   "Crawling website content...",
@@ -56,6 +59,15 @@ export default function ProjectAnalysis() {
   const analyzeWebsite = useAnalyzeWebsite();
   const generatePersonas = useGeneratePersonas();
   const queryClient = useQueryClient();
+  const { data: currentUser } = useCurrentUser();
+  const { usage } = useTrialUsage(projectId);
+  const isTrial = isTrialPlan(project?.plan, currentUser);
+  const analysisLockedMessage = isTrial && usage && usage.analyses >= usage.limits.analyses
+    ? "You've used your 1 website analysis included in the trial. Upgrade to re-analyze and keep building intelligence."
+    : null;
+  const personaLockedMessage = isTrial && usage && usage.personas >= usage.limits.personas
+    ? "You've used both AI customer personas included in the trial. Upgrade to generate more."
+    : null;
 
   const handleAnalyze = (websiteUrl: string, _instructions: string): Promise<void> => {
     const url = websiteUrl || project?.websiteUrl || "";
@@ -229,6 +241,7 @@ export default function ProjectAnalysis() {
         processingSteps={ANALYZE_STEPS}
         onSubmit={handleAnalyze}
         ctaLabel={analysis ? "Re-Analyze" : "Start Analysis"}
+        lockedMessage={analysisLockedMessage}
       />
 
       <GenerateModal
@@ -241,6 +254,7 @@ export default function ProjectAnalysis() {
         processingSteps={PERSONA_STEPS}
         onSubmit={handleGeneratePersonas}
         ctaLabel="Generate Personas"
+        lockedMessage={personaLockedMessage}
       />
     </div>
   );

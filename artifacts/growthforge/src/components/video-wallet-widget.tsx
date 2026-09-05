@@ -114,11 +114,13 @@ function PurchaseModal({
                 </div>
                 <div className="text-left">
                   <div className="text-white text-sm font-semibold">{b.label}</div>
-                  <div className="text-white/35 text-xs">≈ {Math.floor(b.seconds / 15)} promo videos</div>
+                  <div className="text-white/35 text-xs">
+                    {Math.floor(b.seconds / 15)} × 15s promo videos
+                  </div>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-white font-bold">${b.priceUsd.toFixed(2)}</div>
+                <div className="text-white font-bold">${b.priceUsd.toFixed(0)}</div>
                 <div className="text-white/30 text-[10px]">${(b.priceUsd / b.seconds).toFixed(2)}/s</div>
               </div>
             </button>

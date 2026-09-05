@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { FcGoogle } from "react-icons/fc";
 import { Loader2, MailCheck } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, googleOAuthUrl } from "@/lib/supabaseClient";
 import { basePath } from "@/lib/basePath";
 
 const inputClasses =
@@ -50,14 +50,11 @@ export default function SignUpPage() {
   const handleGoogle = async () => {
     setError(null);
     setGoogleLoading(true);
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}${basePath}/auth/redirect`,
-      },
-    });
-    if (oauthError) {
-      setError(oauthError.message);
+    try {
+      const url = await googleOAuthUrl(`${window.location.origin}${basePath}/auth/redirect`);
+      window.location.assign(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google sign-in failed");
       setGoogleLoading(false);
     }
   };
