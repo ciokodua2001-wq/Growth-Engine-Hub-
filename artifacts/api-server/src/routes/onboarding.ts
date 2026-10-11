@@ -43,8 +43,11 @@ router.post("/onboarding", async (req, res): Promise<void> => {
         audienceDescription?: string;
         contentLanguages?: string[];
         contentFormats?: string[];
+        contentThemes?: string[];
+        brandVoice?: string;
         currentGoals?: string;
         monetizationMethods?: string[];
+        selfReportedStats?: Record<string, unknown>;
       };
     };
 
@@ -151,8 +154,11 @@ router.post("/onboarding", async (req, res): Promise<void> => {
         audienceDescription: cp.audienceDescription?.trim() || null,
         contentLanguages: cp.contentLanguages?.length ? cp.contentLanguages : null,
         contentFormats: cp.contentFormats?.length ? cp.contentFormats : null,
+        contentThemes: cp.contentThemes?.length ? cp.contentThemes : null,
+        brandTone: cp.brandVoice?.trim() || null,
         currentGoals: cp.currentGoals?.trim() || null,
         monetizationMethods: cp.monetizationMethods?.length ? cp.monetizationMethods : null,
+        selfReportedStats: cp.selfReportedStats ?? null,
       });
     }
 

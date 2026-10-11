@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth-context";
 import { motion, AnimatePresence } from "framer-motion";
@@ -7,89 +7,50 @@ import {
   ArrowLeft,
   Loader2,
   Globe,
+  Instagram,
+  Facebook,
+  Youtube,
+  Linkedin,
+  MessageCircle,
+  Music2,
+  PenLine,
   Building2,
-  Target,
+  User,
   Users,
-  Zap,
   Check,
-  TrendingUp,
-  ShoppingCart,
-  Megaphone,
-  Rocket,
-  Search,
-  Share2,
-  MapPin,
-  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const GOALS = [
-  { label: "Generate Leads",    icon: TrendingUp  },
-  { label: "Increase Sales",    icon: ShoppingCart },
-  { label: "Brand Awareness",   icon: Megaphone   },
-  { label: "Launch Product",    icon: Rocket      },
-  { label: "Improve SEO",       icon: Search      },
-  { label: "Grow Social Media", icon: Share2      },
-];
-
-const STEPS = [
-  { number: 1, label: "Business Info"  },
-  { number: 2, label: "Primary Goal"   },
-  { number: 3, label: "Target Market"  },
-  { number: 4, label: "Create Workspace" },
-];
-
-/** Supported locale profiles with display metadata for the market picker. */
-const SUPPORTED_MARKETS = [
-  { locale: "es-MX", flag: "🇲🇽", marketName: "Mexico",  languageName: "Spanish"    },
-  { locale: "de-DE", flag: "🇩🇪", marketName: "Germany", languageName: "German"     },
-  { locale: "fr-FR", flag: "🇫🇷", marketName: "France",  languageName: "French"     },
-  { locale: "pt-BR", flag: "🇧🇷", marketName: "Brazil",  languageName: "Portuguese" },
-];
-
-// Minimum URL length before we attempt a scan
-const MIN_URL_LENGTH = 5;
-// Debounce delay after user stops typing (ms)
-const SCAN_DEBOUNCE_MS = 700;
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type MarketScanPhase = "idle" | "scanning" | "done" | "error";
+type OperatingModel = "business" | "creator" | "hybrid";
+type SourceType =
+  | "website"
+  | "instagram"
+  | "facebook"
+  | "tiktok"
+  | "whatsapp"
+  | "youtube"
+  | "linkedin"
+  | "manual";
 
-interface AnalyzeResult {
-  detected: {
-    locale: string;
-    confidence: "tld" | "og-locale" | "html-lang" | "default";
-    source: string;
-  };
-  suggestion: {
-    locale: string | null;
-    marketName: string;
-    languageName: string;
-    flag: string;
-    isSupported: boolean;
-    isDefault: boolean;
-  };
-}
+const MODELS: { id: OperatingModel; label: string; desc: string; icon: typeof Building2 }[] = [
+  { id: "business", label: "I run a business", desc: "Products, services, customers, and growth.", icon: Building2 },
+  { id: "creator", label: "I'm a content creator or influencer", desc: "Audience, niche, content, and monetization.", icon: User },
+  { id: "hybrid", label: "I'm both", desc: "A creator running a business (or a business with a creator presence).", icon: Users },
+];
 
-// ── Confidence badge ───────────────────────────────────────────────────────────
-
-function ConfidenceBadge({ confidence }: { confidence: AnalyzeResult["detected"]["confidence"] }) {
-  const map = {
-    tld:         { label: "Domain match",  color: "bg-[#00E676]/15 text-[#00E676] border-[#00E676]/30" },
-    "og-locale": { label: "Meta tag",      color: "bg-blue-500/15 text-blue-400 border-blue-400/30"   },
-    "html-lang": { label: "HTML lang attr",color: "bg-purple-500/15 text-purple-400 border-purple-400/30" },
-    default:     { label: "No signal",     color: "bg-white/5 text-white/40 border-white/10"          },
-  };
-  const { label, color } = map[confidence] ?? map.default;
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${color}`}>
-      {label}
-    </span>
-  );
-}
+const SOURCES: { id: SourceType; label: string; hint: string; icon: typeof Globe; placeholder: string }[] = [
+  { id: "website", label: "Website", hint: "We'll analyze your site automatically.", icon: Globe, placeholder: "https://yourbusiness.com" },
+  { id: "instagram", label: "Instagram", hint: "Profile handle + a short description.", icon: Instagram, placeholder: "instagram.com/yourhandle" },
+  { id: "facebook", label: "Facebook", hint: "Page URL + a short description.", icon: Facebook, placeholder: "facebook.com/yourpage" },
+  { id: "tiktok", label: "TikTok", hint: "Profile URL + a short description.", icon: Music2, placeholder: "tiktok.com/@yourhandle" },
+  { id: "whatsapp", label: "WhatsApp Business", hint: "Business description (no auto-read).", icon: MessageCircle, placeholder: "e.g. wa.me/2348012345678" },
+  { id: "youtube", label: "YouTube", hint: "Channel URL + a short description.", icon: Youtube, placeholder: "youtube.com/@yourchannel" },
+  { id: "linkedin", label: "LinkedIn", hint: "Company/profile URL + a short description.", icon: Linkedin, placeholder: "linkedin.com/company/yourcompany" },
+  { id: "manual", label: "No online presence", hint: "Describe your business or content in your own words.", icon: PenLine, placeholder: "" },
+];
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -97,749 +58,425 @@ export default function OnboardingPage() {
   const [, setLocation] = useLocation();
   const { user, isLoaded } = useAuth();
 
-  // ── Form state ──────────────────────────────────────────────────────────────
-  const [step, setStep]               = useState(1);
+  const [step, setStep] = useState(1);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  // Step 1 - operating model
+  const [operatingModel, setOperatingModel] = useState<OperatingModel | null>(null);
+
+  // Step 2 - source
+  const [sourceType, setSourceType] = useState<SourceType | null>(null);
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [declaredDescription, setDeclaredDescription] = useState("");
+
+  // Step 3 - model-specific details
   const [businessName, setBusinessName] = useState("");
-  const [websiteUrl, setWebsiteUrl]   = useState("");
-  const [primaryGoal, setPrimaryGoal] = useState("");
-  const [targetMarket, setTargetMarket] = useState("");
-  const [submitting, setSubmitting]   = useState(false);
-  const [error, setError]             = useState("");
-
-  // ── Market detection state ───────────────────────────────────────────────────
-  const [marketScanPhase, setMarketScanPhase] = useState<MarketScanPhase>("idle");
-  const [analyzeResult, setAnalyzeResult]     = useState<AnalyzeResult | null>(null);
-  const [confirmedLocale, setConfirmedLocale] = useState<string | null>(null);
-  /** Whether the user has opened the manual market picker */
-  const [showPicker, setShowPicker]           = useState(false);
-  /** The locale currently selected in the manual picker dropdown */
-  const [pickerLocale, setPickerLocale]       = useState(SUPPORTED_MARKETS[0].locale);
-
-  const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastScannedUrl = useRef<string>("");
+  const [category, setCategory] = useState("");
+  const [productsServices, setProductsServices] = useState("");
+  const [targetCustomers, setTargetCustomers] = useState("");
+  const [creatorName, setCreatorName] = useState("");
+  const [channelName, setChannelName] = useState("");
+  const [contentNiche, setContentNiche] = useState("");
+  const [audienceDescription, setAudienceDescription] = useState("");
+  const [contentThemes, setContentThemes] = useState("");
+  const [brandVoice, setBrandVoice] = useState("");
+  const [currentGoals, setCurrentGoals] = useState("");
+  const [selfReportedStats, setSelfReportedStats] = useState("");
 
   useEffect(() => {
     if (isLoaded && !user) setLocation("/sign-in");
   }, [isLoaded, user, setLocation]);
 
-  // ── Debounced URL scan ───────────────────────────────────────────────────────
-  useEffect(() => {
-    // Clear any pending scan
-    if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
-
-    const trimmed = websiteUrl.trim();
-
-    // Reset detection state when URL is cleared
-    if (trimmed.length < MIN_URL_LENGTH) {
-      setMarketScanPhase("idle");
-      setAnalyzeResult(null);
-      setConfirmedLocale(null);
-      setShowPicker(false);
-      lastScannedUrl.current = "";
-      return;
-    }
-
-    // Don't re-scan the same URL (e.g. user edits other fields)
-    if (trimmed === lastScannedUrl.current) return;
-
-    // Reset confirmed state when URL changes
-    setConfirmedLocale(null);
-    setShowPicker(false);
-    setAnalyzeResult(null);
-
-    scanTimerRef.current = setTimeout(async () => {
-      setMarketScanPhase("scanning");
-      lastScannedUrl.current = trimmed;
-      try {
-        const res = await fetch("/api/analyze-website", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: trimmed }),
-        });
-        if (!res.ok) {
-          setMarketScanPhase("error");
-          return;
-        }
-        const data: AnalyzeResult = await res.json();
-        setAnalyzeResult(data);
-        setMarketScanPhase("done");
-
-        // Auto-select the suggestion in the manual picker so it's pre-chosen
-        if (data.suggestion.locale) {
-          setPickerLocale(data.suggestion.locale);
-        }
-      } catch {
-        setMarketScanPhase("error");
-      }
-    }, SCAN_DEBOUNCE_MS);
-
-    return () => {
-      if (scanTimerRef.current) clearTimeout(scanTimerRef.current);
-    };
-  }, [websiteUrl]);
-
   if (isLoaded && !user) return null;
 
-  // ── Navigation helpers ────────────────────────────────────────────────────────
+  const isBusiness = operatingModel === "business" || operatingModel === "hybrid";
+  const isCreator = operatingModel === "creator" || operatingModel === "hybrid";
+  const sourceIsWebsite = sourceType === "website";
 
+  // ── Step validation ──────────────────────────────────────────────────────────
   function canAdvanceStep1() {
-    return businessName.trim().length > 0 && websiteUrl.trim().length > 0;
+    return operatingModel !== null;
+  }
+
+  function canAdvanceStep2() {
+    if (!sourceType) return false;
+    if (sourceIsWebsite) return websiteUrl.trim().length > 0;
+    // social / manual: need a handle OR a description
+    return sourceUrl.trim().length > 0 || declaredDescription.trim().length > 0;
+  }
+
+  function canAdvanceStep3() {
+    if (isCreator && creatorName.trim().length === 0) return false;
+    if (isBusiness && businessName.trim().length === 0 && creatorName.trim().length === 0) return false;
+    return true;
   }
 
   function goNext() {
     setError("");
-    if (step === 1 && !canAdvanceStep1()) {
-      setError("Business name and website URL are required.");
+    if (step === 1 && !canAdvanceStep1()) { setError("Select the option that best describes you."); return; }
+    if (step === 2 && !canAdvanceStep2()) {
+      setError(sourceIsWebsite ? "Enter your website URL." : "Enter a profile URL or a short description.");
       return;
     }
+    if (step === 3 && !canAdvanceStep3()) { setError("A name is required."); return; }
     if (step < 4) setStep(step + 1);
-    if (step === 3) handleSubmit();
   }
 
   function goBack() {
+    setError("");
     if (step > 1) setStep(step - 1);
   }
 
-  // ── Submission ────────────────────────────────────────────────────────────────
-
+  // ── Submission ───────────────────────────────────────────────────────────────
   async function handleSubmit() {
     setSubmitting(true);
     setError("");
-    setStep(4);
+    setStep(5);
+
+    const businessNameFinal = (isBusiness ? businessName : creatorName).trim()
+      || creatorName.trim()
+      || businessName.trim();
+
+    const toList = (v: string) => v.split(",").map((s) => s.trim()).filter(Boolean);
+
+    const payload: Record<string, unknown> = {
+      businessName: businessNameFinal,
+      operatingModel: operatingModel ?? "business",
+      sourceType: sourceType ?? "manual",
+      ...(sourceIsWebsite ? { websiteUrl: websiteUrl.trim() } : {}),
+      ...(!sourceIsWebsite && sourceUrl.trim() ? { sourceUrl: sourceUrl.trim() } : {}),
+      ...(declaredDescription.trim() ? { declaredDescription: declaredDescription.trim() } : {}),
+      ...(isBusiness && category.trim() ? { primaryGoal: category.trim() } : {}),
+      ...(isBusiness && targetCustomers.trim() ? { targetMarket: targetCustomers.trim() } : {}),
+      ...(isCreator
+        ? {
+            creatorProfile: {
+              creatorName: creatorName.trim() || undefined,
+              channelName: channelName.trim() || undefined,
+              contentNiche: contentNiche.trim() || undefined,
+              audienceDescription: audienceDescription.trim() || undefined,
+              contentThemes: toList(contentThemes),
+              brandVoice: brandVoice.trim() || undefined,
+              currentGoals: currentGoals.trim() || undefined,
+              selfReportedStats: selfReportedStats.trim() ? { note: selfReportedStats.trim() } : undefined,
+            },
+          }
+        : {}),
+    };
 
     try {
       const res = await fetch("/api/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          businessName: businessName.trim(),
-          websiteUrl: websiteUrl.trim(),
-          primaryGoal,
-          targetMarket,
-          // Pass the user's confirmed locale so the server uses it directly
-          // without running a second detector call.
-          ...(confirmedLocale ? { confirmedLocale } : {}),
-        }),
+        body: JSON.stringify(payload),
       });
-
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         setError(data.error ?? "Something went wrong. Please try again.");
-        setStep(3);
+        setStep(4);
         return;
       }
-
       const { project } = await res.json();
       setLocation(`/analysis-progress/${project.id}`);
     } catch {
       setError("Network error. Please try again.");
-      setStep(3);
+      setStep(4);
     } finally {
       setSubmitting(false);
     }
   }
 
-  // ── Market widget actions ─────────────────────────────────────────────────────
+  // ── Confirmation summary ─────────────────────────────────────────────────────
+  const nameLabel = isBusiness ? businessName : creatorName;
+  const provided: { k: string; v: string }[] = [
+    { k: "Operating model", v: operatingModel ? MODELS.find((m) => m.id === operatingModel)?.label ?? operatingModel : "" },
+    { k: "Source", v: sourceType ? SOURCES.find((s) => s.id === sourceType)?.label ?? sourceType : "" },
+    ...(sourceIsWebsite && websiteUrl.trim() ? [{ k: "Website", v: websiteUrl.trim() }] : []),
+    ...(!sourceIsWebsite && sourceUrl.trim() ? [{ k: "Profile", v: sourceUrl.trim() }] : []),
+    ...(declaredDescription.trim() ? [{ k: "Description", v: declaredDescription.trim() }] : []),
+    ...(isBusiness && businessName.trim() ? [{ k: "Business name", v: businessName.trim() }] : []),
+    ...(isCreator && creatorName.trim() ? [{ k: "Creator", v: creatorName.trim() }] : []),
+    ...(contentNiche.trim() ? [{ k: "Niche", v: contentNiche.trim() }] : []),
+    ...(audienceDescription.trim() ? [{ k: "Audience", v: audienceDescription.trim() }] : []),
+    ...(targetCustomers.trim() ? [{ k: "Target customers", v: targetCustomers.trim() }] : []),
+    ...(productsServices.trim() ? [{ k: "Products/services", v: productsServices.trim() }] : []),
+    ...(currentGoals.trim() ? [{ k: "Goals", v: currentGoals.trim() }] : []),
+  ];
 
-  function handleConfirmDetected() {
-    if (!analyzeResult?.suggestion.locale) return;
-    setConfirmedLocale(analyzeResult.suggestion.locale);
-    setShowPicker(false);
-  }
+  const missing: string[] = [];
+  if (isBusiness && !productsServices.trim()) missing.push("products / services");
+  if (isBusiness && !targetCustomers.trim()) missing.push("target customers");
+  if (isCreator && !audienceDescription.trim()) missing.push("audience description");
+  if (isCreator && !contentNiche.trim()) missing.push("content niche");
+  if (!declaredDescription.trim() && !sourceIsWebsite) missing.push("a longer manual description (recommended)");
 
-  function handleConfirmPicker() {
-    setConfirmedLocale(pickerLocale);
-    setShowPicker(false);
-  }
-
-  function handleResetMarket() {
-    setConfirmedLocale(null);
-    setShowPicker(false);
-    // Keep analyzeResult so the card re-shows without rescanning
-  }
-
-  // ── Derived display values ────────────────────────────────────────────────────
-
-  const confirmedMarket = confirmedLocale
-    ? (SUPPORTED_MARKETS.find(m => m.locale === confirmedLocale) ??
-       { locale: confirmedLocale, flag: "🌐", marketName: confirmedLocale, languageName: "" })
-    : null;
-
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const analysisLabel =
+    operatingModel === "creator"
+      ? "creator intelligence (niche, audience, creator positioning, growth opportunities)"
+      : operatingModel === "hybrid"
+      ? "creator + business intelligence (audience and commercial opportunity)"
+      : "business intelligence (industry, ICP, value proposition, growth opportunities)";
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#040B14" }}>
+    <div className="min-h-screen bg-[#050a12] text-white flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between px-8 py-5 border-b border-white/5">
-        <div className="flex items-center gap-2.5">
-          <Logo size={36} />
-          <span className="text-lg font-bold text-white">GrowthForge</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-white/50">
-          {["Account", "Plan", "Workspace"].map((s, i) => (
-            <div key={s} className="flex items-center gap-2">
-              {i > 0 && <div className="w-4 h-px bg-white/20" />}
-              <div className={`flex items-center gap-1.5 ${i < 2 ? "text-white/40" : "text-white"}`}>
-                <div
-                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                    i < 2 ? "bg-[#00E676]/20 text-[#00E676]" : "bg-[#00E676] text-black"
-                  }`}
-                >
-                  {i < 2 ? "✓" : "3"}
-                </div>
-                {s}
-              </div>
-            </div>
-          ))}
-        </div>
+      <header className="flex items-center justify-between px-6 py-5 max-w-5xl mx-auto w-full">
+        <Logo />
+        <span className="text-xs text-white/30">{step <= 4 ? `Step ${step} of 4` : "Creating..."}</span>
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center py-12 px-4">
-        {/* Step indicator */}
-        <div className="flex items-center gap-0 mb-10">
-          {STEPS.map((s, i) => (
-            <div key={s.number} className="flex items-center">
-              <div className="flex flex-col items-center gap-1.5">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
-                    step > s.number
-                      ? "bg-[#00E676] text-black"
-                      : step === s.number
-                      ? "bg-[#00E676] text-black ring-4 ring-[#00E676]/20"
-                      : "bg-white/5 text-white/30 border border-white/10"
-                  }`}
-                >
-                  {step > s.number ? <Check className="w-4 h-4" /> : s.number}
-                </div>
-                <span
-                  className={`text-xs hidden sm:block transition-colors ${
-                    step >= s.number ? "text-white/70" : "text-white/25"
-                  }`}
-                >
-                  {s.label}
-                </span>
-              </div>
-              {i < STEPS.length - 1 && (
-                <div
-                  className={`w-16 sm:w-24 h-px mx-2 mb-5 transition-colors ${
-                    step > s.number ? "bg-[#00E676]/50" : "bg-white/10"
-                  }`}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="w-full max-w-lg">
+      <main className="flex-1 flex items-center justify-center px-4 pb-16">
+        <div className="w-full max-w-xl">
           <AnimatePresence mode="wait">
-
-            {/* ── Step 1 — Business Info ─────────────────────────────────── */}
+            {/* ── Step 1 - Operating model ─────────────────────────────────── */}
             {step === 1 && (
-              <motion.div
-                key="step1"
-                initial={{ opacity: 0, x: 40 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -40 }}
-                transition={{ duration: 0.25 }}
-              >
-                <div className="text-center mb-8">
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#00E676]/30 bg-[#00E676]/10 text-[#00E676] text-xs font-medium mb-3">
-                    <Zap className="w-3 h-3" /> Step 1 of 4
-                  </div>
-                  <h1 className="text-3xl font-bold text-white mb-2">Tell us about your business</h1>
-                  <p className="text-white/50">We'll use this to personalize your AI marketing strategy.</p>
+              <motion.div key="s1" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }}>
+                <h1 className="text-3xl font-bold mb-2">What best describes you?</h1>
+                <p className="text-white/40 mb-8">We tailor everything - analysis, content, and strategy - to how you work.</p>
+                <div className="space-y-3">
+                  {MODELS.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setOperatingModel(m.id)}
+                      className={`w-full flex items-center gap-4 p-5 rounded-2xl border text-left transition-all ${
+                        operatingModel === m.id
+                          ? "border-[#00E676]/60 bg-[#00E676]/5"
+                          : "border-white/10 bg-white/[0.02] hover:border-white/20"
+                      }`}
+                    >
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${operatingModel === m.id ? "bg-[#00E676]/15 text-[#00E676]" : "bg-white/5 text-white/50"}`}>
+                        <m.icon className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-semibold">{m.label}</div>
+                        <div className="text-sm text-white/40">{m.desc}</div>
+                      </div>
+                      {operatingModel === m.id && <Check className="w-5 h-5 text-[#00E676]" />}
+                    </button>
+                  ))}
+                </div>
+                {error && <ErrorBox msg={error} />}
+                <NavRow onBack={undefined} onNext={goNext} nextLabel="Continue" />
+              </motion.div>
+            )}
+
+            {/* ── Step 2 - Source ─────────────────────────────────────────── */}
+            {step === 2 && (
+              <motion.div key="s2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }}>
+                <h1 className="text-3xl font-bold mb-2">Where can we learn about you?</h1>
+                <p className="text-white/40 mb-8">
+                  Pick your main online presence. GrowthForge analyzes your <b>website</b> automatically; for social
+                  platforms it uses the description you provide (it does not read private accounts).
+                </p>
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  {SOURCES.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setSourceType(s.id)}
+                      className={`flex flex-col items-start gap-2 p-4 rounded-xl border text-left transition-all ${
+                        sourceType === s.id ? "border-[#00E676]/60 bg-[#00E676]/5" : "border-white/10 bg-white/[0.02] hover:border-white/20"
+                      }`}
+                    >
+                      <s.icon className={`w-5 h-5 ${sourceType === s.id ? "text-[#00E676]" : "text-white/40"}`} />
+                      <span className="font-medium text-sm">{s.label}</span>
+                      <span className="text-xs text-white/35 leading-snug">{s.hint}</span>
+                    </button>
+                  ))}
                 </div>
 
-                <div className="bg-[#080f1e] border border-white/10 rounded-2xl p-8 flex flex-col gap-5">
-                  {/* Business Name */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-medium text-white/70 flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-[#00E676]" />
-                      Business Name <span className="text-[#00E676]">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={businessName}
-                      onChange={(e) => setBusinessName(e.target.value)}
-                      placeholder="Acme Corp"
-                      autoFocus
-                      className="w-full px-4 py-3 rounded-xl bg-[#0d1b2e] border border-white/10 text-white placeholder-white/25 focus:outline-none focus:border-[#00E676]/50 transition-colors text-sm"
-                    />
-                  </div>
-
-                  {/* Website URL */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-medium text-white/70 flex items-center gap-2">
-                      <Globe className="w-4 h-4 text-[#00E676]" />
-                      Website URL <span className="text-[#00E676]">*</span>
-                    </label>
-                    <input
-                      type="url"
-                      value={websiteUrl}
-                      onChange={(e) => setWebsiteUrl(e.target.value)}
-                      placeholder="https://yourcompany.com"
-                      className="w-full px-4 py-3 rounded-xl bg-[#0d1b2e] border border-white/10 text-white placeholder-white/25 focus:outline-none focus:border-[#00E676]/50 transition-colors text-sm"
-                    />
-                  </div>
-
-                  {/* ── Market Detection Widget ─────────────────────────── */}
-                  <AnimatePresence mode="wait">
-
-                    {/* Scanning */}
-                    {marketScanPhase === "scanning" && (
-                      <motion.div
-                        key="scanning"
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.2 }}
-                        className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/3 border border-white/8 text-sm text-white/50"
-                      >
-                        <Loader2 className="w-4 h-4 animate-spin text-[#00E676]/60 shrink-0" />
-                        Scanning your website for market signals…
-                      </motion.div>
+                {sourceType && (
+                  <div className="space-y-4">
+                    {sourceIsWebsite && (
+                      <Field label="Website URL" placeholder={SOURCES.find((s) => s.id === "website")!.placeholder} value={websiteUrl} onChange={setWebsiteUrl} />
                     )}
-
-                    {/* Confirmed */}
-                    {marketScanPhase === "done" && confirmedLocale && confirmedMarket && (
-                      <motion.div
-                        key="confirmed"
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.2 }}
-                        className="flex items-center justify-between px-4 py-3 rounded-xl bg-[#00E676]/8 border border-[#00E676]/25"
-                      >
-                        <div className="flex items-center gap-2.5 text-sm">
-                          <span className="text-xl">{confirmedMarket.flag}</span>
-                          <span className="text-white font-medium">
-                            {confirmedMarket.marketName}
-                            {confirmedMarket.languageName && (
-                              <span className="text-white/40 font-normal"> · {confirmedMarket.languageName}</span>
-                            )}
-                          </span>
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#00E676]/15 text-[#00E676] border border-[#00E676]/30">
-                            <Check className="w-2.5 h-2.5" /> Confirmed
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleResetMarket}
-                          className="text-[10px] text-white/30 hover:text-white/60 transition-colors ml-2 shrink-0"
-                        >
-                          Change
-                        </button>
-                      </motion.div>
+                    {sourceType !== "manual" && !sourceIsWebsite && (
+                      <Field label="Profile URL or handle" placeholder={SOURCES.find((s) => s.id === sourceType)!.placeholder} value={sourceUrl} onChange={setSourceUrl} />
                     )}
-
-                    {/* Detection result — not yet confirmed */}
-                    {marketScanPhase === "done" && !confirmedLocale && analyzeResult && (
-                      <motion.div
-                        key="result"
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.2 }}
-                        className="rounded-xl border border-white/10 bg-[#0a1628] overflow-hidden"
-                      >
-                        {analyzeResult.suggestion.isSupported && !analyzeResult.suggestion.isDefault ? (
-                          /* ── Supported market detected ── */
-                          <div>
-                            <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
-                              <MapPin className="w-3.5 h-3.5 text-[#00E676]" />
-                              <span className="text-[11px] font-semibold text-[#00E676] uppercase tracking-wider">
-                                Target market detected
-                              </span>
-                            </div>
-                            <div className="px-4 py-4 flex flex-col gap-3">
-                              <div className="flex items-center gap-3">
-                                <span className="text-3xl">{analyzeResult.suggestion.flag}</span>
-                                <div>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-white font-semibold">
-                                      {analyzeResult.suggestion.marketName}
-                                    </span>
-                                    <span className="text-white/40 text-sm">
-                                      · {analyzeResult.suggestion.languageName}
-                                    </span>
-                                    <ConfidenceBadge confidence={analyzeResult.detected.confidence} />
-                                  </div>
-                                  <p className="text-white/35 text-xs mt-0.5">
-                                    GrowthForge will write all content in {analyzeResult.suggestion.languageName} for the {analyzeResult.suggestion.marketName} market.
-                                  </p>
-                                </div>
-                              </div>
-
-                              {showPicker ? (
-                                /* Manual picker */
-                                <div className="flex flex-col gap-2 pt-1">
-                                  <select
-                                    value={pickerLocale}
-                                    onChange={(e) => setPickerLocale(e.target.value)}
-                                    className="w-full px-3 py-2 rounded-lg bg-[#0d1b2e] border border-white/15 text-white text-sm focus:outline-none focus:border-[#00E676]/50"
-                                  >
-                                    {SUPPORTED_MARKETS.map(m => (
-                                      <option key={m.locale} value={m.locale}>
-                                        {m.flag}  {m.marketName} — {m.languageName}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <div className="flex gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowPicker(false)}
-                                      className="flex-1 py-2 rounded-lg text-xs font-medium bg-white/5 border border-white/10 text-white/50 hover:bg-white/8 transition-colors"
-                                    >
-                                      Cancel
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={handleConfirmPicker}
-                                      className="flex-[2] py-2 rounded-lg text-xs font-semibold bg-[#00E676] text-black hover:bg-[#14F195] transition-colors"
-                                    >
-                                      Confirm {SUPPORTED_MARKETS.find(m => m.locale === pickerLocale)?.marketName}
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                /* Action row */
-                                <div className="flex gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowPicker(true)}
-                                    className="flex-1 py-2 rounded-lg text-xs font-medium bg-white/5 border border-white/10 text-white/50 hover:bg-white/8 transition-colors"
-                                  >
-                                    Choose different
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={handleConfirmDetected}
-                                    className="flex-[2] py-2 rounded-lg text-xs font-semibold bg-[#00E676] text-black hover:bg-[#14F195] transition-colors flex items-center justify-center gap-1.5"
-                                  >
-                                    <Check className="w-3 h-3" />
-                                    Confirm {analyzeResult.suggestion.marketName}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          /* ── No specific market detected / default ── */
-                          <div>
-                            <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
-                              <Globe className="w-3.5 h-3.5 text-white/40" />
-                              <span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">
-                                No specific market detected
-                              </span>
-                            </div>
-                            <div className="px-4 py-4 flex flex-col gap-3">
-                              <p className="text-white/40 text-xs leading-relaxed">
-                                We couldn't detect a specific country market from your website. Content will default to English. You can optionally select a target market below.
-                              </p>
-
-                              {showPicker ? (
-                                <div className="flex flex-col gap-2">
-                                  <select
-                                    value={pickerLocale}
-                                    onChange={(e) => setPickerLocale(e.target.value)}
-                                    className="w-full px-3 py-2 rounded-lg bg-[#0d1b2e] border border-white/15 text-white text-sm focus:outline-none focus:border-[#00E676]/50"
-                                  >
-                                    {SUPPORTED_MARKETS.map(m => (
-                                      <option key={m.locale} value={m.locale}>
-                                        {m.flag}  {m.marketName} — {m.languageName}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <div className="flex gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => setShowPicker(false)}
-                                      className="flex-1 py-2 rounded-lg text-xs font-medium bg-white/5 border border-white/10 text-white/50 hover:bg-white/8 transition-colors"
-                                    >
-                                      Skip
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={handleConfirmPicker}
-                                      className="flex-[2] py-2 rounded-lg text-xs font-semibold bg-[#00E676] text-black hover:bg-[#14F195] transition-colors"
-                                    >
-                                      Use {SUPPORTED_MARKETS.find(m => m.locale === pickerLocale)?.marketName}
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => setShowPicker(true)}
-                                  className="w-full py-2 rounded-lg text-xs font-medium bg-white/5 border border-white/10 text-white/50 hover:bg-white/8 transition-colors"
-                                >
-                                  Choose a target market (optional)
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </motion.div>
-                    )}
-
-                    {/* Scan error — offer manual picker */}
-                    {marketScanPhase === "error" && !confirmedLocale && (
-                      <motion.div
-                        key="scan-error"
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.2 }}
-                        className="px-4 py-3 rounded-xl bg-white/3 border border-white/8 flex flex-col gap-2"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/40">
-                            Couldn't reach your site to detect the market.
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              lastScannedUrl.current = "";
-                              setWebsiteUrl(w => w + " ");
-                              setTimeout(() => setWebsiteUrl(w => w.trim()), 10);
-                            }}
-                            className="flex items-center gap-1 text-[10px] text-white/30 hover:text-white/60 transition-colors"
-                          >
-                            <RefreshCw className="w-2.5 h-2.5" /> Retry
-                          </button>
-                        </div>
-                        {showPicker ? (
-                          <div className="flex gap-2">
-                            <select
-                              value={pickerLocale}
-                              onChange={(e) => setPickerLocale(e.target.value)}
-                              className="flex-1 px-3 py-2 rounded-lg bg-[#0d1b2e] border border-white/15 text-white text-xs focus:outline-none focus:border-[#00E676]/50"
-                            >
-                              {SUPPORTED_MARKETS.map(m => (
-                                <option key={m.locale} value={m.locale}>
-                                  {m.flag}  {m.marketName}
-                                </option>
-                              ))}
-                            </select>
-                            <button
-                              type="button"
-                              onClick={handleConfirmPicker}
-                              className="px-3 py-2 rounded-lg text-xs font-semibold bg-[#00E676] text-black hover:bg-[#14F195] transition-colors"
-                            >
-                              Use
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setShowPicker(true)}
-                            className="text-[11px] text-[#00E676]/70 hover:text-[#00E676] transition-colors text-left"
-                          >
-                            Manually select a target market →
-                          </button>
-                        )}
-                      </motion.div>
-                    )}
-
-                    {/* Idle hint */}
-                    {marketScanPhase === "idle" && (
-                      <motion.p
-                        key="idle-hint"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="text-white/30 text-xs -mt-1"
-                      >
-                        Our AI will read your website and automatically detect your industry, products, and target market.
-                      </motion.p>
-                    )}
-
-                  </AnimatePresence>
-                  {/* ── End Market Detection Widget ─────────────────────── */}
-
-                  {error && (
-                    <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-                      {error}
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5">A short description (recommended)</label>
+                      <textarea
+                        value={declaredDescription}
+                        onChange={(e) => setDeclaredDescription(e.target.value)}
+                        rows={4}
+                        placeholder={
+                          sourceIsWebsite
+                            ? "Optional. Used only if your website can't be reached."
+                            : "Describe what you do, who you serve, and what you're known for."
+                        }
+                        className="w-full px-4 py-3 rounded-xl bg-[#0d1b2e] border border-white/10 text-white placeholder-white/25 focus:outline-none focus:border-[#00E676]/50 transition-colors text-sm resize-none"
+                      />
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  <button
-                    type="button"
-                    onClick={goNext}
-                    disabled={!canAdvanceStep1()}
-                    className="w-full py-3.5 rounded-xl font-semibold text-sm bg-[#00E676] text-black hover:bg-[#14F195] transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-1"
-                  >
-                    Continue <ArrowRight className="w-4 h-4" />
+                {error && <ErrorBox msg={error} />}
+                <NavRow onBack={goBack} onNext={goNext} nextLabel="Continue" />
+              </motion.div>
+            )}
+
+            {/* ── Step 3 - Details ────────────────────────────────────────── */}
+            {step === 3 && (
+              <motion.div key="s3" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }}>
+                <h1 className="text-3xl font-bold mb-2">Tell us a little more</h1>
+                <p className="text-white/40 mb-8">Everything is optional except a name - more detail means sharper analysis.</p>
+
+                {isBusiness && (
+                  <div className="space-y-4 mb-6">
+                    <Field label="Business name" placeholder="e.g. Amaka's Catering" value={businessName} onChange={setBusinessName} />
+                    <Field label="Category" placeholder="e.g. Food & catering" value={category} onChange={setCategory} />
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5">Products / services</label>
+                      <textarea value={productsServices} onChange={(e) => setProductsServices(e.target.value)} rows={2} placeholder="What do you sell or offer?" className="w-full px-4 py-3 rounded-xl bg-[#0d1b2e] border border-white/10 text-white placeholder-white/25 focus:outline-none focus:border-[#00E676]/50 transition-colors text-sm resize-none" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5">Target customers</label>
+                      <textarea value={targetCustomers} onChange={(e) => setTargetCustomers(e.target.value)} rows={2} placeholder="Who do you serve?" className="w-full px-4 py-3 rounded-xl bg-[#0d1b2e] border border-white/10 text-white placeholder-white/25 focus:outline-none focus:border-[#00E676]/50 transition-colors text-sm resize-none" />
+                    </div>
+                  </div>
+                )}
+
+                {isCreator && (
+                  <div className="space-y-4 mb-6">
+                    <Field label="Creator / channel name" placeholder="e.g. @amaka.eats" value={creatorName} onChange={setCreatorName} />
+                    <Field label="Channel name (optional)" placeholder="e.g. Amaka Eats" value={channelName} onChange={setChannelName} />
+                    <Field label="Content niche" placeholder="e.g. Nigerian food, lifestyle, comedy" value={contentNiche} onChange={setContentNiche} />
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5">Audience</label>
+                      <textarea value={audienceDescription} onChange={(e) => setAudienceDescription(e.target.value)} rows={2} placeholder="Who watches or follows you?" className="w-full px-4 py-3 rounded-xl bg-[#0d1b2e] border border-white/10 text-white placeholder-white/25 focus:outline-none focus:border-[#00E676]/50 transition-colors text-sm resize-none" />
+                    </div>
+                    <Field label="Content themes (comma-separated)" placeholder="e.g. recipes, restaurant reviews" value={contentThemes} onChange={setContentThemes} />
+                    <Field label="Brand voice" placeholder="e.g. warm, funny, educational" value={brandVoice} onChange={setBrandVoice} />
+                    <Field label="Goals" placeholder="e.g. grow audience, land brand deals" value={currentGoals} onChange={setCurrentGoals} />
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5">Self-reported stats (optional)</label>
+                      <textarea value={selfReportedStats} onChange={(e) => setSelfReportedStats(e.target.value)} rows={2} placeholder="e.g. ~10k followers on Instagram (you provide this; it is not verified)" className="w-full px-4 py-3 rounded-xl bg-[#0d1b2e] border border-white/10 text-white placeholder-white/25 focus:outline-none focus:border-[#00E676]/50 transition-colors text-sm resize-none" />
+                    </div>
+                  </div>
+                )}
+
+                {error && <ErrorBox msg={error} />}
+                <NavRow onBack={goBack} onNext={goNext} nextLabel="Review" />
+              </motion.div>
+            )}
+
+            {/* ── Step 4 - Confirmation ───────────────────────────────────── */}
+            {step === 4 && (
+              <motion.div key="s4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }}>
+                <h1 className="text-3xl font-bold mb-2">Confirm your workspace</h1>
+                <p className="text-white/40 mb-6">Here's what we'll use to build your AI marketing OS.</p>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 mb-4">
+                  <div className="text-sm font-semibold text-white/70 mb-3">What you provided</div>
+                  <dl className="space-y-2">
+                    {provided.map((r) => (
+                      <div key={r.k} className="flex gap-3 text-sm">
+                        <dt className="text-white/35 w-36 shrink-0">{r.k}</dt>
+                        <dd className="text-white/80 break-words">{r.v}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 mb-4">
+                  <div className="text-sm font-semibold text-white/70 mb-2">Retrieved automatically</div>
+                  <p className="text-sm text-white/50">
+                    {sourceIsWebsite
+                      ? "Your website content will be fetched and analyzed automatically when you run your first analysis."
+                      : "Nothing is read automatically from social platforms - GrowthForge analyzes the description you provide. No scraping, no private-account access."}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 mb-4">
+                  <div className="text-sm font-semibold text-white/70 mb-2">What GrowthForge will analyze</div>
+                  <p className="text-sm text-white/50">{analysisLabel}.</p>
+                </div>
+
+                <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.04] p-5 mb-4">
+                  <div className="text-sm font-semibold text-amber-300/80 mb-2 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" /> Still missing (optional)
+                  </div>
+                  {missing.length > 0 ? (
+                    <ul className="text-sm text-white/50 list-disc list-inside space-y-1">
+                      {missing.map((m) => <li key={m}>{m}</li>)}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-white/50">Nothing important - you're good to go.</p>
+                  )}
+                  <p className="text-xs text-white/30 mt-3">
+                    Manual information you provide is treated as <b>supplied by you</b>, not independently verified.
+                  </p>
+                </div>
+
+                {error && <ErrorBox msg={error} />}
+                <div className="flex gap-3 mt-2">
+                  <button type="button" onClick={goBack} className="flex-1 py-3.5 rounded-xl font-semibold text-sm bg-white/5 border border-white/10 text-white/70 hover:bg-white/8 transition-all flex items-center justify-center gap-2">
+                    <ArrowLeft className="w-4 h-4" /> Back
+                  </button>
+                  <button type="button" onClick={handleSubmit} disabled={submitting} className="flex-[2] py-3.5 rounded-xl font-semibold text-sm bg-[#00E676] text-black hover:bg-[#14F195] transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+                    {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <SparklesIcon />} Launch My Workspace
                   </button>
                 </div>
               </motion.div>
             )}
 
-            {/* ── Step 2 — Primary Goal ─────────────────────────────────── */}
-            {step === 2 && (
-              <motion.div
-                key="step2"
-                initial={{ opacity: 0, x: 40 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -40 }}
-                transition={{ duration: 0.25 }}
-              >
-                <div className="text-center mb-8">
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#00E676]/30 bg-[#00E676]/10 text-[#00E676] text-xs font-medium mb-3">
-                    <Target className="w-3 h-3" /> Step 2 of 4
-                  </div>
-                  <h1 className="text-3xl font-bold text-white mb-2">What's your primary goal?</h1>
-                  <p className="text-white/50">Forge AI will prioritize your marketing around this.</p>
-                </div>
-
-                <div className="bg-[#080f1e] border border-white/10 rounded-2xl p-8 flex flex-col gap-5">
-                  <div className="grid grid-cols-2 gap-3">
-                    {GOALS.map(({ label, icon: Icon }) => (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => setPrimaryGoal(label === primaryGoal ? "" : label)}
-                        className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-left transition-all ${
-                          primaryGoal === label
-                            ? "bg-[#00E676]/15 border-2 border-[#00E676]/60 text-[#00E676]"
-                            : "bg-[#0d1b2e] border border-white/10 text-white/60 hover:border-white/25 hover:text-white/80"
-                        }`}
-                      >
-                        <Icon className="w-4 h-4 shrink-0" />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex gap-3 mt-1">
-                    <button
-                      type="button"
-                      onClick={goBack}
-                      className="flex-1 py-3.5 rounded-xl font-semibold text-sm bg-white/5 border border-white/10 text-white/70 hover:bg-white/8 transition-all flex items-center justify-center gap-2"
-                    >
-                      <ArrowLeft className="w-4 h-4" /> Back
-                    </button>
-                    <button
-                      type="button"
-                      onClick={goNext}
-                      className="flex-[2] py-3.5 rounded-xl font-semibold text-sm bg-[#00E676] text-black hover:bg-[#14F195] transition-all flex items-center justify-center gap-2"
-                    >
-                      Continue <ArrowRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* ── Step 3 — Target Market ─────────────────────────────────── */}
-            {step === 3 && (
-              <motion.div
-                key="step3"
-                initial={{ opacity: 0, x: 40 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -40 }}
-                transition={{ duration: 0.25 }}
-              >
-                <div className="text-center mb-8">
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#00E676]/30 bg-[#00E676]/10 text-[#00E676] text-xs font-medium mb-3">
-                    <Users className="w-3 h-3" /> Step 3 of 4
-                  </div>
-                  <h1 className="text-3xl font-bold text-white mb-2">Who's your ideal customer?</h1>
-                  <p className="text-white/50">Optional — helps Forge AI build more targeted campaigns.</p>
-                </div>
-
-                <div className="bg-[#080f1e] border border-white/10 rounded-2xl p-8 flex flex-col gap-5">
-                  {/* Confirmed locale carry-through indicator */}
-                  {confirmedMarket && (
-                    <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#00E676]/6 border border-[#00E676]/20 text-sm">
-                      <span className="text-lg">{confirmedMarket.flag}</span>
-                      <span className="text-white/60 text-xs">
-                        Content will be generated in <span className="text-white font-medium">{confirmedMarket.marketName}</span> — {confirmedMarket.languageName}.
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-medium text-white/70">Target Market Description</label>
-                    <textarea
-                      value={targetMarket}
-                      onChange={(e) => setTargetMarket(e.target.value)}
-                      placeholder="e.g. Small business owners aged 30-50 in North America who want to automate their marketing without hiring an agency…"
-                      rows={4}
-                      className="w-full px-4 py-3 rounded-xl bg-[#0d1b2e] border border-white/10 text-white placeholder-white/25 focus:outline-none focus:border-[#00E676]/50 transition-colors text-sm resize-none"
-                    />
-                    <p className="text-white/30 text-xs">
-                      Describe demographics, pain points, or buying behaviour. Leave blank to skip.
-                    </p>
-                  </div>
-
-                  {error && (
-                    <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-                      {error}
-                    </div>
-                  )}
-
-                  <div className="flex gap-3 mt-1">
-                    <button
-                      type="button"
-                      onClick={goBack}
-                      className="flex-1 py-3.5 rounded-xl font-semibold text-sm bg-white/5 border border-white/10 text-white/70 hover:bg-white/8 transition-all flex items-center justify-center gap-2"
-                    >
-                      <ArrowLeft className="w-4 h-4" /> Back
-                    </button>
-                    <button
-                      type="button"
-                      onClick={goNext}
-                      className="flex-[2] py-3.5 rounded-xl font-semibold text-sm bg-[#00E676] text-black hover:bg-[#14F195] transition-all flex items-center justify-center gap-2"
-                    >
-                      Launch My Workspace <ArrowRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* ── Step 4 — Creating workspace ───────────────────────────── */}
-            {step === 4 && (
-              <motion.div
-                key="step4"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3 }}
-                className="text-center"
-              >
+            {/* ── Step 5 - Creating ───────────────────────────────────────── */}
+            {step === 5 && (
+              <motion.div key="s5" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }} className="text-center">
                 <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-[#00E676]/10 border border-[#00E676]/30 mb-6">
                   <Loader2 className="w-8 h-8 text-[#00E676] animate-spin" />
                 </div>
-                <h1 className="text-3xl font-bold text-white mb-3">Creating your workspace…</h1>
-                <p className="text-white/50 mb-6">
-                  Setting up your AI marketing OS. This will only take a moment.
-                </p>
-                <div className="flex flex-col items-center gap-3 text-sm text-white/40">
-                  {["Creating project", "Configuring AI models", "Preparing your dashboard"].map((t, i) => (
-                    <motion.div
-                      key={t}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.4 }}
-                      className="flex items-center gap-2"
-                    >
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#00E676]/50" />
-                      {t}
-                    </motion.div>
-                  ))}
-                </div>
-                {error && (
-                  <div className="mt-6 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-                    {error}
-                  </div>
-                )}
+                <h1 className="text-3xl font-bold mb-3">Creating your workspace...</h1>
+                <p className="text-white/50">Setting up your AI marketing OS. This will only take a moment.</p>
               </motion.div>
             )}
-
           </AnimatePresence>
         </div>
       </main>
+    </div>
+  );
+}
+
+// ── Small helpers ──────────────────────────────────────────────────────────────
+
+function SparklesIcon() {
+  return <span className="text-base leading-none">✦</span>;
+}
+
+function ErrorBox({ msg }: { msg: string }) {
+  return (
+    <div className="mt-4 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">{msg}</div>
+  );
+}
+
+function Field({ label, placeholder, value, onChange }: { label: string; placeholder: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium mb-1.5">{label}</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full px-4 py-3 rounded-xl bg-[#0d1b2e] border border-white/10 text-white placeholder-white/25 focus:outline-none focus:border-[#00E676]/50 transition-colors text-sm"
+      />
+    </div>
+  );
+}
+
+function NavRow({ onBack, onNext, nextLabel }: { onBack: (() => void) | undefined; onNext: () => void; nextLabel: string }) {
+  return (
+    <div className="flex gap-3 mt-6">
+      {onBack && (
+        <button type="button" onClick={onBack} className="flex-1 py-3.5 rounded-xl font-semibold text-sm bg-white/5 border border-white/10 text-white/70 hover:bg-white/8 transition-all flex items-center justify-center gap-2">
+          <ArrowLeft className="w-4 h-4" /> Back
+        </button>
+      )}
+      <button type="button" onClick={onNext} className="flex-[2] py-3.5 rounded-xl font-semibold text-sm bg-[#00E676] text-black hover:bg-[#14F195] transition-all flex items-center justify-center gap-2">
+        {nextLabel} <ArrowRight className="w-4 h-4" />
+      </button>
     </div>
   );
 }
