@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import PDFDocument from "pdfkit";
 import { PassThrough } from "stream";
 import { competitorsTable, businessAnalysisTable, projectsTable, activityTable, competitorReportTable } from "@workspace/db";
+import { projectIdentityLabel } from "../lib/projectContext.js";
 import {
   ListCompetitorsParams,
   DiscoverCompetitorsParams,
@@ -79,7 +80,7 @@ router.post("/projects/:id/competitors", requireActiveSubscription, async (req, 
         "(with real names and real website URLs you know to be accurate) that genuinely compete with the " +
         "business described. Never invent fictional companies. If you are not confident a company is real " +
         "and its URL correct, do not include it. Respond with ONLY a single JSON object, no prose.",
-      prompt: `Business to find competitors for: ${project.name} (${project.websiteUrl})
+      prompt: `Business to find competitors for: ${project.name} (${projectIdentityLabel(project)})
 Industry: ${analysis.industry}
 Summary: ${analysis.businessSummary}
 Products: ${analysis.products}
@@ -181,7 +182,7 @@ async function generateReportInsights(
       system:
         "You are a competitive intelligence strategist. Synthesize the competitor data into concrete, " +
         "specific insights for this exact business. Respond with ONLY a single JSON object, no prose.",
-      prompt: `Business: ${project.name} (${project.websiteUrl})
+      prompt: `Business: ${project.name} (${projectIdentityLabel(project)})
 Industry: ${analysis.industry}
 Unique value proposition: ${analysis.uniqueValueProposition}
 

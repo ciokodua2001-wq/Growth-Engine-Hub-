@@ -61,7 +61,7 @@ export async function notifyPostAutoPublished(args: {
 
 export async function notifyAnalysisComplete(args: {
   projectId: number;
-  websiteUrl: string;
+  identityLabel: string;
 }): Promise<void> {
   if (!resend) return;
   const to = await getOwnerEmail(args.projectId);
@@ -74,7 +74,7 @@ export async function notifyAnalysisComplete(args: {
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#fff;background:#040B14;padding:32px;border-radius:12px;">
           <h2 style="color:#00E676;margin:0 0 16px">Your AI analysis is complete 🎉</h2>
-          <p style="color:#aaa;margin:0 0 12px">GrowthForge has finished analyzing <strong style="color:#fff">${args.websiteUrl}</strong>.</p>
+          <p style="color:#aaa;margin:0 0 12px">GrowthForge has finished analyzing <strong style="color:#fff">${args.identityLabel}</strong>.</p>
           <p style="color:#aaa;margin:0 0 24px">Your business intelligence, competitor analysis, customer personas, and marketing strategy are ready to explore.</p>
           <a href="https://usegrowthforge.com" style="display:inline-block;background:#00E676;color:#040B14;font-weight:700;padding:12px 24px;border-radius:8px;text-decoration:none;">View Your Analysis →</a>
         </div>`,

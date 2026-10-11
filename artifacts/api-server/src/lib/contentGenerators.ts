@@ -1,5 +1,5 @@
 import { generateJson } from "./aiJson.js";
-import { renderGroundingBlock, type GroundingContext } from "./projectContext.js";
+import { renderGroundingBlock, projectIdentityLabel, type GroundingContext } from "./projectContext.js";
 
 export interface SocialPostResult {
   platform: string;
@@ -339,7 +339,7 @@ export async function generateCompetitors(ctx: GroundingContext): Promise<Compet
       "(with real names and real website URLs you know to be accurate) that genuinely compete with the " +
       "business described. Never invent fictional companies. If you are not confident a company is real " +
       "and its URL correct, do not include it. Respond with ONLY a single JSON object, no prose.",
-    prompt: `Business to find competitors for: ${ctx.project.name} (${ctx.project.websiteUrl})
+    prompt: `Business to find competitors for: ${ctx.project.name} (${projectIdentityLabel(ctx.project)})
 Industry: ${ctx.analysis.industry}
 Summary: ${ctx.analysis.businessSummary}
 Products: ${ctx.analysis.products}

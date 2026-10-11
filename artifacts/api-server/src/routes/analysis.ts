@@ -26,6 +26,7 @@ import { consumeQuota } from "../lib/planLimits.js";
 import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGenerated, recordGeneratedBatch, hashContent } from "../lib/contentIntegrity.js";
 import { notifyAnalysisComplete } from "../lib/emailNotifier.js";
+import { projectIdentityLabel } from "../lib/projectContext.js";
 
 const router: IRouter = Router();
 
@@ -205,7 +206,7 @@ router.post("/projects/:id/analyze", requireActiveSubscription, async (req, res)
     description: `Business intelligence analysis completed for ${websiteUrl}`,
   });
 
-  notifyAnalysisComplete({ projectId, websiteUrl }).catch(err =>
+  notifyAnalysisComplete({ projectId, identityLabel: req.project ? projectIdentityLabel(req.project) : websiteUrl }).catch(err =>
     req.log.warn({ err }, "Failed to send analysis-complete notification (non-fatal)")
   );
 
@@ -290,7 +291,7 @@ router.post("/projects/:id/personas", requireActiveSubscription, async (req, res
       system:
         "You are a senior customer research strategist. You produce specific, realistic buyer personas " +
         "grounded in the actual business context provided. Respond with ONLY a single JSON object, no prose.",
-      prompt: `Business: ${project.name} (${project.websiteUrl})
+      prompt: `Business: ${project.name} (${projectIdentityLabel(project)})
 Industry: ${analysis.industry}
 Summary: ${analysis.businessSummary}
 Products: ${analysis.products}
@@ -640,7 +641,7 @@ router.post("/projects/:id/strategy", requireActiveSubscription, async (req, res
         "You are a senior marketing strategist. You produce specific, actionable marketing strategy grounded " +
         "in the actual business context, personas, and competitor landscape provided. Respond with ONLY a " +
         "single JSON object, no prose.",
-      prompt: `Business: ${project.name} (${project.websiteUrl})
+      prompt: `Business: ${project.name} (${projectIdentityLabel(project)})
 Industry: ${analysis.industry}
 Summary: ${analysis.businessSummary}
 Unique value proposition: ${analysis.uniqueValueProposition}

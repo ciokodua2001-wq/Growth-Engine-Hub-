@@ -23,6 +23,25 @@ export interface GroundingContext {
  * to run analysis first, since generating content without this context would
  * fall back to generic, non-business-specific output.
  */
+export interface ProjectIdentity {
+  name: string;
+  websiteUrl: string | null;
+  sourceType?: string | null;
+  sourceUrl?: string | null;
+}
+
+/**
+ * Human-readable identity for a project, used anywhere we previously
+ * interpolated `project.websiteUrl` into AI prompts, emails, or UI. For
+ * website-less projects this returns the primary social/manual source
+ * instead of the literal string "null" or a fake placeholder URL.
+ */
+export function projectIdentityLabel(p: ProjectIdentity): string {
+  if (p.websiteUrl) return p.websiteUrl;
+  if (p.sourceUrl) return `${p.sourceType ?? "source"}: ${p.sourceUrl}`;
+  return p.name || "this business";
+}
+
 export async function getGroundingContext(projectId: number): Promise<GroundingContext | null> {
   const [project] = await db.select().from(projectsTable).where(eq(projectsTable.id, projectId));
   const [analysis] = await db
@@ -51,7 +70,7 @@ export async function getGroundingContext(projectId: number): Promise<GroundingC
 /** Renders the grounding context into a compact text block for use in AI prompts. */
 export function renderGroundingBlock(ctx: GroundingContext): string {
   const { project, analysis, personas, strategy, competitors } = ctx;
-  return `Business: ${project.name} (${project.websiteUrl})
+  return `Business: ${project.name} (${projectIdentityLabel(project)})
 Industry: ${analysis.industry}
 Summary: ${analysis.businessSummary}
 Products: ${analysis.products}

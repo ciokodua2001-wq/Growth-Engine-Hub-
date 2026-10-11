@@ -326,7 +326,11 @@ router.post(
       return;
     }
 
-    const websiteUrl = (ctx.project.websiteUrl ?? "https://example.com").replace(/\/$/, "");
+    const websiteUrl = ctx.project.websiteUrl?.replace(/\/$/, "");
+    if (!websiteUrl) {
+      res.status(409).json({ error: "Sitemap generation requires a website URL. Add a website to this project first." });
+      return;
+    }
     const businessName = ctx.project.name ?? "this business";
     const today = new Date().toISOString().split("T")[0];
 
