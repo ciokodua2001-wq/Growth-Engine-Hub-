@@ -1,3 +1,4 @@
+import { projectIdentityLabel } from "@/lib/projectIdentity";
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import {
@@ -200,7 +201,7 @@ export default function ProjectOverview() {
       {/* Page header */}
       <div className="mb-8">
         <h1 className="text-2xl font-black tracking-tight">{project?.name ?? "Project Overview"}</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">{project?.websiteUrl}</p>
+        <p className="text-muted-foreground text-sm mt-0.5">{project ? projectIdentityLabel(project) : ""}</p>
       </div>
 
       {isLoading ? (

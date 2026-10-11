@@ -1,3 +1,4 @@
+import { projectIdentityLabel } from "@/lib/projectIdentity";
 import { useState } from "react";
 import { useParams } from "wouter";
 import {
@@ -122,7 +123,7 @@ export default function ProjectAnalysis() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
           <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/10 border border-primary/20">
             <Brain className="h-5 w-5 text-primary" />
-            <span className="text-sm font-medium">Analysis complete for {project?.websiteUrl}</span>
+            <span className="text-sm font-medium">Analysis complete for {project ? projectIdentityLabel(project) : ""}</span>
             <span className="ml-auto text-xs text-primary bg-primary/20 px-2 py-1 rounded capitalize">{analysis.status}</span>
           </div>
 

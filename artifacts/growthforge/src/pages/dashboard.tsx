@@ -1,3 +1,4 @@
+import { projectIdentityLabel } from "@/lib/projectIdentity";
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -201,7 +202,7 @@ export default function DashboardPage() {
   const [, setLocation] = useLocation();
   const { user, isLoaded } = useAuth();
   const { data: projects, isLoading, isError: projectsFailed } = useListProjects({
-    query: { enabled: isLoaded && !!user },
+    query: { queryKey: getListProjectsQueryKey(), enabled: isLoaded && !!user },
   });
   const { isAdmin, data: currentUserData, isLoading: isUserLoading } = useCurrentUser();
   const isOwner = currentUserData?.isOwner ?? false;
@@ -328,7 +329,7 @@ export default function DashboardPage() {
                     <h3 className="font-bold text-foreground mb-0.5 group-hover:text-primary transition-colors truncate">
                       {project.name}
                     </h3>
-                    <p className="text-xs text-muted-foreground truncate mb-5">{project.websiteUrl}</p>
+                    <p className="text-xs text-muted-foreground truncate mb-5">{projectIdentityLabel(project)}</p>
 
                     {/* 6-step workflow dots */}
                     <div className="mb-4">

@@ -38,7 +38,7 @@ export default function ProjectSettings() {
   useEffect(() => {
     if (project) {
       setName(project.name);
-      setWebsiteUrl(project.websiteUrl);
+      setWebsiteUrl(project.websiteUrl ?? "");
       setAutonomousMode(project.autonomousMode ?? false);
       setBrandingCompanyName(project.brandingCompanyName ?? "");
       setBrandingAccentColor(project.brandingAccentColor ?? "#00E676");

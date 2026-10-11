@@ -4,7 +4,7 @@ import { Search, Trash2, ExternalLink, ChevronLeft, ChevronRight } from "lucide-
 import AdminLayout from "@/components/admin/admin-layout";
 
 interface Project {
-  id: number; name: string; websiteUrl: string; description: string | null;
+  id: number; name: string; websiteUrl: string | null; description: string | null;
   status: string; industry: string | null; plan: string; createdAt: string; updatedAt: string;
 }
 
@@ -91,11 +91,15 @@ export default function AdminProjects() {
                       {p.description && <div className="text-xs text-white/30 mt-0.5 max-w-[200px] truncate">{p.description}</div>}
                     </td>
                     <td className="px-4 py-3">
-                      <a href={p.websiteUrl} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-[#00D4FF] hover:underline text-xs max-w-[140px] truncate">
-                        {p.websiteUrl.replace(/^https?:\/\//, "")}
-                        <ExternalLink className="w-3 h-3 shrink-0" />
-                      </a>
+                      {p.websiteUrl ? (
+                        <a href={p.websiteUrl} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-[#00D4FF] hover:underline text-xs max-w-[140px] truncate">
+                          {p.websiteUrl.replace(/^https?:\/\//, "")}
+                          <ExternalLink className="w-3 h-3 shrink-0" />
+                        </a>
+                      ) : (
+                        <span className="text-white/20 text-xs">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-white/40 text-xs">{p.industry ?? "—"}</td>
                     <td className="px-4 py-3">
