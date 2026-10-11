@@ -35,6 +35,7 @@ import { generateImageBuffer } from "@workspace/integrations-google-genai/image"
 import { Resend } from "resend";
 import { decryptToken, encryptToken, isEncryptedFormat } from "../lib/tokenCrypto.js";
 import { publishPostToMeta } from "../lib/metaPublisher.js";
+import { getGroundingContext } from "../lib/projectContext.js";
 
 const router: IRouter = Router();
 
