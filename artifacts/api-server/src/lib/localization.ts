@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -47,7 +47,10 @@ export type LocaleCode = "es-MX" | "de-DE" | "fr-FR" | "pt-BR";
 // process.cwd() is always the workspace root regardless of esbuild bundling —
 // import.meta.url resolves to the bundle file in dist/ after compilation,
 // making relative paths from __dirname skip past the api-server directory.
-const PROFILES_PATH = resolve(process.cwd(), "artifacts/api-server/config/localizationProfiles.json");
+const PROFILES_PATH = [
+  resolve(process.cwd(), "artifacts/api-server/config/localizationProfiles.json"), // production: repo root
+  resolve(process.cwd(), "config/localizationProfiles.json"),                      // tests/dev: api-server root
+].find((p) => existsSync(p)) ?? resolve(process.cwd(), "artifacts/api-server/config/localizationProfiles.json");
 
 let _cache: Record<string, LocaleProfile> | null = null;
 

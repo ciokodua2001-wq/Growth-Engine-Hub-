@@ -45,6 +45,55 @@ export default function ProjectSettings() {
     }
   }, [project]);
 
+  // ── Connected sources ──────────────────────────────────────────────
+  const [sources, setSources] = useState<Array<{ id: number; sourceType: string; sourceUrl: string | null; displayLabel: string | null; declaredContent: string | null; retrievalMethod: string | null }>>([]);
+  const [sourcesLoading, setSourcesLoading] = useState(false);
+  const [newSourceType, setNewSourceType] = useState("instagram");
+  const [newSourceUrl, setNewSourceUrl] = useState("");
+  const [newSourceDesc, setNewSourceDesc] = useState("");
+  const [addingSource, setAddingSource] = useState(false);
+
+  const loadSources = async () => {
+    if (!projectId) return;
+    setSourcesLoading(true);
+    try {
+      const r = await fetch(`/api/projects/${projectId}/sources`, { credentials: "include" });
+      if (r.ok) setSources(await r.json());
+    } finally {
+      setSourcesLoading(false);
+    }
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadSources(); }, [projectId]);
+
+  const handleAddSource = async () => {
+    if (!newSourceType || (!newSourceUrl.trim() && !newSourceDesc.trim())) {
+      toast({ title: "Add a URL or a description", variant: "destructive" });
+      return;
+    }
+    setAddingSource(true);
+    try {
+      const r = await fetch(`/api/projects/${projectId}/sources`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ sourceType: newSourceType, sourceUrl: newSourceUrl.trim() || undefined, declaredContent: newSourceDesc.trim() || undefined }),
+      });
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        toast({ title: data.error ?? "Could not add source", variant: "destructive" });
+        return;
+      }
+      setNewSourceUrl("");
+      setNewSourceDesc("");
+      toast({ title: "Source added!" });
+      loadSources();
+    } finally {
+      setAddingSource(false);
+    }
+  };
+
   const handleSave = () => {
     updateProject.mutate(
       { id: projectId, data: { name, websiteUrl, autonomousMode } },
@@ -253,6 +302,42 @@ export default function ProjectSettings() {
               Save
             </button>
           </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }} className="p-6 rounded-xl bg-card border border-border">
+          <h2 className="font-bold mb-3 flex items-center gap-2"><Globe className="h-4 w-4 text-primary" /> Connected Sources</h2>
+          <p className="text-sm text-muted-foreground mb-4">Where GrowthForge learns about this business or creator. Social sources use your description only (no auto-import).</p>
+
+          {sourcesLoading ? (
+            <div className="text-sm text-muted-foreground">Loading…</div>
+          ) : sources.length === 0 ? (
+            <div className="text-sm text-muted-foreground mb-4">No sources yet.</div>
+          ) : (
+            <ul className="space-y-2 mb-4">
+              {sources.map((src) => (
+                <li key={src.id} className="flex items-center justify-between text-sm border border-border rounded-lg px-3 py-2">
+                  <div>
+                    <span className="font-medium capitalize">{src.sourceType}</span>
+                    {src.displayLabel && <span className="text-muted-foreground ml-2">{src.displayLabel}</span>}
+                  </div>
+                  <span className="text-xs text-muted-foreground">{src.retrievalMethod === "http_fetch" ? "auto-read" : "declared"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-2 mb-2">
+            <select value={newSourceType} onChange={(e) => setNewSourceType(e.target.value)} className="bg-secondary border border-border rounded-lg px-3 py-2.5 text-sm">
+              {["website", "instagram", "facebook", "tiktok", "whatsapp", "youtube", "linkedin", "manual"].map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+            <input value={newSourceUrl} onChange={(e) => setNewSourceUrl(e.target.value)} placeholder="URL or handle" className="bg-secondary border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+          <textarea value={newSourceDesc} onChange={(e) => setNewSourceDesc(e.target.value)} rows={2} placeholder="Optional description" className="w-full bg-secondary border border-border rounded-lg px-3 py-2.5 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          <button onClick={handleAddSource} disabled={addingSource} className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-bold px-4 py-2 rounded-lg text-sm">
+            {addingSource ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Add source
+          </button>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="p-6 rounded-xl bg-card border border-border">

@@ -48,6 +48,27 @@ function AnalysisCard({ title, content, icon: Icon }: { title: string; content: 
   );
 }
 
+
+function fieldLabel(base: string, model?: string): string {
+  if (model !== "creator" && model !== "hybrid") return base;
+  const map: Record<string, string> = {
+    "Business Summary": "Creator Overview",
+    "Industry": "Niche",
+    "Products": "Digital Products / Merch",
+    "Services": "Sponsorships / Services",
+    "Unique Value Proposition": "Creator Value Proposition",
+    "Brand Positioning": "Creator Positioning",
+    "Target Customers": "Target Audience",
+    "Ideal Customer Profile": "Ideal Audience / Brand Partner",
+    "Customer Pain Points": "Audience Needs & Interests",
+    "Customer Benefits": "Audience Value",
+    "Purchase Triggers": "Engagement / Conversion Triggers",
+    "Market Opportunities": "Audience Opportunities",
+    "Growth Opportunities": "Creator Growth Opportunities",
+  };
+  return map[base] ?? base;
+}
+
 export default function ProjectAnalysis() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
@@ -130,32 +151,32 @@ export default function ProjectAnalysis() {
           <div>
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Brain className="h-5 w-5 text-primary" /> Business Overview</h2>
             <div className="grid md:grid-cols-2 gap-4">
-              <AnalysisCard title="Business Summary" content={analysis.businessSummary} icon={Brain} />
-              <AnalysisCard title="Industry" content={analysis.industry} icon={TrendingUp} />
-              <AnalysisCard title="Products" content={analysis.products} icon={Target} />
-              <AnalysisCard title="Services" content={analysis.services} icon={Target} />
-              <AnalysisCard title="Unique Value Proposition" content={analysis.uniqueValueProposition} icon={Zap} />
-              <AnalysisCard title="Brand Positioning" content={analysis.brandPositioning} icon={MessageCircle} />
+              <AnalysisCard title={fieldLabel("Business Summary", project?.operatingModel)} content={analysis.businessSummary} icon={Brain} />
+              <AnalysisCard title={fieldLabel("Industry", project?.operatingModel)} content={analysis.industry} icon={TrendingUp} />
+              <AnalysisCard title={fieldLabel("Products", project?.operatingModel)} content={analysis.products} icon={Target} />
+              <AnalysisCard title={fieldLabel("Services", project?.operatingModel)} content={analysis.services} icon={Target} />
+              <AnalysisCard title={fieldLabel("Unique Value Proposition", project?.operatingModel)} content={analysis.uniqueValueProposition} icon={Zap} />
+              <AnalysisCard title={fieldLabel("Brand Positioning", project?.operatingModel)} content={analysis.brandPositioning} icon={MessageCircle} />
             </div>
           </div>
 
           <div>
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Users2 className="h-5 w-5 text-cyan-400" /> Customer Intelligence</h2>
             <div className="grid md:grid-cols-2 gap-4">
-              <AnalysisCard title="Target Customers" content={analysis.targetCustomers} icon={Users2} />
-              <AnalysisCard title="Ideal Customer Profile" content={analysis.idealCustomerProfile} icon={Target} />
-              <AnalysisCard title="Customer Pain Points" content={analysis.customerPainPoints} icon={MessageCircle} />
-              <AnalysisCard title="Customer Benefits" content={analysis.customerBenefits} icon={Zap} />
-              <AnalysisCard title="Purchase Triggers" content={analysis.purchaseTriggers} icon={TrendingUp} />
-              <AnalysisCard title="Brand Voice" content={analysis.brandVoice} icon={MessageCircle} />
+              <AnalysisCard title={fieldLabel("Target Customers", project?.operatingModel)} content={analysis.targetCustomers} icon={Users2} />
+              <AnalysisCard title={fieldLabel("Ideal Customer Profile", project?.operatingModel)} content={analysis.idealCustomerProfile} icon={Target} />
+              <AnalysisCard title={fieldLabel("Customer Pain Points", project?.operatingModel)} content={analysis.customerPainPoints} icon={MessageCircle} />
+              <AnalysisCard title={fieldLabel("Customer Benefits", project?.operatingModel)} content={analysis.customerBenefits} icon={Zap} />
+              <AnalysisCard title={fieldLabel("Purchase Triggers", project?.operatingModel)} content={analysis.purchaseTriggers} icon={TrendingUp} />
+              <AnalysisCard title={fieldLabel("Brand Voice", project?.operatingModel)} content={analysis.brandVoice} icon={MessageCircle} />
             </div>
           </div>
 
           <div>
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><TrendingUp className="h-5 w-5 text-emerald-400" /> Market Opportunities</h2>
             <div className="grid md:grid-cols-2 gap-4">
-              <AnalysisCard title="Market Opportunities" content={analysis.marketOpportunities} icon={TrendingUp} />
-              <AnalysisCard title="Growth Opportunities" content={analysis.growthOpportunities} icon={Zap} />
+              <AnalysisCard title={fieldLabel("Market Opportunities", project?.operatingModel)} content={analysis.marketOpportunities} icon={TrendingUp} />
+              <AnalysisCard title={fieldLabel("Growth Opportunities", project?.operatingModel)} content={analysis.growthOpportunities} icon={Zap} />
             </div>
           </div>
         </motion.div>
