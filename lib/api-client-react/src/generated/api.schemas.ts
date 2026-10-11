@@ -14,7 +14,8 @@ export interface HealthStatus {
 export interface Project {
   id: number;
   name: string;
-  websiteUrl: string;
+  /** @nullable */
+  websiteUrl?: string | null;
   /** @nullable */
   description?: string | null;
   status: string;
@@ -30,14 +31,23 @@ export interface Project {
   brandingAccentColor?: string | null;
   /** @nullable */
   detectedLocale?: string | null;
+  sourceType?: string;
+  /** @nullable */
+  sourceUrl?: string | null;
+  operatingModel?: string;
   createdAt: string;
   updatedAt?: string;
 }
 
 export interface ProjectInput {
   name: string;
-  websiteUrl: string;
+  /** @nullable */
+  websiteUrl?: string | null;
   description?: string;
+  sourceType?: string;
+  /** @nullable */
+  sourceUrl?: string | null;
+  operatingModel?: string;
 }
 
 export interface ProjectUpdate {
@@ -82,9 +92,13 @@ export interface DashboardSummary {
 }
 
 export interface AnalysisInput {
-  websiteUrl: string;
+  /** @nullable */
+  websiteUrl?: string | null;
+  sourceType?: string;
+  /** @nullable */
+  sourceUrl?: string | null;
   prompt?: string;
-  /** Optional manual business description used as fallback when the website cannot be scraped. */
+  /** Optional manual business description (declared content) used when no website is available. */
   businessDescription?: string;
 }
 

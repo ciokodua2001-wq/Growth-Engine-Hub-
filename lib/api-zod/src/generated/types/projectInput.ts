@@ -8,6 +8,11 @@
 
 export interface ProjectInput {
   name: string;
-  websiteUrl: string;
+  /** @nullable */
+  websiteUrl?: string | null;
   description?: string;
+  sourceType?: string;
+  /** @nullable */
+  sourceUrl?: string | null;
+  operatingModel?: string;
 }

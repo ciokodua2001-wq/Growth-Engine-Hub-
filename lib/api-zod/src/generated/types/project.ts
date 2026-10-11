@@ -9,7 +9,8 @@
 export interface Project {
   id: number;
   name: string;
-  websiteUrl: string;
+  /** @nullable */
+  websiteUrl?: string | null;
   /** @nullable */
   description?: string | null;
   status: string;
@@ -25,6 +26,10 @@ export interface Project {
   brandingAccentColor?: string | null;
   /** @nullable */
   detectedLocale?: string | null;
+  sourceType?: string;
+  /** @nullable */
+  sourceUrl?: string | null;
+  operatingModel?: string;
   createdAt: string;
   updatedAt?: string;
 }

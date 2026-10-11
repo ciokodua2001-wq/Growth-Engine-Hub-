@@ -23,7 +23,7 @@ export const HealthCheckResponse = zod.object({
 export const ListProjectsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
-  "websiteUrl": zod.string(),
+  "websiteUrl": zod.string().nullish(),
   "description": zod.string().nullish(),
   "status": zod.string(),
   "industry": zod.string().nullish(),
@@ -33,6 +33,9 @@ export const ListProjectsResponseItem = zod.object({
   "brandingCompanyName": zod.string().nullish(),
   "brandingAccentColor": zod.string().nullish(),
   "detectedLocale": zod.string().nullish(),
+  "sourceType": zod.string().optional(),
+  "sourceUrl": zod.string().nullish(),
+  "operatingModel": zod.string().optional(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -44,14 +47,17 @@ export const ListProjectsResponse = zod.array(ListProjectsResponseItem)
  */
 export const CreateProjectBody = zod.object({
   "name": zod.string(),
-  "websiteUrl": zod.string(),
-  "description": zod.string().optional()
+  "websiteUrl": zod.string().nullish(),
+  "description": zod.string().optional(),
+  "sourceType": zod.string().optional(),
+  "sourceUrl": zod.string().nullish(),
+  "operatingModel": zod.string().optional()
 })
 
 export const CreateProjectResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
-  "websiteUrl": zod.string(),
+  "websiteUrl": zod.string().nullish(),
   "description": zod.string().nullish(),
   "status": zod.string(),
   "industry": zod.string().nullish(),
@@ -61,6 +67,9 @@ export const CreateProjectResponse = zod.object({
   "brandingCompanyName": zod.string().nullish(),
   "brandingAccentColor": zod.string().nullish(),
   "detectedLocale": zod.string().nullish(),
+  "sourceType": zod.string().optional(),
+  "sourceUrl": zod.string().nullish(),
+  "operatingModel": zod.string().optional(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -73,7 +82,7 @@ export const GetProjectParams = zod.object({
 export const GetProjectResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
-  "websiteUrl": zod.string(),
+  "websiteUrl": zod.string().nullish(),
   "description": zod.string().nullish(),
   "status": zod.string(),
   "industry": zod.string().nullish(),
@@ -83,6 +92,9 @@ export const GetProjectResponse = zod.object({
   "brandingCompanyName": zod.string().nullish(),
   "brandingAccentColor": zod.string().nullish(),
   "detectedLocale": zod.string().nullish(),
+  "sourceType": zod.string().optional(),
+  "sourceUrl": zod.string().nullish(),
+  "operatingModel": zod.string().optional(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -104,7 +116,7 @@ export const UpdateProjectBody = zod.object({
 export const UpdateProjectResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
-  "websiteUrl": zod.string(),
+  "websiteUrl": zod.string().nullish(),
   "description": zod.string().nullish(),
   "status": zod.string(),
   "industry": zod.string().nullish(),
@@ -114,6 +126,9 @@ export const UpdateProjectResponse = zod.object({
   "brandingCompanyName": zod.string().nullish(),
   "brandingAccentColor": zod.string().nullish(),
   "detectedLocale": zod.string().nullish(),
+  "sourceType": zod.string().optional(),
+  "sourceUrl": zod.string().nullish(),
+  "operatingModel": zod.string().optional(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -167,9 +182,11 @@ export const AnalyzeWebsiteParams = zod.object({
 })
 
 export const AnalyzeWebsiteBody = zod.object({
-  "websiteUrl": zod.string(),
+  "websiteUrl": zod.string().nullish(),
+  "sourceType": zod.string().optional(),
+  "sourceUrl": zod.string().nullish(),
   "prompt": zod.string().optional(),
-  "businessDescription": zod.string().optional().describe('Optional manual business description used as fallback when the website cannot be scraped.')
+  "businessDescription": zod.string().optional().describe('Optional manual business description (declared content) used when no website is available.')
 })
 
 export const AnalyzeWebsiteResponse = zod.object({

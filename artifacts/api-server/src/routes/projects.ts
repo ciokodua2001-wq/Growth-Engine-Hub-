@@ -154,7 +154,7 @@ router.get("/projects/:id/dashboard", async (req, res): Promise<void> => {
   const [emailsCountResult] = await db.select({ count: count() }).from(emailCampaignsTable).where(eq(emailCampaignsTable.projectId, projectId));
   const [socialCountResult] = await db.select({ count: count() }).from(socialPostsTable).where(eq(socialPostsTable.projectId, projectId));
 
-  const [analysis] = await db.select({ status: businessAnalysisTable.status }).from(businessAnalysisTable).where(eq(businessAnalysisTable.projectId, projectId));
+  const [analysis] = await db.select({ status: businessAnalysisTable.status }).from(businessAnalysisTable).where(eq(businessAnalysisTable.projectId, projectId)).orderBy(desc(businessAnalysisTable.createdAt));
   const [strategy] = await db.select({ id: marketingStrategyTable.id }).from(marketingStrategyTable).where(eq(marketingStrategyTable.projectId, projectId));
 
   const recentActivity = await db.select().from(activityTable).where(eq(activityTable.projectId, projectId)).orderBy(desc(activityTable.createdAt)).limit(10);

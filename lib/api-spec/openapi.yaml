@@ -1604,14 +1604,14 @@ components:
     # ── Project ──────────────────────────────────────────────────────────────
     Project:
       type: object
-      required: [id, name, websiteUrl, status, createdAt]
+      required: [id, name, status, createdAt]
       properties:
         id:
           type: integer
         name:
           type: string
         websiteUrl:
-          type: string
+          type: ["string", "null"]
         description:
           type: ["string", "null"]
         status:
@@ -1630,6 +1630,12 @@ components:
           type: ["string", "null"]
         detectedLocale:
           type: ["string", "null"]
+        sourceType:
+          type: string
+        sourceUrl:
+          type: ["string", "null"]
+        operatingModel:
+          type: string
         createdAt:
           type: string
         updatedAt:
@@ -1637,13 +1643,19 @@ components:
 
     ProjectInput:
       type: object
-      required: [name, websiteUrl]
+      required: [name]
       properties:
         name:
           type: string
         websiteUrl:
-          type: string
+          type: ["string", "null"]
         description:
+          type: string
+        sourceType:
+          type: string
+        sourceUrl:
+          type: ["string", "null"]
+        operatingModel:
           type: string
 
     ProjectUpdate:
@@ -1724,15 +1736,18 @@ components:
     # ── Analysis ─────────────────────────────────────────────────────────────
     AnalysisInput:
       type: object
-      required: [websiteUrl]
       properties:
         websiteUrl:
+          type: ["string", "null"]
+        sourceType:
           type: string
+        sourceUrl:
+          type: ["string", "null"]
         prompt:
           type: string
         businessDescription:
           type: string
-          description: Optional manual business description used as fallback when the website cannot be scraped.
+          description: Optional manual business description (declared content) used when no website is available.
 
     BusinessAnalysis:
       type: object

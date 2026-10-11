@@ -7,8 +7,12 @@
  */
 
 export interface AnalysisInput {
-  websiteUrl: string;
+  /** @nullable */
+  websiteUrl?: string | null;
+  sourceType?: string;
+  /** @nullable */
+  sourceUrl?: string | null;
   prompt?: string;
-  /** Optional manual business description used as fallback when the website cannot be scraped. */
+  /** Optional manual business description (declared content) used when no website is available. */
   businessDescription?: string;
 }

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { db } from "@workspace/db";
 import PDFDocument from "pdfkit";
 import { PassThrough } from "stream";
@@ -10,6 +10,8 @@ import {
   competitorsTable,
   projectsTable,
   activityTable,
+  businessSourcesTable,
+  analysisSourcesTable,
 } from "@workspace/db";
 import {
   AnalyzeWebsiteParams,
@@ -20,13 +22,13 @@ import {
   GetMarketingStrategyParams,
   GenerateMarketingStrategyParams,
 } from "@workspace/api-zod";
-import { fetchWebsiteContent, WebsiteFetchError } from "../lib/websiteFetcher.js";
 import { generateJson } from "../lib/aiJson.js";
 import { consumeQuota } from "../lib/planLimits.js";
 import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGenerated, recordGeneratedBatch, hashContent } from "../lib/contentIntegrity.js";
 import { notifyAnalysisComplete } from "../lib/emailNotifier.js";
 import { projectIdentityLabel } from "../lib/projectContext.js";
+import { ingestSource, buildGroundingText, isSufficientGrounding, type SourceType } from "../lib/businessSourceIngestor.js";
 
 const router: IRouter = Router();
 
@@ -49,33 +51,10 @@ interface BusinessAnalysisResult {
   growthOpportunities: string;
 }
 
-async function analyzeBusinessWithAi(params: {
-  websiteUrl: string;
-  title: string | null;
-  metaDescription: string | null;
-  text: string;
-  extraPrompt?: string;
-}): Promise<BusinessAnalysisResult> {
-  return generateJson<BusinessAnalysisResult>({
-    system:
-      "You are a senior marketing strategist and business analyst. You read real website content and produce " +
-      "precise, specific, non-generic business intelligence. Never invent facts that contradict the provided " +
-      "content. Base every field strictly on what the website content actually says or strongly implies. " +
-      "Respond with ONLY a single JSON object, no prose, no markdown fences.",
-    prompt: `Analyze this business based on its actual website content.
+type OperatingModel = "business" | "creator" | "hybrid";
 
-Website URL: ${params.websiteUrl}
-Page title: ${params.title ?? "(none)"}
-Meta description: ${params.metaDescription ?? "(none)"}
-
-Website text content (extracted from the live page):
-"""
-${params.text}
-"""
-${params.extraPrompt ? `\nAdditional context from the business owner: ${params.extraPrompt}\n` : ""}
-Return a JSON object with exactly these string fields, each 1-3 sentences, specific to THIS business
-(do not use generic marketing boilerplate):
-{
+const FIELD_SEMANTICS: Record<OperatingModel, string> = {
+  business: `{
   "industry": "the single most accurate industry/category for this specific business",
   "businessSummary": "what this business actually does, in plain terms",
   "products": "the specific products this business sells, based on the content",
@@ -91,6 +70,70 @@ Return a JSON object with exactly these string fields, each 1-3 sentences, speci
   "marketOpportunities": "specific, plausible marketing opportunities for this business",
   "growthOpportunities": "specific, plausible growth opportunities for this business"
 }`,
+  creator: `{
+  "industry": "the creator's content niche (e.g. comedy, fashion, beauty, tech, education, lifestyle, music)",
+  "businessSummary": "an overview of the creator and their channel/audience",
+  "products": "digital products, merchandise, or offerings if mentioned, otherwise 'not-applicable'",
+  "services": "sponsorships, brand collaborations, consulting, or services if mentioned, otherwise 'not-applicable'",
+  "uniqueValueProposition": "the creator's unique value proposition (what makes their content distinctive)",
+  "targetCustomers": "the creator's target audience",
+  "idealCustomerProfile": "the ideal audience member or ideal brand-partner profile",
+  "customerPainPoints": "the audience problems, interests, or unmet needs the creator addresses",
+  "brandVoice": "the creator's personality and communication style",
+  "brandPositioning": "how the creator differentiates from others in their niche",
+  "customerBenefits": "the value the audience gets from the creator's content",
+  "purchaseTriggers": "what motivates the audience to follow, engage, subscribe, or convert",
+  "marketOpportunities": "audience and niche opportunities",
+  "growthOpportunities": "creator growth and monetization opportunities"
+}`,
+  hybrid: `{
+  "industry": "the primary niche/category spanning both the creator's content and their commercial offering",
+  "businessSummary": "an overview of this creator-business (audience + products/services)",
+  "products": "the specific products or digital goods they sell, or 'not-applicable'",
+  "services": "services, sponsorships, or collaborations, or 'not-applicable'",
+  "uniqueValueProposition": "what makes this creator-business distinctive",
+  "targetCustomers": "the target audience and/or customers",
+  "idealCustomerProfile": "the ideal audience member and/or buyer",
+  "customerPainPoints": "audience problems and customer pain points addressed",
+  "brandVoice": "the creator-business's personality and tone",
+  "brandPositioning": "how it differentiates in its niche/market",
+  "customerBenefits": "the value delivered to audience and customers",
+  "purchaseTriggers": "what motivates the audience to engage, subscribe, or buy",
+  "marketOpportunities": "audience, niche, and commercial opportunities",
+  "growthOpportunities": "growth and monetization opportunities"
+}`,
+};
+
+async function analyzeBusinessWithAi(params: {
+  identity: string;
+  title: string | null;
+  metaDescription: string | null;
+  text: string;
+  extraPrompt?: string;
+  operatingModel: OperatingModel;
+}): Promise<BusinessAnalysisResult> {
+  const model = params.operatingModel;
+  const kind = model === "creator" ? "content creator" : model === "hybrid" ? "creator-business" : "business";
+  return generateJson<BusinessAnalysisResult>({
+    system:
+      "You are a senior marketing strategist and analyst. You produce precise, specific, non-generic intelligence " +
+      "grounded strictly in the provided content. Never invent products, services, sponsorships, revenue, or " +
+      "audience statistics that are not stated or strongly implied. If a field genuinely does not apply, return " +
+      "the exact string \"not-applicable\"; if it is unknowable from the content, return \"unknown\". " +
+      "Respond with ONLY a single JSON object, no prose, no markdown fences.",
+    prompt: `Analyze this ${kind} based on the actual content provided.
+
+Identity: ${params.identity}
+Page title: ${params.title ?? "(none)"}
+Meta description: ${params.metaDescription ?? "(none)"}
+
+Content (from the live source or the owner's manual description):
+"""
+${params.text}
+"""
+${params.extraPrompt ? `\nAdditional context from the owner: ${params.extraPrompt}\n` : ""}
+Return a JSON object with exactly these string fields, each 1-3 sentences, specific to THIS ${kind} (do not use generic boilerplate):
+${FIELD_SEMANTICS[model]}`,
   });
 }
 
@@ -108,105 +151,156 @@ router.post("/projects/:id/analyze", requireActiveSubscription, async (req, res)
   }
 
   const projectId = params.data.id;
-  const websiteUrl = parsed.data.websiteUrl;
-  const businessDescription = parsed.data.businessDescription?.trim();
+  const project = req.project!;
+
+  // Resolve the primary source from the request body, falling back to the
+  // project's persisted source fields.
+  const sourceType = (parsed.data.sourceType ?? project.sourceType ?? "website") as SourceType;
+  const websiteUrl = parsed.data.websiteUrl ?? project.websiteUrl ?? null;
+  const sourceUrl = parsed.data.sourceUrl ?? project.sourceUrl ?? null;
+  const declaredContent = parsed.data.businessDescription?.trim() || null;
+
+  if (sourceType === "website" && !websiteUrl) {
+    res.status(400).json({ error: "A website URL is required for website analysis. Switch the project source to a social/manual source, or provide a business description." });
+    return;
+  }
+  if (sourceType !== "website" && !sourceUrl && !declaredContent) {
+    res.status(400).json({ error: "Provide a source URL/handle or a business description to analyze this project." });
+    return;
+  }
+
+  // Ingest the primary source (manual-first; no unauthorized social scraping).
+  const retrieved = await ingestSource({ sourceType, websiteUrl, sourceUrl, declaredContent });
+  const grounding = buildGroundingText([retrieved]);
+  if (!isSufficientGrounding(grounding.text)) {
+    res.status(400).json({ error: "Not enough information to analyze. Provide a website or a longer business description." });
+    return;
+  }
+
+  const quota = await consumeQuota(projectId, "analysis");
+  if (!quota.allowed) {
+    res.status(403).json({ error: quota.message });
+    return;
+  }
+
+  const operatingModel = (project.operatingModel ?? "business") as OperatingModel;
 
   let result: BusinessAnalysisResult;
   try {
-    let site: { url: string; title: string | null; metaDescription: string | null; text: string };
-
-    try {
-      site = await fetchWebsiteContent(websiteUrl);
-    } catch (fetchErr) {
-      if (fetchErr instanceof WebsiteFetchError && businessDescription) {
-        // Website couldn't be scraped but user provided a manual description — use it
-        req.log.warn({ err: fetchErr }, "Website fetch failed; using manual business description");
-        site = { url: websiteUrl, title: null, metaDescription: null, text: businessDescription };
-      } else {
-        throw fetchErr;
-      }
-    }
-
-    const quota = await consumeQuota(projectId, "analysis");
-    if (!quota.allowed) {
-      res.status(403).json({ error: quota.message });
-      return;
-    }
-
     result = await analyzeBusinessWithAi({
-      websiteUrl: site.url,
-      title: site.title,
-      metaDescription: site.metaDescription,
-      text: site.text,
+      identity: projectIdentityLabel(project),
+      title: grounding.title,
+      metaDescription: grounding.metaDescription,
+      text: grounding.text,
       extraPrompt: parsed.data.prompt,
+      operatingModel,
     });
   } catch (err) {
-    const message =
-      err instanceof WebsiteFetchError
-        ? err.message
-        : `Failed to analyze ${websiteUrl}: ${err instanceof Error ? err.message : "unknown error"}`;
-    req.log.error({ err }, "Website analysis failed");
+    const message = err instanceof Error ? err.message : "unknown error";
+    req.log.error({ err, projectId }, "Analysis failed");
 
-    const existingOnFail = await db
-      .select()
+    // Append-only: never overwrite prior successful history. Record a "failed"
+    // marker only when no analysis row exists yet.
+    const [anyAnalysis] = await db
+      .select({ id: businessAnalysisTable.id })
       .from(businessAnalysisTable)
-      .where(eq(businessAnalysisTable.projectId, projectId));
-
-    if (existingOnFail.length > 0) {
-      await db
-        .update(businessAnalysisTable)
-        .set({ status: "failed" })
-        .where(eq(businessAnalysisTable.projectId, projectId));
-    } else {
+      .where(eq(businessAnalysisTable.projectId, projectId))
+      .limit(1);
+    if (!anyAnalysis) {
       await db.insert(businessAnalysisTable).values({ projectId, status: "failed" });
     }
 
     await db.insert(activityTable).values({
       projectId,
       type: "analysis",
-      description: `Website analysis failed: ${message}`,
+      description: `Analysis failed: ${message}`,
     });
 
     res.status(422).json({ error: message });
     return;
   }
 
-  const existing = await db.select().from(businessAnalysisTable).where(eq(businessAnalysisTable.projectId, projectId));
+  // Append-only: every successful analysis creates a NEW version.
+  const [analysis] = await db
+    .insert(businessAnalysisTable)
+    .values({ projectId, status: "complete", ...result })
+    .returning();
 
-  let analysis;
-  if (existing.length > 0) {
-    [analysis] = await db.update(businessAnalysisTable)
-      .set({ status: "complete", ...result })
-      .where(eq(businessAnalysisTable.projectId, projectId))
-      .returning();
+  // Upsert the source ledger row, then link an immutable grounding snapshot.
+  const sourceValue = retrieved.sourceUrl ?? retrieved.sourceType;
+  const [existingSource] = await db
+    .select()
+    .from(businessSourcesTable)
+    .where(
+      and(
+        eq(businessSourcesTable.projectId, projectId),
+        eq(businessSourcesTable.sourceType, retrieved.sourceType),
+        eq(businessSourcesTable.sourceValue, sourceValue),
+      ),
+    )
+    .limit(1);
+
+  let sourceId: number;
+  if (existingSource) {
+    sourceId = existingSource.id;
+    await db
+      .update(businessSourcesTable)
+      .set({
+        sourceUrl: retrieved.sourceUrl,
+        declaredContent: retrieved.declaredContent,
+        retrievedContent: retrieved.retrievedContent,
+        retrievalMethod: retrieved.retrievalMethod,
+        retrievedAt: retrieved.retrievedAt,
+        contentHash: hashContent(retrieved.text),
+        status: "active",
+      })
+      .where(eq(businessSourcesTable.id, sourceId));
   } else {
-    [analysis] = await db.insert(businessAnalysisTable).values({
-      projectId,
-      status: "complete",
-      ...result,
-    }).returning();
+    const [inserted] = await db
+      .insert(businessSourcesTable)
+      .values({
+        projectId,
+        sourceType: retrieved.sourceType,
+        sourceUrl: retrieved.sourceUrl,
+        sourceValue,
+        displayLabel: retrieved.sourceUrl ?? retrieved.sourceType,
+        authorizationStatus: "none",
+        retrievalMethod: retrieved.retrievalMethod,
+        retrievedAt: retrieved.retrievedAt,
+        contentHash: hashContent(retrieved.text),
+        declaredContent: retrieved.declaredContent,
+        retrievedContent: retrieved.retrievedContent,
+        status: "active",
+      })
+      .returning();
+    sourceId = inserted.id;
   }
+
+  await db.insert(analysisSourcesTable).values({
+    analysisId: analysis.id,
+    sourceId,
+    snapshotContent: retrieved.text,
+    snapshotHash: hashContent(retrieved.text),
+  });
 
   await db.update(projectsTable).set({ industry: result.industry }).where(eq(projectsTable.id, projectId));
 
-  if (analysis) {
-    await recordGenerated({
-      userId: req.project!.ownerId!,
-      projectId,
-      contentType: "business_analysis",
-      contentId: String(analysis.id),
-      contentHash: hashContent(result),
-      summary: `Business analysis for ${websiteUrl}`,
-    });
-  }
+  await recordGenerated({
+    userId: project.ownerId!,
+    projectId,
+    contentType: "business_analysis",
+    contentId: String(analysis.id),
+    contentHash: hashContent(result),
+    summary: `Business analysis for ${projectIdentityLabel(project)}`,
+  });
 
   await db.insert(activityTable).values({
     projectId,
     type: "analysis",
-    description: `Business intelligence analysis completed for ${websiteUrl}`,
+    description: `Business intelligence analysis completed for ${projectIdentityLabel(project)}`,
   });
 
-  notifyAnalysisComplete({ projectId, identityLabel: req.project ? projectIdentityLabel(req.project) : websiteUrl }).catch(err =>
+  notifyAnalysisComplete({ projectId, identityLabel: projectIdentityLabel(project) }).catch(err =>
     req.log.warn({ err }, "Failed to send analysis-complete notification (non-fatal)")
   );
 
