@@ -102,6 +102,58 @@ staging → 7. Verify DB migration prerequisites → 8. Prepare deploy + rollbac
 
 ---
 
+## Stage 3 - Frontend null-safety + social-first/creator onboarding
+
+- **Status:** `PUSHED - NOT DEPLOYED`
+- **Features:** frontend `projectIdentityLabel()` display helper; nullable `websiteUrl`
+  handling (dashboard/overview/analysis/settings/admin); social-first onboarding wizard
+  (operating model → source → details → confirmation); creator-profile write path
+  extended (contentThemes, brandVoice/tone, selfReportedStats); creator/hybrid field labels
+  on the analysis page.
+- **Files changed:**
+  - `artifacts/growthforge/src/lib/projectIdentity.ts` (new)
+  - `artifacts/growthforge/src/pages/onboarding.tsx` (rewritten)
+  - `artifacts/growthforge/src/pages/dashboard.tsx`
+  - `artifacts/growthforge/src/pages/project/overview.tsx`
+  - `artifacts/growthforge/src/pages/project/analysis.tsx`
+  - `artifacts/growthforge/src/pages/project/settings.tsx`
+  - `artifacts/growthforge/src/pages/admin/projects.tsx`
+  - `artifacts/api-server/src/routes/onboarding.ts`
+- **Commits:** `6967582` (null-safety), `52b9167` (onboarding), `4998565` (labels/settings/fix)
+- **GitHub push:** ✅ pushed to `origin/main`
+- **Migration dependency:** Stage 1 migration `0001_p0_creator_sources.sql` (`CREATED - NOT APPLIED`)
+- **Testing:** frontend typecheck ✅ (0 errors) · frontend build ✅ · backend typecheck ✅ ·
+  backend build ✅ · backend tests 142/142 loaded pass (3 files DB-blocked)
+- **Staging:** `NOT STARTED`
+- **Production:** `NOT DEPLOYED`
+- **Blockers:** Stage 1 DB migration not applied; no DB for live onboarding/analysis verification.
+- **Rollback:** revert `6967582`, `52b9167`, `4998565` (code-only).
+
+---
+
+## Stage 3B - Source management + verification
+
+- **Status:** `PUSHED - NOT DEPLOYED`
+- **Features:** `GET/POST /projects/:id/sources` (ownership-checked, duplicate-safe,
+  provenance-preserving, no auto-import); settings "Connected Sources" UI; localization
+  test config-path fix.
+- **Files changed:**
+  - `artifacts/api-server/src/routes/sources.ts` (new)
+  - `artifacts/api-server/src/routes/index.ts`
+  - `artifacts/api-server/src/lib/localization.ts`
+  - `artifacts/growthforge/src/pages/project/settings.tsx`
+- **Commits:** `2857097` (endpoints), `4998565` (UI + test fix)
+- **GitHub push:** ✅ pushed to `origin/main`
+- **Testing:** backend typecheck ✅ · backend build ✅ · frontend typecheck ✅ ·
+  frontend build ✅ · backend tests 142/142 loaded pass (3 files DB-blocked:
+  `publishRoute`, `statsRoute`, `stuckPublishRecovery` need DATABASE_URL)
+- **Staging:** `NOT STARTED`
+- **Production:** `NOT DEPLOYED`
+- **Blockers:** DB-dependent integration tests (source auth, creator onboarding) need a live DB.
+- **Rollback:** revert `2857097`, `4998565`.
+
+---
+
 ## Nigeria launch dependencies (mandatory before launch)
 
 | Dependency | Owner stage | Status |
@@ -111,8 +163,8 @@ staging → 7. Verify DB migration prerequisites → 8. Prepare deploy + rollbac
 | NGN currency formatting | P1 | NOT STARTED |
 | `Africa/Lagos` time zone | P1 | NOT STARTED |
 | Nigerian market intelligence | P1 | NOT STARTED |
-| Creator + hybrid support | P0 | backend complete, frontend pending |
-| Social-first onboarding | P0 | backend complete, frontend pending |
+| Creator + hybrid support | P0 | backend + frontend complete, pending deploy |
+| Social-first onboarding | P0 | backend + frontend complete, pending deploy |
 | Database backup verification | gate | NOT STARTED (BLOCKED - DB paused) |
 | Billing entitlement consistency | gate | NOT STARTED |
 | Production migration safety | gate | BLOCKED - DB paused (baseline adoption pending) |
