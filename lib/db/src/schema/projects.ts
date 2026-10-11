@@ -7,7 +7,7 @@ export const projectsTable = pgTable("projects", {
   id: serial("id").primaryKey(),
   ownerId: text("owner_id").references(() => usersTable.id, { onDelete: "set null" }),
   name: text("name").notNull(),
-  websiteUrl: text("website_url").notNull(),
+  websiteUrl: text("website_url"),
   description: text("description"),
   status: text("status").notNull().default("pending"),
   industry: text("industry"),
@@ -25,6 +25,22 @@ export const projectsTable = pgTable("projects", {
    * produced no result and the system should default to English.
    */
   detectedLocale: text("detected_locale"),
+  /**
+   * Primary source type for this project: "website" | "instagram" | "facebook" |
+   * "tiktok" | "whatsapp" | "youtube" | "linkedin" | "manual".
+   * Independent of operatingModel. When "website", sourceUrl stays null and
+   * websiteUrl remains authoritative (no duplication).
+   */
+  sourceType: text("source_type").notNull().default("website"),
+  /**
+   * Primary source URL/handle for non-website sources (null for website).
+   */
+  sourceUrl: text("source_url"),
+  /**
+   * Operating model: "business" | "creator" | "hybrid". Defaults to "business"
+   * for backward compatibility with existing projects.
+   */
+  operatingModel: text("operating_model").notNull().default("business"),
 });
 
 export const insertProjectSchema = createInsertSchema(projectsTable).omit({ id: true, createdAt: true, updatedAt: true });

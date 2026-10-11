@@ -23,6 +23,11 @@ export const businessAnalysisTable = pgTable("business_analysis", {
   growthOpportunities: text("growth_opportunities"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  /**
+   * Set when the owner manually reviews/edits the AI-inferred analysis. Before
+   * this is set, every field is treated by the UI as "AI-inferred".
+   */
+  editedAt: timestamp("edited_at", { withTimezone: true }),
 });
 
 export const insertBusinessAnalysisSchema = createInsertSchema(businessAnalysisTable).omit({ id: true, createdAt: true, updatedAt: true });
