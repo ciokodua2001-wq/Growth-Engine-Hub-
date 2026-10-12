@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import pino from "pino";
-import { objectStorageClient, signObjectURL } from "./objectStorage.js";
+import { getObjectStorageS3Override, objectStorageClient, signObjectURL } from "./objectStorage.js";
 import { transcodeWebmToMp4, extractLastFramePng } from "./wanFfmpeg.js";
 import {
   buildWanT2VWorkflow,
@@ -31,8 +31,8 @@ const logger = pino({ name: "wanRenderer" });
 //   2. POST {workerUrl}/generate/sync {auth_data: <full route response>,
 //      session_id: null, payload: {input: {request_id, workflow_json, s3}}}
 //   3. Response.output[] contains a pre-signed S3 URL per generated asset (S3
-//      config, pointed at our own Supabase Storage bucket via its S3-compatible
-//      endpoint, is passed per-request below) — no local Vast.ai storage is
+//      config, pointed at our own S3-compatible object-storage bucket, is
+//      passed per-request below) — no local Vast.ai storage is
 //      ever relied upon.
 
 const VAST_ROUTE_URL = "https://run.vast.ai/route/";
@@ -71,9 +71,10 @@ export function checkWanRequirements(): WanRequirementsResult {
   const missing: string[] = [];
   if (!process.env.VAST_AI_API_KEY) missing.push("VAST_AI_API_KEY");
   if (!process.env.VAST_AI_ENDPOINT_ID) missing.push("VAST_AI_ENDPOINT_ID");
-  if (!process.env.SUPABASE_URL) missing.push("SUPABASE_URL");
-  if (!process.env.SUPABASE_S3_ACCESS_KEY_ID) missing.push("SUPABASE_S3_ACCESS_KEY_ID");
-  if (!process.env.SUPABASE_S3_SECRET_ACCESS_KEY) missing.push("SUPABASE_S3_SECRET_ACCESS_KEY");
+  if (!process.env.OBJECT_STORAGE_ENDPOINT) missing.push("OBJECT_STORAGE_ENDPOINT");
+  if (!process.env.OBJECT_STORAGE_REGION) missing.push("OBJECT_STORAGE_REGION");
+  if (!process.env.OBJECT_STORAGE_ACCESS_KEY_ID) missing.push("OBJECT_STORAGE_ACCESS_KEY_ID");
+  if (!process.env.OBJECT_STORAGE_SECRET_ACCESS_KEY) missing.push("OBJECT_STORAGE_SECRET_ACCESS_KEY");
   if (!process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID) missing.push("DEFAULT_OBJECT_STORAGE_BUCKET_ID");
   return { ready: missing.length === 0, missing };
 }
@@ -106,29 +107,9 @@ interface VastGenerateSyncResponse {
   timings?: unknown;
 }
 
-// ── Supabase S3-compatible storage override (passed per-request so the ──────
-// Vast.ai worker uploads generated clips directly into our own bucket).
-
-function buildSupabaseS3Override(): { access_key_id: string; secret_access_key: string; endpoint_url: string; bucket_name: string; region: string } {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const accessKeyId = process.env.SUPABASE_S3_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.SUPABASE_S3_SECRET_ACCESS_KEY;
-  const bucketName = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-  if (!supabaseUrl || !accessKeyId || !secretAccessKey || !bucketName) {
-    throw new Error(
-      "Wan S3 passthrough not configured (need SUPABASE_URL, SUPABASE_S3_ACCESS_KEY_ID, " +
-        "SUPABASE_S3_SECRET_ACCESS_KEY, DEFAULT_OBJECT_STORAGE_BUCKET_ID)",
-    );
-  }
-  const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
-  return {
-    access_key_id: accessKeyId,
-    secret_access_key: secretAccessKey,
-    endpoint_url: `https://${projectRef}.storage.supabase.co/storage/v1/s3`,
-    bucket_name: bucketName,
-    region: process.env.SUPABASE_S3_REGION || "us-east-1",
-  };
-}
+// ── S3-compatible storage override (passed per-request so the Vast.ai worker ──
+// uploads generated clips directly into our own bucket). Built from the shared
+// OBJECT_STORAGE_* env vars in objectStorage.ts (see getObjectStorageS3Override).
 
 // ── Vast.ai Serverless resolve + submit ──────────────────────────────────────
 
@@ -201,7 +182,7 @@ async function submitGenerateSync(
       input: {
         request_id: requestId,
         workflow_json: workflow,
-        s3: buildSupabaseS3Override(),
+        s3: getObjectStorageS3Override(),
       },
     },
   };
@@ -330,7 +311,7 @@ export class WanRenderer {
     const asset = result.output?.find(o => o.node_id === WAN_SAVE_NODE_ID) ?? result.output?.[0];
     if (!asset?.url) {
       throw new Error(
-        "Vast.ai response had no S3 pre-signed URL for the generated clip — verify SUPABASE_S3_* env vars",
+        "Vast.ai response had no S3 pre-signed URL for the generated clip — verify OBJECT_STORAGE_* env vars",
       );
     }
 
@@ -340,7 +321,7 @@ export class WanRenderer {
       const mp4Path = path.join(tmpDir, "scene.mp4");
       const framePath = path.join(tmpDir, "lastframe.png");
 
-      logger.info({ sceneJobId: req.sceneJobId }, "[WanRenderer] Downloading raw clip from Supabase Storage");
+      logger.info({ sceneJobId: req.sceneJobId }, "[WanRenderer] Downloading raw clip from object storage");
       await downloadToFile(asset.url, webmPath);
 
       await transcodeWebmToMp4(webmPath, mp4Path);
