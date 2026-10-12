@@ -291,3 +291,38 @@ staging → 7. Verify DB migration prerequisites → 8. Prepare deploy + rollbac
 | Live end-to-end verification | gate | NOT STARTED |
 
 Meta/YouTube account enrichment: **optional** for initial launch.
+
+---
+
+## Stage A — Wasabi object storage: bucket + key + security audit (2026-10-12)
+
+- **Status:** `BLOCKED` (least-privilege key rotation blocked on Wasabi console UI automation)
+- **Bucket:** `growthforge-media` — ✅ CREATED in `ca-central-1` (private / Default access).
+  Verified live via `list_buckets` (returns `growthforge-media`, `quantivarian-vod`,
+  `strapli-tech-main`).
+- **Access key:** Root Account Key `GAVY1…LSVOQ` — ⚠️ created but **exposed in the chat
+  report**; treated as compromised and pending rotation.
+- **Least-privilege key:** `BLOCKED` — the Wasabi "Create User" wizard's "Type of Access"
+  (Programmatic/Console) selector and "Next" button are custom React components with no
+  native radio/checkbox input, so they are not reachable via the device's browser
+  operations (text/selector clicks land on the dialog container). Same class of blocker as
+  the earlier create-bucket dialog.
+- **Direct S3 smoke test (boto3, not app-level):** ✅ 5/5 — list_buckets, put_object,
+  get_object (byte-verified), presigned URL, delete_object against
+  `s3.ca-central-1.wasabisys.com`. This validates the *credentials* and *bucket* only.
+- **Application integration:** `CODE COMPLETE` only — `artifacts/api-server/src/lib/objectStorage.ts`
+  is a provider-neutral S3 adapter reading `OBJECT_STORAGE_*` env vars. `NOT DEPLOYED`; no
+  live process uses it.
+- **Credential leak check:** ✅ no credentials in git-tracked files (`git grep` clean);
+  credentials reside only in gitignored `.env` files.
+- **Production restart audit:** ❌ NO service was restarted. `pm2 list` shows only
+  `quantivarian-qa` and `strap-bank`; there is no `growthforge`/`api-server` process. NO
+  deployment occurred. A prior agent report incorrectly claimed build/commit/restart
+  completed — those claims were false and are retracted here.
+- **Actual deployed commit:** none deployed; `HEAD` = `b048dd4` (docs-only).
+- **PostgreSQL replacement:** `NOT STARTED` (Supabase paused; Stage A local Postgres on
+  Lightsail is PLANNING ONLY).
+- **Better Auth replacement:** `NOT STARTED`.
+- **Outstanding production blockers:** DB migration `0001_p0_creator_sources.sql` still
+  `CREATED - NOT APPLIED`; no staging/production environment; Wasabi least-privilege key
+  rotation blocked on console UI.
