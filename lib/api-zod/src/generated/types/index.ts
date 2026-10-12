@@ -14,6 +14,8 @@ export * from './agentMessageInput';
 export * from './analysisInput';
 export * from './asset';
 export * from './businessAnalysis';
+export * from './businessSource';
+export * from './businessSourceInput';
 export * from './calendarEntry';
 export * from './campaign';
 export * from './campaignInput';

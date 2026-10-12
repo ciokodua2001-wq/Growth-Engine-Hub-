@@ -27,6 +27,8 @@ import type {
   AnalysisInput,
   Asset,
   BusinessAnalysis,
+  BusinessSource,
+  BusinessSourceInput,
   CalendarEntry,
   Campaign,
   CampaignInput,
@@ -605,6 +607,154 @@ export function useGetProjectDashboard<TData = Awaited<ReturnType<typeof getProj
 
 
 
+
+export const getListProjectSourcesUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/sources`
+}
+
+/**
+ * @summary List a project's business sources
+ */
+export const listProjectSources = async (id: number, options?: RequestInit): Promise<BusinessSource[]> => {
+
+  return customFetch<BusinessSource[]>(getListProjectSourcesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProjectSourcesQueryKey = (id: number,) => {
+    return [
+    `/api/projects/${id}/sources`
+    ] as const;
+    }
+
+
+export const getListProjectSourcesQueryOptions = <TData = Awaited<ReturnType<typeof listProjectSources>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProjectSources>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProjectSourcesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProjectSources>>> = ({ signal }) => listProjectSources(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProjectSources>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListProjectSourcesQueryResult = NonNullable<Awaited<ReturnType<typeof listProjectSources>>>
+export type ListProjectSourcesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List a project's business sources
+ */
+
+export function useListProjectSources<TData = Awaited<ReturnType<typeof listProjectSources>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProjectSources>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListProjectSourcesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddProjectSourceUrl = (id: number,) => {
+
+
+
+
+  return `/api/projects/${id}/sources`
+}
+
+/**
+ * @summary Add a business source to a project
+ */
+export const addProjectSource = async (id: number,
+    businessSourceInput: BusinessSourceInput, options?: RequestInit): Promise<BusinessSource> => {
+
+  return customFetch<BusinessSource>(getAddProjectSourceUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(businessSourceInput)
+  }
+);}
+
+
+
+
+export const getAddProjectSourceMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addProjectSource>>, TError,{id: number;data: BodyType<BusinessSourceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addProjectSource>>, TError,{id: number;data: BodyType<BusinessSourceInput>}, TContext> => {
+
+const mutationKey = ['addProjectSource'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addProjectSource>>, {id: number;data: BodyType<BusinessSourceInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  addProjectSource(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddProjectSourceMutationResult = NonNullable<Awaited<ReturnType<typeof addProjectSource>>>
+    export type AddProjectSourceMutationBody = BodyType<BusinessSourceInput>
+    export type AddProjectSourceMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add a business source to a project
+ */
+export const useAddProjectSource = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addProjectSource>>, TError,{id: number;data: BodyType<BusinessSourceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addProjectSource>>,
+        TError,
+        {id: number;data: BodyType<BusinessSourceInput>},
+        TContext
+      > => {
+      return useMutation(getAddProjectSourceMutationOptions(options));
+    }
 
 export const getAnalyzeWebsiteUrl = (id: number,) => {
 

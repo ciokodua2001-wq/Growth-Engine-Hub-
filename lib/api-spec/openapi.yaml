@@ -149,6 +149,50 @@ paths:
               schema:
                 $ref: "#/components/schemas/DashboardSummary"
 
+  /projects/{id}/sources:
+    get:
+      operationId: listProjectSources
+      tags: [projects]
+      summary: List a project's business sources
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of business sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BusinessSource"
+    post:
+      operationId: addProjectSource
+      tags: [projects]
+      summary: Add a business source to a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BusinessSourceInput"
+      responses:
+        "201":
+          description: Created source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessSource"
+
   # ── Analysis ───────────────────────────────────────────────────────────────
   /projects/{id}/analyze:
     post:
@@ -1673,6 +1717,50 @@ components:
           type: ["string", "null"]
         brandingAccentColor:
           type: ["string", "null"]
+
+    BusinessSource:
+      type: object
+      required: [id, projectId, sourceType, sourceValue, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        sourceType:
+          type: string
+        sourceUrl:
+          type: ["string", "null"]
+        sourceValue:
+          type: string
+        displayLabel:
+          type: ["string", "null"]
+        authorizationStatus:
+          type: string
+        retrievalMethod:
+          type: string
+        declaredContent:
+          type: ["string", "null"]
+        retrievedContent:
+          type: ["string", "null"]
+        retrievedAt:
+          type: ["string", "null"]
+        status:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    BusinessSourceInput:
+      type: object
+      required: [sourceType]
+      properties:
+        sourceType:
+          type: string
+        sourceUrl:
+          type: string
+        declaredContent:
+          type: string
 
     DashboardSummary:
       type: object

@@ -61,6 +61,34 @@ export interface ProjectUpdate {
   brandingAccentColor?: string | null;
 }
 
+export interface BusinessSource {
+  id: number;
+  projectId: number;
+  sourceType: string;
+  /** @nullable */
+  sourceUrl?: string | null;
+  sourceValue: string;
+  /** @nullable */
+  displayLabel?: string | null;
+  authorizationStatus?: string;
+  retrievalMethod?: string;
+  /** @nullable */
+  declaredContent?: string | null;
+  /** @nullable */
+  retrievedContent?: string | null;
+  /** @nullable */
+  retrievedAt?: string | null;
+  status?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BusinessSourceInput {
+  sourceType: string;
+  sourceUrl?: string;
+  declaredContent?: string;
+}
+
 export interface ActivityItem {
   id: number;
   type: string;

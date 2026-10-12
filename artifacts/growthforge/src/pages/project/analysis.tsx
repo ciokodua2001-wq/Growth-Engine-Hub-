@@ -53,6 +53,9 @@ function fieldLabel(base: string, model?: string): string {
   if (model !== "creator" && model !== "hybrid") return base;
   const map: Record<string, string> = {
     "Business Summary": "Creator Overview",
+    "Business Overview": "Creator Overview",
+    "Customer Intelligence": "Audience Intelligence",
+    "Customer Personas": "Audience Personas",
     "Industry": "Niche",
     "Products": "Digital Products / Merch",
     "Services": "Sponsorships / Services",
@@ -149,7 +152,7 @@ export default function ProjectAnalysis() {
           </div>
 
           <div>
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Brain className="h-5 w-5 text-primary" /> Business Overview</h2>
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Brain className="h-5 w-5 text-primary" /> {fieldLabel("Business Overview", project?.operatingModel)}</h2>
             <div className="grid md:grid-cols-2 gap-4">
               <AnalysisCard title={fieldLabel("Business Summary", project?.operatingModel)} content={analysis.businessSummary} icon={Brain} />
               <AnalysisCard title={fieldLabel("Industry", project?.operatingModel)} content={analysis.industry} icon={TrendingUp} />
@@ -161,7 +164,7 @@ export default function ProjectAnalysis() {
           </div>
 
           <div>
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Users2 className="h-5 w-5 text-cyan-400" /> Customer Intelligence</h2>
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Users2 className="h-5 w-5 text-cyan-400" /> {fieldLabel("Customer Intelligence", project?.operatingModel)}</h2>
             <div className="grid md:grid-cols-2 gap-4">
               <AnalysisCard title={fieldLabel("Target Customers", project?.operatingModel)} content={analysis.targetCustomers} icon={Users2} />
               <AnalysisCard title={fieldLabel("Ideal Customer Profile", project?.operatingModel)} content={analysis.idealCustomerProfile} icon={Target} />
@@ -173,7 +176,7 @@ export default function ProjectAnalysis() {
           </div>
 
           <div>
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><TrendingUp className="h-5 w-5 text-emerald-400" /> Market Opportunities</h2>
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><TrendingUp className="h-5 w-5 text-emerald-400" /> {fieldLabel("Market Opportunities", project?.operatingModel)}</h2>
             <div className="grid md:grid-cols-2 gap-4">
               <AnalysisCard title={fieldLabel("Market Opportunities", project?.operatingModel)} content={analysis.marketOpportunities} icon={TrendingUp} />
               <AnalysisCard title={fieldLabel("Growth Opportunities", project?.operatingModel)} content={analysis.growthOpportunities} icon={Zap} />
@@ -184,7 +187,13 @@ export default function ProjectAnalysis() {
         <div className="flex flex-col items-center justify-center py-32 text-center">
           <Brain className="h-16 w-16 text-primary/30 mb-6" />
           <h2 className="text-2xl font-bold mb-3">No Analysis Yet</h2>
-          <p className="text-muted-foreground mb-8 max-w-sm">Run the AI analysis to extract business intelligence from your website.</p>
+          <p className="text-muted-foreground mb-8 max-w-sm">
+            {project?.operatingModel === "creator"
+              ? "Run the AI analysis to extract creator intelligence from your sources."
+              : project?.operatingModel === "hybrid"
+              ? "Run the AI analysis to extract creator and business intelligence from your sources."
+              : "Run the AI analysis to extract business intelligence from your website and sources."}
+          </p>
           <button onClick={() => setAnalyzeModalOpen(true)} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-6 py-3 rounded-xl">
             <Zap className="h-4 w-4" /> Start Analysis
           </button>
@@ -194,7 +203,7 @@ export default function ProjectAnalysis() {
       <div className="mt-12">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <Users2 className="h-6 w-6 text-cyan-400" /> Customer Personas
+            <Users2 className="h-6 w-6 text-cyan-400" /> {fieldLabel("Customer Personas", project?.operatingModel)}
           </h2>
           <button
             onClick={() => setPersonaModalOpen(true)}

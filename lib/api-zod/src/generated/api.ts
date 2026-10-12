@@ -175,6 +175,63 @@ export const GetProjectDashboardResponse = zod.object({
 
 
 /**
+ * @summary List a project's business sources
+ */
+export const ListProjectSourcesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListProjectSourcesResponseItem = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "sourceType": zod.string(),
+  "sourceUrl": zod.string().nullish(),
+  "sourceValue": zod.string(),
+  "displayLabel": zod.string().nullish(),
+  "authorizationStatus": zod.string().optional(),
+  "retrievalMethod": zod.string().optional(),
+  "declaredContent": zod.string().nullish(),
+  "retrievedContent": zod.string().nullish(),
+  "retrievedAt": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListProjectSourcesResponse = zod.array(ListProjectSourcesResponseItem)
+
+
+/**
+ * @summary Add a business source to a project
+ */
+export const AddProjectSourceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AddProjectSourceBody = zod.object({
+  "sourceType": zod.string(),
+  "sourceUrl": zod.string().optional(),
+  "declaredContent": zod.string().optional()
+})
+
+export const AddProjectSourceResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "sourceType": zod.string(),
+  "sourceUrl": zod.string().nullish(),
+  "sourceValue": zod.string(),
+  "displayLabel": zod.string().nullish(),
+  "authorizationStatus": zod.string().optional(),
+  "retrievalMethod": zod.string().optional(),
+  "declaredContent": zod.string().nullish(),
+  "retrievedContent": zod.string().nullish(),
+  "retrievedAt": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
  * @summary Trigger website analysis for a project
  */
 export const AnalyzeWebsiteParams = zod.object({

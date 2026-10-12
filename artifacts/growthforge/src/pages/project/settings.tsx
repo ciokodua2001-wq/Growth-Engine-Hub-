@@ -3,6 +3,9 @@ import {
   useGetProject,
   useUpdateProject,
   getGetProjectQueryKey,
+  useListProjectSources,
+  useAddProjectSource,
+  getListProjectSourcesQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
@@ -46,52 +49,31 @@ export default function ProjectSettings() {
   }, [project]);
 
   // ── Connected sources ──────────────────────────────────────────────
-  const [sources, setSources] = useState<Array<{ id: number; sourceType: string; sourceUrl: string | null; displayLabel: string | null; declaredContent: string | null; retrievalMethod: string | null }>>([]);
-  const [sourcesLoading, setSourcesLoading] = useState(false);
+  const { data: sources = [], isLoading: sourcesLoading } = useListProjectSources(projectId, {
+    query: { queryKey: getListProjectSourcesQueryKey(projectId), enabled: !!projectId },
+  });
+  const addSource = useAddProjectSource();
   const [newSourceType, setNewSourceType] = useState("instagram");
   const [newSourceUrl, setNewSourceUrl] = useState("");
   const [newSourceDesc, setNewSourceDesc] = useState("");
-  const [addingSource, setAddingSource] = useState(false);
 
-  const loadSources = async () => {
-    if (!projectId) return;
-    setSourcesLoading(true);
-    try {
-      const r = await fetch(`/api/projects/${projectId}/sources`, { credentials: "include" });
-      if (r.ok) setSources(await r.json());
-    } finally {
-      setSourcesLoading(false);
-    }
-  };
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadSources(); }, [projectId]);
-
-  const handleAddSource = async () => {
+  const handleAddSource = () => {
     if (!newSourceType || (!newSourceUrl.trim() && !newSourceDesc.trim())) {
       toast({ title: "Add a URL or a description", variant: "destructive" });
       return;
     }
-    setAddingSource(true);
-    try {
-      const r = await fetch(`/api/projects/${projectId}/sources`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ sourceType: newSourceType, sourceUrl: newSourceUrl.trim() || undefined, declaredContent: newSourceDesc.trim() || undefined }),
-      });
-      if (!r.ok) {
-        const data = await r.json().catch(() => ({}));
-        toast({ title: data.error ?? "Could not add source", variant: "destructive" });
-        return;
-      }
-      setNewSourceUrl("");
-      setNewSourceDesc("");
-      toast({ title: "Source added!" });
-      loadSources();
-    } finally {
-      setAddingSource(false);
-    }
+    addSource.mutate(
+      { id: projectId, data: { sourceType: newSourceType, sourceUrl: newSourceUrl.trim() || undefined, declaredContent: newSourceDesc.trim() || undefined } },
+      {
+        onSuccess: () => {
+          setNewSourceUrl("");
+          setNewSourceDesc("");
+          toast({ title: "Source added!" });
+          queryClient.invalidateQueries({ queryKey: getListProjectSourcesQueryKey(projectId) });
+        },
+        onError: () => toast({ title: "Could not add source", variant: "destructive" }),
+      },
+    );
   };
 
   const handleSave = () => {
@@ -335,8 +317,8 @@ export default function ProjectSettings() {
             <input value={newSourceUrl} onChange={(e) => setNewSourceUrl(e.target.value)} placeholder="URL or handle" className="bg-secondary border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
           </div>
           <textarea value={newSourceDesc} onChange={(e) => setNewSourceDesc(e.target.value)} rows={2} placeholder="Optional description" className="w-full bg-secondary border border-border rounded-lg px-3 py-2.5 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-primary/50" />
-          <button onClick={handleAddSource} disabled={addingSource} className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-bold px-4 py-2 rounded-lg text-sm">
-            {addingSource ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Add source
+          <button onClick={handleAddSource} disabled={addSource.isPending} className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 text-primary-foreground font-bold px-4 py-2 rounded-lg text-sm">
+            {addSource.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Add source
           </button>
         </motion.div>
 
