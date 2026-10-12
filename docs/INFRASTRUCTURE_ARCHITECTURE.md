@@ -132,7 +132,15 @@ the app already expects via `supabaseAuth.ts`.
 | **Backblaze B2** | **$0.006/GB-mo** | $0 via Cloudflare (Bandwidth Alliance) | Cheapest storage + free egress when fronted by CF |
 | **Supabase Storage** | bundled, $25/mo Pro | bundled | Deleted; tied to Supabase |
 
-### 4.1 Recommendation
+### 4.1 Recommendation (updated — Wasabi selected)
+
+The owner has an active **Wasabi** account and is standardizing media on it. Wasabi is
+S3-compatible, so it slots into the same provider-neutral adapter below. **Chosen provider:
+Wasabi `ca-central-1` (Toronto)** — $6.99/TB/mo (1 TB minimum ≈ $6.99/mo), **no egress fees,
+no API-request fees**, 90-day minimum retention. The Lightsail box is Montreal (`ca-central-1`),
+so Toronto gives lowest latency. Private bucket + presigned URLs (least privilege).
+
+### 4.1 Original recommendation
 
 - **Stage A → Cloudflare R2** (or B2 fronted by Cloudflare). AI-generated video is large and
   egress-heavy, so **$0 egress** is the deciding factor. R2/B2 are S3-compatible, so the

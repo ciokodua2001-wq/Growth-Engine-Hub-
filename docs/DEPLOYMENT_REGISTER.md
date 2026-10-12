@@ -248,6 +248,14 @@ staging → 7. Verify DB migration prerequisites → 8. Prepare deploy + rollbac
   Better Auth (replaces Supabase Auth) + Cloudflare R2 (replaces Supabase Storage); preserve
   Node API / frontend / AI / video / Stripe. Detail in `docs/STAGE_A_IMPLEMENTATION_PLAN.md`.
 - **Execution status:** PLANNING ONLY. Not yet authorized to resize/provision/migrate/deploy.
+- **Wasabi object storage (inspection complete, pending approval):** account active (owner
+  `theoctavid`); current invoice $3.28 (9/30-10/29); 15.69 GB active + 36.47 GB deleted
+  storage, 13,330 objects; 2 existing buckets in `eu-central-1` (`quantivarian-vod`,
+  `strapli-tech-main`); 2 access keys (Root Account Key, `wawu-quantivarian-vod`).
+  **Proposed:** new private bucket `growthforge-media` in `ca-central-1` (Toronto, near the
+  Montreal Lightsail box) + a new least-privilege access key scoped to that bucket only.
+  Provider-neutral S3 adapter via `@aws-sdk/client-s3` (endpoint/region/creds in env vars).
+  AWAITING owner approval before creating the bucket/key.
 - **Companion-app tab access (V2 attempt):** device connected; `browser_attached_list_tabs`
   lists 4 shared tabs (Lightsail ca-central-1, Supabase org, AWS S3, AWS Console Home), but
   `browser_attached_snapshot`/`screenshot`/`navigate`/`click` all return `success:false` (no
