@@ -255,7 +255,12 @@ staging → 7. Verify DB migration prerequisites → 8. Prepare deploy + rollbac
   **Proposed:** new private bucket `growthforge-media` in `ca-central-1` (Toronto, near the
   Montreal Lightsail box) + a new least-privilege access key scoped to that bucket only.
   Provider-neutral S3 adapter via `@aws-sdk/client-s3` (endpoint/region/creds in env vars).
-  AWAITING owner approval before creating the bucket/key.
+  **Status:** code integration DONE (provider-neutral S3 adapter `objectStorage.ts` +
+  `wanRenderer` passthrough, 5 unit tests, typecheck clean — commit `675f214`). Bucket/key
+  creation is BLOCKED on the Wasabi console UI: the create-bucket dialog's form fields
+  (name/region/Next) are not reachable via the text-based device operations (React portal
+  elements aren't exposed to fill/click). Owner must create the `growthforge-media` bucket
+  (ca-central-1) + a `growthforge-prod` key manually, or grant a more capable console path.
 - **Companion-app tab access (V2 attempt):** device connected; `browser_attached_list_tabs`
   lists 4 shared tabs (Lightsail ca-central-1, Supabase org, AWS S3, AWS Console Home), but
   `browser_attached_snapshot`/`screenshot`/`navigate`/`click` all return `success:false` (no
