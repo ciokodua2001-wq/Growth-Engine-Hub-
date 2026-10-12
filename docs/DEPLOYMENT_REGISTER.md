@@ -228,6 +228,10 @@ staging → 7. Verify DB migration prerequisites → 8. Prepare deploy + rollbac
   a baseline migration must be generated for whatever DB is eventually used.
 - **No action taken:** inspection only. No payments, plan changes, DB creation,
   migration, deploy, or restart.
+- **Infrastructure design:** `docs/INFRASTRUCTURE_ARCHITECTURE.md` — cost-first
+  three-stage plan. Stage A: single Lightsail Small ($10/mo) + local Postgres +
+  better-auth ($0) + Cloudflare R2 ($0 egress). Pending owner decision on the DB
+  recovery path (recover vs re-create) and the auth provider (better-auth vs Supabase).
 
 ---
 
