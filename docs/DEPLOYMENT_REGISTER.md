@@ -154,15 +154,66 @@ staging → 7. Verify DB migration prerequisites → 8. Prepare deploy + rollbac
 
 ---
 
+## Stage 4 - Release preparation + Nigeria localization
+
+- **Status:** `PUSHED - NOT DEPLOYED`
+- **Features:** `en-NG` locale (NGN currency, Africa/Lagos, Nigerian market context,
+  no single-dialect assumption, local + international audiences); `.ng` ccTLD detection;
+  English-aware localization directive path; locale threaded into analysis/persona/strategy;
+  sources endpoints in OpenAPI + regenerated clients; settings uses generated source hooks;
+  creator-appropriate analysis section headings; production runbook + smoke test plan.
+- **Files changed:**
+  - `artifacts/api-server/config/localizationProfiles.json`
+  - `artifacts/api-server/src/lib/localization.ts`
+  - `artifacts/api-server/src/utils/urlLocaleDetector.ts`
+  - `artifacts/api-server/src/routes/analysis.ts`
+  - `artifacts/api-server/src/lib/__tests__/localizationNigeria.test.ts` (new)
+  - `lib/api-spec/openapi.yaml`
+  - `lib/api-client-react/src/generated/*`, `lib/api-zod/src/generated/*` (regenerated)
+  - `artifacts/growthforge/src/pages/project/settings.tsx`
+  - `artifacts/growthforge/src/pages/project/analysis.tsx`
+  - `docs/PRODUCTION_DEPLOYMENT_RUNBOOK.md` (new)
+- **Commits:** `f6043ee` (localization), `49736f4` (P0 gaps)
+- **GitHub push:** ✅ pushed to `origin/main`
+- **Testing:** frontend + backend typecheck 0 errors · backend build ✅ · frontend build ✅ ·
+  backend tests 146/146 loaded pass (3 files DB-blocked) · Nigeria localization tests 4/4
+- **Staging:** `NOT STARTED`
+- **Production:** `NOT DEPLOYED`
+- **Blockers:** Supabase paused; migration not applied; no production access.
+- **Rollback:** revert `f6043ee`, `49736f4` (code-only; localization profile is data-only).
+
+---
+
+## Consolidated release entry — social-first Business/Creator/Hybrid (P0)
+
+- **Commit range:** `0af5ca5` (Stage 2A) → `49736f4` (Stage 4)
+- **Migration dependencies:** `0001_p0_creator_sources.sql` (+ `.down.sql`) — NOT applied
+- **Rollout sequence:**
+  1. Restore Supabase + verify backup (runbook §3–4)
+  2. Inspect schema + adopt baseline migration (runbook §5–6)
+  3. Apply `0001` + verify (runbook §7)
+  4. Deploy backend + health check (runbook §8–9)
+  5. Deploy frontend + proxy check (runbook §10)
+  6. Env validation + DB integration tests (runbook §11–12)
+  7. Production smoke tests 1–16 (runbook §13)
+  8. Billing entitlement verification (runbook §14)
+- **Smoke tests:** 16-item plan in `docs/PRODUCTION_DEPLOYMENT_RUNBOOK.md` §13
+- **Rollback plan:** code redeploy to last good commit; `0001` down migration; full restore
+  from verified backup (runbook §15)
+- **Production approval status:** ⛔ NOT AUTHORIZED — awaiting explicit authorization before
+  restore / migrate / deploy / restart / billing changes.
+
+---
+
 ## Nigeria launch dependencies (mandatory before launch)
 
 | Dependency | Owner stage | Status |
 |---|---|---|
-| `en-NG` localization profile | P1 | NOT STARTED |
-| `.ng` ccTLD detection | P1 | NOT STARTED |
-| NGN currency formatting | P1 | NOT STARTED |
-| `Africa/Lagos` time zone | P1 | NOT STARTED |
-| Nigerian market intelligence | P1 | NOT STARTED |
+| `en-NG` localization profile | P1 | complete, pending deploy (Stage 4) |
+| `.ng` ccTLD detection | P1 | complete, pending deploy (Stage 4) |
+| NGN currency formatting | P1 | complete, pending deploy (Stage 4) |
+| `Africa/Lagos` time zone | P1 | complete, pending deploy (Stage 4) |
+| Nigerian market intelligence | P1 | complete, pending deploy (Stage 4) |
 | Creator + hybrid support | P0 | backend + frontend complete, pending deploy |
 | Social-first onboarding | P0 | backend + frontend complete, pending deploy |
 | Database backup verification | gate | NOT STARTED (BLOCKED - DB paused) |
