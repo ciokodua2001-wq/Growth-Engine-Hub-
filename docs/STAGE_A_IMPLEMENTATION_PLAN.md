@@ -153,11 +153,11 @@ routed through a queue (BullMQ/Redis) so they can later move to a separate worke
   `users.id`; all ownership middleware passes. **Rollback:** keep Supabase behind a flag
   until cutover (dual-auth shim) or revert commit. **Approval:** owner (auth swap).
 
-### Phase 3 - R2 storage integration
+### Phase 3 - Object-storage integration (Wasabi, S3-compatible)
 - **Files:** `objectStorage.ts` (internal swap), `objectAcl.ts`, renderers'
   S3 endpoints, `.env` (R2 keys), `routes/storage.ts`/`images.ts`/`assemble.ts` (only if they
   reference Supabase storage directly).
-- **Deps:** R2 account + buckets + API tokens (owner creates). **Actions:** create buckets,
+- **Deps:** Wasabi bucket + least-privilege access key (owner approves/creates). **Actions:** create buckets,
   rewrite upload/list/presign, re-point renderers, add lifecycle rules.
 - **Risks:** presigned-URL expiry/signature; public-vs-private ACL regression.
   **Tests:** upload/list/signed-GET/signed-PUT; a render job writes to R2 and is readable;
