@@ -111,6 +111,7 @@ async function analyzeBusinessWithAi(params: {
   text: string;
   extraPrompt?: string;
   operatingModel: OperatingModel;
+  locale?: string;
 }): Promise<BusinessAnalysisResult> {
   const model = params.operatingModel;
   const kind = model === "creator" ? "content creator" : model === "hybrid" ? "creator-business" : "business";
@@ -134,6 +135,7 @@ ${params.text}
 ${params.extraPrompt ? `\nAdditional context from the owner: ${params.extraPrompt}\n` : ""}
 Return a JSON object with exactly these string fields, each 1-3 sentences, specific to THIS ${kind} (do not use generic boilerplate):
 ${FIELD_SEMANTICS[model]}`,
+    locale: params.locale,
   });
 }
 
@@ -194,6 +196,7 @@ router.post("/projects/:id/analyze", requireActiveSubscription, async (req, res)
       text: grounding.text,
       extraPrompt: parsed.data.prompt,
       operatingModel,
+      locale: project.detectedLocale ?? undefined,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown error";
@@ -385,6 +388,7 @@ router.post("/projects/:id/personas", requireActiveSubscription, async (req, res
       system:
         "You are a senior customer research strategist. You produce specific, realistic buyer personas " +
         "grounded in the actual business context provided. Respond with ONLY a single JSON object, no prose.",
+      locale: project.detectedLocale ?? undefined,
       prompt: `Business: ${project.name} (${projectIdentityLabel(project)})
 Industry: ${analysis.industry}
 Summary: ${analysis.businessSummary}
@@ -735,6 +739,7 @@ router.post("/projects/:id/strategy", requireActiveSubscription, async (req, res
         "You are a senior marketing strategist. You produce specific, actionable marketing strategy grounded " +
         "in the actual business context, personas, and competitor landscape provided. Respond with ONLY a " +
         "single JSON object, no prose.",
+      locale: project.detectedLocale ?? undefined,
       prompt: `Business: ${project.name} (${projectIdentityLabel(project)})
 Industry: ${analysis.industry}
 Summary: ${analysis.businessSummary}

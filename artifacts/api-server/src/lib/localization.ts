@@ -40,7 +40,7 @@ export interface LocaleProfile {
   };
 }
 
-export type LocaleCode = "es-MX" | "de-DE" | "fr-FR" | "pt-BR";
+export type LocaleCode = "es-MX" | "de-DE" | "fr-FR" | "pt-BR" | "en-NG";
 
 // ── Profile loader ─────────────────────────────────────────────────────────────
 
@@ -108,6 +108,14 @@ const COPYWRITING_FORMULA_OVERRIDES: Record<string, string> = {
   and celebrated before the product appears. Energy and enthusiasm are expected; cold
   professionalism reads as distrust. Always mention parcelamento (instalment options)
   in e-commerce contexts. Urgency should feel like excitement, not pressure.`,
+
+  "en-NG": `Replace English ad frameworks (AIDA, PAS) with a Nigerian persuasion pattern:
+  "Recognition → Proof & Trust → Aspiration → Clear Next Step"
+  Nigerian audiences are marketing-savvy and wary of scams — establish legitimacy and
+  trust early (proof points, guarantees, delivery terms, "Pay on delivery" where
+  applicable). Speak to aspiration and upward mobility, never pity. CTAs must be direct
+  and action-oriented (Shop now, Order now, Chat on WhatsApp). Default to clear standard
+  Nigerian English; use slang only for youth-focused brands.`,
 };
 
 const DEFAULT_FORMULA_GUIDANCE = `Apply standard persuasion frameworks appropriate to the content type
@@ -160,6 +168,17 @@ const UNIT_CONVERSION_RULES: Record<string, string> = {
   • Fahrenheit → Celsius. Fórmula: (°F − 32) × 5/9. Example: 72°F → 22°C.
   • Fluid ounces → mililitros (ml). Multiply by 29,57. Example: 8 fl oz → 237 ml.
   • Gallons → litros (L). Multiply by 3,785. Example: 1 galão → 3,8 L.`,
+
+  "en-NG": `If the source content references USD prices, imperial units, or US-centric measurements,
+  convert them automatically using these rules — do NOT leave US-centric figures in the output:
+  • USD ($) → Nigerian Naira (₦). Format: "₦X,XXX". Approx rate: $1 USD ≈ ₦1,500. Flag with "(aprox.)".
+  • Miles → kilometres (km). Multiply by 1.609. Example: 60 miles → 97 km.
+  • Inches → centimetres (cm). Multiply by 2.54. Example: 6 inches → 15 cm.
+  • Feet → metres (m). Multiply by 0.305. Example: 6 ft → 1.83 m.
+  • Pounds (weight) → kilograms (kg). Multiply by 0.453. Example: 10 lbs → 4.5 kg.
+  • Fahrenheit → Celsius. Formula: (°F − 32) × 5/9. Example: 72°F → 22°C.
+  • Fluid ounces → millilitres (ml). Multiply by 29.57. Example: 8 fl oz → 237 ml.
+  • Gallons → litres (L). Multiply by 3.785. Example: 1 gal → 3.8 L.`,
 };
 
 // ── System-level cultural nuance injector ─────────────────────────────────────
@@ -188,6 +207,88 @@ const UNIT_CONVERSION_RULES: Record<string, string> = {
  * @param localeCode    BCP-47 locale code (e.g. "es-MX") — used for exact table lookups
  * @returns The enriched system message
  */
+/**
+ * English-aware localization directives (e.g. en-NG). Unlike non-English locales,
+ * there is no translation step — so we skip the "zero English words / no mixing"
+ * rules and instead apply tone, culture, slang (optional), SEO, formatting and
+ * currency conversion while defaulting to clear standard English.
+ */
+function injectEnglishLocaleDirectives(
+  basePrompt: string,
+  localeProfile: LocaleProfile,
+  localeCode: string,
+): string {
+  const { language_name, regional_nuance, slang_and_idioms, seo_behavior, formatting } = localeProfile;
+  const formulaGuidance = COPYWRITING_FORMULA_OVERRIDES[localeCode] ?? DEFAULT_FORMULA_GUIDANCE;
+  const unitConversionRules = UNIT_CONVERSION_RULES[localeCode]
+    ?? "Use the metric system and local currency throughout. Convert any US-centric figures encountered.";
+  const slangDirectives = slang_and_idioms
+    .map((s) => `  • "${s.term}" → ${s.meaning}. Deploy in: ${s.usage}.`)
+    .join("\n");
+
+  const block = `
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LOCALIZATION DIRECTIVES — MANDATORY SYSTEM RULES
+Target market: ${language_name} (${localeCode})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULE 1 — LANGUAGE (English locale)
+Write in clear, standard English appropriate to ${language_name}. Do NOT assume a single dialect or slang register — default to widely understood English and use local slang only when it fits the brand and audience. Keep this natural for both local and international readers.
+
+COPYWRITING FORMULA FOR THIS MARKET:
+${formulaGuidance}
+
+RULE 2 — TONE & CULTURAL CALIBRATION (strictly enforce)
+${regional_nuance.tone}
+
+Embody these cultural values in every sentence:
+${regional_nuance.cultural_values.map((v) => `  • ${v}`).join("\n")}
+
+Activate these audience motivators:
+${regional_nuance.motivators.map((m) => `  • ${m}`).join("\n")}
+
+PROHIBITED patterns (will alienate this audience — treat as hard errors):
+${regional_nuance.taboos.map((t) => `  ✗ ${t}`).join("\n")}
+
+RULE 3 — SLANG & IDIOMS (optional, audience-appropriate)
+Use the expressions below only where contextually appropriate — overuse or forced placement breaks trust. Never assume the whole audience shares one dialect.
+${slangDirectives}
+
+RULE 4 — SEO & SEARCH-INTENT ALIGNMENT
+All hooks, opening lines, and headlines must be optimised for how ${language_name} audiences actually search.
+- Primary search engine: ${seo_behavior.search_engine}
+- Keyword reasoning: ${seo_behavior.keyword_style}
+- Query patterns: ${seo_behavior.preferred_query_patterns.join(" | ")}
+- Local market signals: ${seo_behavior.local_signals}
+- Content depth target: ${seo_behavior.content_length_preference}
+
+RULE 5 — FORMATTING (apply precisely)
+- Dates: ${formatting.date_format}
+- Times: ${formatting.time_format}
+- Currency: ${formatting.currency}
+- Number formatting: ${formatting.number_separators}
+- Punctuation: ${formatting.punctuation_style}
+- CTA verbs — prefer these: ${formatting.preferred_cta_verbs.join(", ")}
+- Register: ${formatting.formal_register}
+
+RULE 6 — UNIT & CURRENCY CONVERSION (automatic, no exceptions)
+${unitConversionRules}
+  Never leave raw USD, miles, inches, or °F in the final output.
+
+RULE 7 — OUTPUT PURITY
+Output ONLY the raw JSON object requested. No preambles, sign-offs, meta-commentary, or markdown fences.
+
+RULE 8 — MARKDOWN STRUCTURE PRESERVATION
+Preserve ## / ### / ** / lists exactly; escape newlines as \\n inside JSON string values.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+END LOCALIZATION DIRECTIVES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+  return `${basePrompt}${block}`;
+}
+
 export function injectCulturalNuance(
   basePrompt: string,
   localeProfile: LocaleProfile | null | undefined,
@@ -195,6 +296,12 @@ export function injectCulturalNuance(
 ): string {
   // ── Safe fallback — English or unknown locale ────────────────────────────────
   if (!localeProfile) return basePrompt;
+
+  // English locales (e.g. en-NG) keep tone/culture/formatting/currency rules but
+  // must NOT run the "translate into X, zero English words" rules.
+  if (localeCode && localeCode.toLowerCase().startsWith("en-")) {
+    return injectEnglishLocaleDirectives(basePrompt, localeProfile, localeCode);
+  }
 
   const { language_name, regional_nuance, slang_and_idioms, seo_behavior, formatting } = localeProfile;
 

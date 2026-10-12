@@ -122,6 +122,7 @@ const TLD_TO_LOCALE: Record<string, { language: string; country: string }> = {
   ca: { language: "en", country: "CA" },
   ie: { language: "en", country: "IE" },
   za: { language: "en", country: "ZA" },
+  ng: { language: "en", country: "NG" },
   // Switzerland / multilingual — German majority web presence
   ch: { language: "de", country: "CH" },
 };

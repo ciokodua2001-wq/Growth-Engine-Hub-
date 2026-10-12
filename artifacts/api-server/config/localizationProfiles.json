@@ -3,23 +3,71 @@
     "language_name": "Spanish (Mexico)",
     "regional_nuance": {
       "tone": "Warm, conversational, and relationship-first. Mexican business culture values trust ('confianza') and personal connection before the transaction. Avoid overly formal Castilian Spanish — prefer the inclusive 'ustedes' over 'vosotros', and lean into approachable directness rather than stiff corporate language.",
-      "cultural_values": ["family and community (familismo)", "personal trust before business", "pride in Mexican identity and craftsmanship", "celebration of progress ('salir adelante')"],
-      "taboos": ["Avoid comparisons that imply Mexican products are inferior to US/European ones", "Do not use Castilian vosotros constructs", "Avoid overly legalistic or cold tone — it reads as distrust"],
-      "motivators": ["Belonging and loyalty rewards", "Pride in supporting local/national brands", "Value and 'buen precio' (good deal) without feeling cheap", "Aspirational imagery tied to family success"]
+      "cultural_values": [
+        "family and community (familismo)",
+        "personal trust before business",
+        "pride in Mexican identity and craftsmanship",
+        "celebration of progress ('salir adelante')"
+      ],
+      "taboos": [
+        "Avoid comparisons that imply Mexican products are inferior to US/European ones",
+        "Do not use Castilian vosotros constructs",
+        "Avoid overly legalistic or cold tone — it reads as distrust"
+      ],
+      "motivators": [
+        "Belonging and loyalty rewards",
+        "Pride in supporting local/national brands",
+        "Value and 'buen precio' (good deal) without feeling cheap",
+        "Aspirational imagery tied to family success"
+      ]
     },
     "slang_and_idioms": [
-      { "term": "¡Órale!", "meaning": "Expression of agreement, encouragement, or approval — 'Let's go!' / 'Exactly!'", "usage": "CTAs, celebration copy, momentum moments" },
-      { "term": "Chido / Chida", "meaning": "Cool, great, awesome", "usage": "Product descriptions targeting younger demographics" },
-      { "term": "Está cañón", "meaning": "It's tough / That's a challenge", "usage": "Problem-acknowledgment copy before presenting the solution" },
-      { "term": "¡Qué chulada!", "meaning": "How wonderful/beautiful!", "usage": "Reacting to a product reveal or feature highlight" },
-      { "term": "Dale gas", "meaning": "Step on it / Go for it", "usage": "Action-oriented CTAs for sales or sign-up flows" },
-      { "term": "En chinga", "meaning": "Fast, urgently (informal — use carefully)", "usage": "Speed/efficiency messaging for B2B only, informal contexts" },
-      { "term": "De pelos", "meaning": "Excellent, top-notch", "usage": "Testimonial-style copy, review highlights" }
+      {
+        "term": "¡Órale!",
+        "meaning": "Expression of agreement, encouragement, or approval — 'Let's go!' / 'Exactly!'",
+        "usage": "CTAs, celebration copy, momentum moments"
+      },
+      {
+        "term": "Chido / Chida",
+        "meaning": "Cool, great, awesome",
+        "usage": "Product descriptions targeting younger demographics"
+      },
+      {
+        "term": "Está cañón",
+        "meaning": "It's tough / That's a challenge",
+        "usage": "Problem-acknowledgment copy before presenting the solution"
+      },
+      {
+        "term": "¡Qué chulada!",
+        "meaning": "How wonderful/beautiful!",
+        "usage": "Reacting to a product reveal or feature highlight"
+      },
+      {
+        "term": "Dale gas",
+        "meaning": "Step on it / Go for it",
+        "usage": "Action-oriented CTAs for sales or sign-up flows"
+      },
+      {
+        "term": "En chinga",
+        "meaning": "Fast, urgently (informal — use carefully)",
+        "usage": "Speed/efficiency messaging for B2B only, informal contexts"
+      },
+      {
+        "term": "De pelos",
+        "meaning": "Excellent, top-notch",
+        "usage": "Testimonial-style copy, review highlights"
+      }
     ],
     "seo_behavior": {
       "search_engine": "Google.com.mx dominates (>95% share)",
       "keyword_style": "Users search in full conversational phrases and questions more than keyword fragments. Include long-tail question-format keywords.",
-      "preferred_query_patterns": ["¿Cómo puedo…?", "¿Cuál es el mejor…?", "Precio de…", "Comprar… en México", "…cerca de mí"],
+      "preferred_query_patterns": [
+        "¿Cómo puedo…?",
+        "¿Cuál es el mejor…?",
+        "Precio de…",
+        "Comprar… en México",
+        "…cerca de mí"
+      ],
       "local_signals": "Include 'en México', city names (CDMX, Guadalajara, Monterrey), and 'envío a domicilio' / 'disponible en México' for e-commerce",
       "meta_title_style": "Lead with the primary benefit, include 'México' or city for local intent, keep under 60 characters",
       "meta_description_style": "Conversational, include a clear action phrase ('Cotiza gratis', 'Envío gratis'), 150–160 characters",
@@ -33,32 +81,92 @@
       "punctuation_style": "Use inverted question mark (¿) and exclamation mark (¡) at sentence start",
       "address_order": "Street name + number, Colonia, City, State, CP (Postal Code), México",
       "reading_direction": "Left to right",
-      "preferred_cta_verbs": ["Cotiza", "Compra", "Descubre", "Obtén", "Empieza", "Regístrate", "Aprovecha"],
+      "preferred_cta_verbs": [
+        "Cotiza",
+        "Compra",
+        "Descubre",
+        "Obtén",
+        "Empieza",
+        "Regístrate",
+        "Aprovecha"
+      ],
       "formal_register": "Use 'usted' for B2B and older audiences; 'tú' for B2C, youth, and lifestyle brands"
     }
   },
-
   "de-DE": {
     "language_name": "German (Germany)",
     "regional_nuance": {
       "tone": "Precise, factual, and credibility-driven. German consumers and business audiences are highly skeptical of hyperbole — they expect claims to be substantiated. Lead with specifications, certifications, and concrete outcomes rather than emotional appeals. Directness is a sign of respect, not rudeness.",
-      "cultural_values": ["Quality ('Qualität') and durability over price", "Privacy and data protection (DSGVO awareness)", "Environmental responsibility (Nachhaltigkeit)", "Reliability and punctuality", "Engineering excellence ('Made in Germany' halo effect"]  ,
-      "taboos": ["Avoid superlatives without proof ('best', 'leading') — they read as dishonest", "Never downplay data privacy or skip GDPR-compliance signals", "Avoid casual or overly familiar tone in B2B contexts", "Exaggerated emotional language feels manipulative"],
-      "motivators": ["Technical depth and specification detail", "Third-party certifications and test results (Stiftung Warentest, TÜV)", "Long-term cost-of-ownership arguments", "Environmental certifications (Blauer Engel, etc.)", "Transparent pricing — no hidden fees"]
+      "cultural_values": [
+        "Quality ('Qualität') and durability over price",
+        "Privacy and data protection (DSGVO awareness)",
+        "Environmental responsibility (Nachhaltigkeit)",
+        "Reliability and punctuality",
+        "Engineering excellence ('Made in Germany' halo effect"
+      ],
+      "taboos": [
+        "Avoid superlatives without proof ('best', 'leading') — they read as dishonest",
+        "Never downplay data privacy or skip GDPR-compliance signals",
+        "Avoid casual or overly familiar tone in B2B contexts",
+        "Exaggerated emotional language feels manipulative"
+      ],
+      "motivators": [
+        "Technical depth and specification detail",
+        "Third-party certifications and test results (Stiftung Warentest, TÜV)",
+        "Long-term cost-of-ownership arguments",
+        "Environmental certifications (Blauer Engel, etc.)",
+        "Transparent pricing — no hidden fees"
+      ]
     },
     "slang_and_idioms": [
-      { "term": "Alles klar", "meaning": "All good / Got it — acknowledgment of clarity", "usage": "Confirmation messaging, onboarding flows" },
-      { "term": "Na und?", "meaning": "So what? — used rhetorically to challenge the status quo", "usage": "Problem-framing copy: 'Na und, was bringt das wirklich?'" },
-      { "term": "Das ist der Hammer", "meaning": "That's amazing / That's wild (positive)", "usage": "Feature reveal copy for highly engaged audiences" },
-      { "term": "Ohne Schnickschnack", "meaning": "No frills / No nonsense", "usage": "Value-proposition copy emphasizing simplicity and directness" },
-      { "term": "Läuft bei dir", "meaning": "Things are going well for you — often ironic", "usage": "Relatable problem-acknowledgment copy" },
-      { "term": "Typisch deutsch", "meaning": "Typically German — self-aware quality reference", "usage": "Brand copy that leans into precision and reliability" },
-      { "term": "Auf Herz und Nieren prüfen", "meaning": "Put to the test (lit. test on heart and kidneys)", "usage": "Trial/demo CTAs, product-testing messaging" }
+      {
+        "term": "Alles klar",
+        "meaning": "All good / Got it — acknowledgment of clarity",
+        "usage": "Confirmation messaging, onboarding flows"
+      },
+      {
+        "term": "Na und?",
+        "meaning": "So what? — used rhetorically to challenge the status quo",
+        "usage": "Problem-framing copy: 'Na und, was bringt das wirklich?'"
+      },
+      {
+        "term": "Das ist der Hammer",
+        "meaning": "That's amazing / That's wild (positive)",
+        "usage": "Feature reveal copy for highly engaged audiences"
+      },
+      {
+        "term": "Ohne Schnickschnack",
+        "meaning": "No frills / No nonsense",
+        "usage": "Value-proposition copy emphasizing simplicity and directness"
+      },
+      {
+        "term": "Läuft bei dir",
+        "meaning": "Things are going well for you — often ironic",
+        "usage": "Relatable problem-acknowledgment copy"
+      },
+      {
+        "term": "Typisch deutsch",
+        "meaning": "Typically German — self-aware quality reference",
+        "usage": "Brand copy that leans into precision and reliability"
+      },
+      {
+        "term": "Auf Herz und Nieren prüfen",
+        "meaning": "Put to the test (lit. test on heart and kidneys)",
+        "usage": "Trial/demo CTAs, product-testing messaging"
+      }
     ],
     "seo_behavior": {
       "search_engine": "Google.de dominates (~90%); Bing has minor share",
       "keyword_style": "German compound nouns are dominant search terms — users combine words into long single-word queries (e.g., 'Projektmanagementsoftware', 'Buchhaltungssoftware'). Always target compound variants alongside spaced versions.",
-      "preferred_query_patterns": ["… Vergleich", "… Test", "… kaufen", "… Erfahrungen", "Bestes …", "… Kosten", "… Anleitung"],
+      "preferred_query_patterns": [
+        "… Vergleich",
+        "… Test",
+        "… kaufen",
+        "… Erfahrungen",
+        "Bestes …",
+        "… Kosten",
+        "… Anleitung"
+      ],
       "local_signals": "Include 'Deutschland', 'deutschlandweit', city names (Berlin, München, Hamburg) for local intent. DSGVO-compliant signals improve trust and may influence CTR.",
       "meta_title_style": "Factual benefit + key noun, include brand name at end, 55–60 characters. Avoid clickbait.",
       "meta_description_style": "Factual, include specific numbers or proof points, clear action verb, 150–160 characters",
@@ -72,33 +180,97 @@
       "punctuation_style": "Standard German — use „Anführungszeichen” (lower-9 opening, upper-6 closing) for quotations",
       "address_order": "Street name + number, Postleitzahl (PLZ) City, Deutschland",
       "reading_direction": "Left to right",
-      "preferred_cta_verbs": ["Jetzt kaufen", "Kostenlos testen", "Mehr erfahren", "Anfragen", "Herunterladen", "Registrieren", "Vergleichen"],
+      "preferred_cta_verbs": [
+        "Jetzt kaufen",
+        "Kostenlos testen",
+        "Mehr erfahren",
+        "Anfragen",
+        "Herunterladen",
+        "Registrieren",
+        "Vergleichen"
+      ],
       "formal_register": "Always use 'Sie' (formal you) in B2B and for unknown audiences; 'du' only in explicitly casual B2C brands targeting youth"
     }
   },
-
   "fr-FR": {
     "language_name": "French (France)",
     "regional_nuance": {
       "tone": "Sophisticated, precise, and intellectually confident. French audiences respond to craft, elegance, and substance — copy should feel considered and well-written, never rushed or breathless. Avoid aggressive sales tactics or hyperbole; instead, let the quality of the product and the clarity of the argument do the work. Wit and a light touch of irony are welcome in B2C contexts.",
-      "cultural_values": ["Intellectual depth and cultural pride", "Craftsmanship and 'savoir-faire'", "Individual liberty and critical thinking", "Appreciation for aesthetics and refinement", "Méfiance (healthy skepticism) toward overblown claims"],
-      "taboos": ["Avoid loud, hard-sell Americanisms — 'AMAZING DEAL!!!' reads as vulgar", "Never underestimate the audience's intelligence or over-explain the obvious", "Avoid anglicisms unless the brand deliberately uses them for a modern/tech feel", "Do not use 'tu' in formal or unknown contexts — 'vous' is the safe default"],
-      "motivators": ["Heritage, craftsmanship, and provenance", "Exclusivity and taste ('pour les connaisseurs')", "Social and intellectual status", "Clarity of argument — French audiences want to be convinced, not manipulated", "Environmental and ethical responsibility (especially among under-35s)"]
+      "cultural_values": [
+        "Intellectual depth and cultural pride",
+        "Craftsmanship and 'savoir-faire'",
+        "Individual liberty and critical thinking",
+        "Appreciation for aesthetics and refinement",
+        "Méfiance (healthy skepticism) toward overblown claims"
+      ],
+      "taboos": [
+        "Avoid loud, hard-sell Americanisms — 'AMAZING DEAL!!!' reads as vulgar",
+        "Never underestimate the audience's intelligence or over-explain the obvious",
+        "Avoid anglicisms unless the brand deliberately uses them for a modern/tech feel",
+        "Do not use 'tu' in formal or unknown contexts — 'vous' is the safe default"
+      ],
+      "motivators": [
+        "Heritage, craftsmanship, and provenance",
+        "Exclusivity and taste ('pour les connaisseurs')",
+        "Social and intellectual status",
+        "Clarity of argument — French audiences want to be convinced, not manipulated",
+        "Environmental and ethical responsibility (especially among under-35s)"
+      ]
     },
     "slang_and_idioms": [
-      { "term": "C'est top", "meaning": "That's great / top-notch", "usage": "Casual product highlight copy for B2C" },
-      { "term": "Nickel", "meaning": "Perfect, spotless, exactly right", "usage": "Quality and precision messaging" },
-      { "term": "Carton plein", "meaning": "Full house / total success", "usage": "Results and outcome copy: 'Faites un carton plein avec votre campagne'" },
-      { "term": "Sans prise de tête", "meaning": "No hassle / no headache", "usage": "Simplicity and ease-of-use messaging" },
-      { "term": "Au top", "meaning": "On point / excellent", "usage": "Approving feature descriptions, casual sign-offs" },
-      { "term": "Hyper", "meaning": "Very / extremely (replaces 'très' in casual speech)", "usage": "Emphasis in B2C lifestyle copy: 'hyper efficace', 'hyper simple'" },
-      { "term": "C'est dans la poche", "meaning": "It's in the bag / it's a done deal", "usage": "Confidence-building copy before a CTA" },
-      { "term": "Coup de cœur", "meaning": "Something you fall in love with at first sight", "usage": "Product introductions, testimonial framing" }
+      {
+        "term": "C'est top",
+        "meaning": "That's great / top-notch",
+        "usage": "Casual product highlight copy for B2C"
+      },
+      {
+        "term": "Nickel",
+        "meaning": "Perfect, spotless, exactly right",
+        "usage": "Quality and precision messaging"
+      },
+      {
+        "term": "Carton plein",
+        "meaning": "Full house / total success",
+        "usage": "Results and outcome copy: 'Faites un carton plein avec votre campagne'"
+      },
+      {
+        "term": "Sans prise de tête",
+        "meaning": "No hassle / no headache",
+        "usage": "Simplicity and ease-of-use messaging"
+      },
+      {
+        "term": "Au top",
+        "meaning": "On point / excellent",
+        "usage": "Approving feature descriptions, casual sign-offs"
+      },
+      {
+        "term": "Hyper",
+        "meaning": "Very / extremely (replaces 'très' in casual speech)",
+        "usage": "Emphasis in B2C lifestyle copy: 'hyper efficace', 'hyper simple'"
+      },
+      {
+        "term": "C'est dans la poche",
+        "meaning": "It's in the bag / it's a done deal",
+        "usage": "Confidence-building copy before a CTA"
+      },
+      {
+        "term": "Coup de cœur",
+        "meaning": "Something you fall in love with at first sight",
+        "usage": "Product introductions, testimonial framing"
+      }
     ],
     "seo_behavior": {
       "search_engine": "Google.fr dominates (>92% share); Bing and Qwant have minor shares",
       "keyword_style": "French users search with full phrases and often include prepositions and articles ('le meilleur logiciel de…', 'comment faire…'). Keyword stuffing reads as unnatural — prioritise semantic richness and natural phrasing.",
-      "preferred_query_patterns": ["Meilleur… pour…", "Comment…", "… avis", "… comparatif", "Acheter… en ligne", "… pas cher", "… professionnel"],
+      "preferred_query_patterns": [
+        "Meilleur… pour…",
+        "Comment…",
+        "… avis",
+        "… comparatif",
+        "Acheter… en ligne",
+        "… pas cher",
+        "… professionnel"
+      ],
       "local_signals": "Include 'en France', 'pour les entreprises françaises', city names (Paris, Lyon, Marseille, Bordeaux) for local SEO. 'Livraison en France' and 'service client français' are strong trust signals.",
       "meta_title_style": "Factual and benefit-led; include a relevant keyword naturally; brand name at end separated by '|'; 55–60 characters. Avoid exclamation marks in titles.",
       "meta_description_style": "Elegant and informative; include a concrete proof point or benefit; clear but non-aggressive action phrase ('Découvrez', 'Essayez gratuitement'); 150–160 characters",
@@ -112,33 +284,97 @@
       "punctuation_style": "Standard French — use « guillemets » (angle quotes) for quotations. Add a non-breaking space before : ; ! ? — e.g., 'Résultat : 42 %'",
       "address_order": "Number + Street name, Postal code City, France (e.g., 12 rue de la Paix, 75001 Paris, France)",
       "reading_direction": "Left to right",
-      "preferred_cta_verbs": ["Découvrir", "Essayer gratuitement", "Commencer", "En savoir plus", "Télécharger", "S'inscrire", "Demander une démo"],
+      "preferred_cta_verbs": [
+        "Découvrir",
+        "Essayer gratuitement",
+        "Commencer",
+        "En savoir plus",
+        "Télécharger",
+        "S'inscrire",
+        "Demander une démo"
+      ],
       "formal_register": "Always use 'vous' in B2B and for unknown audiences; 'tu' only in explicitly youth-facing or casual B2C brands. Avoid overly familiar tone unless the brand identity demands it."
     }
   },
-
   "pt-BR": {
     "language_name": "Portuguese (Brazil)",
     "regional_nuance": {
       "tone": "Energetic, warm, and optimistic. Brazilians respond strongly to enthusiasm, humor, and a sense of possibility ('o Brasil que dá certo'). Copy should feel like a conversation with a knowledgeable friend, not a corporate announcement. Storytelling and emotion drive decisions more than specs alone.",
-      "cultural_values": ["Community and togetherness ('juntos somos mais fortes')", "Joy and celebration ('alegria')", "Resilience and resourcefulness ('jeitinho brasileiro')", "Family and personal relationships", "Ambition and upward mobility"],
-      "taboos": ["Avoid European Portuguese (Portugal) constructs — they sound foreign and stiff to Brazilians", "Don't be overly formal unless the context demands it (legal, financial)", "Avoid pessimistic or fear-based framing — Brazilians respond better to aspiration", "Do not conflate Brazil with other Latin American countries"],
-      "motivators": ["Social proof and community validation ('todo mundo já está usando')", "Aspirational lifestyle imagery", "Parcelamento (installment payment) framing — 'em 12x sem juros'", "Exclusivity and limited-time offers ('só hoje')", "Brazilian national pride"]
+      "cultural_values": [
+        "Community and togetherness ('juntos somos mais fortes')",
+        "Joy and celebration ('alegria')",
+        "Resilience and resourcefulness ('jeitinho brasileiro')",
+        "Family and personal relationships",
+        "Ambition and upward mobility"
+      ],
+      "taboos": [
+        "Avoid European Portuguese (Portugal) constructs — they sound foreign and stiff to Brazilians",
+        "Don't be overly formal unless the context demands it (legal, financial)",
+        "Avoid pessimistic or fear-based framing — Brazilians respond better to aspiration",
+        "Do not conflate Brazil with other Latin American countries"
+      ],
+      "motivators": [
+        "Social proof and community validation ('todo mundo já está usando')",
+        "Aspirational lifestyle imagery",
+        "Parcelamento (installment payment) framing — 'em 12x sem juros'",
+        "Exclusivity and limited-time offers ('só hoje')",
+        "Brazilian national pride"
+      ]
     },
     "slang_and_idioms": [
-      { "term": "Show de bola", "meaning": "Excellent, amazing, a total success", "usage": "Product/feature highlights, success state copy" },
-      { "term": "Mandou bem", "meaning": "You did great / Nailed it", "usage": "Congratulatory onboarding copy, achievement states" },
-      { "term": "Arrasar", "meaning": "To kill it / To absolutely excel", "usage": "Aspirational CTAs: 'Arrase nas vendas com...'"},
-      { "term": "Tá on", "meaning": "It's on / Let's go (very current slang)", "usage": "Launch announcements, campaign kickoffs — use for younger demographics" },
-      { "term": "Manda ver", "meaning": "Go for it / Give it your all", "usage": "Action-driving CTAs" },
-      { "term": "Bacana", "meaning": "Cool, nice, pleasant — mild positive", "usage": "Light approval copy, feature introductions" },
-      { "term": "Na hora", "meaning": "Exactly right / Perfect timing", "usage": "Timeliness and urgency copy" },
-      { "term": "Parcelado", "meaning": "Split into installments — extremely important in Brazilian e-commerce", "usage": "Always mention installment options in pricing copy: 'em 12x de R$X'" }
+      {
+        "term": "Show de bola",
+        "meaning": "Excellent, amazing, a total success",
+        "usage": "Product/feature highlights, success state copy"
+      },
+      {
+        "term": "Mandou bem",
+        "meaning": "You did great / Nailed it",
+        "usage": "Congratulatory onboarding copy, achievement states"
+      },
+      {
+        "term": "Arrasar",
+        "meaning": "To kill it / To absolutely excel",
+        "usage": "Aspirational CTAs: 'Arrase nas vendas com...'"
+      },
+      {
+        "term": "Tá on",
+        "meaning": "It's on / Let's go (very current slang)",
+        "usage": "Launch announcements, campaign kickoffs — use for younger demographics"
+      },
+      {
+        "term": "Manda ver",
+        "meaning": "Go for it / Give it your all",
+        "usage": "Action-driving CTAs"
+      },
+      {
+        "term": "Bacana",
+        "meaning": "Cool, nice, pleasant — mild positive",
+        "usage": "Light approval copy, feature introductions"
+      },
+      {
+        "term": "Na hora",
+        "meaning": "Exactly right / Perfect timing",
+        "usage": "Timeliness and urgency copy"
+      },
+      {
+        "term": "Parcelado",
+        "meaning": "Split into installments — extremely important in Brazilian e-commerce",
+        "usage": "Always mention installment options in pricing copy: 'em 12x de R$X'"
+      }
     ],
     "seo_behavior": {
       "search_engine": "Google.com.br dominates (>97% share)",
       "keyword_style": "Brazilians search in natural spoken language — long conversational queries are common. Voice search is growing fast (high mobile penetration). Include question-format and colloquial variants.",
-      "preferred_query_patterns": ["Como fazer…", "O que é…", "Melhor… para…", "… preço", "… vale a pena?", "… como usar", "Comprar … online"],
+      "preferred_query_patterns": [
+        "Como fazer…",
+        "O que é…",
+        "Melhor… para…",
+        "… preço",
+        "… vale a pena?",
+        "… como usar",
+        "Comprar … online"
+      ],
       "local_signals": "Include 'no Brasil', 'para brasileiros', state/city names (São Paulo, Rio de Janeiro, etc.), and 'frete grátis' / 'entrega rápida' for e-commerce. Regional targeting (Sudeste, Nordeste) can be powerful for physical products.",
       "meta_title_style": "Benefit-first, conversational, include 'no Brasil' or city for local intent, 55–60 characters",
       "meta_description_style": "Energetic, include social proof signal or urgency, clear action verb, 150–160 characters",
@@ -152,8 +388,104 @@
       "punctuation_style": "Standard Portuguese — use ”aspas” or standard double quotes; avoid curly quotes in digital copy",
       "address_order": "Street type + name + number, Complemento, Bairro, City – State abbreviation, CEP XXXXX-XXX, Brasil",
       "reading_direction": "Left to right",
-      "preferred_cta_verbs": ["Compre agora", "Experimente grátis", "Saiba mais", "Comece já", "Cadastre-se", "Baixe grátis", "Aproveite"],
+      "preferred_cta_verbs": [
+        "Compre agora",
+        "Experimente grátis",
+        "Saiba mais",
+        "Comece já",
+        "Cadastre-se",
+        "Baixe grátis",
+        "Aproveite"
+      ],
       "formal_register": "Use 'você' universally (both B2B and B2C) — 'tu' is regional (South/Northeast Brazil); avoid 'vós' entirely"
+    }
+  },
+  "en-NG": {
+    "language_name": "English (Nigeria)",
+    "regional_nuance": {
+      "tone": "Warm, energetic, and conversational Nigerian English. Nigeria is linguistically diverse (English is the lingua franca across Yoruba, Igbo, Hausa and hundreds of other languages), so write in clear, standard Nigerian English and do NOT assume a single dialect or slang register. This profile serves both local Nigerian audiences and the international/diaspora audience — default to English that works for both, and localise slang only for brands that clearly target a local youth audience. Be respectful of elders, titles and faith; keep commercial messaging direct, confident and upbeat ('can-do' hustle energy) without being aggressive.",
+      "cultural_values": [
+        "community and extended family ('we rise by lifting others')",
+        "hustle, ambition and entrepreneurship ('hustle' is positive)",
+        "respect for elders, titles and authority",
+        "faith and optimism (reference respectfully, never flippantly)",
+        "pride in Nigerian identity and 'Naija' creativity"
+      ],
+      "taboos": [
+        "Do not assume all Nigerians use Pidgin or any single slang register — default to clear standard Nigerian English",
+        "Avoid negative stereotypes about any ethnic group, region or religion",
+        "Do not mock or overuse religious language — keep it respectful and optional",
+        "Avoid condescending 'Western saviour' framing — position the audience as capable and ambitious",
+        "Do not invent Naira prices, revenue or follower counts — only convert/state what the source actually says"
+      ],
+      "motivators": [
+        "success, status and visible progress",
+        "value for money and trustworthiness (fraud is a real concern — prove legitimacy)",
+        "belonging to community and social proof",
+        "aspiration, upward mobility and 'making it'"
+      ]
+    },
+    "slang_and_idioms": [
+      {
+        "term": "Naija",
+        "meaning": "Colloquial, affectionate name for Nigeria / Nigerian",
+        "usage": "Brand identity and pride moments (optional, not forced)"
+      },
+      {
+        "term": "Hustle",
+        "meaning": "Working hard / entrepreneurship (positive connotation)",
+        "usage": "Grit, ambition and side-income messaging"
+      },
+      {
+        "term": "No wahala",
+        "meaning": "No problem / no stress",
+        "usage": "Reassurance, ease-of-use and customer-support copy"
+      },
+      {
+        "term": "We move",
+        "meaning": "We're progressing / let's keep going",
+        "usage": "Momentum and community CTAs"
+      },
+      {
+        "term": "E choke",
+        "meaning": "It's overwhelming / impressive (youth slang)",
+        "usage": "Optional — only for youth-focused brands, never general B2B"
+      }
+    ],
+    "seo_behavior": {
+      "search_engine": "Google.com.ng dominates, with strong Google (general) and social discovery (Instagram, TikTok, WhatsApp) for Nigerian users",
+      "keyword_style": "Nigerian users search in full conversational phrases, often adding 'in Nigeria', city names (Lagos, Abuja, Port Harcourt, Ibadan), 'price', and 'how to'. Include long-tail question keywords and local place names.",
+      "preferred_query_patterns": [
+        "How to… in Nigeria",
+        "Price of… in Nigeria",
+        "Best… in Lagos",
+        "Where to buy… in Nigeria",
+        "How much is…",
+        "…near me"
+      ],
+      "local_signals": "Reference NGN pricing, Lagos/Abuja/Port Harcourt, 'nationwide delivery', 'Pay on delivery' where relevant, and trust signals (verified, secure payment) for legitimacy",
+      "meta_title_style": "Lead with the benefit, include 'Nigeria' or a city for local intent, keep under 60 characters",
+      "meta_description_style": "Conversational, include a clear action and a trust signal ('Nationwide delivery', 'Pay on delivery'), 150–160 characters",
+      "content_length_preference": "Mid-form (600–900 words) with clear H2/H3 structure; how-to guides, listicles and price-focused content perform well"
+    },
+    "formatting": {
+      "date_format": "DD/MM/YYYY (e.g., 25/07/2026)",
+      "time_format": "Africa/Lagos (WAT, UTC+1, no DST). 12-hour with AM/PM for consumer copy (e.g., 3:00 PM WAT); 24-hour for logistics/B2B.",
+      "currency": "NGN (Nigerian Naira) — format as ₦ with comma thousands and no decimals unless needed (e.g., ₦1,299). Convert any USD references to ₦ with an approximate rate (~₦1,500 = $1 USD) and flag with '(aprox.)'.",
+      "number_separators": "Comma for thousands, period for decimals (e.g., 1,299.50)",
+      "punctuation_style": "Standard English punctuation; exclamation marks are acceptable for excitement but do not overuse",
+      "address_order": "House number + street, area, city, state, Nigeria",
+      "reading_direction": "Left to right",
+      "preferred_cta_verbs": [
+        "Shop now",
+        "Order now",
+        "Get started",
+        "Book now",
+        "Call now",
+        "Chat on WhatsApp",
+        "Learn more"
+      ],
+      "formal_register": "Respectful but approachable; 'you' is fine for most B2C. For B2B and older audiences use full sentences and titles (Mr/Mrs/Dr) where appropriate."
     }
   }
 }
