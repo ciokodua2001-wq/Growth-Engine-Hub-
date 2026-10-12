@@ -205,6 +205,32 @@ staging → 7. Verify DB migration prerequisites → 8. Prepare deploy + rollbac
 
 ---
 
+## Stage 5 - Production recovery and deployment
+
+- **Status:** `IN PROGRESS - BLOCKED` (Phase 5A finding: project deleted)
+- **Phase 5A finding:** Supabase project `hewadpjwvgntrimfmutu` (growthforge-prod) is
+  **DELETED**, not paused. Evidence (read-only checks, no destructive action):
+  - `hewadpjwvgntrimfmutu.supabase.co` (API host) → DNS `NXDOMAIN`
+  - `db.hewadpjwvgntrimfmutu.supabase.co` (direct DB host) → DNS `NXDOMAIN`
+  - Pooler `aws-0-ca-central-1.pooler.supabase.com:6543` (shared infra, TCP open) →
+    `FATAL: (ENOTFOUND) tenant/user not found`
+- **Root cause:** billing/dunning → org downgrade → project paused then deleted
+  (Supabase exit). Postgres + Auth users + Storage objects are all gone unless an
+  external backup exists.
+- **Owner action required:**
+  1. Confirm deletion in the Supabase dashboard (project list / deleted-projects).
+  2. Check for a "Restore" option (only if within Supabase's retention window).
+  3. Locate any external backup (none found in repo — no `.dump`/`pg_dump` artifacts).
+  4. If unrecoverable, authorize a NEW project + full schema re-apply from migrations
+     (data loss unless a backup is found elsewhere).
+- **Backup status:** NOT VERIFIED — no backup file found; no restoration path confirmed.
+- **Migration status:** `0001_p0_creator_sources.sql` still `CREATED - NOT APPLIED`;
+  a baseline migration must be generated for whatever DB is eventually used.
+- **No action taken:** inspection only. No payments, plan changes, DB creation,
+  migration, deploy, or restart.
+
+---
+
 ## Nigeria launch dependencies (mandatory before launch)
 
 | Dependency | Owner stage | Status |
