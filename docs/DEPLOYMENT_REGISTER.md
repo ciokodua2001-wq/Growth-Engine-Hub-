@@ -232,6 +232,12 @@ staging → 7. Verify DB migration prerequisites → 8. Prepare deploy + rollbac
   Better Auth (replaces Supabase Auth) + Cloudflare R2 (replaces Supabase Storage); preserve
   Node API / frontend / AI / video / Stripe. Detail in `docs/STAGE_A_IMPLEMENTATION_PLAN.md`.
 - **Execution status:** PLANNING ONLY. Not yet authorized to resize/provision/migrate/deploy.
+- **Companion-app tab access (V2 attempt):** device connected; `browser_attached_list_tabs`
+  lists 4 shared tabs (Lightsail ca-central-1, Supabase org, AWS S3, AWS Console Home), but
+  `browser_attached_snapshot`/`screenshot`/`navigate`/`click` all return `success:false` (no
+  error) for every parameter shape tried — tab contents could NOT be read. V2 remains BLOCKED
+  until the browser is confirmed open on the Windows PC or the owner pastes the Lightsail
+  metrics directly.
 - **Infrastructure design:** `docs/INFRASTRUCTURE_ARCHITECTURE.md` — cost-first
   three-stage plan. Stage A: single Lightsail Small ($10/mo) + local Postgres +
   better-auth ($0) + Cloudflare R2 ($0 egress). Pending owner decision on the DB
