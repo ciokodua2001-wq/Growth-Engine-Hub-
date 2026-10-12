@@ -326,3 +326,29 @@ Meta/YouTube account enrichment: **optional** for initial launch.
 - **Outstanding production blockers:** DB migration `0001_p0_creator_sources.sql` still
   `CREATED - NOT APPLIED`; no staging/production environment; Wasabi least-privilege key
   rotation blocked on console UI.
+
+---
+
+## Stage A — Wasabi key deactivation + production server audit (2026-10-12, update)
+
+- **Exposed key containment:** Root Account Key `GAVY1…LSVOQ` → **DEACTIVATED** (Active switch
+  off; NOT deleted). Verified two ways: (1) console shows the key status as `Inactive`;
+  (2) a direct S3 `list_buckets` with that key now fails `InvalidAccessKeyId`. The original
+  root key `X25KD5…` and `wawu-quantivarian-vod` `YMX3…` remain `Active` (untouched).
+- **Dependency check (before deactivation):** `search_projects` across all registered projects
+  found no reference to `GAVY1…LSVOQ`; a full `/home/ubuntu` grep found the key only in the
+  GrowthForge `.env`. Strap Bank / Quantivarian / other apps do NOT use it.
+- **Production server (`growthforge-box-8gb` = `growthforge-prod` @ `15.222.206.60`): NOT offline.**
+  The earlier "no pm2 → offline" claim was WRONG (prod uses systemd on a separate Lightsail box).
+  Read-only SSH verified:
+  - systemd: `caddy` (active), `growthforge-dev-api` (active, :4001), `growthforge-prod-api`
+    (active, :4002). Both API processes run `node dist/index.mjs`.
+  - Caddy: `dev.usegrowthforge.com` → full app (basic-auth gated) → `localhost:4001`;
+    `usegrowthforge.com` → static "Coming Soon" (no API proxy); `www` → redirect. The
+    "LAUNCHED" block (→ :4002) is still commented out.
+  - Listening: 22, 80, 443, 2019 (caddy admin), 4001 (dev API), 4002 (prod API).
+  - Prod env uses `SUPABASE_S3_*` + legacy `WASABI_ACCESS_KEY`/`WASABI_SECRET_KEY` (a DIFFERENT
+    key; the exposed `GAVY1…LSVOQ` is NOT present anywhere on the box). The new `OBJECT_STORAGE_*`
+    adapter is NOT yet deployed there.
+- **Least-privilege `growthforge-prod` sub-user:** wizard open, username pre-filled; awaiting
+  owner's manual "Programmatic + Next" click (console custom control is not automatable).
