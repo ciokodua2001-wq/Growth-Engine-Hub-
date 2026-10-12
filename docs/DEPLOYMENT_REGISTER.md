@@ -207,6 +207,22 @@ staging → 7. Verify DB migration prerequisites → 8. Prepare deploy + rollbac
 
 ## Stage 5 - Production recovery and deployment
 
+> **CORRECTION (Phase 5A superseded — verified via shared tabs):** Supabase `growthforge-prod`
+> (ref `hewadpjwvgntrimfmutu`) is **PAUSED, not deleted**. Dashboard shows: "All data,
+> including backups and storage objects, remains safe. You can resume this project from the
+> dashboard until 06 Nov 2027." Root cause: **outstanding invoices** (billing) on the
+> "Strapli Technologies Inc." org (Free plan); 3 projects paused (Global-EdTech,
+> growthforge-prod, strap-bank). The earlier DNS NXDOMAIN / pooler "tenant not found" were
+> paused-project artifacts, not deletion. **Recovery = pay invoice + click "Resume project"
+> (data intact, no data loss).**
+>
+> **Lightsail finding (V2 partial):** production `usegrowthforge.com` (and www/dev) resolve to
+> `15.222.206.60` = **`growthforge-box-8gb`** (8 GB RAM / 2 vCPU / 160 GB SSD, Montreal
+> ca-central-1). 4 running instances: `growthforge-box` (512 MB Nano, 99.79.78.143),
+> `growthforge-box-8gb` (8 GB, 15.222.206.60), `strapli-web` (2 GB, 15.223.91.60),
+> `quantivarian-dev` (2 GB, 52.60.215.106). Usage metrics + process details still pending SSH.
+
+
 - **Status:** `IN PROGRESS - BLOCKED` (Phase 5A finding: project deleted)
 - **Phase 5A finding:** Supabase project `hewadpjwvgntrimfmutu` (growthforge-prod) is
   **DELETED**, not paused. Evidence (read-only checks, no destructive action):
