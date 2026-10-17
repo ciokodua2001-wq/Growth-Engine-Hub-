@@ -504,3 +504,35 @@ No services were changed or restarted. Findings:
 - (backup script commit) `scripts/backup-postgres.sh`
 
 **Incremental cost: $0.00** (Postgres on the existing box; no new AWS/Wasabi resources).
+
+---
+
+## Stage B - DEVELOPMENT CUTOVER (2026-10-17, EXECUTED)
+
+- **Deployed commit:** `6c62b82` (includes `ab9819d` + the `/api/auth` route-order fix). Backend `dist/index.mjs` + frontend `dist/public` built from this commit and pushed to `/home/ubuntu/dev/app/`.
+- **Rollback backup:** `/home/ubuntu/dev/app/.cutover-backup-20261017-090926` (old backend dist 18 MB + frontend public 3.2 MB + `.env`). Rollback = restore these files + `systemctl restart growthforge-dev-api`.
+- **Env changes (dev only):** `DATABASE_URL`/`DIRECT_DATABASE_URL` → `postgresql://growthforge_app_dev@127.0.0.1:5432/growthforge_dev`; `BETTER_AUTH_SECRET` (generated, 64 hex) + `BETTER_AUTH_URL=https://dev.usegrowthforge.com` added. `OBJECT_STORAGE_*` (Wasabi), Stripe, Google AI vars preserved. `growthforge-prod-api` + Caddy NOT restarted; prod env NOT touched.
+- **Bug found + fixed during cutover:** the Better Auth `/api/auth/*` handler was mounted before the app router, swallowing `/api/auth/provision`, `/api/auth/me`, `/api/auth/start-trial`. Reordered (app routes win, rest fall through to Better Auth). Fixed in `6c62b82`.
+
+### E2E test results (against dev.usegrowthforge.com)
+
+- ✅ Register (email/password) → HTTP 200, session cookie `__Secure-better-auth.session_token`.
+- ✅ Identity mapping: `user.id === users.id` (verified in `growthforge_dev`).
+- ✅ Login (email/password) → HTTP 200.
+- ✅ Session persistence across backend restart.
+- ✅ `GET /api/auth/me` → correct `users` row (after route fix).
+- ✅ `POST /api/auth/provision` → 200.
+- ✅ Create project (`POST /api/projects`) → 201, saved to PostgreSQL; list returns it.
+- ✅ Business / creator / hybrid onboarding (`POST /api/onboarding`) → projects created, `users.onboarding_complete = true`.
+- ✅ Cross-user access denial: user B `GET /api/projects/1` (user A's) → 404 "Project not found".
+- ✅ Logout → `{"success":true}`; `get-session` → null afterward.
+- ⚠️ Wasabi presigned upload URL generated correctly (`s3.ca-central-1.wasabisys.com`); byte-level PUT/GET not completed via curl (S3 CRC32 checksum header in the presigned URL - the app's real upload uses the SDK `save()` path).
+- ⏸ Google OAuth: not tested (no `GOOGLE_CLIENT_ID`/`SECRET`).
+- ⏸ Resend email delivery: not verified (sender not yet confirmed).
+- ⚠️ Stripe: `stripe-replit-sync` logs "relation stripe.accounts does not exist" (non-fatal) - the `stripe` schema is in the old Supabase DB, not yet migrated to local Postgres.
+
+### Backup status
+
+**LOCAL ENCRYPTED BACKUP VERIFIED - OFF-SERVER DISASTER RECOVERY PENDING.** Nightly cron active (03:00 UTC); a real decrypt→`pg_restore` drill recovered 57 tables. Off-server Wasabi upload is NOT yet enabled (separate `BACKUP_S3_*` credential still needed).
+
+**Incremental cost: $0.00.**
