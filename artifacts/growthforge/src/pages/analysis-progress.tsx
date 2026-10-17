@@ -13,20 +13,20 @@ import {
 
 const ANALYSIS_STEPS = [
   {
-    label: "Analyzing your website",
-    detail: "Reading your live pages and extracting real business intelligence…",
+    label: "Analyzing your business",
+    detail: "Extracting real business intelligence from your sources...",
   },
   {
     label: "Identifying competitors",
-    detail: "Finding real companies that compete with you and mapping the landscape…",
+    detail: "Finding real companies that compete with you and mapping the landscape...",
   },
   {
     label: "Creating customer profiles",
-    detail: "Building detailed personas grounded in your actual business…",
+    detail: "Building detailed personas grounded in your actual business...",
   },
   {
     label: "Building marketing strategy",
-    detail: "Crafting a tailored go-to-market plan for your goals…",
+    detail: "Crafting a tailored go-to-market plan for your goals...",
   },
 ];
 
@@ -56,7 +56,9 @@ export default function AnalysisProgressPage() {
         const project = await getProject(projectId);
         await analyzeWebsite(projectId, {
           websiteUrl: project.websiteUrl,
-          ...(businessDescription ? { businessDescription } : {}),
+          sourceType: project.sourceType ?? undefined,
+          sourceUrl: project.sourceUrl ?? undefined,
+          businessDescription: businessDescription || project.description || undefined,
         });
         if (!mounted) return;
         setCompletedSteps((prev) => [...prev, 0]);
@@ -88,7 +90,8 @@ export default function AnalysisProgressPage() {
           msg.includes("readable text") ||
           msg.includes("Could not reach") ||
           msg.includes("network error") ||
-          msg.includes("HTTP 4")
+          msg.includes("HTTP 4") ||
+          msg.includes("Not enough information")
         ) {
           setShowDescriptionForm(true);
         }
@@ -127,7 +130,7 @@ export default function AnalysisProgressPage() {
             }`}
           >
             {error ? <AlertTriangle className="w-3 h-3" /> : <Zap className="w-3 h-3" />}
-            {error ? "Analysis failed" : done ? "Analysis complete!" : "AI analysis running…"}
+            {error ? "Analysis failed" : done ? "Analysis complete!" : "AI analysis running..."}
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">
             {error
@@ -140,8 +143,8 @@ export default function AnalysisProgressPage() {
             {error
               ? error
               : done
-              ? "Everything's set up. Taking you to your dashboard…"
-              : "Forge AI is reading your real website and building your personalized marketing strategy."}
+              ? "Everything's set up. Taking you to your dashboard..."
+              : "Forge AI is analyzing your business and building your personalized marketing strategy."}
           </p>
         </div>
 
@@ -253,7 +256,7 @@ export default function AnalysisProgressPage() {
                     animate={{ opacity: 1 }}
                     className="ml-auto text-[10px] text-white/25 shrink-0"
                   >
-                    running…
+                    running...
                   </motion.span>
                 )}
                 {isComplete && (
@@ -274,7 +277,7 @@ export default function AnalysisProgressPage() {
             >
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#00E676]/15 border border-[#00E676]/30 text-[#00E676] text-sm font-medium">
                 <Zap className="w-4 h-4" />
-                Launching your dashboard…
+                Launching your dashboard...
               </div>
             </motion.div>
           )}
@@ -295,7 +298,7 @@ export default function AnalysisProgressPage() {
                       We couldn't read your website automatically
                     </p>
                     <p className="text-xs text-white/50 mb-3">
-                      Describe your business below and we'll use that instead — what you do, who you serve, and what makes you different.
+                      Describe your business below and we'll use that instead - what you do, who you serve, and what makes you different.
                     </p>
                     <textarea
                       value={businessDescription}

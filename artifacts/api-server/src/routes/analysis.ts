@@ -160,14 +160,35 @@ router.post("/projects/:id/analyze", requireActiveSubscription, async (req, res)
   const sourceType = (parsed.data.sourceType ?? project.sourceType ?? "website") as SourceType;
   const websiteUrl = parsed.data.websiteUrl ?? project.websiteUrl ?? null;
   const sourceUrl = parsed.data.sourceUrl ?? project.sourceUrl ?? null;
-  const declaredContent = parsed.data.businessDescription?.trim() || null;
+  let declaredContent = parsed.data.businessDescription?.trim() || null;
+
+  // For social/manual projects (no website), fall back to the declared content
+  // the owner supplied during onboarding so a creator or business without a
+  // website can be analyzed without re-typing their description. The onboarding
+  // flow persists this on business_sources.declared_content (and projects.description
+  // carries goal + market + description), but the analyze request body only ever
+  // receives it when the caller passes `businessDescription` - so resolve it here.
+  if (!declaredContent && sourceType !== "website") {
+    const [persistedSource] = await db
+      .select({ declaredContent: businessSourcesTable.declaredContent })
+      .from(businessSourcesTable)
+      .where(
+        and(
+          eq(businessSourcesTable.projectId, projectId),
+          eq(businessSourcesTable.sourceType, sourceType),
+        ),
+      )
+      .orderBy(desc(businessSourcesTable.createdAt))
+      .limit(1);
+    declaredContent = persistedSource?.declaredContent ?? project.description ?? null;
+  }
 
   if (sourceType === "website" && !websiteUrl) {
     res.status(400).json({ error: "A website URL is required for website analysis. Switch the project source to a social/manual source, or provide a business description." });
     return;
   }
   if (sourceType !== "website" && !sourceUrl && !declaredContent) {
-    res.status(400).json({ error: "Provide a source URL/handle or a business description to analyze this project." });
+    res.status(400).json({ error: "Add a profile URL/handle or describe your business so GrowthForge has something to analyze." });
     return;
   }
 
@@ -488,10 +509,10 @@ function pdfHeader(doc: InstanceType<typeof PDFDocument>, title: string, subtitl
 
 /**
  * Server-side mirror of the UI's parseSubsections parser.
- * Splits AI text on ALL-CAPS section labels (e.g. "PRIMARY PILLAR —", "TONE:", "TOFU (...):").
+ * Splits AI text on ALL-CAPS section labels (e.g. "PRIMARY PILLAR -", "TONE:", "TOFU (...):").
  */
 function pdfParseSubsections(text: string): Array<{ label: string; body: string }> {
-  const re = /\b([A-Z]{2,}(?:\s+[A-Z]{2,})*(?:\s+\d+)?(?:\s*\([^)]{1,100}\))?)\s*(?:—|:)\s*/g;
+  const re = /\b([A-Z]{2,}(?:\s+[A-Z]{2,})*(?:\s+\d+)?(?:\s*\([^)]{1,100}\))?)\s*(?:-|:)\s*/g;
   const candidates: Array<{ index: number; end: number; label: string }> = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
@@ -564,7 +585,7 @@ function pdfResourceLinks(
     doc.font("Helvetica-Bold").fontSize(8).fillColor("#4488bb")
       .text(`↗ ${r.name}`, 60, y, { link: r.url, underline: true, continued: true });
     doc.font("Helvetica").fontSize(8).fillColor("#4a6070")
-      .text(` — ${r.description}`, { underline: false, continued: false });
+      .text(` - ${r.description}`, { underline: false, continued: false });
     y = doc.y + 2;
   }
   return y + 8;
