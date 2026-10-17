@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { db, user, session, account, verification } from "@workspace/db";
+import { db, user, session, account, verification, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { logger } from "./logger.js";
 
 /**
@@ -36,6 +37,27 @@ export const auth = betterAuth({
     provider: "pg",
     schema: { user, session, account, verification },
   }),
+  // Durable identity mapping: every Better Auth `user` row must resolve to a
+  // GrowthForge application `users` row with the SAME id (users.id === user.id).
+  // Creating that row here (on user create) removes any dependence on the
+  // frontend calling /auth/provision, so project ownership, team membership and
+  // subscriptions keyed off users.id keep working the moment a session exists.
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (authUser) => {
+          try {
+            const existing = await db.select().from(usersTable).where(eq(usersTable.id, authUser.id));
+            if (existing.length === 0) {
+              await db.insert(usersTable).values({ id: authUser.id, email: authUser.email ?? null, canAccessDev: true });
+            }
+          } catch (err) {
+            logger.error({ err, userId: authUser.id }, "[Auth] Failed to auto-provision application user row");
+          }
+        },
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     sendResetPassword: async ({ user: authUser, url }) => {
