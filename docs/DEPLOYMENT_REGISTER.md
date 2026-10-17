@@ -457,3 +457,50 @@ No services were changed or restarted. Findings:
 - **Running on box:** two Node API processes (dev ~420 MB, prod ~419 MB RSS), Caddy. Plenty of headroom for Postgres.
 - **Plan (awaiting approval):** `sudo apt install postgresql-16`; create role `growthforge_app` (scram-sha-256) + DB `growthforge`; `pg_hba.conf` localhost=scram-sha-256, remote=reject; run `drizzle-kit migrate` against dev env only. **Cost: $0/month incremental** (runs on existing box).
 - **Rollback:** `apt` install is additive; before install take a snapshot of the box + `pg_dumpall` is N/A (no existing DB). `apt remove` restores prior state.
+
+---
+
+## Stage B - PostgreSQL 16 INSTALLED on Lightsail (2026-10-17, EXECUTED)
+
+- **Package:** `postgresql-16=16.15-0ubuntu0.24.04.1` (Ubuntu noble-updates, explicitly pinned - NOT PGDG). Verified installed + running cluster `16/main` on `127.0.0.1:5432`.
+- **Recovery checkpoint:** Lightsail snapshot was **not possible** - the instance role `AmazonLightsailInstanceRole` is denied `lightsail:GetInstances`/snapshot actions. Equivalent rollback established instead: no prior PG data existed, `dpkg --get-selections` baseline captured (`/tmp/dpkg-baseline-before-pg.txt`), rollback = `apt-get remove --purge postgresql-16`.
+- **Role/DB (credentials redacted):** role `growthforge_app_dev` (LOGIN, not superuser), DB `growthforge_dev`, scram-sha-256. `DATABASE_URL` stored at `/etc/growthforge-dev-db.env` (chmod 600).
+- **Access:** `listen_addresses=localhost` (default), `pg_hba.conf` = local `peer` + `127.0.0.1/32`/`::1/128` `scram-sha-256`, no remote rules. UFW has no 5432 rule → not exposed.
+- **Migrations:** `drizzle-kit migrate` via SSH tunnel → **57 tables, 43 FKs, 2 journal rows** (`0000_baseline` + `0001_better_auth`) applied and verified.
+
+---
+
+## Stage B - Identity mapping (user ↔ users) - DONE + verified
+
+- **Fix:** `databaseHooks.user.create.after` in `betterAuth.ts` auto-creates the application `users` row with `id = user.id` on every Better Auth user create (email/password + Google). No dependence on the frontend calling `/auth/provision`.
+- **Verified:** smoke test sign-up wrote both `user` and `users` rows with identical ids (`users.id === user.id`). `/auth/provision` remains idempotent (updates email/canAccessDev if the row exists).
+
+---
+
+## Stage B - Better Auth frontend + security (2026-10-17)
+
+- **Frontend:** replaced Supabase JS with `better-auth` React client (`lib/authClient.ts`). Rewrote `auth-context` (keeps Clerk-shaped `useAuth()` contract → 9 consumers unchanged). Migrated `sign-in`/`sign-up` (`signIn.email`/`signUp.email`/`signIn.social` Google) and simplified `auth-redirect` (no client-side OAuth code exchange). Removed `authFetch.ts` + `supabaseClient.ts` + `@supabase/supabase-js`. Typecheck clean; Vite build succeeds.
+- **Security:** Better Auth rate limiting enabled (60 req/60s per IP + tighter built-in special rules for sign-in/sign-up/reset). Verification/reset emails wired to Resend (`notifications@usegrowthforge.com`) with a warning-log fallback; token URLs never logged.
+- **NOT yet tested end-to-end:** full browser flow (register→sign in→onboard→project→media), Google OAuth (needs `GOOGLE_CLIENT_ID`/`SECRET` + `BETTER_AUTH_URL`), real Resend delivery.
+
+---
+
+## Stage B - Backup & recovery (2026-10-17)
+
+- **Script:** `scripts/backup-postgres.sh` (in repo) deployed to `/usr/local/bin/growthforge-backup.sh`. `pg_dump -Fc` → `gpg --symmetric --cipher-algo AES256` (passphrase in `/etc/growthforge-backup.env`, chmod 600) → local `/var/backups/growthforge` (30-day retention) → optional Wasabi upload.
+- **Cron:** nightly 03:00 UTC, logs to `/var/log/growthforge-backup.log`.
+- **Restore test:** decrypted a real dump and `pg_restore --clean --if-exists` into `growthforge_restore_test` → **57 tables, 2 journal rows** recovered, then dropped the throwaway DB. PASSED.
+- **REMAINING:** off-server upload is **not yet enabled** - it requires a SEPARATE Wasabi credential (`BACKUP_S3_*`) distinct from the media-storage `OBJECT_STORAGE_*` creds. The script already skips upload safely when those vars are absent.
+
+---
+
+## Stage B - Commit history (this session)
+
+- `359ab33` Better Auth backend (schema, migration, instance, middleware, routes, Supabase removal)
+- `57e2d5a` register: Phase 3B backend + preflight
+- `1aadddd` auto-provision users row (identity mapping)
+- `8f4cd89` frontend migration off Supabase → Better Auth client
+- `5d19b78` rate limiting + Resend email wiring
+- (backup script commit) `scripts/backup-postgres.sh`
+
+**Incremental cost: $0.00** (Postgres on the existing box; no new AWS/Wasabi resources).
