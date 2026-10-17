@@ -431,3 +431,29 @@ No services were changed or restarted. Findings:
 - **Lightsail DB config (PLAN, not executed - requires approval):** dedicated role `growthforge_app` (scram-sha-256 password), database `growthforge`, `DATABASE_URL=postgresql://growthforge_app:<pw>@127.0.0.1:5432/growthforge` (+ `DIRECT_DATABASE_URL` same), UFW blocks external 5432, `pg_hba.conf` localhost = `scram-sha-256`.
 - **Encrypted off-server backups (PLAN):** nightly `pg_dump -Fc` → `gpg --symmetric` (key from env, not in repo) → upload to the existing Wasabi `growthforge-media` bucket under `backups/` (30-day retention). Restore drill = decrypt + `pg_restore --clean` into a throwaway DB + row-count check.
 - **NOT done yet:** installing Postgres on Lightsail, creating the live role/DB, and the backup cron - all require explicit approval.
+
+---
+
+## Stage A - Phase 3B Better Auth backend (2026-10-17, CODE COMPLETE + locally verified)
+
+- **48 vs 53 table reconciliation:** the earlier "48 tables" figure was a grep undercount. The schema has **53 tables** - 48 are defined with single-line `pgTable("name", ...)` and 5 use a multi-line `pgTable(` call (name on the next line): `business_sources`, `analysis_sources`, `object_acl_policies`, `plan_usage`, `trial_usage`. No schema anomaly; 53 is authoritative (matches the fresh DB and `drizzle-kit generate`).
+- **Auth schema:** new `lib/db/src/schema/auth.ts` adds Better Auth's `user`/`session`/`account`/`verification` tables (Better Auth owns auth/session state; the app `users` table stays the profile source of truth keyed by the same UUID). No collision with `users`/`team_members`/`meta_page_sessions`.
+- **Migration:** `0001_better_auth.sql` (drizzle-native) + meta snapshot/journal. Replay verified from empty: `drizzle-kit migrate` applies `0000`→`0001` cleanly → **57 tables**, 2 journal rows.
+- **Auth instance** (`api-server/src/lib/betterAuth.ts`): `better-auth` 1.7.10 + `drizzleAdapter` (pg). Email/password enabled; Google OAuth wired conditionally (`GOOGLE_CLIENT_ID`+`GOOGLE_CLIENT_SECRET`); `sendResetPassword` + `sendVerificationEmail` hooks present but **logged, not yet sent via Resend** (TODO).
+- **Middleware** (`supabaseAuth.ts`): now verifies the Better Auth session cookie via `auth.api.getSession` (no Bearer/network round-trip). Kept the exact `getAuth(req)`/`req.auth = {userId, sessionClaims}` contract so all ~15 downstream call sites are unchanged. Authorization (`authz.ts`) remains server-side.
+- **Routes:** `toNodeHandler(auth)` mounted at `/api/auth/*` (sign-up, sign-in, sign-out, session, reset-password, verify-email, OAuth callbacks) before the session middleware. Existing `/auth/provision`, `/auth/start-trial`, `/auth/me` unchanged.
+- **Supabase removal:** deleted `supabaseClient.ts` + dropped `@supabase/supabase-js` from api-server; `wanRenderer.ts` raw-upload cleanup now uses an S3 presigned DELETE. `build.mjs` now bundles `@opentelemetry/*` (better-auth telemetry dep).
+- **Verified locally (fresh Postgres 16 + test creds):** typecheck 0 errors; esbuild clean; smoke test `signUpEmail`/`signInEmail`/`signOut` all succeeded and wrote correct `user` (+`account` with password hash, `provider_id=credential`) and `session` rows.
+- **NOT done (Phase 3B remaining):** frontend migration off `@supabase/supabase-js` (auth-context, authFetch, sign-in/sign-up pages), Resend email wiring, Google OAuth end-to-end, rate limiting on auth endpoints, and full cross-user authorization tests.
+
+---
+
+## Stage A - Lightsail PostgreSQL preflight (2026-10-17, read-only inspection)
+
+- **Instance:** `growthforge-box-8gb` @ `15.222.206.60`. 2 vCPU, **7.6 GiB RAM** (6.3 GiB available), **2 GiB swap** (0 used), **154 GB disk** (146 GB free).
+- **Postgres:** server **not installed** (only `postgresql-client-16`/`-17` + `libpq5`). No clusters (`pg_lsclusters` absent), no systemd unit, **nothing on 5432**.
+- **Firewall:** UFW active; allows OpenSSH/80/443 only - **5432 not exposed** (correct; keep local-only).
+- **Other local DB use:** none (no reachable local database).
+- **Running on box:** two Node API processes (dev ~420 MB, prod ~419 MB RSS), Caddy. Plenty of headroom for Postgres.
+- **Plan (awaiting approval):** `sudo apt install postgresql-16`; create role `growthforge_app` (scram-sha-256) + DB `growthforge`; `pg_hba.conf` localhost=scram-sha-256, remote=reject; run `drizzle-kit migrate` against dev env only. **Cost: $0/month incremental** (runs on existing box).
+- **Rollback:** `apt` install is additive; before install take a snapshot of the box + `pg_dumpall` is N/A (no existing DB). `apt remove` restores prior state.
