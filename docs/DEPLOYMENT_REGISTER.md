@@ -564,3 +564,26 @@ No services were changed or restarted. Findings:
   profile retrieval still NOT implemented (manual declared content only) — tracked in
   Phase 4. Multi-source analysis NOT yet wired (Phase 3).
 - **Incremental cost:** $0.00.
+
+---
+
+## Stage D - Phase 4 (Meta retrieval) + Phase 3 (multi-source) (2026-10-17)
+
+- **Commit:** `b2def11` — read-only Meta Graph retrieval service + multi-source `/analyze`.
+- **Retrieval:** `metaProfileRetrieval.ts` reads authorized FB Page (name/category/about/
+  description/website/fan_count + recent post messages) and IG business/creator
+  (username/name/bio/media_count/followers_count/website + recent media captions) via
+  `pages_read_engagement` + `instagram_basic` (Graph v20.0). Persists into `business_sources`
+  with `retrievalMethod=meta_graph_api`, `authorizationStatus=authorized`. Never fabricates.
+- **Multi-source:** `/analyze` now gathers primary + Meta-retrieved + other declared ledger
+  sources, dedupes, caps grounding at 30k chars, writes one `analysis_source` snapshot per
+  source. `POST /projects/:id/sources/retrieve` added for independent verification.
+- **Testing:** typecheck ✅ (0 errors) · build ✅ · 157 unit tests pass (1 pre-existing
+  DB-blocked file). New: 3 meta-formatting + 3 multi-source helper tests.
+- **BLOCKER — live retrieval not yet verified:** `meta_connections` is EMPTY in dev (0
+  connected FB/IG accounts). Retrieval service is implemented + unit-tested against mock
+  payloads, but actual Graph API access can only be proven once a real Facebook Page +
+  Instagram business account is connected via the OAuth flow. `instagram_basic` in code is
+  NOT treated as proof of usable permission (per owner guidance).
+- **Deployment:** NOT deployed (needs new dev API restart approval). No schema migration.
+- **Incremental cost:** $0.00.
