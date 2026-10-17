@@ -369,3 +369,35 @@ Meta/YouTube account enrichment: **optional** for initial launch.
     `WASABI_ACCESS_KEY_ID`/`WASABI_SECRET_ACCESS_KEY` now hold `ABUU54...ART55`; `GAVY1...LSVOQ`
     removed from `.env` (0 remaining occurrences). `.env` is gitignored (not committed).
   - Old exposed key `GAVY1...LSVOQ` remains **DEACTIVATED** (not deleted).
+
+---
+
+## Stage A - Phase 1 storage integration audit (2026-10-16, code + read-only SSH)
+
+No services were changed or restarted. Findings:
+
+- **Source is fully migrated** to `OBJECT_STORAGE_*` (Wasabi): `grep SUPABASE_S3` over
+  `artifacts/api-server/src/` → **0 hits**.
+- **Compiled `dist/index.mjs` is STALE**: still contains 7 `SUPABASE_S3_*` references in the
+  Wan/Vast.ai renderer S3 passthrough. Both dev and prod run `node dist/index.mjs`, so the
+  deployed video-render upload path is **not yet** on the Wasabi endpoint.
+- **Adapter capabilities** (`lib/objectStorage.ts`): single-shot `PutObject` (no multipart),
+  presigned GET/PUT/DELETE/HEAD via SigV4 (≤7 days), `ContentType` metadata only,
+  `HeadObject` exists-check, S3 passthrough override for external workers. The scoped policy's
+  `s3:GetObject`/`s3:PutObject`/`s3:DeleteObject`/`s3:ListBucket` cover every operation the
+  code performs.
+- **Env var status (verified via `systemctl cat` + EnvironmentFile, values redacted):**
+  - `growthforge-dev-api` `/home/ubuntu/dev/app/.env`: has `SUPABASE_*` (dead),
+    `DEFAULT_OBJECT_STORAGE_BUCKET_ID`, `ACTIVE_VIDEO_PROVIDER`; **NO** `OBJECT_STORAGE_*`,
+    `SUPABASE_S3_*`, `WASABI_*`.
+  - `growthforge-prod-api` `/home/ubuntu/prod/app/.env`: has `SUPABASE_*` (dead),
+    `DEFAULT_OBJECT_STORAGE_BUCKET_ID`; **NO** `OBJECT_STORAGE_*`, `SUPABASE_S3_*`, `WASABI_*`,
+    `ACTIVE_VIDEO_PROVIDER`, `VAST_AI_*`.
+  - Net effect: object storage is **not functional on either box** (bucket name set but
+    credentials missing → adapter throws "Object storage not configured"). Supabase Auth/DB
+    are dead (Supabase deleted).
+- **Env var roles:** `OBJECT_STORAGE_*` (new - main adapter + Wan in source) · `SUPABASE_S3_*`
+  (legacy Supabase Storage passthrough, still present in the stale dist) · `WASABI_*` (legacy,
+  present only in gitignored `.env`, referenced by no source code).
+- **Migrations:** only `0001_p0_creator_sources.sql` (+`.down.sql`); no `0000_baseline`.
+- **Better Auth:** 0 references in source - auth is still `supabaseAuth.ts` / `@supabase/auth-js`.
