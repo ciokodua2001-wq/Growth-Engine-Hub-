@@ -82,6 +82,12 @@ function getS3Client(): S3Client {
         secretAccessKey: cfg.secretAccessKey,
       },
       forcePathStyle: cfg.forcePathStyle,
+      // Disable AWS SDK v3 "flexible checksums" (CRC32). With the default
+      // (WHEN_SUPPORTED) the SDK injects x-amz-sdk-checksum-algorithm=CRC32 and
+      // a checksum of an *empty* body into presigned PUT URLs, so a real upload
+      // with a non-empty body fails signature/checksum validation. Wasabi does
+      // not require a checksum, so request one only when the server mandates it.
+      requestChecksumCalculation: "WHEN_REQUIRED",
     });
   }
   return _s3Client;
