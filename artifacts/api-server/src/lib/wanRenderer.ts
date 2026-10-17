@@ -17,27 +17,27 @@ import {
 const logger = pino({ name: "wanRenderer" });
 
 // ── Self-hosted Wan 2.2 (14B, T2V-A14B + I2V-A14B) video worker, served via a ──
-// Vast.ai Serverless endpoint (min_workers=0 / inactivity_timeout=300s — scales
+// Vast.ai Serverless endpoint (min_workers=0 / inactivity_timeout=300s - scales
 // to zero between renders so idle time costs ~$0). Replaces Kling AI as the
 // primary, low-cost video generation backend. Kling's code remains fully
 // intact and reachable only via a deliberate, manual ACTIVE_VIDEO_PROVIDER
-// flip during an extended Wan outage — see sceneManager.ts and
+// flip during an extended Wan outage - see sceneManager.ts and
 // .agents/memory/wan-vast-video-migration.md for the full design rationale.
 //
 // HTTP contract (verified against docs.vast.ai/guides/serverless/{overview,
 // architecture,comfy-ui} + a proven third-party TS reference implementation):
 //   1. POST https://run.vast.ai/route/ {endpoint, api_key, cost, request_idx,
-//      replay_timeout} — poll until a worker `url` is returned (cold-start wake).
+//      replay_timeout} - poll until a worker `url` is returned (cold-start wake).
 //   2. POST {workerUrl}/generate/sync {auth_data: <full route response>,
 //      session_id: null, payload: {input: {request_id, workflow_json, s3}}}
 //   3. Response.output[] contains a pre-signed S3 URL per generated asset (S3
 //      config, pointed at our own S3-compatible object-storage bucket, is
-//      passed per-request below) — no local Vast.ai storage is
+//      passed per-request below) - no local Vast.ai storage is
 //      ever relied upon.
 
 const VAST_ROUTE_URL = "https://run.vast.ai/route/";
 const DEFAULT_REQUEST_COST = 6_000; // heavy relative to the SD1.5 benchmark baseline (100)
-const DEFAULT_MAX_WAIT_SEC = 600; // 10 min — cold-start model load (≈60GB of fp8 weights) can be slow
+const DEFAULT_MAX_WAIT_SEC = 600; // 10 min - cold-start model load (≈60GB of fp8 weights) can be slow
 const ROUTE_POLL_INTERVAL_MS = 10_000;
 const WORKER_REQUEST_TIMEOUT_MS = 20 * 60_000; // /generate/sync blocks synchronously for the whole render
 
@@ -50,7 +50,7 @@ export interface WanSceneRenderRequest {
   durationSec: number;
   /** true = new scene cut → text-to-video (T2V). false = continuity → image-to-video (I2V). */
   newSceneCut: boolean;
-  /** Required when newSceneCut is false — the last frame of the previous scene's clip. */
+  /** Required when newSceneCut is false - the last frame of the previous scene's clip. */
   sourceFrameUrl?: string | null;
 }
 
@@ -58,7 +58,7 @@ export interface WanSceneRenderResult {
   videoUrl: string;
   durationSec: number;
   providerTaskId?: string;
-  /** Signed URL to the last frame of this clip — for the next scene's I2V continuity. */
+  /** Signed URL to the last frame of this clip - for the next scene's I2V continuity. */
   lastFrameUrl?: string;
 }
 
@@ -91,7 +91,7 @@ interface VastRouteResponse {
 interface VastOutputAsset {
   filename: string;
   local_path?: string;
-  url?: string; // pre-signed S3 URL — present only when S3 is configured
+  url?: string; // pre-signed S3 URL - present only when S3 is configured
   type?: string;
   subfolder?: string;
   node_id?: string;
@@ -242,7 +242,7 @@ async function storeLastFramePng(
     metadata: { contentType: "image/png" },
   });
 
-  // 24h TTL — comfortably outlives the time between this scene finishing and
+  // 24h TTL - comfortably outlives the time between this scene finishing and
   // the next scene (if it's a continuity cut) being submitted.
   return signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 86_400 });
 }
@@ -250,16 +250,16 @@ async function storeLastFramePng(
 /**
  * Best-effort cleanup of the raw WEBM the PyWorker uploaded directly to our
  * bucket via the S3 override (we only keep the transcoded MP4 long-term).
- * Uses the exact key ComfyUI/PyWorker reported in the response — never
- * guesses a path — and never fails the render if cleanup itself fails.
+ * Uses the exact key ComfyUI/PyWorker reported in the response - never
+ * guesses a path - and never fails the render if cleanup itself fails.
  */
 async function tryDeleteRawUpload(asset: VastOutputAsset): Promise<void> {
   try {
     const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
     if (!bucketId) return;
     const key = asset.subfolder ? `${asset.subfolder}/${asset.filename}` : asset.filename;
-    const { supabaseAdmin } = await import("./supabaseClient.js");
-    await supabaseAdmin.storage.from(bucketId).remove([key]);
+    const deleteUrl = await signObjectURL({ bucketName: bucketId, objectName: key, method: "DELETE", ttlSec: 300 });
+    await fetch(deleteUrl, { method: "DELETE" });
   } catch (err) {
     logger.warn({ err, filename: asset.filename }, "[WanRenderer] Raw upload cleanup failed (non-fatal)");
   }
@@ -300,7 +300,7 @@ export class WanRenderer {
     const worker = await resolveWorker();
     logger.info(
       { sceneJobId: req.sceneJobId, workerUrl: worker.url },
-      "[WanRenderer] Worker ready — submitting generate/sync",
+      "[WanRenderer] Worker ready - submitting generate/sync",
     );
 
     const result = await submitGenerateSync(worker, workflow, requestId);
@@ -311,7 +311,7 @@ export class WanRenderer {
     const asset = result.output?.find(o => o.node_id === WAN_SAVE_NODE_ID) ?? result.output?.[0];
     if (!asset?.url) {
       throw new Error(
-        "Vast.ai response had no S3 pre-signed URL for the generated clip — verify OBJECT_STORAGE_* env vars",
+        "Vast.ai response had no S3 pre-signed URL for the generated clip - verify OBJECT_STORAGE_* env vars",
       );
     }
 
@@ -332,7 +332,7 @@ export class WanRenderer {
         await extractLastFramePng(mp4Path, framePath);
         lastFrameUrl = await storeLastFramePng(framePath, req.videoId, req.sceneIndex);
       } catch (err) {
-        // Non-fatal — only blocks a FUTURE continuity scene, not this one.
+        // Non-fatal - only blocks a FUTURE continuity scene, not this one.
         logger.warn({ err, sceneJobId: req.sceneJobId }, "[WanRenderer] Last-frame extraction failed (non-fatal)");
       }
 

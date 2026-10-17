@@ -1,13 +1,13 @@
 import type { NextFunction, Request, Response } from "express";
-import { supabaseAdmin } from "./supabaseClient.js";
+import { fromNodeHeaders } from "better-auth/node";
+import { auth } from "./betterAuth.js";
 
 /**
- * Clerk-compatible auth context, kept intentionally narrow to the two fields
- * every route in this codebase actually reads off Clerk's `getAuth(req)`
- * result: `userId` and `sessionClaims`. Like Clerk's real `getAuth()`, this
- * object itself is never null/undefined — only `userId` is, for
- * unauthenticated requests — since a lot of call sites rely on that exact
- * contract (e.g. `getAuth(req).sessionClaims` with no optional chaining).
+ * Auth context contract (formerly "SupabaseAuthContext" - name retained to
+ * avoid churning every call site; the implementation is now Better Auth).
+ * Kept intentionally narrow to the two fields every route reads off
+ * `getAuth(req)`: `userId` and `sessionClaims`. The object itself is never
+ * null/undefined - only `userId` is - for unauthenticated requests.
  */
 export interface SupabaseAuthContext {
   userId: string | null;
@@ -23,39 +23,29 @@ declare global {
 }
 
 /**
- * Verifies the Supabase access token (if any) on every incoming request and
- * attaches the result to `req.auth`. Mirrors the permissive behavior of
- * Clerk's `clerkMiddleware`: requests with no token, or an invalid one,
- * simply get `req.auth` left unset — it's up to each route to call
+ * Verifies the Better Auth session (via the session cookie) on every incoming
+ * request and attaches the result to `req.auth`. Mirrors the permissive
+ * behavior of the old Clerk/Supabase middleware: requests with no session, or
+ * an invalid/expired one, simply leave `req.auth` unset - each route calls
  * `requireUserId`/`getAuth` to actually enforce authentication (401).
  *
- * Verification is done via `supabase.auth.getUser(token)`, which asks the
- * Supabase Auth server to validate the token. That works regardless of
- * whether this project uses legacy symmetric (HS256) or the newer asymmetric
- * JWT signing keys, at the cost of one extra network round-trip per
- * authenticated request. If that becomes a bottleneck, switch to local
- * verification via `jose` + this project's JWKS endpoint — see
- * https://supabase.com/docs/guides/auth/jwts.
+ * This reads the `better-auth.session_token` cookie (set by the Better Auth
+ * handler at `/api/auth/*`), not a Bearer token. No network round-trip is
+ * required: the session is verified locally against the `session` table.
  */
 export async function supabaseAuthMiddleware(req: Request, _res: Response, next: NextFunction): Promise<void> {
-  const header = req.headers.authorization;
-  const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : undefined;
-
-  if (!token) {
-    next();
-    return;
-  }
-
   try {
-    const { data, error } = await supabaseAdmin.auth.getUser(token);
-    if (!error && data.user) {
+    const headers = fromNodeHeaders(req.headers);
+    const result = await auth.api.getSession({ headers });
+    if (result?.user && result?.session) {
+      const { user } = result;
       req.auth = {
-        userId: data.user.id,
-        sessionClaims: { ...(data.user.user_metadata ?? {}), email: data.user.email ?? null },
+        userId: user.id,
+        sessionClaims: { email: user.email ?? null },
       };
     }
   } catch (err) {
-    req.log?.warn({ err }, "Supabase token verification failed");
+    req.log?.warn({ err }, "Better Auth session verification failed");
   }
 
   next();

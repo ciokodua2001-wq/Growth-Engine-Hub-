@@ -2,6 +2,8 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { supabaseAuthMiddleware } from "./lib/supabaseAuth.js";
+import { toNodeHandler } from "better-auth/node";
+import { auth } from "./lib/betterAuth.js";
 import router from "./routes/index.js";
 import resendWebhookHandler from "./routes/resendWebhook.js";
 import { logger } from "./lib/logger.js";
@@ -23,7 +25,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Public comparison pages — served before ALL middleware (no auth, no CORS)
+// Public comparison pages - served before ALL middleware (no auth, no CORS)
 // URL includes projectId to guarantee uniqueness: /api/compare/:projectId/:slug
 // e.g. https://usegrowthforge.com/api/compare/20/jasper-alternative
 app.get("/api/compare/:projectId/:slug", async (req, res) => {
@@ -46,7 +48,7 @@ app.get("/api/compare/:projectId/:slug", async (req, res) => {
   }
 });
 
-// Public sitemap — registered before ALL middleware (no auth, no CORS, no credentials)
+// Public sitemap - registered before ALL middleware (no auth, no CORS, no credentials)
 // so Google's crawler gets a clean response with Cache-Control: public.
 app.get("/api/sitemap/:projectId/sitemap.xml", async (req, res) => {
   const projectId = parseInt(String(req.params["projectId"] ?? ""), 10);
@@ -82,7 +84,7 @@ app.use(
   }),
 );
 
-// 2a. Stripe webhook — must be registered BEFORE express.json() parses the body.
+// 2a. Stripe webhook - must be registered BEFORE express.json() parses the body.
 //     The webhook handler needs the raw Buffer to verify the Stripe signature.
 app.post(
   "/api/stripe/webhook",
@@ -104,7 +106,7 @@ app.post(
   },
 );
 
-// 2b. Resend webhook — must be registered BEFORE express.json() to access the raw body.
+// 2b. Resend webhook - must be registered BEFORE express.json() to access the raw body.
 app.post("/api/owner/resend-webhook", express.raw({ type: "application/json" }), resendWebhookHandler);
 
 // 2b. Body parsers (after webhook so json() doesn't intercept the raw buffer)
@@ -112,7 +114,12 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 3. Supabase session middleware — verifies the Bearer token (if any) and
+// 2c. Better Auth handler - /api/auth/* (sign-up, sign-in, sign-out, session,
+//     reset-password, verify-email, OAuth callbacks). Mounted before the session
+//     middleware so these endpoints are reachable without an existing session.
+app.all("/api/auth/*splat", (req, res) => toNodeHandler(auth)(req, res));
+
+// 3. Session middleware - verifies the Better Auth session cookie (if any) and
 //    attaches the result to req.auth for downstream routes (see lib/supabaseAuth.ts).
 app.use(supabaseAuthMiddleware);
 
