@@ -56,6 +56,13 @@ export const auth = betterAuth({
     provider: "pg",
     schema: { user, session, account, verification },
   }),
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["google"],
+      requireLocalEmailVerified: false,
+    },
+  },
   // Durable identity mapping: every Better Auth `user` row must resolve to a
   // GrowthForge application `users` row with the SAME id (users.id === user.id).
   // Creating that row here (on user create) removes any dependence on the
