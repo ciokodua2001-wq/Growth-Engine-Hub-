@@ -6,7 +6,7 @@ export default function AboutPage() {
   return (
     <div className="min-h-screen text-white" style={{ background: "#040B14" }}>
       <nav className="border-b border-white/8 px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
             <div className="h-7 w-7 rounded-lg bg-[#00E676]/20 flex items-center justify-center"><Zap className="h-3.5 w-3.5 text-[#00E676]" /></div>
             <span className="font-bold text-white">GrowthForge</span>
@@ -17,7 +17,7 @@ export default function AboutPage() {
         </div>
       </nav>
 
-      <main className="max-w-5xl mx-auto px-6 py-16">
+      <main className="max-w-6xl mx-auto px-6 py-16">
 
         {/* Hero */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-20">

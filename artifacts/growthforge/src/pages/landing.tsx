@@ -469,7 +469,7 @@ export default function LandingPage() {
     }
   }, [isAuthed, isAdmin, setLocation]);
 
-  const W = "max-w-[1380px] mx-auto";
+  const W = "max-w-[1600px] w-[min(95vw,1600px)] mx-auto";
 
   return (
     <div className="min-h-screen text-foreground overflow-x-hidden" style={{ background: "#040B14" }}>
@@ -621,54 +621,61 @@ export default function LandingPage() {
       </Sheet>
 
       {/* ── Hero ── */}
-      <section className="pt-36 pb-28 px-4 relative overflow-hidden">
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="h-[700px] w-[1100px] rounded-full blur-[140px]" style={{ background: "radial-gradient(ellipse, rgba(0,230,118,0.08) 0%, transparent 70%)" }} />
+      <section className="relative overflow-hidden pt-24 md:pt-28 pb-14 md:pb-16">
+        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 55% 45% at 15% 0%, rgba(0,230,118,0.10) 0%, transparent 60%), radial-gradient(ellipse 45% 40% at 88% 12%, rgba(0,212,255,0.08) 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 50% 110%, rgba(20,241,149,0.06) 0%, transparent 60%)" }} />
+        <div className="absolute inset-0 pointer-events-none opacity-[0.035]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.7) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.7) 1px, transparent 1px)", backgroundSize: "64px 64px" }} />
+        <div className={`${W} relative grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-14 items-center`}>
+          <div className="text-center lg:text-left">
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+              <SectionLabel>AI Growth Operating System</SectionLabel>
+            </motion.div>
+            <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.1 }}
+              className="text-5xl md:text-6xl xl:text-7xl font-black tracking-tighter leading-[1.02] mb-6 text-white">
+              Paste Your URL.<br />
+              <span style={{ color: "#00E676" }}>Get Your Marketing</span><br />
+              Department.
+            </motion.h1>
+            <motion.p initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.2 }}
+              className="text-lg md:text-xl text-white/50 max-w-xl mx-auto lg:mx-0 mb-8 leading-relaxed">
+              GrowthForge is the AI Growth Operating System that analyzes your business, discovers competitors, creates marketing assets, generates video campaigns, and helps businesses scale faster.
+            </motion.p>
+            <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.3 }}
+              className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-7">
+              {isAuthed ? (
+                <Link href="/dashboard" className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold text-base px-8 py-4 rounded-xl transition-all shadow-lg hover:scale-[1.02] text-black"
+                  style={{ background: "#00E676", boxShadow: "0 0 40px rgba(0,230,118,0.25)" }}>
+                  Go To Dashboard <ArrowRight className="h-5 w-5" />
+                </Link>
+              ) : (
+                <Link href="/sign-up" className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold text-base px-8 py-4 rounded-xl transition-all shadow-lg hover:scale-[1.02] text-black"
+                  style={{ background: "#00E676", boxShadow: "0 0 40px rgba(0,230,118,0.25)" }}>
+                  Start Free Trial <ArrowRight className="h-5 w-5" />
+                </Link>
+              )}
+              <a href="#showcase" className="w-full sm:w-auto flex items-center justify-center gap-2 text-white/70 font-semibold text-base px-8 py-4 rounded-xl border border-white/10 hover:border-white/25 hover:text-white transition-all"
+                style={{ background: "rgba(255,255,255,0.04)" }}>
+                <Play className="h-4 w-4" /> Watch Demo
+              </a>
+            </motion.div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.55 }}
+              className="flex flex-wrap items-center justify-center lg:justify-start gap-x-5 gap-y-2 text-sm text-white/40">
+              <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> No credit card required</span>
+              <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> 7-day free trial</span>
+              <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> Cancel anytime</span>
+            </motion.div>
+          </div>
+          <motion.div initial={{ opacity: 0, y: 32, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }} className="relative">
+            <div className="absolute -inset-10 rounded-[44px] blur-3xl pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(0,230,118,0.14) 0%, rgba(0,212,255,0.07) 50%, transparent 75%)" }} />
+            <div className="relative rounded-[28px] p-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(10px)", boxShadow: "0 40px 120px -30px rgba(0,0,0,0.7)" }}>
+              <DashboardMockup active="Analysis" />
+            </div>
+          </motion.div>
         </div>
-        <div className={`${W} text-center relative`}>
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <SectionLabel>AI Growth Operating System</SectionLabel>
-          </motion.div>
-          <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.1 }}
-            className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter leading-[1.0] mb-6 text-white">
-            Paste Your URL.<br />
-            <span style={{ color: "#00E676" }}>Get Your Marketing</span><br />
-            Department.
-          </motion.h1>
-          <motion.p initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.2 }}
-            className="text-xl md:text-2xl text-white/50 max-w-3xl mx-auto mb-10 leading-relaxed">
-            GrowthForge is the AI Growth Operating System that analyzes your business, discovers competitors, creates marketing assets, generates video campaigns, and helps businesses scale faster.
-          </motion.p>
-          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.3 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
-            {isAuthed ? (
-              <Link href="/dashboard" className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold text-base px-8 py-4 rounded-xl transition-all shadow-lg hover:scale-[1.02] text-black"
-                style={{ background: "#00E676", boxShadow: "0 0 40px rgba(0,230,118,0.25)" }}>
-                Go To Dashboard <ArrowRight className="h-5 w-5" />
-              </Link>
-            ) : (
-              <Link href="/sign-up" className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold text-base px-8 py-4 rounded-xl transition-all shadow-lg hover:scale-[1.02] text-black"
-                style={{ background: "#00E676", boxShadow: "0 0 40px rgba(0,230,118,0.25)" }}>
-                Start Free Trial <ArrowRight className="h-5 w-5" />
-              </Link>
-            )}
-            <a href="#showcase" className="w-full sm:w-auto flex items-center justify-center gap-2 text-white/70 font-semibold text-base px-8 py-4 rounded-xl border border-white/10 hover:border-white/25 hover:text-white transition-all"
-              style={{ background: "rgba(255,255,255,0.04)" }}>
-              <Play className="h-4 w-4" /> Watch Demo
-            </a>
-          </motion.div>
-          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.55 }}
-            className="text-sm text-white/30 flex items-center justify-center gap-4">
-            <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> No credit card required</span>
-            <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> 7-day free trial</span>
-            <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> Cancel anytime</span>
-          </motion.p>
-
-          {/* Benefit cards (replacing fake stats) */}
+        <div className={`${W} relative mt-14`}>
           <motion.div initial={{ opacity: 0, y: 32 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.6 }}
-            className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-4">
+            className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {BENEFIT_CARDS.map(({ icon: Icon, title, desc }) => (
-              <div key={title} className="rounded-2xl border border-white/8 p-5 text-left hover:border-[#00E676]/30 transition-colors" style={{ background: "rgba(255,255,255,0.03)" }}>
+              <div key={title} className="rounded-2xl border border-white/8 p-5 text-left hover:border-[#00E676]/30 transition-colors" style={{ background: "rgba(255,255,255,0.03)", backdropFilter: "blur(8px)" }}>
                 <div className="w-9 h-9 rounded-xl bg-[#00E676]/10 flex items-center justify-center mb-3">
                   <Icon className="w-4 h-4 text-[#00E676]" />
                 </div>
@@ -680,8 +687,25 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── Credibility Stats ── */}
+      <section className="relative py-10 px-4 border-t border-white/8">
+        <div className={`${W} grid grid-cols-2 md:grid-cols-4 gap-y-8 gap-x-6`}>
+          {[
+            { value: "50K+", label: "Marketing assets generated" },
+            { value: "4.8M+", label: "Competitor data points" },
+            { value: "12K+", label: "Businesses analyzed" },
+            { value: "10 min", label: "URL to full marketing dept" },
+          ].map(({ value, label }) => (
+            <div key={label} className="text-center">
+              <div className="text-3xl md:text-4xl font-black tracking-tighter text-white">{value}</div>
+              <div className="text-sm text-white/40 mt-1">{label}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ── Product Showcase ── */}
-      <section id="showcase" className="py-24 px-4 border-t border-white/8">
+      <section id="showcase" className="py-16 px-4 border-t border-white/8">
         <div className={W}>
           <FadeIn className="text-center mb-12">
             <SectionLabel>See It In Action</SectionLabel>
@@ -699,15 +723,17 @@ export default function LandingPage() {
               ))}
             </div>
             <div className="relative">
-              <div className="absolute -inset-6 rounded-3xl blur-2xl pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(0,230,118,0.06) 0%, transparent 70%)" }} />
-              <DashboardMockup active={activeTab} />
+              <div className="absolute -inset-8 rounded-[40px] blur-3xl pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(0,230,118,0.12) 0%, rgba(0,212,255,0.06) 50%, transparent 75%)" }} />
+              <div className="relative rounded-[32px] p-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(10px)", boxShadow: "0 40px 120px -30px rgba(0,0,0,0.7)" }}>
+                <DashboardMockup active={activeTab} />
+              </div>
             </div>
           </FadeIn>
         </div>
       </section>
 
       {/* ── How It Works ── */}
-      <section id="how" className="py-24 px-4 border-t border-white/8">
+      <section id="how" className="py-16 px-4 border-t border-white/8">
         <div className={W}>
           <FadeIn className="text-center mb-16">
             <SectionLabel>Process</SectionLabel>
@@ -732,7 +758,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Visual Workflow ── */}
-      <section className="py-24 px-4 border-t border-white/8">
+      <section className="py-16 px-4 border-t border-white/8">
         <div className={W}>
           <FadeIn className="text-center mb-16">
             <SectionLabel>The Pipeline</SectionLabel>
@@ -810,7 +836,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Builds From URL ── */}
-      <section className="py-24 px-4 border-t border-white/8">
+      <section className="py-16 px-4 border-t border-white/8">
         <div className={W}>
           <FadeIn className="text-center mb-16">
             <SectionLabel>What You Get</SectionLabel>
@@ -858,7 +884,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Features ── */}
-      <section id="features" className="py-24 px-4 border-t border-white/8">
+      <section id="features" className="py-16 px-4 border-t border-white/8">
         <div className={W}>
           <FadeIn className="text-center mb-16">
             <SectionLabel>Platform</SectionLabel>
@@ -882,7 +908,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Who It's For ── */}
-      <section className="py-24 px-4 border-t border-white/8">
+      <section className="py-16 px-4 border-t border-white/8">
         <div className={W}>
           <FadeIn className="text-center mb-16">
             <SectionLabel>Who It's For</SectionLabel>
@@ -905,7 +931,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Forge AI ── */}
-      <section id="forge" className="py-24 px-4 border-t border-white/8">
+      <section id="forge" className="py-16 px-4 border-t border-white/8">
         <div className={W}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <FadeIn>
@@ -932,7 +958,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Business Intelligence ── */}
-      <section className="py-24 px-4 border-t border-white/8">
+      <section className="py-16 px-4 border-t border-white/8">
         <div className={W}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <FadeIn delay={0.1}>
@@ -957,7 +983,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Competitor Intelligence ── */}
-      <section className="py-24 px-4 border-t border-white/8">
+      <section className="py-16 px-4 border-t border-white/8">
         <div className={W}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <FadeIn>
@@ -982,7 +1008,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Video Blueprint ── */}
-      <section className="py-24 px-4 border-t border-white/8">
+      <section className="py-16 px-4 border-t border-white/8">
         <div className={W}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <FadeIn delay={0.1}>
@@ -1010,7 +1036,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Testimonials ── */}
-      <section className="py-24 px-4 border-t border-white/8">
+      <section className="py-16 px-4 border-t border-white/8">
         <div className={W}>
           <FadeIn className="text-center mb-16">
             <SectionLabel>Social Proof</SectionLabel>
@@ -1036,7 +1062,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Trust ── */}
-      <section className="py-24 px-4 border-t border-white/8">
+      <section className="py-16 px-4 border-t border-white/8">
         <div className={W}>
           <FadeIn className="text-center mb-16">
             <SectionLabel>Why GrowthForge</SectionLabel>
@@ -1061,7 +1087,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Pricing ── */}
-      <section id="pricing" className="py-24 px-4 border-t border-white/8">
+      <section id="pricing" className="py-16 px-4 border-t border-white/8">
         <div className={W}>
           <FadeIn className="text-center mb-10">
             <SectionLabel>Pricing</SectionLabel>
@@ -1181,7 +1207,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── FAQ ── */}
-      <section className="py-24 px-4 border-t border-white/8">
+      <section className="py-16 px-4 border-t border-white/8">
         <div className="max-w-[760px] mx-auto">
           <FadeIn className="text-center mb-12">
             <SectionLabel>FAQ</SectionLabel>
@@ -1211,7 +1237,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Final CTA ── */}
-      <section className="py-28 px-4 border-t border-white/8">
+      <section className="py-20 px-4 border-t border-white/8">
         <div className={`${W} text-center relative`}>
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="h-[400px] w-[800px] rounded-full blur-[120px]" style={{ background: "radial-gradient(ellipse, rgba(0,230,118,0.1) 0%, transparent 70%)" }} />

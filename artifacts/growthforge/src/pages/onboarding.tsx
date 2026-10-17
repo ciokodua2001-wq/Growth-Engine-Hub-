@@ -222,7 +222,7 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen bg-[#050a12] text-white flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-5 max-w-5xl mx-auto w-full">
+      <header className="flex items-center justify-between px-6 py-5 max-w-6xl mx-auto w-full">
         <Logo />
         <span className="text-xs text-white/30">{step <= 4 ? `Step ${step} of 4` : "Creating..."}</span>
       </header>

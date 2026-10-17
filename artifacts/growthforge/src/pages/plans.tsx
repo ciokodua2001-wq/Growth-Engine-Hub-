@@ -558,7 +558,7 @@ export default function PlansPage() {
               initial={{ opacity: 0, y: -16 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -16 }}
-              className="w-full max-w-6xl mb-6 flex items-center gap-3 px-5 py-4 rounded-2xl border border-[#00E676]/30 bg-[#00E676]/10"
+              className="w-full max-w-[1600px] w-[min(95vw,1600px)] mb-6 flex items-center gap-3 px-5 py-4 rounded-2xl border border-[#00E676]/30 bg-[#00E676]/10"
             >
               <CheckCircle className="w-5 h-5 text-[#00E676] shrink-0" />
               <div>
@@ -578,7 +578,7 @@ export default function PlansPage() {
               initial={{ opacity: 0, y: -16 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -16 }}
-              className="w-full max-w-6xl mb-6 flex items-center gap-3 px-5 py-4 rounded-2xl border border-white/10 bg-white/5"
+              className="w-full max-w-[1600px] w-[min(95vw,1600px)] mb-6 flex items-center gap-3 px-5 py-4 rounded-2xl border border-white/10 bg-white/5"
             >
               <X className="w-5 h-5 text-white/40 shrink-0" />
               <p className="text-white/50 text-sm">Checkout cancelled — you can try again anytime.</p>
@@ -602,7 +602,7 @@ export default function PlansPage() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="w-full max-w-6xl mb-8"
+          className="w-full max-w-[1600px] w-[min(95vw,1600px)] mb-8"
         >
           <div
             className="relative rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center gap-6"
@@ -650,7 +650,7 @@ export default function PlansPage() {
         </motion.div>
 
         {/* Plan cards */}
-        <div className="w-full max-w-6xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="w-full max-w-[1600px] w-[min(95vw,1600px)] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {PLANS.map((plan, index) => (
             <PlanCard
               key={plan.slug}

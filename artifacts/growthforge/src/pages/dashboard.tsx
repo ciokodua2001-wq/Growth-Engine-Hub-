@@ -227,7 +227,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-background/95 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-[1600px] w-[min(95vw,1600px)] mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2">
             <Logo size={48} />
             <span className="font-bold text-lg tracking-tight">GrowthForge</span>
@@ -254,7 +254,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-6 py-12">
+      <div className="max-w-[1600px] w-[min(95vw,1600px)] mx-auto px-6 py-12">
         {/* Page header */}
         <div className="flex items-start justify-between mb-10">
           <div>
