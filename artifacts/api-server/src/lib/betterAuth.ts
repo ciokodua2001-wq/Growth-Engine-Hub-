@@ -30,7 +30,7 @@ const googleConfigured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOO
 
 const resendKey = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
 const resend = resendKey ? new Resend(resendKey) : null;
-const AUTH_FROM = "GrowthForge AI <notifications@usegrowthforge.com>";
+const AUTH_FROM = process.env.AUTH_FROM ?? "onboarding@resend.dev";
 
 /**
  * Send a transactional auth email via Resend. Falls back to a warning log when
