@@ -60,7 +60,8 @@ export default function SignInPage() {
         setError(signInError.message ?? "Sign-in failed");
         return;
       }
-      setLocation(authRedirectPath(redirectUrl));
+      // Full page redirect ensures auth session cookie & currentUser query load fresh
+      window.location.href = `${basePath}${authRedirectPath(redirectUrl)}`;
     } finally {
       setLoading(false);
     }

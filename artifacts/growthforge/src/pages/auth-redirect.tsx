@@ -20,10 +20,10 @@ export default function AuthRedirectPage() {
   const search = useSearch();
   const redirectUrl = new URLSearchParams(search).get("redirect_url");
   const { isLoaded, user } = useAuth();
-  const { data: currentUser, isSuccess, isError } = useCurrentUser();
+  const { data: currentUser, isLoading: isUserLoading, isSuccess, isError } = useCurrentUser();
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || isUserLoading) return;
 
     if (!user) {
       const params = new URLSearchParams(window.location.search);
@@ -41,11 +41,10 @@ export default function AuthRedirectPage() {
           ? "/admin"
           : "/dashboard";
       setLocation(target, { replace: true });
-    }
-    if (isError) {
+    } else if (isError || !currentUser) {
       setLocation("/dashboard", { replace: true });
     }
-  }, [isLoaded, user, redirectUrl, isSuccess, currentUser, isError, setLocation]);
+  }, [isLoaded, isUserLoading, user, redirectUrl, isSuccess, currentUser, isError, setLocation]);
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "#040B14" }}>
