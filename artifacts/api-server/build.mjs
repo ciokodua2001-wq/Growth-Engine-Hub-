@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
-import { readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
@@ -126,6 +126,24 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   // Linux then crash-loops looking for:
   //   /home/ubuntu/.../api-server/C:\Users\...\dist/thread-stream-worker.mjs
   await rewriteBundledPinoWorkerPaths(distDir);
+
+  // stripe-replit-sync runs its own SQL migrations from a sibling ./migrations
+  // directory at runtime (runMigrations -> path.resolve(__dirname, "./migrations")).
+  // esbuild only bundles JS, so without this copy the .sql files are absent and
+  // runMigrations silently skips them - leaving an empty "stripe" schema and a
+  // "relation stripe.accounts does not exist" error on the first syncBackfill.
+  await copyStripeSyncMigrations(distDir);
+}
+
+async function copyStripeSyncMigrations(distDir) {
+  try {
+    const entry = globalThis.require.resolve("stripe-replit-sync");
+    const migrationsSrc = path.join(path.dirname(entry), "migrations");
+    const migrationsDst = path.join(distDir, "migrations");
+    await cp(migrationsSrc, migrationsDst, { recursive: true });
+  } catch (err) {
+    console.error("WARN: could not copy stripe-replit-sync migrations:", err?.message ?? err);
+  }
 }
 
 async function rewriteBundledPinoWorkerPaths(distDir) {
