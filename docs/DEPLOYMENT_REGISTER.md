@@ -418,12 +418,16 @@ No services were changed or restarted. Findings:
 
 ---
 
-## Stage A - Phase 6 PostgreSQL Migration Baseline Strategy (2026-10-17)
+## Stage A - Phase 3A PostgreSQL baseline (2026-10-17, CODE COMPLETE + locally verified)
 
 - **Correction recorded:** Supabase is **PAUSED** (due to unpaid invoices), not deleted. Historical data remains potentially recoverable later.
-- **Baseline Migration Strategy:** To prevent object duplication/conflicts when creating the local PostgreSQL database on Lightsail:
-  1. Do NOT run `drizzle-kit push` against local Postgres.
-  2. Generate a clean `0000_baseline.sql` representing the initial 48-table schema.
-  3. Apply `0000_baseline.sql`, then record its hash into `drizzle.__drizzle_migrations`.
-  4. Apply `0001_p0_creator_sources.sql` via `drizzle-kit migrate`.
-  5. Ensure a migration import script exists for optional historical Supabase data migration if/when Supabase is unpaused.
+- **Schema inventory:** 28 schema files → **53 tables**, **41 foreign keys**, **73 indexes**, **47 sequences**, **0 enums** (enum-like fields are `text`).
+- **Baseline:** generated natively via `drizzle-kit generate` → `lib/db/migrations/0000_baseline.sql` + `meta/_journal.json` + `meta/0000_snapshot.json`. Added `out: "./migrations"` to `drizzle.config.ts` (previously unset, so `migrate` would have looked in `./drizzle` and found nothing).
+- **0001 resolution:** `0001_p0_creator_sources.sql` is fully baked into the baseline (the current schema already contains `source_type`/`operating_model`/`business_sources`/`creator_profiles`/`analysis_sources`). Archived to `lib/db/migrations-superseded/` so it is NOT re-applied. No object duplication.
+- **Local validation (fresh Postgres 16):**
+  - `drizzle-kit push` → 53 tables (schema-from-source cross-check).
+  - `drizzle-kit migrate` against a fresh DB → "migrations applied successfully"; `drizzle.__drizzle_migrations` records the baseline hash; 53 tables / 41 FKs / 73 indexes / 47 sequences.
+  - `pg_dump --schema-only` round-trip applied to a second fresh DB with 0 errors.
+- **Lightsail DB config (PLAN, not executed - requires approval):** dedicated role `growthforge_app` (scram-sha-256 password), database `growthforge`, `DATABASE_URL=postgresql://growthforge_app:<pw>@127.0.0.1:5432/growthforge` (+ `DIRECT_DATABASE_URL` same), UFW blocks external 5432, `pg_hba.conf` localhost = `scram-sha-256`.
+- **Encrypted off-server backups (PLAN):** nightly `pg_dump -Fc` → `gpg --symmetric` (key from env, not in repo) → upload to the existing Wasabi `growthforge-media` bucket under `backups/` (30-day retention). Restore drill = decrypt + `pg_restore --clean` into a throwaway DB + row-count check.
+- **NOT done yet:** installing Postgres on Lightsail, creating the live role/DB, and the backup cron - all require explicit approval.
