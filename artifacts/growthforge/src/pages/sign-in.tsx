@@ -3,14 +3,14 @@ import { Link, useLocation, useSearch } from "wouter";
 import { FcGoogle } from "react-icons/fc";
 import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
-import { supabase, googleOAuthUrl } from "@/lib/supabaseClient";
+import { authClient } from "@/lib/authClient";
 import { basePath } from "@/lib/basePath";
 
 const inputClasses =
   "w-full h-11 rounded-lg bg-[#0f2035] border border-[#1e3a5f] text-white placeholder:text-[#7a8fa6] px-3.5 text-sm outline-none focus:border-[#00E676] transition-colors";
 
 /**
- * Bare "/auth/redirect" path for wouter's `setLocation` — wouter's `Router base`
+ * Bare "/auth/redirect" path for wouter's `setLocation` - wouter's `Router base`
  * prop already handles the base path itself, so passing a base-prefixed path
  * here would double it up.
  */
@@ -21,7 +21,7 @@ function authRedirectPath(redirectUrl: string | null): string {
 
 /**
  * Full absolute "/auth/redirect" URL (including origin + basePath) for
- * Supabase's OAuth `redirectTo` — this is a real browser navigation target,
+ * Supabase's OAuth `redirectTo` - this is a real browser navigation target,
  * not a wouter-internal one, so it does need the base path included.
  */
 function authRedirectAbsoluteUrl(redirectUrl: string | null): string {
@@ -55,9 +55,9 @@ export default function SignInPage() {
     setError(null);
     setLoading(true);
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      const { error: signInError } = await authClient.signIn.email({ email, password });
       if (signInError) {
-        setError(signInError.message);
+        setError(signInError.message ?? "Sign-in failed");
         return;
       }
       setLocation(authRedirectPath(redirectUrl));
@@ -70,8 +70,14 @@ export default function SignInPage() {
     setError(null);
     setGoogleLoading(true);
     try {
-      const url = await googleOAuthUrl(authRedirectAbsoluteUrl(redirectUrl));
-      window.location.assign(url);
+      const { error: googleError } = await authClient.signIn.social({
+        provider: "google",
+        callbackURL: authRedirectAbsoluteUrl(redirectUrl),
+      });
+      if (googleError) {
+        setError(googleError.message ?? "Google sign-in failed");
+        setGoogleLoading(false);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-in failed");
       setGoogleLoading(false);
@@ -130,7 +136,7 @@ export default function SignInPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={inputClasses}
-              placeholder="••••••••"
+              placeholder="********"
             />
           </div>
 

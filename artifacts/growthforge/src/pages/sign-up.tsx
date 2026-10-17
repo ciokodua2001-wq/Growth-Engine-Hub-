@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { FcGoogle } from "react-icons/fc";
 import { Loader2, MailCheck } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
-import { supabase, googleOAuthUrl } from "@/lib/supabaseClient";
+import { authClient } from "@/lib/authClient";
 import { basePath } from "@/lib/basePath";
 
 const inputClasses =
@@ -24,17 +24,17 @@ export default function SignUpPage() {
     setError(null);
     setLoading(true);
     try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await authClient.signUp.email({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}${basePath}/auth/redirect` },
+        name: email.split("@")[0] || "User",
       });
       if (signUpError) {
-        setError(signUpError.message);
+        setError(signUpError.message ?? "Sign-up failed");
         return;
       }
-      if (data.session) {
-        // Email confirmation is disabled — the user is already signed in.
+      if (data) {
+        // Email verification is non-blocking - the user is already signed in.
         // Bare path: wouter's Router base already handles basePath, unlike the
         // absolute emailRedirectTo/redirectTo URLs above which need it explicitly.
         setLocation("/plans");
@@ -51,8 +51,14 @@ export default function SignUpPage() {
     setError(null);
     setGoogleLoading(true);
     try {
-      const url = await googleOAuthUrl(`${window.location.origin}${basePath}/auth/redirect`);
-      window.location.assign(url);
+      const { error: googleError } = await authClient.signIn.social({
+        provider: "google",
+        callbackURL: `${window.location.origin}${basePath}/auth/redirect`,
+      });
+      if (googleError) {
+        setError(googleError.message ?? "Google sign-up failed");
+        setGoogleLoading(false);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-in failed");
       setGoogleLoading(false);
