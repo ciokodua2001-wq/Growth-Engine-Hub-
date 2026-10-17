@@ -536,3 +536,31 @@ No services were changed or restarted. Findings:
 **LOCAL ENCRYPTED BACKUP VERIFIED - OFF-SERVER DISASTER RECOVERY PENDING.** Nightly cron active (03:00 UTC); a real decrypt→`pg_restore` drill recovered 57 tables. Off-server Wasabi upload is NOT yet enabled (separate `BACKUP_S3_*` credential still needed).
 
 **Incremental cost: $0.00.**
+
+---
+
+## Stage C - Social-only analysis fix + dev restart + E2E verification (2026-10-17)
+
+- **Commit:** `a573793` — `/analyze` now falls back to `business_sources.declared_content`
+  (then `projects.description`) for non-website sources; `analysis-progress` passes
+  sourceType/sourceUrl/description and uses source-agnostic copy; handle-only social users
+  get the inline description form on insufficient grounding.
+- **Dev restart:** `growthforge-dev-api` restarted 19:52 UTC (owner-approved). Staged dist
+  checksum matched `a573793` build exactly. Rollback artifact (`dist.rollback-f0da3c4/`),
+  timestamped backup (`dist.bak-a573793-*`), and `ROLLBACK.txt` manifest created on server.
+  `growthforge-prod-api` + Caddy NOT touched.
+- **Post-restart:** `/api/healthz` 200 `{"status":"ok"}`; `/api/auth/me` 401 (route live);
+  no error-level journal entries since start.
+- **E2E social-only test (no website):** disposable account `gftest-socialonly@example.com`
+  (trial) → onboarding as **Business** → source **Instagram** (`instagram.com/adanma.styles`)
+  + declared description → no website → analysis → competitors → personas → strategy all
+  completed. Project `5` "Adanma Styles" persisted to PostgreSQL.
+- **Verified in DB:** `business_sources` row (source_type=instagram, retrieval_method=none,
+  declared_content saved, retrieved_content null — no fabricated retrieval); analysis
+  status=complete (industry "Women's Fashion & Custom Tailoring"); 4 real Nigerian/African
+  competitors (Tubert, Kiki Kamanu, Rikaoto by ME, Grass-Fields); 3 Nigerian personas
+  (incl. "Owambe Guest"); marketing_strategy status=complete.
+- **Result:** social-only Nigerian business journey verified end-to-end. Actual social
+  profile retrieval still NOT implemented (manual declared content only) — tracked in
+  Phase 4. Multi-source analysis NOT yet wired (Phase 3).
+- **Incremental cost:** $0.00.
