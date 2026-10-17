@@ -16,7 +16,7 @@ import { logger } from "./logger.js";
  *   BETTER_AUTH_SECRET   stable secret for session cookie signing (required in prod)
  *   GOOGLE_CLIENT_ID     (optional - enables Google OAuth when set with GOOGLE_CLIENT_SECRET)
  *   GOOGLE_CLIENT_SECRET (optional)
- *   RESEND_API_KEY       (optional - sends verification/reset emails; logs a warning if unset)
+ *   RESEND_API_KEY / RESEND_KEY (optional - sends verification/reset emails; logs a warning if unset)
  */
 
 const secret = process.env.BETTER_AUTH_SECRET;
@@ -28,7 +28,8 @@ if (!secret) {
 
 const googleConfigured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const resendKey = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
+const resend = resendKey ? new Resend(resendKey) : null;
 const AUTH_FROM = "GrowthForge AI <notifications@usegrowthforge.com>";
 
 /**
