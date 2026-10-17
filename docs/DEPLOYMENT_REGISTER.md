@@ -401,3 +401,29 @@ No services were changed or restarted. Findings:
   present only in gitignored `.env`, referenced by no source code).
 - **Migrations:** only `0001_p0_creator_sources.sql` (+`.down.sql`); no `0000_baseline`.
 - **Better Auth:** 0 references in source - auth is still `supabaseAuth.ts` / `@supabase/auth-js`.
+
+---
+
+## Stage A - Phase 2 development-only Wasabi deployment (2026-10-17, COMPLETE)
+
+- **Build artifact:** Rebuilt `artifacts/api-server/dist/index.mjs` (commit `945376b`). Removed `@aws-sdk/*` from `build.mjs` `external` list so `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner` are bundled cleanly inside `dist/index.mjs` (6.6 MB). Re-verified: `grep SUPABASE_S3 dist/index.mjs` = **0**.
+- **Predeployment backup:** Remote backups created at `/home/ubuntu/dev/backups/dist_20261017_040610` and `/home/ubuntu/dev/backups/env_20261017_040610` (chmod 600) on `growthforge-box-8gb` (`15.222.206.60`).
+- **Development `.env` update:** Updated `/home/ubuntu/dev/app/.env` with `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_REGION`, `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY`, and `DEFAULT_OBJECT_STORAGE_BUCKET_ID=growthforge-media`. Secrets injected without logging.
+- **Restart:** `sudo systemctl restart growthforge-dev-api`.
+- **Status:** `growthforge-dev-api` is **active (running)** on PID 202782, listening on port `:4001`.
+- **Health checks:** `http://localhost:4001/api/healthz` → `200 OK {"status":"ok"}`. `https://dev.usegrowthforge.com/api/healthz` → `200 OK {"status":"ok"}`.
+- **Wasabi credential verification:** Direct S3 put/get/presign-GET/presign-PUT/delete/cross-bucket-denial verified using the new scoped key `ABUU54...ART55`.
+- **Blocked HTTP endpoints:** Higher-level HTTP routes requiring database queries (e.g., project uploads/analysis) are blocked by the paused Supabase Postgres instance (`tenant/user not found`), as expected until Phase 3 local PostgreSQL cutover.
+- **Production isolation:** `growthforge-prod-api`, Caddy, and production DNS remained completely untouched.
+
+---
+
+## Stage A - Phase 6 PostgreSQL Migration Baseline Strategy (2026-10-17)
+
+- **Correction recorded:** Supabase is **PAUSED** (due to unpaid invoices), not deleted. Historical data remains potentially recoverable later.
+- **Baseline Migration Strategy:** To prevent object duplication/conflicts when creating the local PostgreSQL database on Lightsail:
+  1. Do NOT run `drizzle-kit push` against local Postgres.
+  2. Generate a clean `0000_baseline.sql` representing the initial 48-table schema.
+  3. Apply `0000_baseline.sql`, then record its hash into `drizzle.__drizzle_migrations`.
+  4. Apply `0001_p0_creator_sources.sql` via `drizzle-kit migrate`.
+  5. Ensure a migration import script exists for optional historical Supabase data migration if/when Supabase is unpaused.
