@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Save, Film, RefreshCw, CheckCircle } from "lucide-react";
+import { Save, Film, RefreshCw, CheckCircle, KeyRound, AlertCircle, Loader2 } from "lucide-react";
 import AdminLayout from "@/components/admin/admin-layout";
+import { authClient } from "@/lib/authClient";
 
 function SettingRow({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) {
   return (
@@ -79,7 +80,7 @@ function VideoConfigPanel() {
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-white/30 text-sm py-4">
-        <RefreshCw className="w-4 h-4 animate-spin" /> Loading config…
+        <RefreshCw className="w-4 h-4 animate-spin" /> Loading config...
       </div>
     );
   }
@@ -138,9 +139,111 @@ function VideoConfigPanel() {
         className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-black transition-all hover:scale-[1.02] disabled:opacity-50"
         style={{ background: saved ? "#14F195" : "#00D4FF" }}>
         {saved ? <CheckCircle className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-        {saved ? "Saved!" : save.isPending ? "Saving…" : "Save Video Config"}
+        {saved ? "Saved!" : save.isPending ? "Saving..." : "Save Video Config"}
       </button>
     </div>
+  );
+}
+
+/* ─── Change own account password ─────────────────────── */
+function ChangePasswordPanel() {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const inputClass =
+    "w-full px-3 py-2 rounded-xl border border-white/8 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-white/20 transition-colors";
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResult(null);
+
+    if (newPassword.length < 12) {
+      setResult({ ok: false, message: "New password must be at least 12 characters." });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setResult({ ok: false, message: "New passwords do not match." });
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const { error } = await authClient.changePassword({
+        currentPassword,
+        newPassword,
+        revokeOtherSessions: true,
+      });
+      if (error) {
+        setResult({ ok: false, message: error.message ?? "Could not change password." });
+      } else {
+        setResult({ ok: true, message: "Password changed successfully. Use it on your next sign-in." });
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      }
+    } catch {
+      setResult({ ok: false, message: "Request failed. Please try again." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
+      <div>
+        <label className="block text-xs text-white/40 mb-1.5">Current password</label>
+        <input
+          type="password"
+          autoComplete="current-password"
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          className={inputClass}
+          style={{ background: "rgba(255,255,255,0.04)" }}
+        />
+      </div>
+      <div>
+        <label className="block text-xs text-white/40 mb-1.5">New password (minimum 12 characters)</label>
+        <input
+          type="password"
+          autoComplete="new-password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          className={inputClass}
+          style={{ background: "rgba(255,255,255,0.04)" }}
+        />
+      </div>
+      <div>
+        <label className="block text-xs text-white/40 mb-1.5">Confirm new password</label>
+        <input
+          type="password"
+          autoComplete="new-password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          className={inputClass}
+          style={{ background: "rgba(255,255,255,0.04)" }}
+        />
+      </div>
+
+      {result && (
+        <div className={`flex items-center gap-2 text-sm ${result.ok ? "text-emerald-400" : "text-red-400"}`}>
+          {result.ok ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+          {result.message}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={busy}
+        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-black transition-all hover:scale-[1.02] disabled:opacity-60"
+        style={{ background: "#00E676" }}
+      >
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+        {busy ? "Changing..." : "Change Password"}
+      </button>
+    </form>
   );
 }
 
@@ -207,6 +310,19 @@ export default function AdminSettings() {
             </div>
           </div>
         ))}
+
+        {/* Account security */}
+        <div className="rounded-2xl border border-[#00E676]/15 overflow-hidden"
+          style={{ background: "rgba(0,230,118,0.02)" }}>
+          <div className="px-6 py-4 border-b border-white/6 flex items-center gap-3">
+            <KeyRound className="w-4 h-4 text-[#00E676]" />
+            <h2 className="text-sm font-bold text-white">Account Security</h2>
+            <span className="text-white/30 text-xs">change your admin password</span>
+          </div>
+          <div className="px-6 py-5">
+            <ChangePasswordPanel />
+          </div>
+        </div>
 
         {/* Video Credit Configuration */}
         <div className="rounded-2xl border border-[#00D4FF]/15 overflow-hidden"
