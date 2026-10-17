@@ -184,30 +184,30 @@ staging → 7. Verify DB migration prerequisites → 8. Prepare deploy + rollbac
 
 ---
 
-## Consolidated release entry — social-first Business/Creator/Hybrid (P0)
+## Consolidated release entry - social-first Business/Creator/Hybrid (P0)
 
 - **Commit range:** `0af5ca5` (Stage 2A) → `49736f4` (Stage 4)
-- **Migration dependencies:** `0001_p0_creator_sources.sql` (+ `.down.sql`) — NOT applied
+- **Migration dependencies:** `0001_p0_creator_sources.sql` (+ `.down.sql`) - NOT applied
 - **Rollout sequence:**
-  1. Restore Supabase + verify backup (runbook §3–4)
-  2. Inspect schema + adopt baseline migration (runbook §5–6)
+  1. Restore Supabase + verify backup (runbook §3-4)
+  2. Inspect schema + adopt baseline migration (runbook §5-6)
   3. Apply `0001` + verify (runbook §7)
-  4. Deploy backend + health check (runbook §8–9)
+  4. Deploy backend + health check (runbook §8-9)
   5. Deploy frontend + proxy check (runbook §10)
-  6. Env validation + DB integration tests (runbook §11–12)
-  7. Production smoke tests 1–16 (runbook §13)
+  6. Env validation + DB integration tests (runbook §11-12)
+  7. Production smoke tests 1-16 (runbook §13)
   8. Billing entitlement verification (runbook §14)
 - **Smoke tests:** 16-item plan in `docs/PRODUCTION_DEPLOYMENT_RUNBOOK.md` §13
 - **Rollback plan:** code redeploy to last good commit; `0001` down migration; full restore
   from verified backup (runbook §15)
-- **Production approval status:** ⛔ NOT AUTHORIZED — awaiting explicit authorization before
+- **Production approval status:** ⛔ NOT AUTHORIZED - awaiting explicit authorization before
   restore / migrate / deploy / restart / billing changes.
 
 ---
 
 ## Stage 5 - Production recovery and deployment
 
-> **CORRECTION (Phase 5A superseded — verified via shared tabs):** Supabase `growthforge-prod`
+> **CORRECTION (Phase 5A superseded - verified via shared tabs):** Supabase `growthforge-prod`
 > (ref `hewadpjwvgntrimfmutu`) is **PAUSED, not deleted**. Dashboard shows: "All data,
 > including backups and storage objects, remains safe. You can resume this project from the
 > dashboard until 06 Nov 2027." Root cause: **outstanding invoices** (billing) on the
@@ -236,10 +236,10 @@ staging → 7. Verify DB migration prerequisites → 8. Prepare deploy + rollbac
 - **Owner action required:**
   1. Confirm deletion in the Supabase dashboard (project list / deleted-projects).
   2. Check for a "Restore" option (only if within Supabase's retention window).
-  3. Locate any external backup (none found in repo — no `.dump`/`pg_dump` artifacts).
+  3. Locate any external backup (none found in repo - no `.dump`/`pg_dump` artifacts).
   4. If unrecoverable, authorize a NEW project + full schema re-apply from migrations
      (data loss unless a backup is found elsewhere).
-- **Backup status:** NOT VERIFIED — no backup file found; no restoration path confirmed.
+- **Backup status:** NOT VERIFIED - no backup file found; no restoration path confirmed.
 - **Migration status:** `0001_p0_creator_sources.sql` still `CREATED - NOT APPLIED`;
   a baseline migration must be generated for whatever DB is eventually used.
 - **No action taken:** inspection only. No payments, plan changes, DB creation,
@@ -256,7 +256,7 @@ staging → 7. Verify DB migration prerequisites → 8. Prepare deploy + rollbac
   Montreal Lightsail box) + a new least-privilege access key scoped to that bucket only.
   Provider-neutral S3 adapter via `@aws-sdk/client-s3` (endpoint/region/creds in env vars).
   **Status:** code integration DONE (provider-neutral S3 adapter `objectStorage.ts` +
-  `wanRenderer` passthrough, 5 unit tests, typecheck clean — commit `675f214`). Bucket/key
+  `wanRenderer` passthrough, 5 unit tests, typecheck clean - commit `675f214`). Bucket/key
   creation is BLOCKED on the Wasabi console UI: the create-bucket dialog's form fields
   (name/region/Next) are not reachable via the text-based device operations (React portal
   elements aren't exposed to fill/click). Owner must create the `growthforge-media` bucket
@@ -264,10 +264,10 @@ staging → 7. Verify DB migration prerequisites → 8. Prepare deploy + rollbac
 - **Companion-app tab access (V2 attempt):** device connected; `browser_attached_list_tabs`
   lists 4 shared tabs (Lightsail ca-central-1, Supabase org, AWS S3, AWS Console Home), but
   `browser_attached_snapshot`/`screenshot`/`navigate`/`click` all return `success:false` (no
-  error) for every parameter shape tried — tab contents could NOT be read. V2 remains BLOCKED
+  error) for every parameter shape tried - tab contents could NOT be read. V2 remains BLOCKED
   until the browser is confirmed open on the Windows PC or the owner pastes the Lightsail
   metrics directly.
-- **Infrastructure design:** `docs/INFRASTRUCTURE_ARCHITECTURE.md` — cost-first
+- **Infrastructure design:** `docs/INFRASTRUCTURE_ARCHITECTURE.md` - cost-first
   three-stage plan. Stage A: single Lightsail Small ($10/mo) + local Postgres +
   better-auth ($0) + Cloudflare R2 ($0 egress). Pending owner decision on the DB
   recovery path (recover vs re-create) and the auth provider (better-auth vs Supabase).
@@ -294,23 +294,23 @@ Meta/YouTube account enrichment: **optional** for initial launch.
 
 ---
 
-## Stage A — Wasabi object storage: bucket + key + security audit (2026-10-12)
+## Stage A - Wasabi object storage: bucket + key + security audit (2026-10-12)
 
 - **Status:** `BLOCKED` (least-privilege key rotation blocked on Wasabi console UI automation)
-- **Bucket:** `growthforge-media` — ✅ CREATED in `ca-central-1` (private / Default access).
+- **Bucket:** `growthforge-media` - ✅ CREATED in `ca-central-1` (private / Default access).
   Verified live via `list_buckets` (returns `growthforge-media`, `quantivarian-vod`,
   `strapli-tech-main`).
-- **Access key:** Root Account Key `GAVY1…LSVOQ` — ⚠️ created but **exposed in the chat
+- **Access key:** Root Account Key `GAVY1...LSVOQ` - ⚠️ created but **exposed in the chat
   report**; treated as compromised and pending rotation.
-- **Least-privilege key:** `BLOCKED` — the Wasabi "Create User" wizard's "Type of Access"
+- **Least-privilege key:** `BLOCKED` - the Wasabi "Create User" wizard's "Type of Access"
   (Programmatic/Console) selector and "Next" button are custom React components with no
   native radio/checkbox input, so they are not reachable via the device's browser
   operations (text/selector clicks land on the dialog container). Same class of blocker as
   the earlier create-bucket dialog.
-- **Direct S3 smoke test (boto3, not app-level):** ✅ 5/5 — list_buckets, put_object,
+- **Direct S3 smoke test (boto3, not app-level):** ✅ 5/5 - list_buckets, put_object,
   get_object (byte-verified), presigned URL, delete_object against
   `s3.ca-central-1.wasabisys.com`. This validates the *credentials* and *bucket* only.
-- **Application integration:** `CODE COMPLETE` only — `artifacts/api-server/src/lib/objectStorage.ts`
+- **Application integration:** `CODE COMPLETE` only - `artifacts/api-server/src/lib/objectStorage.ts`
   is a provider-neutral S3 adapter reading `OBJECT_STORAGE_*` env vars. `NOT DEPLOYED`; no
   live process uses it.
 - **Credential leak check:** ✅ no credentials in git-tracked files (`git grep` clean);
@@ -318,7 +318,7 @@ Meta/YouTube account enrichment: **optional** for initial launch.
 - **Production restart audit:** ❌ NO service was restarted. `pm2 list` shows only
   `quantivarian-qa` and `strap-bank`; there is no `growthforge`/`api-server` process. NO
   deployment occurred. A prior agent report incorrectly claimed build/commit/restart
-  completed — those claims were false and are retracted here.
+  completed - those claims were false and are retracted here.
 - **Actual deployed commit:** none deployed; `HEAD` = `b048dd4` (docs-only).
 - **PostgreSQL replacement:** `NOT STARTED` (Supabase paused; Stage A local Postgres on
   Lightsail is PLANNING ONLY).
@@ -329,14 +329,14 @@ Meta/YouTube account enrichment: **optional** for initial launch.
 
 ---
 
-## Stage A — Wasabi key deactivation + production server audit (2026-10-12, update)
+## Stage A - Wasabi key deactivation + production server audit (2026-10-12, update)
 
-- **Exposed key containment:** Root Account Key `GAVY1…LSVOQ` → **DEACTIVATED** (Active switch
+- **Exposed key containment:** Root Account Key `GAVY1...LSVOQ` → **DEACTIVATED** (Active switch
   off; NOT deleted). Verified two ways: (1) console shows the key status as `Inactive`;
   (2) a direct S3 `list_buckets` with that key now fails `InvalidAccessKeyId`. The original
-  root key `X25KD5…` and `wawu-quantivarian-vod` `YMX3…` remain `Active` (untouched).
+  root key `X25KD5...` and `wawu-quantivarian-vod` `YMX3...` remain `Active` (untouched).
 - **Dependency check (before deactivation):** `search_projects` across all registered projects
-  found no reference to `GAVY1…LSVOQ`; a full `/home/ubuntu` grep found the key only in the
+  found no reference to `GAVY1...LSVOQ`; a full `/home/ubuntu` grep found the key only in the
   GrowthForge `.env`. Strap Bank / Quantivarian / other apps do NOT use it.
 - **Production server (`growthforge-box-8gb` = `growthforge-prod` @ `15.222.206.60`): NOT offline.**
   The earlier "no pm2 → offline" claim was WRONG (prod uses systemd on a separate Lightsail box).
@@ -347,8 +347,25 @@ Meta/YouTube account enrichment: **optional** for initial launch.
     `usegrowthforge.com` → static "Coming Soon" (no API proxy); `www` → redirect. The
     "LAUNCHED" block (→ :4002) is still commented out.
   - Listening: 22, 80, 443, 2019 (caddy admin), 4001 (dev API), 4002 (prod API).
-  - Prod env uses `SUPABASE_S3_*` + legacy `WASABI_ACCESS_KEY`/`WASABI_SECRET_KEY` (a DIFFERENT
-    key; the exposed `GAVY1…LSVOQ` is NOT present anywhere on the box). The new `OBJECT_STORAGE_*`
+  Prod env uses `SUPABASE_S3_*` + legacy `WASABI_ACCESS_KEY`/`WASABI_SECRET_KEY` (a DIFFERENT
+    key; the exposed `GAVY1...LSVOQ` is NOT present anywhere on the box). The new `OBJECT_STORAGE_*`
     adapter is NOT yet deployed there.
-- **Least-privilege `growthforge-prod` sub-user:** wizard open, username pre-filled; awaiting
-  owner's manual "Programmatic + Next" click (console custom control is not automatable).
+- **Least-privilege `growthforge-prod` sub-user + key rotation - COMPLETE (2026-10-16):**
+  - Custom policy `growthforge-media-least-privilege` created
+    (`arn:aws:iam::100000528988:policy/growthforge-media-least-privilege`): `s3:ListBucket` on
+    `arn:aws:s3:::growthforge-media` + `s3:GetObject`/`s3:PutObject`/`s3:DeleteObject` on
+    `arn:aws:s3:::growthforge-media/*`. No other resource is allowed.
+  - Sub-user `growthforge-prod` created with **Programmatic (API) access**, Console access
+    **No**, MFA not required; the policy attached (0 groups).
+  - Replacement access key minted: `ABUU54...ART55` (secret stored in gitignored `.env` only).
+  - Verified with AWS CLI against `s3.ca-central-1.wasabisys.com`:
+    - ✅ `list-objects-v2` on `growthforge-media` (allowed)
+    - ✅ `put-object` + `get-object` (byte-verified round-trip) on `growthforge-media`
+    - ✅ presigned GET URL → HTTP 200
+    - ✅ `list-buckets` → `AccessDenied` (no `s3:ListAllMyBuckets`)
+    - ✅ `list-objects-v2` + `put-object` on `quantivarian-vod` (other bucket) → `AccessDenied`
+    - ✅ `delete-object` cleanup of the test key
+  - `.env` rotated: `OBJECT_STORAGE_ACCESS_KEY_ID`/`OBJECT_STORAGE_SECRET_ACCESS_KEY` and
+    `WASABI_ACCESS_KEY_ID`/`WASABI_SECRET_ACCESS_KEY` now hold `ABUU54...ART55`; `GAVY1...LSVOQ`
+    removed from `.env` (0 remaining occurrences). `.env` is gitignored (not committed).
+  - Old exposed key `GAVY1...LSVOQ` remains **DEACTIVATED** (not deleted).
