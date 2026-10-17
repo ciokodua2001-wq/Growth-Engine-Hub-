@@ -5,6 +5,23 @@ const MIN_TEXT_CHARS = 10;
 
 const FALLBACK_PATHS = ["/about", "/company", "/services", "/product", "/home", "/about-us"];
 
+const SOCIAL_DOMAINS = [
+  "facebook.com",
+  "fb.com",
+  "instagram.com",
+  "tiktok.com",
+  "youtube.com",
+  "youtu.be",
+  "linkedin.com",
+  "twitter.com",
+  "x.com",
+];
+
+function isSocialDomain(origin: string): boolean {
+  const host = origin.toLowerCase();
+  return SOCIAL_DOMAINS.some((d) => host.includes(d));
+}
+
 export class WebsiteFetchError extends Error {}
 
 function normalizeUrl(input: string): string {
@@ -116,7 +133,8 @@ export async function fetchWebsiteContent(rawUrl: string): Promise<FetchedWebsit
   let bodyText = htmlToText(bodyMatch ? bodyMatch[1] : html);
 
   // If body text is thin (JS SPA), try a few fallback pages and accumulate text
-  if (bodyText.length < 300) {
+  // Skip fallback paths on social media domains (causes rate limiting / redirects)
+  if (bodyText.length < 300 && !isSocialDomain(origin)) {
     const extras: string[] = [];
     for (const path of FALLBACK_PATHS) {
       if (extras.join(" ").length > 3000) break;

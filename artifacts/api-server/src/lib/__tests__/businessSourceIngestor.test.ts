@@ -11,6 +11,7 @@ import {
   buildGroundingText,
   isSufficientGrounding,
   dedupeSources,
+  detectSocialPlatformUrl,
   retrievedSourceFromDeclared,
   capGroundingText,
 } from "../businessSourceIngestor.js";
@@ -140,5 +141,13 @@ describe("businessSourceIngestor", () => {
     const capped = capGroundingText(huge);
     expect(capped.length).toBeLessThan(31000);
     expect(capped).toContain("[content truncated at limit]");
+  });
+
+  it("detectSocialPlatformUrl classifies social URLs accurately", () => {
+    expect(detectSocialPlatformUrl("https://www.facebook.com/profile.php?id=61576065945040")).toBe("facebook");
+    expect(detectSocialPlatformUrl("https://instagram.com/adanma.styles")).toBe("instagram");
+    expect(detectSocialPlatformUrl("https://www.tiktok.com/@brand")).toBe("tiktok");
+    expect(detectSocialPlatformUrl("https://youtube.com/@brand")).toBe("youtube");
+    expect(detectSocialPlatformUrl("https://example.com")).toBeNull();
   });
 });

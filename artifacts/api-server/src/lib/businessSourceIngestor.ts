@@ -42,22 +42,34 @@ export interface RetrievedSource {
   text: string;
 }
 
+export function detectSocialPlatformUrl(url: string): SourceType | null {
+  const lower = url.toLowerCase();
+  if (lower.includes("facebook.com") || lower.includes("fb.com")) return "facebook";
+  if (lower.includes("instagram.com")) return "instagram";
+  if (lower.includes("tiktok.com")) return "tiktok";
+  if (lower.includes("youtube.com") || lower.includes("youtu.be")) return "youtube";
+  if (lower.includes("linkedin.com")) return "linkedin";
+  return null;
+}
+
 /**
  * Ingests a single source into a normalized RetrievedSource.
  *
- * - website: reuses the existing website fetcher. On failure, falls back to
- *   declared content and marks retrievalMethod "none" (never invents content).
+ * - website: reuses the existing website fetcher. If the URL is a social profile
+ *   URL (e.g. Facebook/Instagram/TikTok), automatically re-classifies sourceType
+ *   to match that social platform. On fetch error, gracefully falls back to declared
+ *   content and marks retrievalMethod "none" (never invents content).
  * - instagram/facebook/tiktok/whatsapp/youtube/linkedin/manual: manual declared
- *   content only. Authorized API reads (e.g. Meta Graph) are intentionally NOT
- *   implemented here - they are a separate, opt-in integration. We never scrape
- *   social platforms and never claim content was retrieved when it was not.
+ *   content or OpenGraph retrieval. Authorized Meta Graph API reads are handled
+ *   via metaProfileRetrieval.
  */
 export async function ingestSource(input: SourceInput): Promise<RetrievedSource> {
   if (input.sourceType === "website" && input.websiteUrl) {
+    const detectedType = detectSocialPlatformUrl(input.websiteUrl) ?? "website";
     try {
       const site = await fetchWebsiteContent(input.websiteUrl);
       return {
-        sourceType: "website",
+        sourceType: detectedType,
         sourceUrl: site.url,
         declaredContent: input.declaredContent ?? null,
         retrievedContent: site.text,
@@ -69,7 +81,7 @@ export async function ingestSource(input: SourceInput): Promise<RetrievedSource>
       };
     } catch {
       return {
-        sourceType: "website",
+        sourceType: detectedType,
         sourceUrl: input.websiteUrl,
         declaredContent: input.declaredContent ?? null,
         retrievedContent: null,
@@ -82,7 +94,7 @@ export async function ingestSource(input: SourceInput): Promise<RetrievedSource>
     }
   }
 
-  // Social and manual sources: manual declared content only.
+  // Social and manual sources: manual declared content or provided URL.
   return {
     sourceType: input.sourceType,
     sourceUrl: input.sourceUrl ?? null,
