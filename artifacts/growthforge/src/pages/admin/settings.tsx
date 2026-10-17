@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Save, Film, RefreshCw, CheckCircle, KeyRound, AlertCircle, Loader2 } from "lucide-react";
 import AdminLayout from "@/components/admin/admin-layout";
 import { authClient } from "@/lib/authClient";
+import { PasswordInput } from "@/components/ui/password-input";
 
 function SettingRow({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) {
   return (
@@ -179,10 +180,13 @@ function ChangePasswordPanel() {
       if (error) {
         setResult({ ok: false, message: error.message ?? "Could not change password." });
       } else {
-        setResult({ ok: true, message: "Password changed successfully. Use it on your next sign-in." });
+        setResult({ ok: true, message: "Password changed successfully! Redirecting to sign in with your new password..." });
         setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
+        setTimeout(() => {
+          window.location.href = "/sign-in?notice=password_changed";
+        }, 1500);
       }
     } catch {
       setResult({ ok: false, message: "Request failed. Please try again." });
@@ -195,33 +199,30 @@ function ChangePasswordPanel() {
     <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
       <div>
         <label className="block text-xs text-white/40 mb-1.5">Current password</label>
-        <input
-          type="password"
-          autoComplete="current-password"
+        <PasswordInput
           value={currentPassword}
-          onChange={(e) => setCurrentPassword(e.target.value)}
+          onChange={setCurrentPassword}
+          autoComplete="current-password"
           className={inputClass}
           style={{ background: "rgba(255,255,255,0.04)" }}
         />
       </div>
       <div>
         <label className="block text-xs text-white/40 mb-1.5">New password (minimum 12 characters)</label>
-        <input
-          type="password"
-          autoComplete="new-password"
+        <PasswordInput
           value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
+          onChange={setNewPassword}
+          autoComplete="new-password"
           className={inputClass}
           style={{ background: "rgba(255,255,255,0.04)" }}
         />
       </div>
       <div>
         <label className="block text-xs text-white/40 mb-1.5">Confirm new password</label>
-        <input
-          type="password"
-          autoComplete="new-password"
+        <PasswordInput
           value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
+          onChange={setConfirmPassword}
+          autoComplete="new-password"
           className={inputClass}
           style={{ background: "rgba(255,255,255,0.04)" }}
         />

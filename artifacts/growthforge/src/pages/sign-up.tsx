@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { FcGoogle } from "react-icons/fc";
 import { Loader2, MailCheck } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
+import { PasswordInput } from "@/components/ui/password-input";
 import { authClient } from "@/lib/authClient";
 import { basePath } from "@/lib/basePath";
 
@@ -123,15 +124,14 @@ export default function SignUpPage() {
               </div>
               <div>
                 <label className="text-[#a8b8cc] text-sm mb-1.5 block">Password</label>
-                <input
-                  type="password"
+                <PasswordInput
+                  value={password}
+                  onChange={setPassword}
+                  placeholder="At least 8 characters"
+                  autoComplete="new-password"
                   required
                   minLength={8}
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                   className={inputClasses}
-                  placeholder="At least 8 characters"
                 />
               </div>
 

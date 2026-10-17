@@ -63,7 +63,16 @@ import ProjectSeo from "@/pages/project/seo";
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: false },
+    queries: {
+      retry: (failureCount, error) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (msg.includes("401") || msg.includes("Unauthorized") || msg.includes("403") || msg.includes("Forbidden")) {
+          return false;
+        }
+        return failureCount < 1;
+      },
+      refetchOnWindowFocus: false,
+    },
   },
 });
 

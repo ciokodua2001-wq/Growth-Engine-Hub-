@@ -42,6 +42,7 @@ function MetaTokenHealthPanel() {
       return r.json();
     },
     staleTime: 60_000,
+    retry: false,
   });
 
   const reEncryptMutation = useMutation({
@@ -60,7 +61,7 @@ function MetaTokenHealthPanel() {
     return (
       <div className="flex items-center gap-3 p-4 rounded-2xl border border-white/8 bg-white/2">
         <RefreshCw className="w-4 h-4 text-white/30 animate-spin" />
-        <span className="text-white/40 text-sm">Checking Meta token health…</span>
+        <span className="text-white/40 text-sm">Checking Meta token health...</span>
       </div>
     );
   }
@@ -89,7 +90,7 @@ function MetaTokenHealthPanel() {
         <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
         <div>
           <span className="text-emerald-400 font-semibold text-sm">
-            Meta tokens healthy — {health.healthy} of {health.total} connection{health.total !== 1 ? "s" : ""} decrypt successfully
+            Meta tokens healthy - {health.healthy} of {health.total} connection{health.total !== 1 ? "s" : ""} decrypt successfully
           </span>
         </div>
         <button
@@ -109,7 +110,7 @@ function MetaTokenHealthPanel() {
         <ShieldAlert className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <div className="text-red-400 font-bold text-sm">
-            Meta Token Decrypt Failure — {health.failed} of {health.total} connection{health.total !== 1 ? "s" : ""} affected
+            Meta Token Decrypt Failure - {health.failed} of {health.total} connection{health.total !== 1 ? "s" : ""} affected
           </div>
           <div className="text-white/50 text-xs mt-1">
             These users cannot publish to Facebook or Instagram until they reconnect. This usually happens after a key rotation without migrating stored tokens.
@@ -149,7 +150,7 @@ function MetaTokenHealthPanel() {
           style={{ background: "#00E676" }}
         >
           {reEncryptMutation.isPending ? (
-            <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Re-encrypting…</>
+            <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Re-encrypting...</>
           ) : (
             <><KeyRound className="w-3.5 h-3.5" /> Re-encrypt Tokens Now</>
           )}
@@ -172,7 +173,7 @@ function MetaTokenHealthPanel() {
           </div>
           {reEncryptResult.failed > 0 && (
             <div className="text-white/40">
-              Still failing project IDs: {reEncryptResult.errors.map((e) => `#${e.projectId}`).join(", ")} — these users must reconnect via Social Hub.
+              Still failing project IDs: {reEncryptResult.errors.map((e) => `#${e.projectId}`).join(", ")} - these users must reconnect via Social Hub.
             </div>
           )}
         </div>
@@ -189,6 +190,7 @@ export default function AdminDashboard() {
       if (!r.ok) throw new Error(await r.text());
       return r.json();
     },
+    retry: false,
   });
 
   if (error) {
@@ -236,7 +238,7 @@ export default function AdminDashboard() {
         {/* Header */}
         <div>
           <h1 className="text-2xl font-black text-white tracking-tight">Admin Dashboard</h1>
-          <p className="text-white/40 text-sm mt-1">Platform overview — {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+          <p className="text-white/40 text-sm mt-1">Platform overview - {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
         </div>
 
         {/* Platform Health */}
@@ -257,13 +259,13 @@ export default function AdminDashboard() {
         <div>
           <h2 className="text-xs text-white/30 font-semibold uppercase tracking-widest mb-4">Users</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Total Users" value={isLoading ? "—" : stats!.totalUsers}
+            <StatCard label="Total Users" value={isLoading ? "-" : stats!.totalUsers}
               icon={<Users className="w-5 h-5" />} color="#00E676" />
-            <StatCard label="Trial Users" value={isLoading ? "—" : stats!.trialUsers}
+            <StatCard label="Trial Users" value={isLoading ? "-" : stats!.trialUsers}
               sub="Active free trials" icon={<Activity className="w-5 h-5" />} color="#00D4FF" />
-            <StatCard label="Paid Users" value={isLoading ? "—" : stats!.paidUsers}
+            <StatCard label="Paid Users" value={isLoading ? "-" : stats!.paidUsers}
               sub="Active subscriptions" icon={<TrendingUp className="w-5 h-5" />} color="#14F195" />
-            <StatCard label="Churned" value={isLoading ? "—" : stats!.cancelledUsers}
+            <StatCard label="Churned" value={isLoading ? "-" : stats!.cancelledUsers}
               sub="Cancelled accounts" icon={<AlertCircle className="w-5 h-5" />} color="#f59e0b" />
           </div>
         </div>
@@ -271,13 +273,13 @@ export default function AdminDashboard() {
         <div>
           <h2 className="text-xs text-white/30 font-semibold uppercase tracking-widest mb-4">Revenue & Usage</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Monthly Revenue" value={isLoading ? "—" : fmtCurrency(stats!.monthlyRevenue)}
+            <StatCard label="Monthly Revenue" value={isLoading ? "-" : fmtCurrency(stats!.monthlyRevenue)}
               sub="MRR" icon={<DollarSign className="w-5 h-5" />} color="#00E676" />
-            <StatCard label="Annual Revenue" value={isLoading ? "—" : fmtCurrency(stats!.annualRevenue)}
+            <StatCard label="Annual Revenue" value={isLoading ? "-" : fmtCurrency(stats!.annualRevenue)}
               sub="ARR" icon={<DollarSign className="w-5 h-5" />} color="#14F195" />
-            <StatCard label="Total Projects" value={isLoading ? "—" : stats!.totalProjects}
+            <StatCard label="Total Projects" value={isLoading ? "-" : stats!.totalProjects}
               icon={<FolderOpen className="w-5 h-5" />} color="#00D4FF" />
-            <StatCard label="AI Requests" value={isLoading ? "—" : stats!.totalAiRequests}
+            <StatCard label="AI Requests" value={isLoading ? "-" : stats!.totalAiRequests}
               sub={isLoading ? "" : `Est. cost ${fmtCurrency(stats!.estimatedAiCost)}`}
               icon={<Brain className="w-5 h-5" />} color="#a78bfa" />
           </div>

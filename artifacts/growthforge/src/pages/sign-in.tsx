@@ -3,6 +3,7 @@ import { Link, useLocation, useSearch } from "wouter";
 import { FcGoogle } from "react-icons/fc";
 import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
+import { PasswordInput } from "@/components/ui/password-input";
 import { authClient } from "@/lib/authClient";
 import { basePath } from "@/lib/basePath";
 
@@ -130,14 +131,13 @@ export default function SignInPage() {
           </div>
           <div>
             <label className="text-[#a8b8cc] text-sm mb-1.5 block">Password</label>
-            <input
-              type="password"
-              required
-              autoComplete="current-password"
+            <PasswordInput
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={inputClasses}
+              onChange={setPassword}
               placeholder="********"
+              autoComplete="current-password"
+              required
+              className={inputClasses}
             />
           </div>
 
