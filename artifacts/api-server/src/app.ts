@@ -114,16 +114,18 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 2c. Better Auth handler - /api/auth/* (sign-up, sign-in, sign-out, session,
-//     reset-password, verify-email, OAuth callbacks). Mounted before the session
-//     middleware so these endpoints are reachable without an existing session.
-app.all("/api/auth/*splat", (req, res) => toNodeHandler(auth)(req, res));
-
 // 3. Session middleware - verifies the Better Auth session cookie (if any) and
 //    attaches the result to req.auth for downstream routes (see lib/supabaseAuth.ts).
 app.use(supabaseAuthMiddleware);
 
 // 4. API routes
 app.use("/api", router);
+
+// 5. Better Auth handler - /api/auth/* (sign-up, sign-in, sign-out, session,
+//    reset-password, verify-email, OAuth callbacks). Mounted AFTER the app
+//    router so the app's own /api/auth/provision, /api/auth/me and
+//    /api/auth/start-trial routes win; everything else under /api/auth/*
+//    falls through to Better Auth.
+app.all("/api/auth/*splat", (req, res) => toNodeHandler(auth)(req, res));
 
 export default app;
