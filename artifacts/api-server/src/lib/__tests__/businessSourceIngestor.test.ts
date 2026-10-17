@@ -10,6 +10,9 @@ import {
   ingestSource,
   buildGroundingText,
   isSufficientGrounding,
+  dedupeSources,
+  retrievedSourceFromDeclared,
+  capGroundingText,
 } from "../businessSourceIngestor.js";
 
 const mockedFetch = vi.mocked(fetchWebsiteContent);
@@ -112,5 +115,30 @@ describe("businessSourceIngestor", () => {
   it("isSufficientGrounding enforces a minimum content length", () => {
     expect(isSufficientGrounding("short")).toBe(false);
     expect(isSufficientGrounding("A sufficiently long business description goes here.")).toBe(true);
+  });
+
+  it("dedupeSources keeps the first occurrence of a (sourceType, sourceUrl) pair", () => {
+    const a = retrievedSourceFromDeclared("instagram", "instagram.com/a", "first");
+    const b = retrievedSourceFromDeclared("instagram", "instagram.com/a", "duplicate");
+    const c = retrievedSourceFromDeclared("instagram", "instagram.com/b", "second");
+    const result = dedupeSources([a, b, c]);
+    expect(result).toHaveLength(2);
+    expect(result[0].text).toBe("first");
+    expect(result[1].text).toBe("second");
+  });
+
+  it("retrievedSourceFromDeclared never sets retrieval fields (honest provenance)", () => {
+    const s = retrievedSourceFromDeclared("whatsapp", "wa.me/2348012345678", "A Lagos caterer");
+    expect(s.retrievalMethod).toBe("none");
+    expect(s.retrievedContent).toBeNull();
+    expect(s.retrievedAt).toBeNull();
+    expect(s.text).toBe("A Lagos caterer");
+  });
+
+  it("capGroundingText truncates oversized combined content", () => {
+    const huge = "x".repeat(40000);
+    const capped = capGroundingText(huge);
+    expect(capped.length).toBeLessThan(31000);
+    expect(capped).toContain("[content truncated at limit]");
   });
 });

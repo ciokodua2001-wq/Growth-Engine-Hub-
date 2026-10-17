@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { businessSourcesTable } from "@workspace/db";
 import { requireProjectOwnershipParam } from "../lib/authz.js";
 import { SOURCE_TYPES, type SourceType } from "../lib/businessSourceIngestor.js";
+import { retrieveMetaSourcesForProject } from "../lib/metaProfileRetrieval.js";
 
 const router: IRouter = Router();
 
@@ -92,6 +93,38 @@ router.post("/projects/:id/sources", async (req, res): Promise<void> => {
   // Adding a source does NOT touch analysis_sources snapshots (append-only);
   // existing analyses remain linked to the source versions that grounded them.
   res.status(201).json(serialize(source));
+});
+
+// POST /projects/:id/sources/retrieve - fetch authorized Meta profile data and
+// persist it into the source ledger (read-only; never scrapes or fabricates).
+router.post("/projects/:id/sources/retrieve", async (req, res): Promise<void> => {
+  const projectId = req.project!.id;
+
+  let retrieved: Awaited<ReturnType<typeof retrieveMetaSourcesForProject>>;
+  try {
+    retrieved = await retrieveMetaSourcesForProject(projectId);
+  } catch (err) {
+    req.log.error({ err, projectId }, "Meta retrieval endpoint failed");
+    res.status(502).json({ error: "Meta retrieval failed" });
+    return;
+  }
+
+  // Re-read the ledger so the response reflects what was actually persisted.
+  const sources = await db
+    .select()
+    .from(businessSourcesTable)
+    .where(eq(businessSourcesTable.projectId, projectId))
+    .orderBy(desc(businessSourcesTable.createdAt));
+
+  res.json({
+    retrieved: retrieved.map((s) => ({
+      sourceType: s.sourceType,
+      sourceUrl: s.sourceUrl,
+      retrievalMethod: s.retrievalMethod,
+      retrievedAt: s.retrievedAt?.toISOString() ?? null,
+    })),
+    sources: sources.map(serialize),
+  });
 });
 
 export default router;

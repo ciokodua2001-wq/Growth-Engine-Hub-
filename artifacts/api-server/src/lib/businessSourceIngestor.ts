@@ -117,3 +117,51 @@ export function buildGroundingText(sources: RetrievedSource[]): {
 export function isSufficientGrounding(text: string): boolean {
   return text.trim().length >= MIN_GROUNDING_CHARS;
 }
+
+/**
+ * Hard cap on the combined grounding text so multi-source analysis cannot blow
+ * past AI token limits (and therefore cost) as sources are added.
+ */
+export const MAX_TOTAL_GROUNDING_CHARS = 30000;
+
+/** Cap the merged grounding text before it reaches the AI prompt. */
+export function capGroundingText(text: string): string {
+  if (text.length <= MAX_TOTAL_GROUNDING_CHARS) return text;
+  return text.slice(0, MAX_TOTAL_GROUNDING_CHARS) + "\n\n[content truncated at limit]";
+}
+
+/** De-duplicate sources by (sourceType, sourceUrl) preserving first occurrence. */
+export function dedupeSources(sources: RetrievedSource[]): RetrievedSource[] {
+  const seen = new Set<string>();
+  const out: RetrievedSource[] = [];
+  for (const s of sources) {
+    const key = `${s.sourceType}::${s.sourceUrl ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+  }
+  return out;
+}
+
+/**
+ * Build a RetrievedSource from a persisted ledger row's DECLARED content only.
+ * Used for secondary social/manual sources during multi-source analysis; the
+ * retrieval fields remain null so provenance stays honest (nothing fabricated).
+ */
+export function retrievedSourceFromDeclared(
+  sourceType: SourceType,
+  sourceUrl: string | null,
+  declaredContent: string | null,
+): RetrievedSource {
+  return {
+    sourceType,
+    sourceUrl: sourceUrl ?? null,
+    declaredContent: declaredContent ?? null,
+    retrievedContent: null,
+    retrievalMethod: "none",
+    retrievedAt: null,
+    title: null,
+    metaDescription: null,
+    text: declaredContent ?? "",
+  };
+}

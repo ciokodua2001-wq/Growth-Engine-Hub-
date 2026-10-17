@@ -28,7 +28,17 @@ import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/
 import { recordGenerated, recordGeneratedBatch, hashContent } from "../lib/contentIntegrity.js";
 import { notifyAnalysisComplete } from "../lib/emailNotifier.js";
 import { projectIdentityLabel } from "../lib/projectContext.js";
-import { ingestSource, buildGroundingText, isSufficientGrounding, type SourceType } from "../lib/businessSourceIngestor.js";
+import {
+  ingestSource,
+  buildGroundingText,
+  isSufficientGrounding,
+  dedupeSources,
+  retrievedSourceFromDeclared,
+  capGroundingText,
+  type SourceType,
+  type RetrievedSource,
+} from "../lib/businessSourceIngestor.js";
+import { retrieveMetaSourcesForProject } from "../lib/metaProfileRetrieval.js";
 
 const router: IRouter = Router();
 
@@ -192,11 +202,42 @@ router.post("/projects/:id/analyze", requireActiveSubscription, async (req, res)
     return;
   }
 
-  // Ingest the primary source (manual-first; no unauthorized social scraping).
-  const retrieved = await ingestSource({ sourceType, websiteUrl, sourceUrl, declaredContent });
-  const grounding = buildGroundingText([retrieved]);
+  // ── Multi-source grounding ────────────────────────────────────────────
+  // Gather every usable source: the primary source (request body), authorized
+  // Meta-retrieved profiles, and any other declared social/manual sources in
+  // the ledger. A failed provider never blocks an otherwise valid analysis.
+  const primary = await ingestSource({ sourceType, websiteUrl, sourceUrl, declaredContent });
+
+  let metaSources: RetrievedSource[] = [];
+  try {
+    metaSources = await retrieveMetaSourcesForProject(projectId);
+  } catch (err) {
+    req.log.warn({ err, projectId }, "Meta profile retrieval failed; continuing without it");
+  }
+
+  const primaryValue = primary.sourceUrl ?? primary.sourceType;
+  const ledger = await db
+    .select()
+    .from(businessSourcesTable)
+    .where(and(eq(businessSourcesTable.projectId, projectId), eq(businessSourcesTable.status, "active")));
+
+  const extraSources = ledger
+    .filter((row) => {
+      const rowValue = row.sourceValue ?? row.sourceType;
+      const isPrimary = row.sourceType === primary.sourceType && rowValue === primaryValue;
+      const isMeta = metaSources.some(
+        (m) => m.sourceType === row.sourceType && (m.sourceUrl ?? m.sourceType) === rowValue,
+      );
+      return !isPrimary && !isMeta;
+    })
+    .map((row) => retrievedSourceFromDeclared(row.sourceType as SourceType, row.sourceUrl, row.declaredContent))
+    .filter((s) => s.text && s.text.trim().length > 0);
+
+  const allSources = dedupeSources([primary, ...metaSources, ...extraSources]);
+  const grounding = buildGroundingText(allSources);
+  grounding.text = capGroundingText(grounding.text);
   if (!isSufficientGrounding(grounding.text)) {
-    res.status(400).json({ error: "Not enough information to analyze. Provide a website or a longer business description." });
+    res.status(400).json({ error: "Not enough information to analyze. Provide a website, connect an authorized social profile, or add a longer business description." });
     return;
   }
 
@@ -250,62 +291,66 @@ router.post("/projects/:id/analyze", requireActiveSubscription, async (req, res)
     .values({ projectId, status: "complete", ...result })
     .returning();
 
-  // Upsert the source ledger row, then link an immutable grounding snapshot.
-  const sourceValue = retrieved.sourceUrl ?? retrieved.sourceType;
-  const [existingSource] = await db
-    .select()
-    .from(businessSourcesTable)
-    .where(
-      and(
-        eq(businessSourcesTable.projectId, projectId),
-        eq(businessSourcesTable.sourceType, retrieved.sourceType),
-        eq(businessSourcesTable.sourceValue, sourceValue),
-      ),
-    )
-    .limit(1);
+  // Persist every grounding source into the ledger and link an immutable
+  // analysis-source snapshot per source, so provenance stays per-source.
+  const groundSources = allSources.filter((s) => s.text && s.text.trim().length > 0);
+  for (const retrieved of groundSources) {
+    const sourceValue = retrieved.sourceUrl ?? retrieved.sourceType;
+    const [existingSource] = await db
+      .select()
+      .from(businessSourcesTable)
+      .where(
+        and(
+          eq(businessSourcesTable.projectId, projectId),
+          eq(businessSourcesTable.sourceType, retrieved.sourceType),
+          eq(businessSourcesTable.sourceValue, sourceValue),
+        ),
+      )
+      .limit(1);
 
-  let sourceId: number;
-  if (existingSource) {
-    sourceId = existingSource.id;
-    await db
-      .update(businessSourcesTable)
-      .set({
-        sourceUrl: retrieved.sourceUrl,
-        declaredContent: retrieved.declaredContent,
-        retrievedContent: retrieved.retrievedContent,
-        retrievalMethod: retrieved.retrievalMethod,
-        retrievedAt: retrieved.retrievedAt,
-        contentHash: hashContent(retrieved.text),
-        status: "active",
-      })
-      .where(eq(businessSourcesTable.id, sourceId));
-  } else {
-    const [inserted] = await db
-      .insert(businessSourcesTable)
-      .values({
-        projectId,
-        sourceType: retrieved.sourceType,
-        sourceUrl: retrieved.sourceUrl,
-        sourceValue,
-        displayLabel: retrieved.sourceUrl ?? retrieved.sourceType,
-        authorizationStatus: "none",
-        retrievalMethod: retrieved.retrievalMethod,
-        retrievedAt: retrieved.retrievedAt,
-        contentHash: hashContent(retrieved.text),
-        declaredContent: retrieved.declaredContent,
-        retrievedContent: retrieved.retrievedContent,
-        status: "active",
-      })
-      .returning();
-    sourceId = inserted.id;
+    let sourceId: number;
+    if (existingSource) {
+      sourceId = existingSource.id;
+      await db
+        .update(businessSourcesTable)
+        .set({
+          sourceUrl: retrieved.sourceUrl,
+          declaredContent: retrieved.declaredContent,
+          retrievedContent: retrieved.retrievedContent,
+          retrievalMethod: retrieved.retrievalMethod,
+          retrievedAt: retrieved.retrievedAt,
+          contentHash: hashContent(retrieved.text),
+          status: "active",
+        })
+        .where(eq(businessSourcesTable.id, sourceId));
+    } else {
+      const [inserted] = await db
+        .insert(businessSourcesTable)
+        .values({
+          projectId,
+          sourceType: retrieved.sourceType,
+          sourceUrl: retrieved.sourceUrl,
+          sourceValue,
+          displayLabel: retrieved.sourceUrl ?? retrieved.sourceType,
+          authorizationStatus: retrieved.retrievalMethod === "meta_graph_api" ? "authorized" : "none",
+          retrievalMethod: retrieved.retrievalMethod,
+          retrievedAt: retrieved.retrievedAt,
+          contentHash: hashContent(retrieved.text),
+          declaredContent: retrieved.declaredContent,
+          retrievedContent: retrieved.retrievedContent,
+          status: "active",
+        })
+        .returning();
+      sourceId = inserted.id;
+    }
+
+    await db.insert(analysisSourcesTable).values({
+      analysisId: analysis.id,
+      sourceId,
+      snapshotContent: retrieved.text,
+      snapshotHash: hashContent(retrieved.text),
+    });
   }
-
-  await db.insert(analysisSourcesTable).values({
-    analysisId: analysis.id,
-    sourceId,
-    snapshotContent: retrieved.text,
-    snapshotHash: hashContent(retrieved.text),
-  });
 
   await db.update(projectsTable).set({ industry: result.industry }).where(eq(projectsTable.id, projectId));
 
