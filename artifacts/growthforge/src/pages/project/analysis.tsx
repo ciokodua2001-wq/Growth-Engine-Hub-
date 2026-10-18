@@ -13,7 +13,7 @@ import {
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Zap, Users2, Brain, Target, MessageCircle, TrendingUp } from "lucide-react";
+import { Loader2, Zap, Users2, Brain, Target, MessageCircle, TrendingUp, AlertTriangle } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useTrialUsage } from "@/hooks/use-trial-usage";
@@ -77,6 +77,7 @@ export default function ProjectAnalysis() {
   const projectId = parseInt(params.projectId, 10);
   const [analyzeModalOpen, setAnalyzeModalOpen] = useState(false);
   const [personaModalOpen, setPersonaModalOpen] = useState(false);
+  const [sourceMismatch, setSourceMismatch] = useState<null | { url: string; warnings: string[]; details: { sourceType: string; sourceLabel: string; reason: string }[] }>(null);
 
   const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
   const { data: analysis, isLoading } = useGetBusinessAnalysis(projectId, { query: { queryKey: getGetBusinessAnalysisQueryKey(projectId), enabled: !!projectId } });
@@ -94,20 +95,33 @@ export default function ProjectAnalysis() {
     ? "You've used both AI customer personas included in the trial. Upgrade to generate more."
     : null;
 
-  const handleAnalyze = (websiteUrl: string, _instructions: string): Promise<void> => {
-    const url = websiteUrl || project?.websiteUrl || "";
+  const runAnalyze = (url: string, confirmSources: boolean): Promise<void> => {
     return new Promise((resolve, reject) => {
       analyzeWebsite.mutate(
-        { id: projectId, data: { websiteUrl: url } },
+        { id: projectId, data: { websiteUrl: url, confirmSources } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getGetBusinessAnalysisQueryKey(projectId) });
+            setSourceMismatch(null);
             resolve();
           },
-          onError: reject,
+          onError: (err: unknown) => {
+            const e = err as { status?: number; data?: { sourceMismatch?: { warnings?: string[]; details?: { sourceType: string; sourceLabel: string; reason: string }[] } } };
+            if (e?.status === 409 && e?.data?.sourceMismatch) {
+              setSourceMismatch({ url, warnings: e.data.sourceMismatch.warnings ?? [], details: e.data.sourceMismatch.details ?? [] });
+              resolve();
+            } else {
+              reject(err);
+            }
+          },
         }
       );
     });
+  };
+
+  const handleAnalyze = (websiteUrl: string, _instructions: string): Promise<void> => {
+    const url = websiteUrl || project?.websiteUrl || "";
+    return runAnalyze(url, false);
   };
 
   const handleGeneratePersonas = (_websiteUrl: string, _instructions: string): Promise<void> => {
@@ -287,6 +301,43 @@ export default function ProjectAnalysis() {
         ctaLabel="Generate Personas"
         lockedMessage={personaLockedMessage}
       />
+
+      {sourceMismatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-card border-border p-6 shadow-xl">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-6 w-6 text-amber-500 shrink-0" />
+              <div>
+                <h3 className="text-lg font-bold">Sources may belong to different businesses</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  GrowthForge detected that your website and connected social accounts may describe different businesses. Review before continuing — combining unrelated businesses will produce misleading intelligence.
+                </p>
+              </div>
+            </div>
+            {sourceMismatch.warnings.length > 0 && (
+              <ul className="mt-4 space-y-2">
+                {sourceMismatch.warnings.map((w, i) => (
+                  <li key={i} className="text-sm text-amber-200/90 bg-amber-500/10 border-amber-500/20 rounded-lg px-3 py-2">{w}</li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setSourceMismatch(null)}
+                className="px-4 py-2 rounded-lg text-sm font-medium border-border hover:bg-muted"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { runAnalyze(sourceMismatch.url, true).catch(() => {}); }}
+                className="px-4 py-2 rounded-lg text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                These are the same business — continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

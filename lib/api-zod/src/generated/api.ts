@@ -243,7 +243,8 @@ export const AnalyzeWebsiteBody = zod.object({
   "sourceType": zod.string().optional(),
   "sourceUrl": zod.string().nullish(),
   "prompt": zod.string().optional(),
-  "businessDescription": zod.string().optional().describe('Optional manual business description (declared content) used when no website is available.')
+  "businessDescription": zod.string().optional().describe('Optional manual business description (declared content) used when no website is available.'),
+  "confirmSources": zod.boolean().optional().describe('Set to true to explicitly confirm proceeding when sources appear to belong to different businesses.')
 })
 
 export const AnalyzeWebsiteResponse = zod.object({

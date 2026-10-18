@@ -243,7 +243,7 @@ router.post("/projects/:id/analyze", requireActiveSubscription, async (req, res)
     websiteUrl: project.websiteUrl,
     sourceType: project.sourceType,
   });
-  const confirmSources = (req.body as { confirmSources?: boolean } | undefined)?.confirmSources === true;
+  const confirmSources = parsed.data.confirmSources === true;
   if (mismatch.requiresConfirmation && !confirmSources) {
     res.status(409).json({
       error: "Sources may belong to different businesses. Review and confirm before continuing.",

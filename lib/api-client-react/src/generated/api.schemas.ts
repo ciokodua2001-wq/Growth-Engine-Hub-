@@ -128,6 +128,8 @@ export interface AnalysisInput {
   prompt?: string;
   /** Optional manual business description (declared content) used when no website is available. */
   businessDescription?: string;
+  /** Set to true to explicitly confirm proceeding when sources appear to belong to different businesses. */
+  confirmSources?: boolean;
 }
 
 export interface BusinessAnalysis {

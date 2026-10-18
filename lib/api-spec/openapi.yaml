@@ -1836,6 +1836,9 @@ components:
         businessDescription:
           type: string
           description: Optional manual business description (declared content) used when no website is available.
+        confirmSources:
+          type: boolean
+          description: Set to true to explicitly confirm proceeding when sources appear to belong to different businesses.
 
     BusinessAnalysis:
       type: object
