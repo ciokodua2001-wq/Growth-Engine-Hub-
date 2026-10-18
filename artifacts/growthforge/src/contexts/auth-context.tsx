@@ -55,7 +55,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Clear cached queries when the signed-in user actually changes (sign in,
     // sign out, or switching accounts) - mirrors the old Supabase behavior so
     // stale data from a previous user never leaks into the next session.
-    if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== newUserId) {
+    const oldUserId = prevUserIdRef.current;
+    // Only clear query cache when switching between different user accounts or signing out.
+    // Do NOT clear when transitioning from unauthenticated (null -> userId), as that cancels
+    // initial queries (e.g. useListProjects) launched on dashboard mount upon sign-in/sign-up.
+    if (oldUserId !== undefined && oldUserId !== null && oldUserId !== newUserId) {
       queryClient.clear();
     }
     prevUserIdRef.current = newUserId;

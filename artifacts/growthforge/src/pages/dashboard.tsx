@@ -201,9 +201,10 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [, setLocation] = useLocation();
   const { user, isLoaded } = useAuth();
-  const { data: projects, isLoading, isError: projectsFailed } = useListProjects({
+  const { data: projects, isLoading: projectsLoading, isError: projectsFailed, refetch: refetchProjects } = useListProjects({
     query: { queryKey: getListProjectsQueryKey(), enabled: isLoaded && !!user },
   });
+  const isLoading = !isLoaded || (!!user && projectsLoading && !projects);
   const { isAdmin, data: currentUserData, isLoading: isUserLoading } = useCurrentUser();
   const isOwner = currentUserData?.isOwner ?? false;
 
@@ -295,9 +296,15 @@ export default function DashboardPage() {
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <AlertTriangle className="h-10 w-10 text-amber-400 mb-4" />
             <h2 className="text-xl font-bold mb-2">Couldn’t load your projects</h2>
-            <p className="text-muted-foreground max-w-sm">
-              The server didn’t return your project list. Refresh the page — if this keeps happening, the API is down.
+            <p className="text-muted-foreground max-w-sm mb-4">
+              The server didn’t return your project list. Refresh the page or click below to retry.
             </p>
+            <button
+              onClick={() => refetchProjects()}
+              className="flex items-center gap-2 bg-secondary hover:bg-secondary/80 text-foreground font-semibold px-4 py-2 rounded-xl transition-colors text-sm"
+            >
+              Retry Loading
+            </button>
           </div>
         ) : projects && projects.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
