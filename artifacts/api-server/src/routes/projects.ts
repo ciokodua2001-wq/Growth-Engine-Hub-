@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, count, and, isNull } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
+  usersTable,
   projectsTable,
   activityTable,
   businessAnalysisTable,
@@ -49,6 +50,8 @@ router.post("/projects", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
+  const [userRow] = await db.select({ plan: usersTable.plan }).from(usersTable).where(eq(usersTable.id, userId));
+
   const parsed = CreateProjectBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -69,9 +72,13 @@ router.post("/projects", async (req, res): Promise<void> => {
     return thisIdx > bestIdx ? p.plan : best;
   }, "trial");
 
-  const projectLimit = PLAN_PROJECT_LIMITS[bestPlan] ?? 1;
+  // The user record is now the authoritative plan source; fall back to the
+  // best-plan heuristic only for legacy accounts without a plan on record.
+  const effectivePlan = userRow?.plan ?? bestPlan;
+
+  const projectLimit = PLAN_PROJECT_LIMITS[effectivePlan] ?? 1;
   if (existing.length >= projectLimit) {
-    const planLabel = bestPlan.charAt(0).toUpperCase() + bestPlan.slice(1);
+    const planLabel = effectivePlan.charAt(0).toUpperCase() + effectivePlan.slice(1);
     res.status(403).json({
       error: "project_limit_reached",
       message: `Your ${planLabel} plan allows up to ${projectLimit} project${projectLimit === 1 ? "" : "s"}. Upgrade your plan to create more.`,
@@ -79,11 +86,11 @@ router.post("/projects", async (req, res): Promise<void> => {
     return;
   }
 
-  // `plan` is always forced to "trial" here (never taken from the client) so every
-  // project-creation path is subject to the trial AI-spend cap, matching onboarding.
+  // Inherit the creating user's plan so upgraded accounts keep their tier on
+  // new projects (never taken from the client).
   const [project] = await db
     .insert(projectsTable)
-    .values({ ...parsed.data, ownerId: userId, plan: "trial" })
+    .values({ ...parsed.data, ownerId: userId, plan: effectivePlan })
     .returning();
   res.status(201).json(project);
 });
