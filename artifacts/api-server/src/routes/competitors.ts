@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, isNull } from "drizzle-orm";
 import { db } from "@workspace/db";
 import PDFDocument from "pdfkit";
 import { PassThrough } from "stream";
@@ -42,7 +42,7 @@ router.get("/projects/:id/competitors", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const competitors = await db.select().from(competitorsTable).where(eq(competitorsTable.projectId, params.data.id)).orderBy(desc(competitorsTable.createdAt));
+  const competitors = await db.select().from(competitorsTable).where(and(eq(competitorsTable.projectId, params.data.id), isNull(competitorsTable.supersededAt))).orderBy(desc(competitorsTable.createdAt));
   res.json(competitors.map(c => ({ ...c, createdAt: c.createdAt.toISOString() })));
 });
 
@@ -228,7 +228,7 @@ router.get("/projects/:id/competitor-report", async (req, res): Promise<void> =>
     return;
   }
   const projectId = params.data.id;
-  const competitors = await db.select().from(competitorsTable).where(eq(competitorsTable.projectId, projectId)).orderBy(desc(competitorsTable.createdAt));
+  const competitors = await db.select().from(competitorsTable).where(and(eq(competitorsTable.projectId, projectId), isNull(competitorsTable.supersededAt))).orderBy(desc(competitorsTable.createdAt));
   const [report] = await db.select().from(competitorReportTable).where(eq(competitorReportTable.projectId, projectId));
 
   res.json(serializeReport(projectId, competitors, report ?? null));
@@ -262,7 +262,7 @@ router.get("/projects/:id/competitor-report/pdf", async (req, res): Promise<void
 
   const projectId = params.data.id;
   const competitors = await db.select().from(competitorsTable)
-    .where(eq(competitorsTable.projectId, projectId))
+    .where(and(eq(competitorsTable.projectId, projectId), isNull(competitorsTable.supersededAt)))
     .orderBy(desc(competitorsTable.createdAt));
   const [report] = await db.select().from(competitorReportTable)
     .where(eq(competitorReportTable.projectId, projectId));
@@ -377,7 +377,7 @@ router.post("/projects/:id/competitor-report", requireActiveSubscription, async 
     return;
   }
   const projectId = params.data.id;
-  const competitors = await db.select().from(competitorsTable).where(eq(competitorsTable.projectId, projectId)).orderBy(desc(competitorsTable.createdAt));
+  const competitors = await db.select().from(competitorsTable).where(and(eq(competitorsTable.projectId, projectId), isNull(competitorsTable.supersededAt))).orderBy(desc(competitorsTable.createdAt));
 
   if (competitors.length === 0) {
     res.status(409).json({ error: "Discover competitors before generating a report" });

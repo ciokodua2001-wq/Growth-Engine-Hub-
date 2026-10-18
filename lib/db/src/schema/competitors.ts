@@ -18,6 +18,7 @@ export const competitorsTable = pgTable("competitors", {
   hookStrength: integer("hook_strength"),
   conversionPotential: integer("conversion_potential"),
   differentiationScore: integer("differentiation_score"),
+  supersededAt: timestamp("superseded_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

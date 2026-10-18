@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, isNull } from "drizzle-orm";
 import { db } from "@workspace/db";
 import PDFDocument from "pdfkit";
 import { PassThrough } from "stream";
@@ -39,6 +39,7 @@ import {
   type RetrievedSource,
 } from "../lib/businessSourceIngestor.js";
 import { retrieveMetaSourcesForProject } from "../lib/metaProfileRetrieval.js";
+import { detectCrossBusinessMismatch } from "../lib/sourceIdentityGuard.js";
 
 const router: IRouter = Router();
 
@@ -234,6 +235,23 @@ router.post("/projects/:id/analyze", requireActiveSubscription, async (req, res)
     .filter((s) => s.text && s.text.trim().length > 0);
 
   const allSources = dedupeSources([primary, ...metaSources, ...extraSources]);
+
+  // Cross-business source safeguard: detect likely mixing and require explicit
+  // confirmation before combining sources that appear to be different businesses.
+  const mismatch = detectCrossBusinessMismatch(allSources, {
+    projectName: project.name,
+    websiteUrl: project.websiteUrl,
+    sourceType: project.sourceType,
+  });
+  const confirmSources = (req.body as { confirmSources?: boolean } | undefined)?.confirmSources === true;
+  if (mismatch.requiresConfirmation && !confirmSources) {
+    res.status(409).json({
+      error: "Sources may belong to different businesses. Review and confirm before continuing.",
+      sourceMismatch: mismatch,
+    });
+    return;
+  }
+
   const grounding = buildGroundingText(allSources);
   grounding.text = capGroundingText(grounding.text);
   if (!isSufficientGrounding(grounding.text)) {
@@ -404,7 +422,7 @@ router.get("/projects/:id/personas", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const personas = await db.select().from(personasTable).where(eq(personasTable.projectId, params.data.id)).orderBy(desc(personasTable.createdAt));
+  const personas = await db.select().from(personasTable).where(and(eq(personasTable.projectId, params.data.id), isNull(personasTable.supersededAt))).orderBy(desc(personasTable.createdAt));
   res.json(personas.map(p => ({ ...p, createdAt: p.createdAt.toISOString() })));
 });
 

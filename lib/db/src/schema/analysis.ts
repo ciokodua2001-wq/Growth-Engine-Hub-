@@ -49,6 +49,7 @@ export const personasTable = pgTable("personas", {
   buyingTriggers: text("buying_triggers"),
   buyingJourney: text("buying_journey"),
   avatarUrl: text("avatar_url"),
+  supersededAt: timestamp("superseded_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
