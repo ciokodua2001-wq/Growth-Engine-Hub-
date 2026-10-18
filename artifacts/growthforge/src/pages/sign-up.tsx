@@ -38,7 +38,7 @@ export default function SignUpPage() {
         // Email verification is non-blocking - the user is already signed in.
         // Bare path: wouter's Router base already handles basePath, unlike the
         // absolute emailRedirectTo/redirectTo URLs above which need it explicitly.
-        setLocation("/plans");
+        window.location.href = `${basePath}/auth/redirect`;
       } else {
         // Confirmation email sent; the user must click the link before a session exists.
         setAwaitingConfirmation(true);
