@@ -114,8 +114,8 @@ export function checkEncryptionKey(): { ok: boolean; reason?: string } {
  * Returns `payload.signature` (hex). Used to create tamper-evident OAuth state.
  */
 export function signState(payload: string): string {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("SESSION_SECRET is not set");
+  const secret = process.env.SESSION_SECRET || process.env.BETTER_AUTH_SECRET || process.env.TOKEN_ENCRYPTION_KEY;
+  if (!secret) throw new Error("SESSION_SECRET or BETTER_AUTH_SECRET is not set");
   const sig = crypto.createHmac("sha256", secret).update(payload).digest("hex");
   return `${payload}.${sig}`;
 }
@@ -129,10 +129,10 @@ export function verifyState(signed: string): string {
   if (lastDot === -1) throw new Error("Missing state signature");
   const payload = signed.slice(0, lastDot);
   const sig = signed.slice(lastDot + 1);
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("SESSION_SECRET is not set");
+  const secret = process.env.SESSION_SECRET || process.env.BETTER_AUTH_SECRET || process.env.TOKEN_ENCRYPTION_KEY;
+  if (!secret) throw new Error("SESSION_SECRET or BETTER_AUTH_SECRET is not set");
   const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
-  if (!crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) {
+  if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) {
     throw new Error("State signature invalid");
   }
   return payload;
