@@ -21,6 +21,11 @@ router.post("/onboarding", async (req, res): Promise<void> => {
       return;
     }
 
+    // Inherit the current plan from the user row so upgraded accounts do not
+    // get stuck with trial limits on newly created projects.
+    const [userRow] = await db.select({ plan: usersTable.plan }).from(usersTable).where(eq(usersTable.id, userId));
+    const userPlan = userRow?.plan ?? "trial";
+
     const body = req.body as {
       businessName?: string;
       websiteUrl?: string | null;
@@ -122,7 +127,7 @@ router.post("/onboarding", async (req, res): Promise<void> => {
         operatingModel,
         industry: null,
         description,
-        plan: "trial",
+        plan: userPlan,
         status: "pending",
         detectedLocale,
       })
