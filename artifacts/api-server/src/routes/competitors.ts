@@ -116,6 +116,10 @@ industry. Return JSON:
     return;
   }
 
+  // Replace (not append) the current competitor set: mark prior active rows
+  // superseded so stale intelligence can never appear as if it were current.
+  await db.update(competitorsTable).set({ supersededAt: new Date() }).where(and(eq(competitorsTable.projectId, projectId), isNull(competitorsTable.supersededAt)));
+
   const inserted = await db.insert(competitorsTable).values(
     competitorResults.map(c => ({ ...c, projectId }))
   ).returning();

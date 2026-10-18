@@ -508,6 +508,10 @@ Generate exactly 3 distinct, realistic buyer personas for this specific business
     return;
   }
 
+  // Replace (not append) the current persona set: mark prior active rows
+  // superseded so stale personas can never appear as if they were current.
+  await db.update(personasTable).set({ supersededAt: new Date() }).where(and(eq(personasTable.projectId, projectId), isNull(personasTable.supersededAt)));
+
   const inserted = await db.insert(personasTable).values(
     personaResults.map(p => ({ ...p, avatarUrl: null, projectId }))
   ).returning();
