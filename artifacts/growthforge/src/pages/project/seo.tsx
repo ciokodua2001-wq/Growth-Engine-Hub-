@@ -618,7 +618,7 @@ function SeoBlogTab({ projectId, plan }: { projectId: number; plan: string }) {
     resolver: zodResolver(z.object({
       keyword: z.string().min(1, "Keyword is required"),
       tone: z.string().min(1)
-    })),
+    }) as any),
     defaultValues: { keyword: "", tone: "professional" }
   });
 
