@@ -66,11 +66,12 @@ const queryClient = new QueryClient({
     queries: {
       retry: (failureCount, error) => {
         const msg = error instanceof Error ? error.message : String(error);
-        if (msg.includes("401") || msg.includes("Unauthorized") || msg.includes("403") || msg.includes("Forbidden")) {
+        if (msg.includes("403") || msg.includes("Forbidden")) {
           return false;
         }
         return failureCount < 1;
       },
+      retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
       refetchOnWindowFocus: false,
     },
   },

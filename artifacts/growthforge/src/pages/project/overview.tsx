@@ -26,7 +26,9 @@ import {
   FileText,
   TrendingUp,
   Rss,
+  RefreshCw,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import GenerateModal from "@/components/ui/generate-modal";
 
 const ANALYSIS_STEPS = [
@@ -158,7 +160,7 @@ export default function ProjectOverview() {
   const [modalOpen, setModalOpen] = useState(false);
 
   const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
-  const { data: dashboard, isLoading } = useGetProjectDashboard(projectId, { query: { queryKey: getGetProjectDashboardQueryKey(projectId), enabled: !!projectId } });
+  const { data: dashboard, isLoading, isError, refetch } = useGetProjectDashboard(projectId, { query: { queryKey: getGetProjectDashboardQueryKey(projectId), enabled: !!projectId } });
   const analyzeWebsite = useAnalyzeWebsite();
   const queryClient = useQueryClient();
 
@@ -207,6 +209,13 @@ export default function ProjectOverview() {
       {isLoading ? (
         <div className="flex items-center justify-center py-40">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+          <p className="text-muted-foreground text-sm">Unable to load project dashboard details right now.</p>
+          <Button onClick={() => refetch()} variant="outline" size="sm">
+            <RefreshCw className="w-4 h-4 mr-2" /> Retry
+          </Button>
         </div>
       ) : (
         <>
