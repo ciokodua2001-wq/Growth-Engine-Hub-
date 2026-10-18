@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const usersTable = pgTable("users", {
   id: text("id").primaryKey(),
@@ -22,7 +22,10 @@ export const usersTable = pgTable("users", {
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  // One application user per email (email may be null for provider-only rows).
+  uniqueIndex("users_email_unique").on(table.email),
+]);
 
 export type User = typeof usersTable.$inferSelect;
 export type InsertUser = typeof usersTable.$inferInsert;

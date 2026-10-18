@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { Resend } from "resend";
 import { db, user, session, account, verification, usersTable } from "@workspace/db";
+import { adoptExistingUserByEmail } from "./adoptUserByEmail.js";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger.js";
 
@@ -73,9 +74,17 @@ export const auth = betterAuth({
       create: {
         after: async (authUser) => {
           try {
+            const email = authUser.email ?? null;
             const existing = await db.select().from(usersTable).where(eq(usersTable.id, authUser.id));
             if (existing.length === 0) {
-              await db.insert(usersTable).values({ id: authUser.id, email: authUser.email ?? null, canAccessDev: true });
+              // Adopt an existing app row for this email (e.g. re-signup after
+              // deletion) rather than creating a duplicate `users` row.
+              const adopted = email ? await adoptExistingUserByEmail(authUser.id, email) : false;
+              if (!adopted) {
+                await db.insert(usersTable).values({ id: authUser.id, email, canAccessDev: true });
+              }
+            } else if (email && existing[0].email !== email) {
+              await db.update(usersTable).set({ email }).where(eq(usersTable.id, authUser.id));
             }
           } catch (err) {
             logger.error({ err, userId: authUser.id }, "[Auth] Failed to auto-provision application user row");
