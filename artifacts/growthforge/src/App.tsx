@@ -32,6 +32,8 @@ import DashboardPage from "@/pages/dashboard";
 import AuthRedirectPage from "@/pages/auth-redirect";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import ResetPasswordPage from "@/pages/reset-password";
 import PlansPage from "@/pages/plans";
 import OnboardingPage from "@/pages/onboarding";
 import AnalysisProgressPage from "@/pages/analysis-progress";
@@ -85,6 +87,8 @@ function AppRoutes() {
       {/* Auth */}
       <Route path="/sign-in" component={SignInPage} />
       <Route path="/sign-up" component={SignUpPage} />
+      <Route path="/forgot-password" component={ForgotPasswordPage} />
+      <Route path="/reset-password" component={ResetPasswordPage} />
       <Route path="/auth/redirect" component={AuthRedirectPage} />
 
       {/* Onboarding funnel */}
