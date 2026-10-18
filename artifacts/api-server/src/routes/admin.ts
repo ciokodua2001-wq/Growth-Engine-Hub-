@@ -2,6 +2,10 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { getAuth } from "../lib/supabaseAuth.js";
 import { db } from "@workspace/db";
 import {
+  user,
+  session,
+  account,
+  verification,
   usersTable,
   projectsTable,
   featureFlagsTable,
@@ -273,7 +277,19 @@ router.delete("/admin/users/:id", requireAdmin, async (req, res): Promise<void> 
     const blocked = await guardOwner(req, res, req.params.id as string, "delete");
     if (blocked) return;
 
-    await db.delete(usersTable).where(eq(usersTable.id, req.params.id as string));
+    const targetUserId = req.params.id as string;
+    const [existing] = await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, targetUserId));
+    const targetEmail = existing?.email;
+
+    await db.transaction(async (tx) => {
+      await tx.delete(session).where(eq(session.userId, targetUserId));
+      await tx.delete(account).where(eq(account.userId, targetUserId));
+      if (targetEmail) {
+        await tx.delete(verification).where(or(eq(verification.identifier, targetEmail), eq(verification.value, targetEmail)));
+      }
+      await tx.delete(user).where(eq(user.id, targetUserId));
+      await tx.delete(usersTable).where(eq(usersTable.id, targetUserId));
+    });
     await auditLog(auth.userId!, auth.sessionClaims?.email as string, "user_deleted", "user", req.params.id as string);
     res.json({ success: true });
   } catch (err) {
