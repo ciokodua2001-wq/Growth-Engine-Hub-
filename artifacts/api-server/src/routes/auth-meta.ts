@@ -12,12 +12,15 @@ const router: IRouter = Router();
 
 const META_APP_ID = process.env.META_APP_ID ?? "";
 const META_APP_SECRET = process.env.META_APP_SECRET ?? "";
-const SCOPES = [
-  "pages_manage_posts",
+const DEFAULT_SCOPES = [
+  "public_profile",
+  "pages_show_list",
   "pages_read_engagement",
+  "pages_manage_posts",
   "instagram_basic",
   "instagram_content_publish",
 ].join(",");
+const SCOPES = process.env.META_SCOPES ?? DEFAULT_SCOPES;
 
 const SESSION_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
