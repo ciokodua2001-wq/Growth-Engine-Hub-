@@ -1,6 +1,6 @@
 # GrowthForge - Pre-Launch Acceptance Matrix (living)
 
-> Updated after the Veo architecture correction. Evidence basis is noted per row: **code** (source inspection), **API** (endpoint exercised), **browser** (frontend driven), **DB** (persisted data), **prod** (production verification).
+> Updated after the Veo architecture correction + video-assembly acceptance + social-share labeling (commit 51ecf08). Evidence basis is noted per row: **code** (source inspection), **API** (endpoint exercised), **browser** (frontend driven), **DB** (persisted data), **prod** (production verification).
 
 ## 1. Core customer experience (WS1)
 
@@ -14,6 +14,7 @@
 | Marketing strategy | Working | DB: 3 strategies, PDF export | - | ✅ required |
 | Content generation | Working | DB: 3 pieces, real Gemini | - | ✅ required |
 | Social posts + images | **Working** | browser: 12 posts w/ captions+hashtags+CTAs+Imagen | - | ✅ required |
+| Social sharing (non-publishing) | **Honest** | Labels corrected (`51ecf08`): X = web share *intent* (`x.com/intent/tweet` pre-fills composer); LinkedIn/TikTok/Facebook/Instagram = copy caption + open platform for manual paste. No button claims auto-publish | - | ✅ ready |
 | Competitors / personas | **Unverified** | `competitor_report` table = 0 rows | P1 | ⚠️ verify |
 | Save / edit / export | **Done** | save ✅, copy ✅, edit ✅ (PATCH + inline UI, `8250eb8`) | P1 | ✅ ready |
 
@@ -30,7 +31,7 @@
 | Output storage | ✅ PASS | Wasabi `renders/veo/*.mp4`, signed URLs; `OBJECT_STORAGE_*` all set |
 | Retries/errors | ✅ PASS | 5 submit attempts (429 backoff), 90×10s poll, visible failure |
 | Real output | ✅ PASS | 3 "succeed" Veo scenes in project 8 video |
-| **Final assembly → playable URL** | ⚠️ **UNVERIFIED** | existing video `status=complete` but `video_url` empty + `render_status=processing` |
+| **Final assembly → playable URL** | ✅ **PASS** | FFmpeg assembled 4 scenes → 30.5s 1080p MP4 (24.2 MB) uploaded to Wasabi `renders/assembled/video-1-landscape-1792442643206.mp4`; `commercial_assemblies` id=4 `complete`, `videos.render_status=complete` + `video_url` set. Verified: ffprobe h264+aac (both 30.500s, audio mean -19.1 dB / max -1.7 dB), browser `<video>` readyState 4, download endpoint re-signs via `refreshAssemblyUrl` (Wasabi-aware, commit `f1912f4`) |
 
 Kling/Wan are decommissioned; **do not reactivate**. The `KLING_API_KEY` absence is irrelevant.
 
@@ -93,7 +94,7 @@ Additionally, 3 suites fail to **import** when run without `.env` loaded
 **A. Must fix before controlled beta**
 1. ~~Content/social-post edit endpoints + UI~~ ✅ done (`8250eb8`)
 2. Competitors/personas verification (WS1)
-3. Video final assembly → playable URL (WS2)
+3. ~~Video final assembly → playable URL (WS2)~~ ✅ done (`f1912f4` + `51ecf08` verified: playable, audible, downloadable, fresh signed URL)
 4. Social publish route token-decryption 500s (see §6) - fix before native Meta publishing
 
 **B. Must fix before paid/public launch**
