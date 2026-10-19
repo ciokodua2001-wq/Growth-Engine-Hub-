@@ -15,7 +15,7 @@
 | Content generation | Working | DB: 3 pieces, real Gemini | - | ✅ required |
 | Social posts + images | **Working** | browser: 12 posts w/ captions+hashtags+CTAs+Imagen | - | ✅ required |
 | Social sharing (non-publishing) | **Honest** | Labels corrected (`51ecf08`): X = web share *intent* (`x.com/intent/tweet` pre-fills composer); LinkedIn/TikTok/Facebook/Instagram = copy caption + open platform for manual paste. No button claims auto-publish | - | ✅ ready |
-| Competitors / personas | **Unverified** | `competitor_report` table = 0 rows | P1 | ⚠️ verify |
+| Competitors / personas | **Working** | DB: 24 competitors + 9 personas; browser: project 8 shows 5 competitors (Square One, Apollo, Westland, Surex, BrokerLink) + 3 personas (Fiona/Liam/Ryan) on Analysis & Competitors pages. `competitor_report` (summary synthesis) is a *separate* \"Generate Report\" action, empty only because it has not been triggered — not a generation failure | - | ✅ required |
 | Save / edit / export | **Done** | save ✅, copy ✅, edit ✅ (PATCH + inline UI, `8250eb8`) | P1 | ✅ ready |
 
 ## 2. Google Veo video generation (WS2) - CORRECTED
@@ -93,7 +93,7 @@ Additionally, 3 suites fail to **import** when run without `.env` loaded
 
 **A. Must fix before controlled beta**
 1. ~~Content/social-post edit endpoints + UI~~ ✅ done (`8250eb8`)
-2. Competitors/personas verification (WS1)
+2. ~~Competitors/personas verification (WS1)~~ ✅ done — 24 competitors + 9 personas generated and displayed (browser-verified)
 3. ~~Video final assembly → playable URL (WS2)~~ ✅ done (`f1912f4` + `51ecf08` verified: playable, audible, downloadable, fresh signed URL)
 4. Social publish route token-decryption 500s (see §6) - fix before native Meta publishing
 
