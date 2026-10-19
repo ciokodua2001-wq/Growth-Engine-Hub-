@@ -38,6 +38,7 @@ import type {
   CompetitorReport,
   ContentAsset,
   ContentGenerationInput,
+  ContentUpdate,
   CustomerPersona,
   DashboardSummary,
   EmailCampaign,
@@ -71,6 +72,7 @@ import type {
   SocialPost,
   SocialPostInput,
   SocialPostStats,
+  SocialPostUpdate,
   UploadUrlRequest,
   UploadUrlResponse,
   Video,
@@ -1858,6 +1860,79 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getDeleteContentMutationOptions(options));
     }
 
+export const getUpdateContentUrl = (id: number,
+    contentId: number,) => {
+
+
+
+
+  return `/api/projects/${id}/content/${contentId}`
+}
+
+/**
+ * @summary Update a content asset
+ */
+export const updateContent = async (id: number,
+    contentId: number,
+    contentUpdate: ContentUpdate, options?: RequestInit): Promise<ContentAsset> => {
+
+  return customFetch<ContentAsset>(getUpdateContentUrl(id,contentId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(contentUpdate)
+  }
+);}
+
+
+
+
+export const getUpdateContentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateContent>>, TError,{id: number;contentId: number;data: BodyType<ContentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateContent>>, TError,{id: number;contentId: number;data: BodyType<ContentUpdate>}, TContext> => {
+
+const mutationKey = ['updateContent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateContent>>, {id: number;contentId: number;data: BodyType<ContentUpdate>}> = (props) => {
+          const {id,contentId,data} = props ?? {};
+
+          return  updateContent(id,contentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateContentMutationResult = NonNullable<Awaited<ReturnType<typeof updateContent>>>
+    export type UpdateContentMutationBody = BodyType<ContentUpdate>
+    export type UpdateContentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a content asset
+ */
+export const useUpdateContent = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateContent>>, TError,{id: number;contentId: number;data: BodyType<ContentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateContent>>,
+        TError,
+        {id: number;contentId: number;data: BodyType<ContentUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateContentMutationOptions(options));
+    }
+
 export const getListSocialPostsUrl = (id: number,) => {
 
 
@@ -2004,6 +2079,79 @@ export const useGenerateSocialPosts = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getGenerateSocialPostsMutationOptions(options));
+    }
+
+export const getUpdateSocialPostUrl = (id: number,
+    postId: number,) => {
+
+
+
+
+  return `/api/projects/${id}/social-posts/${postId}`
+}
+
+/**
+ * @summary Update a social media post
+ */
+export const updateSocialPost = async (id: number,
+    postId: number,
+    socialPostUpdate: SocialPostUpdate, options?: RequestInit): Promise<SocialPost> => {
+
+  return customFetch<SocialPost>(getUpdateSocialPostUrl(id,postId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(socialPostUpdate)
+  }
+);}
+
+
+
+
+export const getUpdateSocialPostMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSocialPost>>, TError,{id: number;postId: number;data: BodyType<SocialPostUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSocialPost>>, TError,{id: number;postId: number;data: BodyType<SocialPostUpdate>}, TContext> => {
+
+const mutationKey = ['updateSocialPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSocialPost>>, {id: number;postId: number;data: BodyType<SocialPostUpdate>}> = (props) => {
+          const {id,postId,data} = props ?? {};
+
+          return  updateSocialPost(id,postId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSocialPostMutationResult = NonNullable<Awaited<ReturnType<typeof updateSocialPost>>>
+    export type UpdateSocialPostMutationBody = BodyType<SocialPostUpdate>
+    export type UpdateSocialPostMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a social media post
+ */
+export const useUpdateSocialPost = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSocialPost>>, TError,{id: number;postId: number;data: BodyType<SocialPostUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateSocialPost>>,
+        TError,
+        {id: number;postId: number;data: BodyType<SocialPostUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateSocialPostMutationOptions(options));
     }
 
 export const getGetMetaStatusUrl = (id: number,) => {

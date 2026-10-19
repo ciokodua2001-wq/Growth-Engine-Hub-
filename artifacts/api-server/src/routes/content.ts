@@ -10,7 +10,11 @@ import {
   GenerateContentBody,
   GetContentParams,
   DeleteContentParams,
+  UpdateContentParams,
+  UpdateContentBody,
   ListSocialPostsParams,
+  UpdateSocialPostParams,
+  UpdateSocialPostBody,
   GenerateSocialPostsParams,
   GenerateSocialPostsBody,
   GetContentCalendarParams,
@@ -41,7 +45,7 @@ const router: IRouter = Router();
 
 // ── Social post image helper ───────────────────────────────────────────────────
 // Generates an Imagen image for a social post and uploads it to object storage.
-// Failures are non-fatal — the post is saved without an image rather than erroring.
+// Failures are non-fatal - the post is saved without an image rather than erroring.
 const PLATFORM_IMAGE_SIZE: Record<string, "1024x1024" | "1536x1024" | "1024x1536"> = {
   instagram: "1024x1536",
   tiktok:    "1024x1536",
@@ -58,10 +62,10 @@ async function generateAndUploadSocialImage(
   try {
     const size = PLATFORM_IMAGE_SIZE[platform] ?? "1024x1024";
     const buffer = await generateImageBuffer(imagePrompt, size);
-    // Store as a self-contained data URL — avoids object-storage signing failures in production
+    // Store as a self-contained data URL - avoids object-storage signing failures in production
     return `data:image/png;base64,${buffer.toString("base64")}`;
   } catch (err) {
-    log.warn({ err }, "Social post image generation failed — post saved without image");
+    log.warn({ err }, "Social post image generation failed - post saved without image");
     return null;
   }
 }
@@ -87,17 +91,17 @@ router.post("/projects/:id/content", requireActiveSubscription, async (req, res)
   const count = Math.min(parsed.data.count ?? 1, 3);
 
   // Content Engine AI generation is a paid feature (Get-Going+).
-  // Trial budget is at ~$0.440/$0.45 cap — long-form content generation
+  // Trial budget is at ~$0.440/$0.45 cap - long-form content generation
   // (~$0.030-0.060 per call) would breach it; see trialLimits.ts for details.
   if (!req.isPlatformOwner && !meetsMinPlan(req.project?.plan ?? "trial", "get-going")) {
-    res.status(403).json({ error: "AI Content generation is available on the Get-Going plan and higher. Upgrade to unlock blog posts, whitepapers, case studies, and more — all grounded in your business." });
+    res.status(403).json({ error: "AI Content generation is available on the Get-Going plan and higher. Upgrade to unlock blog posts, whitepapers, case studies, and more - all grounded in your business." });
     return;
   }
 
   // Business analysis must be complete to ground the AI output
   const ctx = await getGroundingContext(projectId);
   if (!ctx) {
-    res.status(409).json({ error: "Complete your business analysis first — the Content Engine uses your brand voice, ICP, and value proposition to write content specific to your business." });
+    res.status(409).json({ error: "Complete your business analysis first - the Content Engine uses your brand voice, ICP, and value proposition to write content specific to your business." });
     return;
   }
 
@@ -167,6 +171,29 @@ router.delete("/projects/:id/content/:contentId", async (req, res): Promise<void
   res.sendStatus(204);
 });
 
+router.patch("/projects/:id/content/:contentId", async (req, res): Promise<void> => {
+  const params = UpdateContentParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const body = UpdateContentBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+
+  const { id, contentId } = params.data;
+  const patch: Record<string, unknown> = {};
+  if (body.data.title !== undefined) patch.title = body.data.title;
+  if (body.data.body !== undefined) patch.body = body.data.body;
+  if (body.data.metaDescription !== undefined) patch.metaDescription = body.data.metaDescription;
+  if (body.data.seoKeywords !== undefined) patch.seoKeywords = body.data.seoKeywords;
+
+  const [updated] = await db
+    .update(contentTable)
+    .set(patch)
+    .where(and(eq(contentTable.id, contentId), eq(contentTable.projectId, id)))
+    .returning();
+  if (!updated) { res.status(404).json({ error: "Content not found" }); return; }
+
+  res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+});
+
 // Social Posts
 router.get("/projects/:id/social-posts", async (req, res): Promise<void> => {
   const params = ListSocialPostsParams.safeParse(req.params);
@@ -179,6 +206,34 @@ router.get("/projects/:id/social-posts", async (req, res): Promise<void> => {
     statsUpdatedAt: p.statsUpdatedAt?.toISOString() ?? null,
     createdAt: p.createdAt.toISOString(),
   })));
+});
+
+router.patch("/projects/:id/social-posts/:postId", async (req, res): Promise<void> => {
+  const params = UpdateSocialPostParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  const body = UpdateSocialPostBody.safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+
+  const { id, postId } = params.data;
+  const patch: Record<string, unknown> = {};
+  if (body.data.caption !== undefined) patch.caption = body.data.caption;
+  if (body.data.hashtags !== undefined) patch.hashtags = body.data.hashtags;
+  if (body.data.cta !== undefined) patch.cta = body.data.cta;
+
+  const [updated] = await db
+    .update(socialPostsTable)
+    .set(patch)
+    .where(and(eq(socialPostsTable.id, postId), eq(socialPostsTable.projectId, id)))
+    .returning();
+  if (!updated) { res.status(404).json({ error: "Social post not found" }); return; }
+
+  res.json({
+    ...updated,
+    scheduledAt: updated.scheduledAt?.toISOString() ?? null,
+    publishedAt: updated.publishedAt?.toISOString() ?? null,
+    statsUpdatedAt: updated.statsUpdatedAt?.toISOString() ?? null,
+    createdAt: updated.createdAt.toISOString(),
+  });
 });
 
 router.post("/projects/:id/social-posts", requireActiveSubscription, async (req, res): Promise<void> => {
@@ -229,7 +284,7 @@ router.post("/projects/:id/social-posts", requireActiveSubscription, async (req,
   }
 
   // Generate one creative image per post in parallel.
-  // Image failures are silently swallowed — posts are saved without images rather than failing.
+  // Image failures are silently swallowed - posts are saved without images rather than failing.
   const imageUrls = await Promise.all(
     postResults.map(p =>
       p.imagePrompt
@@ -446,7 +501,7 @@ router.post("/projects/:id/emails/:emailId/send", requireActiveSubscription, asy
 
   const sentCount = validEmails.length - failCount;
 
-  // Only mark as sent if at least one recipient succeeded — preserves retry ability on full failure
+  // Only mark as sent if at least one recipient succeeded - preserves retry ability on full failure
   let updated: typeof email | undefined;
   if (sentCount > 0) {
     const [row] = await db.update(emailCampaignsTable)
@@ -461,7 +516,7 @@ router.post("/projects/:id/emails/:emailId/send", requireActiveSubscription, asy
       description: `Sent "${email.subject}" to ${sentCount} recipient${sentCount !== 1 ? "s" : ""}${failCount > 0 ? ` (${failCount} failed)` : ""}`,
     });
   } else {
-    // Full failure — don't mark sent, surface the error so user can retry
+    // Full failure - don't mark sent, surface the error so user can retry
     res.status(502).json({
       error: "All sends failed. Check that marketing@usegrowthforge.com is verified in your Resend dashboard.",
       sentCount: 0,
@@ -579,7 +634,7 @@ router.get("/projects/:id/social-posts/:postId/stats", async (req, res): Promise
     }
   }
 
-  // Fetch insights from Graph API — platform-specific field shapes
+  // Fetch insights from Graph API - platform-specific field shapes
   let likes: number | null = null;
   let comments: number | null = null;
   let reach: number | null = null;
@@ -664,16 +719,16 @@ router.get("/projects/:id/social-posts/:postId/stats", async (req, res): Promise
 // Publish social post to Meta (Facebook / Instagram)
 //
 // Idempotency design:
-//   1. externalPostId guard — if the Graph API call already succeeded on a prior attempt
+//   1. externalPostId guard - if the Graph API call already succeeded on a prior attempt
 //      but the subsequent DB update timed out, externalPostId is already set. We detect
 //      this and complete the DB state without calling the Graph API again (no duplicate post).
-//   2. Optimistic concurrency lock — we atomically transition status draft → publishing
+//   2. Optimistic concurrency lock - we atomically transition status draft → publishing
 //      before the API call. Concurrent requests find no matching draft row and get 409.
-//   3. Failure classification — only definitive Graph API rejections (GraphApiError) roll
+//   3. Failure classification - only definitive Graph API rejections (GraphApiError) roll
 //      the post back to "draft". Network/transport errors are ambiguous: Meta may have
 //      already accepted the request, so the post stays "publishing" and the user is told
 //      to check their page before retrying. This prevents duplicate posts on retry.
-//   4. Post-publish DB write resilience — after a successful Graph API call the externalPostId
+//   4. Post-publish DB write resilience - after a successful Graph API call the externalPostId
 //      is written with up to 3 attempts. If all fail the post stays "publishing" with the
 //      externalPostId logged so it can be recovered; the next retry hits the externalPostId
 //      guard (1) and completes the DB state without calling Meta again.
@@ -724,7 +779,7 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
     return;
   }
 
-  // Guard 2: atomically claim the publish slot — transition draft → publishing only when
+  // Guard 2: atomically claim the publish slot - transition draft → publishing only when
   // status is still "draft" AND externalPostId is still NULL. Any concurrent request will
   // find no matching row and be rejected with 409 before reaching the Graph API.
   const [locked] = await db
@@ -769,7 +824,7 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
 
   const content = [post.caption, post.hashtags, post.cta].filter(Boolean).join("\n\n");
 
-  // Resolve the page access token — migrating legacy plaintext rows on first read.
+  // Resolve the page access token - migrating legacy plaintext rows on first read.
   let pageToken: string;
   if (!isEncryptedFormat(conn.pageAccessToken)) {
     pageToken = conn.pageAccessToken;
@@ -781,7 +836,7 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
         .where(eq(metaConnectionsTable.projectId, projectId));
       req.log.info({ projectId }, "Migrated plaintext Meta page token to encrypted form");
     } catch (encErr) {
-      req.log.warn({ encErr }, "Could not re-encrypt legacy Meta token — will use plaintext for this request");
+      req.log.warn({ encErr }, "Could not re-encrypt legacy Meta token - will use plaintext for this request");
     }
   } else {
     try {
@@ -819,7 +874,7 @@ router.post("/projects/:id/social-posts/:postId/publish", async (req, res): Prom
   await db.insert(activityTable).values({
     projectId,
     type: "social",
-    description: `Published "${post.caption.slice(0, 60)}…" to ${platform}`,
+    description: `Published "${post.caption.slice(0, 60)}..." to ${platform}`,
   });
 
   const [finalPost] = await db.select().from(socialPostsTable).where(eq(socialPostsTable.id, postId));
@@ -912,7 +967,7 @@ router.delete("/projects/:id/social-posts/:postId/schedule", requireActiveSubscr
   });
 });
 
-// Email scheduling (Get-Going+ only) — sets/clears scheduledAt on an email campaign.
+// Email scheduling (Get-Going+ only) - sets/clears scheduledAt on an email campaign.
 // The scheduled publisher cron picks these up and notifies the owner when it's time to send.
 router.patch("/projects/:id/emails/:emailId/schedule", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = SendEmailParams.safeParse(req.params);
@@ -1009,7 +1064,7 @@ router.post("/projects/:id/ads", requireActiveSubscription, async (req, res): Pr
   const adTemplates = [
     { headline: "Paste Your URL. Get Your Marketing Team.", description: "AI analyzes your business, generates content, creates videos, and launches campaigns automatically. Replace your marketing agency.", cta: "Start Free Analysis", type: "image", hookStrength: 89, conversionPotential: 84 },
     { headline: "Your Competitors Are Using AI. Are You?", description: "GrowthForge AI creates 9 videos, 30 social posts, email sequences, and full ad campaigns from just your website URL. Try free.", cta: "Try It Free", type: "image", hookStrength: 82, conversionPotential: 79 },
-    { headline: "Stop Paying $10K/Month for Marketing Agencies", description: "AI-powered marketing platform. Competitive analysis, content creation, video production, campaign management — all automated.", cta: "See Pricing", type: "video", hookStrength: 91, conversionPotential: 87 },
+    { headline: "Stop Paying $10K/Month for Marketing Agencies", description: "AI-powered marketing platform. Competitive analysis, content creation, video production, campaign management - all automated.", cta: "See Pricing", type: "video", hookStrength: 91, conversionPotential: 87 },
     { headline: "5 Minutes to Your Full Marketing Department", description: "Enter your website URL. Our AI builds your business intelligence, competitor analysis, content strategy, and campaign plan instantly.", cta: "Get Started Free", type: "image", hookStrength: 85, conversionPotential: 81 },
   ];
 

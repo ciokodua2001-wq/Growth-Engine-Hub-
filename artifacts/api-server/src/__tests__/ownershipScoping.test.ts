@@ -239,6 +239,27 @@ describe("content ownership enforcement", () => {
     expect(res.status).toBe(404);
     expectScoped(capturedWheres[0], "content.id", "content.projectId", 999, 1);
   });
+
+  it("PATCH /projects/1/content/999 scopes by projectId and 404s", async () => {
+    const res = await request(buildApp(contentRouter))
+      .patch("/projects/1/content/999")
+      .send({ title: "stolen" });
+    expect(res.status).toBe(404);
+    expectScoped(capturedWheres[0], "content.id", "content.projectId", 999, 1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Social posts (edit)
+// ---------------------------------------------------------------------------
+describe("social post ownership enforcement", () => {
+  it("PATCH /projects/1/social-posts/999 scopes by projectId and 404s", async () => {
+    const res = await request(buildApp(contentRouter))
+      .patch("/projects/1/social-posts/999")
+      .send({ caption: "stolen" });
+    expect(res.status).toBe(404);
+    expectScoped(capturedWheres[0], "social.id", "social.projectId", 999, 1);
+  });
 });
 
 // ---------------------------------------------------------------------------

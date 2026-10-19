@@ -292,6 +292,24 @@ export interface ContentAsset {
   createdAt: string;
 }
 
+export interface ContentUpdate {
+  title?: string;
+  /** @nullable */
+  body?: string | null;
+  /** @nullable */
+  metaDescription?: string | null;
+  /** @nullable */
+  seoKeywords?: string | null;
+}
+
+export interface SocialPostUpdate {
+  caption?: string;
+  /** @nullable */
+  hashtags?: string | null;
+  /** @nullable */
+  cta?: string | null;
+}
+
 export interface SocialPostInput {
   platforms: string[];
   count?: number;

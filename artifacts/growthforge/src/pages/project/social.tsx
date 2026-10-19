@@ -3,6 +3,7 @@ import { useParams, useLocation, useSearch } from "wouter";
 import {
   useListSocialPosts,
   useGenerateSocialPosts,
+  useUpdateSocialPost,
   useGetContentCalendar,
   useGetProject,
   useGetMetaConnection,
@@ -103,14 +104,14 @@ function PublishButtons({
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 text-xs text-amber-400">
           <Loader2 className="h-3 w-3 animate-spin" />
-          <span>Publish in progress — if this persists,</span>
+          <span>Publish in progress - if this persists,</span>
         </div>
         <button
           onClick={() => handlePublish(retryPlatform)}
           disabled={publishPost.isPending}
           className="text-xs font-bold text-amber-300 underline underline-offset-2 hover:text-amber-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {publishPost.isPending ? "Retrying…" : "click to retry"}
+          {publishPost.isPending ? "Retrying..." : "click to retry"}
         </button>
       </div>
     );
@@ -142,7 +143,7 @@ function PublishButtons({
   );
 }
 
-// ── Share Buttons (LinkedIn, X, TikTok — copy + open platform) ───────────────
+// ── Share Buttons (LinkedIn, X, TikTok - copy + open platform) ───────────────
 // Facebook & Instagram are handled by PublishButtons via Meta API.
 // For X we use the tweet intent URL (pre-fills composer).
 // For LinkedIn and TikTok there is no text-post intent URL, so we copy to clipboard
@@ -166,7 +167,7 @@ function ShareButtons({ post }: ShareButtonsProps) {
   const cfgs: Record<string, PlatformCfg> = {
     x: {
       label: "Post on X",
-      // tweet intent pre-fills the composer — X counts 280 Unicode chars
+      // tweet intent pre-fills the composer - X counts 280 Unicode chars
       openUrl: `https://x.com/intent/tweet?text=${encodeURIComponent(fullText.slice(0, 280))}`,
       needsCopy: false,
       color: "rgba(30,30,40,0.6)", border: "rgba(148,163,184,0.25)", text: "#94a3b8",
@@ -176,14 +177,14 @@ function ShareButtons({ post }: ShareButtonsProps) {
       openUrl: "https://www.linkedin.com/feed/",
       needsCopy: true,
       color: "rgba(10,102,194,0.12)", border: "rgba(96,165,250,0.25)", text: "#60a5fa",
-      hint: "Caption copied — paste into LinkedIn",
+      hint: "Caption copied - paste into LinkedIn",
     },
     tiktok: {
       label: "Share on TikTok",
       openUrl: "https://www.tiktok.com/",
       needsCopy: true,
       color: "rgba(20,20,28,0.6)", border: "rgba(203,213,225,0.2)", text: "#cbd5e1",
-      hint: "Caption copied — paste into TikTok",
+      hint: "Caption copied - paste into TikTok",
     },
   };
 
@@ -192,7 +193,7 @@ function ShareButtons({ post }: ShareButtonsProps) {
 
   const handleShare = async () => {
     if (cfg.needsCopy) {
-      try { await navigator.clipboard.writeText(fullText); } catch { /* clipboard blocked — user can still paste from the card */ }
+      try { await navigator.clipboard.writeText(fullText); } catch { /* clipboard blocked - user can still paste from the card */ }
     }
     window.open(cfg.openUrl, "_blank");
     setShareState("copied");
@@ -209,7 +210,7 @@ function ShareButtons({ post }: ShareButtonsProps) {
         {shareState === "copied"
           ? <Check className="h-2.5 w-2.5" />
           : <Share2 className="h-2.5 w-2.5" />}
-        {shareState === "copied" ? (cfg.hint ?? "Opening…") : cfg.label}
+        {shareState === "copied" ? (cfg.hint ?? "Opening...") : cfg.label}
       </button>
     </div>
   );
@@ -317,7 +318,7 @@ function SocialHandlesPanel({ handles, save }: { handles: SocialHandles; save: (
         </div>
       ) : (
         <p className="px-4 pb-3 text-xs text-muted-foreground border-t border-border pt-3">
-          Add your @handles for each platform — they'll appear on every post card so you can copy them instantly when publishing.
+          Add your @handles for each platform - they'll appear on every post card so you can copy them instantly when publishing.
         </p>
       )}
     </div>
@@ -379,7 +380,7 @@ function StatsPanel({ post, projectId, isAutoFetching, hasMetaConnection, onErro
   const refreshTitle = !hasMetaConnection
     ? "Reconnect Facebook to refresh stats"
     : isAutoFetching
-      ? "Refreshing stats…"
+      ? "Refreshing stats..."
       : "Refresh stats from Meta";
 
   const handleRefresh = async () => {
@@ -428,7 +429,7 @@ function StatsPanel({ post, projectId, isAutoFetching, hasMetaConnection, onErro
           >
             <RefreshCw className={`h-3 w-3 ${isBusy ? "animate-spin" : ""}`} />
             {isAutoFetching
-              ? "Updating…"
+              ? "Updating..."
               : post.statsUpdatedAt
                 ? new Date(post.statsUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                 : "Refresh"}
@@ -439,7 +440,7 @@ function StatsPanel({ post, projectId, isAutoFetching, hasMetaConnection, onErro
           {isAutoFetching ? (
             <>
               <Loader2 className="h-3 w-3 animate-spin" />
-              <span>Loading stats…</span>
+              <span>Loading stats...</span>
             </>
           ) : (
             <button
@@ -541,7 +542,7 @@ function ScheduleControls({ postId, projectId, platform, status, scheduledAt, ca
           disabled={isLoading}
           className="text-[10px] text-muted-foreground hover:text-red-400 underline underline-offset-2 transition-colors disabled:opacity-50 ml-auto"
         >
-          {isLoading ? "Removing…" : "Remove"}
+          {isLoading ? "Removing..." : "Remove"}
         </button>
       </div>
     );
@@ -642,7 +643,7 @@ function PagePickerModal({ token, projectId, currentPageId, onSuccess, onCancel,
           {isLoading && (
             <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground text-sm">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading your Pages…
+              Loading your Pages...
             </div>
           )}
 
@@ -747,6 +748,10 @@ export default function ProjectSocial() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [pagePickerToken, setPagePickerToken] = useState<string | null>(null);
   const [autoFetchingIds, setAutoFetchingIds] = useState<Set<number>>(new Set());
+  const [editingPostId, setEditingPostId] = useState<number | null>(null);
+  const [editCaption, setEditCaption] = useState("");
+  const [editHashtags, setEditHashtags] = useState("");
+  const [editCta, setEditCta] = useState("");
 
   const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
   const { data: posts, isLoading } = useListSocialPosts(projectId, { query: { queryKey: getListSocialPostsQueryKey(projectId), enabled: !!projectId } });
@@ -755,6 +760,7 @@ export default function ProjectSocial() {
   const { handles, save: saveHandles } = useSocialHandles(projectId);
   const disconnectMeta = useDisconnectMeta();
   const generatePosts = useGenerateSocialPosts();
+  const updateSocialPost = useUpdateSocialPost();
   const queryClient = useQueryClient();
 
   const isConnected = metaConn?.connected === true;
@@ -775,7 +781,7 @@ export default function ProjectSocial() {
   // and background-refresh posts whose stats are older than STATS_STALE_MS (30 min).
   // sessionFetchedPostIds (module-level) prevents re-triggering both after query invalidation
   // within a mount AND after the component remounts (navigate away + back) within the session.
-  // Skip entirely when Meta is disconnected — the API would return an error for posts
+  // Skip entirely when Meta is disconnected - the API would return an error for posts
   // with no cached stats and there's nothing to refresh without a live connection.
   useEffect(() => {
     if (!posts || !projectId || !isConnected) return;
@@ -821,6 +827,43 @@ export default function ProjectSocial() {
     const id = Date.now();
     setToasts(prev => [...prev, { id, type, message }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
+  };
+
+  const startEditPost = (post: SocialPost) => {
+    setEditingPostId(post.id);
+    setEditCaption(post.caption ?? "");
+    setEditHashtags(post.hashtags ?? "");
+    setEditCta(post.cta ?? "");
+  };
+
+  const cancelEditPost = () => {
+    setEditingPostId(null);
+    setEditCaption("");
+    setEditHashtags("");
+    setEditCta("");
+  };
+
+  const saveEditPost = () => {
+    if (editingPostId == null) return;
+    updateSocialPost.mutate(
+      {
+        id: projectId,
+        postId: editingPostId,
+        data: {
+          caption: editCaption,
+          hashtags: editHashtags || null,
+          cta: editCta || null,
+        },
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListSocialPostsQueryKey(projectId) });
+          cancelEditPost();
+          showToast("success", "Post updated.");
+        },
+        onError: () => showToast("error", "Could not save post."),
+      }
+    );
   };
 
   const togglePlatform = (p: string) => {
@@ -991,12 +1034,19 @@ export default function ProjectSocial() {
                     <span className={`text-[10px] font-bold px-2 py-1 rounded border capitalize ${colors.bg} ${colors.text} ${colors.border}`}>
                       {post.platform}
                     </span>
+                    <button
+                      onClick={() => startEditPost(post)}
+                      className="ml-auto p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+                      title="Edit"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
                     {(post as { scheduledAt?: string | null }).scheduledAt && post.status === "draft" ? (
-                      <span className="flex items-center gap-1 text-[10px] font-medium text-primary/80 ml-auto">
+                      <span className="flex items-center gap-1 text-[10px] font-medium text-primary/80">
                         <Clock className="h-2.5 w-2.5" /> Scheduled
                       </span>
                     ) : (
-                      <span className="text-[10px] text-muted-foreground ml-auto capitalize">{post.status}</span>
+                      <span className="text-[10px] text-muted-foreground capitalize">{post.status}</span>
                     )}
                   </div>
                   {post.imageUrl && (
@@ -1009,9 +1059,49 @@ export default function ProjectSocial() {
                       />
                     </div>
                   )}
-                  <p className="text-sm text-foreground leading-relaxed mb-3">{post.caption}</p>
-                  {post.hashtags && <p className="text-xs text-primary/70 mb-2">{post.hashtags}</p>}
-                  {post.cta && <p className="text-xs text-muted-foreground mb-3 italic">{post.cta}</p>}
+                  {editingPostId === post.id ? (
+                    <div className="space-y-2 mb-3">
+                      <textarea
+                        value={editCaption}
+                        onChange={(e) => setEditCaption(e.target.value)}
+                        rows={3}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        placeholder="Caption"
+                      />
+                      <input
+                        value={editHashtags}
+                        onChange={(e) => setEditHashtags(e.target.value)}
+                        placeholder="Hashtags"
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                      <input
+                        value={editCta}
+                        onChange={(e) => setEditCta(e.target.value)}
+                        placeholder="Call to action"
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={cancelEditPost}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold border border-border hover:bg-secondary transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={saveEditPost}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                        >
+                          <Check className="h-3.5 w-3.5" /> Save
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm text-foreground leading-relaxed mb-3">{post.caption}</p>
+                      {post.hashtags && <p className="text-xs text-primary/70 mb-2">{post.hashtags}</p>}
+                      {post.cta && <p className="text-xs text-muted-foreground mb-3 italic">{post.cta}</p>}
+                    </>
+                  )}
 
                   {handles[post.platform.toLowerCase()] && (
                     <PostHandleBadge handle={handles[post.platform.toLowerCase()]!} platform={post.platform.toLowerCase()} />
@@ -1097,7 +1187,7 @@ export default function ProjectSocial() {
         subtitle={`Creating content for ${selectedPlatforms.join(", ")}`}
         defaultWebsiteUrl={project?.websiteUrl ?? ""}
         detectedLocale={project?.detectedLocale ?? undefined}
-        instructionsPlaceholder={`Examples:\n• Generate LinkedIn thought leadership\n• Create viral TikTok hooks\n• Focus on product launches\n• Target startup founders`}
+        instructionsPlaceholder={`Examples:\n* Generate LinkedIn thought leadership\n* Create viral TikTok hooks\n* Focus on product launches\n* Target startup founders`}
         processingSteps={SOCIAL_STEPS}
         onSubmit={handleSubmit}
         ctaLabel="Generate Posts"

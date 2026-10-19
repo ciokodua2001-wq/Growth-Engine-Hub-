@@ -39,7 +39,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
         "503":
-          description: Unhealthy — a required server dependency is unavailable
+          description: Unhealthy - a required server dependency is unavailable
           content:
             application/json:
               schema:
@@ -502,6 +502,35 @@ paths:
         "204":
           description: Deleted
 
+    patch:
+      operationId: updateContent
+      tags: [content]
+      summary: Update a content asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: contentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContentUpdate"
+      responses:
+        "200":
+          description: Updated content asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentAsset"
+
   # ── Social ─────────────────────────────────────────────────────────────────
   /projects/{id}/social-posts:
     get:
@@ -548,6 +577,36 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/SocialPost"
+
+  /projects/{id}/social-posts/{postId}:
+    patch:
+      operationId: updateSocialPost
+      tags: [social]
+      summary: Update a social media post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SocialPostUpdate"
+      responses:
+        "200":
+          description: Updated social post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialPost"
 
   /projects/{id}/meta/status:
     get:
@@ -2050,6 +2109,28 @@ components:
           type: ["integer", "null"]
         createdAt:
           type: string
+
+    ContentUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        body:
+          type: ["string", "null"]
+        metaDescription:
+          type: ["string", "null"]
+        seoKeywords:
+          type: ["string", "null"]
+
+    SocialPostUpdate:
+      type: object
+      properties:
+        caption:
+          type: string
+        hashtags:
+          type: ["string", "null"]
+        cta:
+          type: ["string", "null"]
 
     # ── Social ───────────────────────────────────────────────────────────────
     SocialPostInput:

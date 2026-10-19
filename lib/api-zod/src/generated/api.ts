@@ -634,6 +634,38 @@ export const DeleteContentResponse = zod.void()
 
 
 /**
+ * @summary Update a content asset
+ */
+export const UpdateContentParams = zod.object({
+  "id": zod.coerce.number(),
+  "contentId": zod.coerce.number()
+})
+
+export const UpdateContentBody = zod.object({
+  "title": zod.string().optional(),
+  "body": zod.string().nullish(),
+  "metaDescription": zod.string().nullish(),
+  "seoKeywords": zod.string().nullish()
+})
+
+export const UpdateContentResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "type": zod.string(),
+  "title": zod.string(),
+  "body": zod.string().nullish(),
+  "metaDescription": zod.string().nullish(),
+  "seoKeywords": zod.string().nullish(),
+  "status": zod.string(),
+  "hookStrength": zod.number().nullish(),
+  "conversionPotential": zod.number().nullish(),
+  "engagementPotential": zod.number().nullish(),
+  "viralPotential": zod.number().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary List social media posts
  */
 export const ListSocialPostsParams = zod.object({
@@ -694,6 +726,40 @@ export const GenerateSocialPostsResponseItem = zod.object({
   "createdAt": zod.string()
 })
 export const GenerateSocialPostsResponse = zod.array(GenerateSocialPostsResponseItem)
+
+
+/**
+ * @summary Update a social media post
+ */
+export const UpdateSocialPostParams = zod.object({
+  "id": zod.coerce.number(),
+  "postId": zod.coerce.number()
+})
+
+export const UpdateSocialPostBody = zod.object({
+  "caption": zod.string().optional(),
+  "hashtags": zod.string().nullish(),
+  "cta": zod.string().nullish()
+})
+
+export const UpdateSocialPostResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "platform": zod.string(),
+  "caption": zod.string(),
+  "hashtags": zod.string().nullish(),
+  "cta": zod.string().nullish(),
+  "imageUrl": zod.string().nullish(),
+  "status": zod.string(),
+  "scheduledAt": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "externalPostId": zod.string().nullish(),
+  "statsLikes": zod.number().nullish(),
+  "statsComments": zod.number().nullish(),
+  "statsReach": zod.number().nullish(),
+  "statsUpdatedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
 
 
 /**

@@ -4,13 +4,14 @@ import {
   useListContent,
   useGenerateContent,
   useDeleteContent,
+  useUpdateContent,
   useGetProject,
   getGetProjectQueryKey,
   getListContentQueryKey,
 } from "@workspace/api-client-react";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, FileText, Zap, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, FileText, Zap, Trash2, ChevronDown, ChevronUp, Pencil, Save, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import GenerateModal from "@/components/ui/generate-modal";
 import { TrialGate } from "@/components/ui/trial-gate";
@@ -59,11 +60,17 @@ export default function ProjectContent() {
   const [selectedType, setSelectedType] = useState("blog");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [editMetaDescription, setEditMetaDescription] = useState("");
+  const [editSeoKeywords, setEditSeoKeywords] = useState("");
 
   const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
   const { data: content, isLoading } = useListContent(projectId, { query: { queryKey: getListContentQueryKey(projectId), enabled: !!projectId } });
   const generateContent = useGenerateContent();
   const deleteContent = useDeleteContent();
+  const updateContent = useUpdateContent();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: currentUser } = useCurrentUser();
@@ -90,6 +97,46 @@ export default function ProjectContent() {
       {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: getListContentQueryKey(projectId) }),
         onError: () => toast({ title: "Error", variant: "destructive" }),
+      }
+    );
+  };
+
+  const startEdit = (item: { id: number; title: string; body?: string | null; metaDescription?: string | null; seoKeywords?: string | null }) => {
+    setEditingId(item.id);
+    setEditTitle(item.title ?? "");
+    setEditBody(item.body ?? "");
+    setEditMetaDescription(item.metaDescription ?? "");
+    setEditSeoKeywords(item.seoKeywords ?? "");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditTitle("");
+    setEditBody("");
+    setEditMetaDescription("");
+    setEditSeoKeywords("");
+  };
+
+  const saveEdit = () => {
+    if (editingId == null) return;
+    updateContent.mutate(
+      {
+        id: projectId,
+        contentId: editingId,
+        data: {
+          title: editTitle,
+          body: editBody || null,
+          metaDescription: editMetaDescription || null,
+          seoKeywords: editSeoKeywords || null,
+        },
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListContentQueryKey(projectId) });
+          cancelEdit();
+          toast({ title: "Saved", description: "Content updated." });
+        },
+        onError: () => toast({ title: "Error", variant: "destructive", description: "Could not save changes." }),
       }
     );
   };
@@ -146,7 +193,16 @@ export default function ProjectContent() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <h3 className="font-bold text-sm leading-snug">{item.title}</h3>
+                    {editingId === item.id ? (
+                      <input
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        className="flex-1 min-w-[120px] bg-secondary border border-border rounded-lg px-2 py-1 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        placeholder="Title"
+                      />
+                    ) : (
+                      <h3 className="font-bold text-sm leading-snug">{item.title}</h3>
+                    )}
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${typeColors[item.type] ?? "bg-secondary text-muted-foreground border-border"}`}>
                       {item.type}
                     </span>
@@ -166,6 +222,13 @@ export default function ProjectContent() {
                     {expandedId === item.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </button>
                   <button
+                    onClick={() => startEdit(item)}
+                    className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+                    title="Edit"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
                     onClick={() => handleDelete(item.id)}
                     className="p-2 rounded-lg hover:bg-destructive/20 transition-colors text-muted-foreground hover:text-rose-400"
                   >
@@ -173,14 +236,54 @@ export default function ProjectContent() {
                   </button>
                 </div>
               </div>
-              {expandedId === item.id && item.body && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  className="border-t border-border px-5 py-4"
-                >
-                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed font-sans max-h-80 overflow-y-auto">{item.body}</pre>
-                </motion.div>
+              {editingId === item.id ? (
+                <div className="border-t border-border px-5 py-4 space-y-3">
+                  <textarea
+                    value={editBody}
+                    onChange={(e) => setEditBody(e.target.value)}
+                    rows={8}
+                    className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm font-sans leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    placeholder="Body copy..."
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input
+                      value={editMetaDescription}
+                      onChange={(e) => setEditMetaDescription(e.target.value)}
+                      placeholder="Meta description"
+                      className="bg-secondary border border-border rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    <input
+                      value={editSeoKeywords}
+                      onChange={(e) => setEditSeoKeywords(e.target.value)}
+                      placeholder="SEO keywords (comma-separated)"
+                      className="bg-secondary border border-border rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={cancelEdit}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-border hover:bg-secondary transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" /> Cancel
+                    </button>
+                    <button
+                      onClick={saveEdit}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                    >
+                      <Save className="h-3.5 w-3.5" /> Save
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                expandedId === item.id && item.body && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="border-t border-border px-5 py-4"
+                  >
+                    <pre className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed font-sans max-h-80 overflow-y-auto">{item.body}</pre>
+                  </motion.div>
+                )
               )}
             </motion.div>
           ))}
@@ -203,7 +306,7 @@ export default function ProjectContent() {
         subtitle="AI will write high-converting content tailored to your audience"
         defaultWebsiteUrl={project?.websiteUrl ?? ""}
         detectedLocale={project?.detectedLocale ?? undefined}
-        instructionsPlaceholder={`Examples:\n• Focus on SEO keyword clusters\n• Write for technical audiences\n• Include case study examples\n• Target early-stage founders`}
+        instructionsPlaceholder={`Examples:\n* Focus on SEO keyword clusters\n* Write for technical audiences\n* Include case study examples\n* Target early-stage founders`}
         processingSteps={CONTENT_STEPS}
         onSubmit={handleSubmit}
         ctaLabel="Generate Content"
