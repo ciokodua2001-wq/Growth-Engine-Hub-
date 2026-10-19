@@ -49,7 +49,7 @@ const logger = pino({ name: "assemble.route" });
 // Re-sign a GCS signed URL with a fresh 24-hour TTL.
 // Both scene videos (4-hour TTL) and assembled videos (24-hour TTL) can expire.
 async function refreshAssemblyUrl(storedUrl: string): Promise<string> {
-  if (!storedUrl.startsWith("https://storage.googleapis.com/")) return storedUrl;
+  if (!storedUrl || !storedUrl.startsWith("http")) return storedUrl;
   try {
     const u = new URL(storedUrl);
     const parts = u.pathname.split("/").filter(Boolean);

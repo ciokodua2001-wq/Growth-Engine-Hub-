@@ -1074,7 +1074,7 @@ function probeHasAudio(filePath: string): Promise<boolean> {
 // so the assembler always has a fresh URL regardless of when it runs.
 
 async function refreshSignedUrl(storedUrl: string): Promise<string> {
-  if (!storedUrl.startsWith("https://storage.googleapis.com/")) return storedUrl;
+  if (!storedUrl || !storedUrl.startsWith("http")) return storedUrl;
   try {
     const u = new URL(storedUrl);
     // pathname = "/{bucketName}/{objectName...}"
