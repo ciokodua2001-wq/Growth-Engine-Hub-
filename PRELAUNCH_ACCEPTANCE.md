@@ -1,0 +1,108 @@
+# GrowthForge - Pre-Launch Acceptance Matrix (living)
+
+> Updated after the Veo architecture correction. Evidence basis is noted per row: **code** (source inspection), **API** (endpoint exercised), **browser** (frontend driven), **DB** (persisted data), **prod** (production verification).
+
+## 1. Core customer experience (WS1)
+
+| Feature | Status | Evidence | Severity | Beta? |
+|---|---|---|---|---|
+| Signup / onboarding | Working | resolved earlier (auth flows) | - | ✅ required |
+| Project creation | Working | project 13 live | - | ✅ required |
+| Source retrieval (website) | **Working** | DB: allbirds 12k chars, `http_fetch` | - | ✅ required |
+| Source retrieval (authorized Meta) | **Working** | browser+DB: real Page profile+posts, `meta_graph_api`/`authorized` | - | ✅ required |
+| Business analysis | Working | project 13 analysis complete | - | ✅ required |
+| Marketing strategy | Working | DB: 3 strategies, PDF export | - | ✅ required |
+| Content generation | Working | DB: 3 pieces, real Gemini | - | ✅ required |
+| Social posts + images | **Working** | browser: 12 posts w/ captions+hashtags+CTAs+Imagen | - | ✅ required |
+| Competitors / personas | **Unverified** | `competitor_report` table = 0 rows | P1 | ⚠️ verify |
+| Save / edit / export | **Done** | save ✅, copy ✅, edit ✅ (PATCH + inline UI, `8250eb8`) | P1 | ✅ ready |
+
+## 2. Google Veo video generation (WS2) - CORRECTED
+
+**Classification: PASS (code + DB), with one P1 nuance.**
+
+| Sub-feature | Status | Evidence |
+|---|---|---|
+| Model/API config | ✅ PASS | `veo-3.1-lite-generate-preview`, Gemini Developer API, `GOOGLE_GENAI_API_KEY` set |
+| Text-to-video | ✅ PASS | `predictLongRunning` + poll; T2V + I2V (last-frame continuity) |
+| Native audio | ✅ PASS | MP4 arrives with muxed dialogue+ambience (no separate TTS) |
+| Job/status tracking | ✅ PASS | `kling_scene_jobs` (legacy table name) with `provider=veo`, status |
+| Output storage | ✅ PASS | Wasabi `renders/veo/*.mp4`, signed URLs; `OBJECT_STORAGE_*` all set |
+| Retries/errors | ✅ PASS | 5 submit attempts (429 backoff), 90×10s poll, visible failure |
+| Real output | ✅ PASS | 3 "succeed" Veo scenes in project 8 video |
+| **Final assembly → playable URL** | ⚠️ **UNVERIFIED** | existing video `status=complete` but `video_url` empty + `render_status=processing` |
+
+Kling/Wan are decommissioned; **do not reactivate**. The `KLING_API_KEY` absence is irrelevant.
+
+## 3. Content usability (WS3)
+
+| Capability | Status |
+|---|---|
+| View generated content | ✅ working |
+| Copy captions/handles | ✅ working (social) |
+| Save (persist) | ✅ working |
+| Reopen (list/detail) | ✅ working |
+| Regenerate | ⚠️ re-run "Generate"; no per-item regenerate button |
+| **Edit captions/copy** | ✅ implemented - `PATCH /content/:id` + `PATCH /social-posts/:postId` (project-scoped) + inline edit UI on content & social pages |
+| Download/export | ⚠️ strategy PDF only; no content/social export |
+
+## 4. Commercial & production readiness (WS4) - to audit
+
+- Stripe test checkout/subscriptions/webhooks
+- Plan inheritance + project limits
+- Better Auth + email flows
+- Production media storage
+- Migrations (`superseded_at`)
+- Deployment reproducibility + backup/rollback
+- Security / project isolation - ✅ **IDOR fixed** (`e3e2821`): 11 resource-by-id lookups now scoped by `project_id`; 12 ownership-scoping tests + 7 authenticated HTTP cross-user tests (`09e0397`)
+
+## 5. Integration acceptance (WS5)
+
+- Hybrid website + authorized Meta: **pending** (project 13 ready)
+- Meta publishing: **deferred external dependency** (needs `pages_manage_posts`/`instagram_*` Advanced Access)
+
+## 6. Pre-existing test failures (launch checklist - open)
+
+Confirmed present on the clean tree at `de0408b` (before the IDOR/edit work); these
+are **not** regressions from the recent changes but must be classified before beta.
+
+| # | Suite | Test | Symptom | Customer impact |
+|---|---|---|---|---|
+| 1 | publishRoute | Facebook publish (encrypted token) | 500 vs 200 | Direct FB publishing errors |
+| 2 | publishRoute | Facebook publish (plaintext token) | 500 vs 200 | Direct FB publishing errors |
+| 3 | publishRoute | re-encryption failure still publishes | 500 vs 200 | Publish fails hard, no graceful degradation |
+| 4 | publishRoute | publishingAt lifecycle | 500 vs 200 | Publish lock lifecycle broken |
+| 5 | publishRoute | Instagram publish (encrypted token) | 500 vs 200 | Direct IG publishing errors |
+| 6 | publishRoute | Instagram publish (plaintext token) | 500 vs 200 | Direct IG publishing errors |
+| 7 | statsRoute | IG publish → stats full flow | 400 vs 200 | IG post stats unavailable after publish |
+
+**Impact:** all 7 sit in the Facebook/Instagram **direct publishing** path
+(`/social-posts/:postId/publish` + stats). Native social publishing is a **deferred
+external dependency** (needs Meta `pages_manage_posts`/`instagram_*` Advanced
+Access), so there is **no immediate customer-facing regression today** - but the 500s
+indicate the publish route's token-decryption path may fail once Advanced Access is
+granted, and must be fixed before native publishing goes live.
+
+Additionally, 3 suites fail to **import** when run without `.env` loaded
+(`statsRoute`, `publishRoute` → `GOOGLE_GENAI_API_KEY`; `stuckPublishRecovery` →
+`DATABASE_URL`). These are test-harness env gaps, not product defects, and pass when
+`.env` is sourced.
+
+## Grouped fixes
+
+**A. Must fix before controlled beta**
+1. ~~Content/social-post edit endpoints + UI~~ ✅ done (`8250eb8`)
+2. Competitors/personas verification (WS1)
+3. Video final assembly → playable URL (WS2)
+4. Social publish route token-decryption 500s (see §6) - fix before native Meta publishing
+
+**B. Must fix before paid/public launch**
+4. Stripe/webhook + plan limits audit
+5. Production media storage + migrations
+6. Backup/rollback drill
+
+**C. Safe to defer**
+7. Native FB/IG publishing (Meta approval)
+8. Meta/Google Ads automation
+9. Real AI ad creatives (currently hardcoded templates)
+10. Advanced analytics
