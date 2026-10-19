@@ -157,16 +157,12 @@ function ShareButtons({ post }: ShareButtonsProps) {
   const [shareState, setShareState] = useState<"idle" | "copied">("idle");
   const platform = post.platform.toLowerCase();
 
-  // Only for non-Meta platforms; only on draft posts
-  if (platform === "facebook" || platform === "instagram") return null;
-  if (post.status !== "draft") return null;
-
   const fullText = [post.caption, post.hashtags, post.cta].filter(Boolean).join("\n\n");
 
   type PlatformCfg = { label: string; openUrl: string; needsCopy: boolean; color: string; border: string; text: string; hint?: string };
   const cfgs: Record<string, PlatformCfg> = {
     x: {
-      label: "Post on X",
+      label: "Share on X",
       // tweet intent pre-fills the composer - X counts 280 Unicode chars
       openUrl: `https://x.com/intent/tweet?text=${encodeURIComponent(fullText.slice(0, 280))}`,
       needsCopy: false,
@@ -181,10 +177,24 @@ function ShareButtons({ post }: ShareButtonsProps) {
     },
     tiktok: {
       label: "Share on TikTok",
-      openUrl: "https://www.tiktok.com/",
+      openUrl: "https://www.tiktok.com/upload",
       needsCopy: true,
       color: "rgba(20,20,28,0.6)", border: "rgba(203,213,225,0.2)", text: "#cbd5e1",
       hint: "Caption copied - paste into TikTok",
+    },
+    facebook: {
+      label: "Share on Facebook",
+      openUrl: "https://www.facebook.com/",
+      needsCopy: true,
+      color: "rgba(24,119,242,0.12)", border: "rgba(96,165,250,0.25)", text: "#3b82f6",
+      hint: "Caption copied - paste into Facebook",
+    },
+    instagram: {
+      label: "Share on Instagram",
+      openUrl: "https://www.instagram.com/",
+      needsCopy: true,
+      color: "rgba(225,48,108,0.12)", border: "rgba(244,114,182,0.25)", text: "#f472b6",
+      hint: "Caption copied - paste into Instagram",
     },
   };
 
