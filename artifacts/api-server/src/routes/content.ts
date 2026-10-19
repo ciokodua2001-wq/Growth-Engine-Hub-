@@ -154,7 +154,7 @@ router.post("/projects/:id/content", requireActiveSubscription, async (req, res)
 router.get("/projects/:id/content/:contentId", async (req, res): Promise<void> => {
   const params = GetContentParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const [item] = await db.select().from(contentTable).where(eq(contentTable.id, params.data.contentId));
+  const [item] = await db.select().from(contentTable).where(and(eq(contentTable.id, params.data.contentId), eq(contentTable.projectId, params.data.id)));
   if (!item) { res.status(404).json({ error: "Content not found" }); return; }
   res.json({ ...item, createdAt: item.createdAt.toISOString() });
 });
@@ -162,7 +162,7 @@ router.get("/projects/:id/content/:contentId", async (req, res): Promise<void> =
 router.delete("/projects/:id/content/:contentId", async (req, res): Promise<void> => {
   const params = DeleteContentParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const [item] = await db.delete(contentTable).where(eq(contentTable.id, params.data.contentId)).returning();
+  const [item] = await db.delete(contentTable).where(and(eq(contentTable.id, params.data.contentId), eq(contentTable.projectId, params.data.id))).returning();
   if (!item) { res.status(404).json({ error: "Content not found" }); return; }
   res.sendStatus(204);
 });

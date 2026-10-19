@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { videosTable, activityTable } from "@workspace/db";
 import { consumeQuota, getQuotaRemaining } from "../lib/planLimits.js";
@@ -103,7 +103,7 @@ router.post("/projects/:id/videos", requireActiveSubscription, async (req, res):
 router.get("/projects/:id/videos/:videoId", async (req, res): Promise<void> => {
   const params = GetVideoParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const [video] = await db.select().from(videosTable).where(eq(videosTable.id, params.data.videoId));
+  const [video] = await db.select().from(videosTable).where(and(eq(videosTable.id, params.data.videoId), eq(videosTable.projectId, params.data.id)));
   if (!video) { res.status(404).json({ error: "Video not found" }); return; }
   res.json({ ...video, createdAt: video.createdAt.toISOString() });
 });
@@ -113,7 +113,7 @@ router.patch("/projects/:id/videos/:videoId", async (req, res): Promise<void> =>
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = UpdateVideoBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const [video] = await db.update(videosTable).set(parsed.data).where(eq(videosTable.id, params.data.videoId)).returning();
+  const [video] = await db.update(videosTable).set(parsed.data).where(and(eq(videosTable.id, params.data.videoId), eq(videosTable.projectId, params.data.id))).returning();
   if (!video) { res.status(404).json({ error: "Video not found" }); return; }
   res.json({ ...video, createdAt: video.createdAt.toISOString() });
 });
@@ -121,7 +121,7 @@ router.patch("/projects/:id/videos/:videoId", async (req, res): Promise<void> =>
 router.delete("/projects/:id/videos/:videoId", async (req, res): Promise<void> => {
   const params = DeleteVideoParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const [video] = await db.delete(videosTable).where(eq(videosTable.id, params.data.videoId)).returning();
+  const [video] = await db.delete(videosTable).where(and(eq(videosTable.id, params.data.videoId), eq(videosTable.projectId, params.data.id))).returning();
   if (!video) { res.status(404).json({ error: "Video not found" }); return; }
   res.sendStatus(204);
 });

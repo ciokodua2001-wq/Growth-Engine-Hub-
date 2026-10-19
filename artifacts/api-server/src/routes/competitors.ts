@@ -150,7 +150,7 @@ router.get("/projects/:id/competitors/:competitorId", async (req, res): Promise<
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [competitor] = await db.select().from(competitorsTable).where(eq(competitorsTable.id, params.data.competitorId));
+  const [competitor] = await db.select().from(competitorsTable).where(and(eq(competitorsTable.id, params.data.competitorId), eq(competitorsTable.projectId, params.data.id)));
   if (!competitor) {
     res.status(404).json({ error: "Competitor not found" });
     return;

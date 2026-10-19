@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import PDFDocument from "pdfkit";
 import { PassThrough } from "stream";
@@ -99,7 +99,7 @@ router.post("/projects/:id/campaigns", requireActiveSubscription, async (req, re
 router.get("/projects/:id/campaigns/:campaignId", async (req, res): Promise<void> => {
   const params = GetCampaignParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, params.data.campaignId));
+  const [campaign] = await db.select().from(campaignsTable).where(and(eq(campaignsTable.id, params.data.campaignId), eq(campaignsTable.projectId, params.data.id)));
   if (!campaign) { res.status(404).json({ error: "Campaign not found" }); return; }
   res.json({
     ...campaign,
@@ -120,7 +120,7 @@ router.patch("/projects/:id/campaigns/:campaignId", async (req, res): Promise<vo
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const updateData: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.budget != null) updateData.budget = String(parsed.data.budget);
-  const [campaign] = await db.update(campaignsTable).set(updateData).where(eq(campaignsTable.id, params.data.campaignId)).returning();
+  const [campaign] = await db.update(campaignsTable).set(updateData).where(and(eq(campaignsTable.id, params.data.campaignId), eq(campaignsTable.projectId, params.data.id))).returning();
   if (!campaign) { res.status(404).json({ error: "Campaign not found" }); return; }
   res.json({
     ...campaign,
@@ -137,7 +137,7 @@ router.patch("/projects/:id/campaigns/:campaignId", async (req, res): Promise<vo
 router.get("/projects/:id/campaigns/:campaignId/performance", async (req, res): Promise<void> => {
   const params = GetCampaignPerformanceParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, params.data.campaignId));
+  const [campaign] = await db.select().from(campaignsTable).where(and(eq(campaignsTable.id, params.data.campaignId), eq(campaignsTable.projectId, params.data.id)));
 
   const impressions = campaign?.impressions ?? 25000;
   const clicks = campaign?.clicks ?? 1200;

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   seoBlogPostsTable,
@@ -122,7 +122,7 @@ router.delete("/projects/:id/seo/blog-posts/:postId", async (req, res): Promise<
   if (isNaN(id) || isNaN(postId)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [deleted] = await db
     .delete(seoBlogPostsTable)
-    .where(eq(seoBlogPostsTable.id, postId))
+    .where(and(eq(seoBlogPostsTable.id, postId), eq(seoBlogPostsTable.projectId, id)))
     .returning();
   if (!deleted) { res.status(404).json({ error: "Post not found" }); return; }
   res.json({ deleted: true });
