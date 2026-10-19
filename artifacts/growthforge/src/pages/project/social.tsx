@@ -143,18 +143,19 @@ function PublishButtons({
   );
 }
 
-// ── Share Buttons (LinkedIn, X, TikTok - copy + open platform) ───────────────
-// Facebook & Instagram are handled by PublishButtons via Meta API.
-// For X we use the tweet intent URL (pre-fills composer).
-// For LinkedIn and TikTok there is no text-post intent URL, so we copy to clipboard
-// and open the platform's create page so the user only has to paste.
+// ── Share Buttons ─────────────────────────────────────────────────────────────
+// These are NOT publishing. They either (a) open a platform's native composer
+// with the caption pre-filled (a web share *intent*, X only) or (b) copy the
+// caption to the clipboard and open the platform so the user pastes it manually.
+// Facebook & Instagram *native* publishing is handled separately by
+// PublishButtons via the Meta Graph API (deferred — requires Advanced Access).
 
 interface ShareButtonsProps {
   post: SocialPost;
 }
 
 function ShareButtons({ post }: ShareButtonsProps) {
-  const [shareState, setShareState] = useState<"idle" | "copied">("idle");
+  const [shareState, setShareState] = useState<"idle" | "done">("idle");
   const platform = post.platform.toLowerCase();
 
   const fullText = [post.caption, post.hashtags, post.cta].filter(Boolean).join("\n\n");
@@ -162,39 +163,44 @@ function ShareButtons({ post }: ShareButtonsProps) {
   type PlatformCfg = { label: string; openUrl: string; needsCopy: boolean; color: string; border: string; text: string; hint?: string };
   const cfgs: Record<string, PlatformCfg> = {
     x: {
-      label: "Share on X",
-      // tweet intent pre-fills the composer - X counts 280 Unicode chars
+      label: "Draft on X",
+      // Web share intent: x.com/intent/tweet pre-fills the composer (280 Unicode char limit)
       openUrl: `https://x.com/intent/tweet?text=${encodeURIComponent(fullText.slice(0, 280))}`,
       needsCopy: false,
       color: "rgba(30,30,40,0.6)", border: "rgba(148,163,184,0.25)", text: "#94a3b8",
+      hint: "Opening X composer…",
     },
     linkedin: {
-      label: "Share on LinkedIn",
+      label: "Copy & open LinkedIn",
+      // No public text intent for LinkedIn — copy caption + open feed (manual paste)
       openUrl: "https://www.linkedin.com/feed/",
       needsCopy: true,
       color: "rgba(10,102,194,0.12)", border: "rgba(96,165,250,0.25)", text: "#60a5fa",
-      hint: "Caption copied - paste into LinkedIn",
+      hint: "Caption copied — paste it",
     },
     tiktok: {
-      label: "Share on TikTok",
+      label: "Copy & open TikTok",
+      // No public text/media intent for TikTok — copy caption + open upload (manual upload)
       openUrl: "https://www.tiktok.com/upload",
       needsCopy: true,
       color: "rgba(20,20,28,0.6)", border: "rgba(203,213,225,0.2)", text: "#cbd5e1",
-      hint: "Caption copied - paste into TikTok",
+      hint: "Caption copied — paste it",
     },
     facebook: {
-      label: "Share on Facebook",
+      label: "Copy & open Facebook",
+      // sharer.php only accepts a URL (no text pre-fill) — copy caption + open (manual paste)
       openUrl: "https://www.facebook.com/",
       needsCopy: true,
       color: "rgba(24,119,242,0.12)", border: "rgba(96,165,250,0.25)", text: "#3b82f6",
-      hint: "Caption copied - paste into Facebook",
+      hint: "Caption copied — paste it",
     },
     instagram: {
-      label: "Share on Instagram",
+      label: "Copy & open Instagram",
+      // No public web intent for Instagram — copy caption + open (manual paste)
       openUrl: "https://www.instagram.com/",
       needsCopy: true,
       color: "rgba(225,48,108,0.12)", border: "rgba(244,114,182,0.25)", text: "#f472b6",
-      hint: "Caption copied - paste into Instagram",
+      hint: "Caption copied — paste it",
     },
   };
 
@@ -203,10 +209,10 @@ function ShareButtons({ post }: ShareButtonsProps) {
 
   const handleShare = async () => {
     if (cfg.needsCopy) {
-      try { await navigator.clipboard.writeText(fullText); } catch { /* clipboard blocked - user can still paste from the card */ }
+      try { await navigator.clipboard.writeText(fullText); } catch { /* clipboard blocked — user can still copy from the card */ }
     }
     window.open(cfg.openUrl, "_blank");
-    setShareState("copied");
+    setShareState("done");
     setTimeout(() => setShareState("idle"), 2500);
   };
 
@@ -214,13 +220,16 @@ function ShareButtons({ post }: ShareButtonsProps) {
     <div className="flex items-center gap-2 mt-1 flex-wrap">
       <button
         onClick={handleShare}
+        title={cfg.needsCopy
+          ? "Copies the caption, then opens the platform in a new tab — you paste it yourself."
+          : "Opens the platform composer pre-filled with your caption — you still post it yourself."}
         className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-colors"
         style={{ background: cfg.color, color: cfg.text, borderColor: cfg.border }}
       >
-        {shareState === "copied"
+        {shareState === "done"
           ? <Check className="h-2.5 w-2.5" />
-          : <Share2 className="h-2.5 w-2.5" />}
-        {shareState === "copied" ? (cfg.hint ?? "Opening...") : cfg.label}
+          : cfg.needsCopy ? <Copy className="h-2.5 w-2.5" /> : <Share2 className="h-2.5 w-2.5" />}
+        {shareState === "done" ? (cfg.hint ?? "Opening…") : cfg.label}
       </button>
     </div>
   );
