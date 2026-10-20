@@ -16,7 +16,7 @@
 import pino from "pino";
 import { db } from "@workspace/db";
 import { klingSceneJobsTable } from "@workspace/db";
-import { eq, lt, and, inArray, sql } from "drizzle-orm";
+import { eq, lt, and, inArray, isNotNull, sql } from "drizzle-orm";
 import { getRenderQueue } from "./renderQueue.js";
 
 const logger = pino({ name: "renderMonitor" });
@@ -57,6 +57,44 @@ export async function recoverStuckScenes(): Promise<RecoveryResult> {
     "[RenderMonitor] Scanning for stuck scenes",
   );
 
+  // Veo orphan recovery: scenes that were submitted (externalTaskId persisted) but
+  // interrupted mid-poll (e.g. server restart). Re-poll the SAME operation - no
+  // re-submit, so the already-paid clip is not regenerated.
+  const veoOrphans = await db
+    .select()
+    .from(klingSceneJobsTable)
+    .where(and(
+      eq(klingSceneJobsTable.provider, "veo"),
+      eq(klingSceneJobsTable.status, "processing"),
+      isNotNull(klingSceneJobsTable.externalTaskId),
+      lt(klingSceneJobsTable.updatedAt, processingCutoff),
+    ));
+
+  for (const orphan of veoOrphans) {
+    try {
+      const { getVeoRenderer } = await import("./veoRenderer.js");
+      const renderer = getVeoRenderer();
+      const req = {
+        sceneJobId: orphan.id,
+        videoId: orphan.videoId,
+        sceneIndex: orphan.sceneIndex,
+        prompt: orphan.prompt,
+        aspectRatio: orphan.aspectRatio,
+        durationSec: orphan.durationSec ?? 8,
+        newSceneCut: Boolean(orphan.newSceneCut),
+        sourceFrameUrl: orphan.sourceFrameUrl,
+      };
+      const result = await renderer.resumeScene(req, orphan.externalTaskId!);
+      await db
+        .update(klingSceneJobsTable)
+        .set({ status: "succeed", videoUrl: result.videoUrl, durationSec: result.durationSec, updatedAt: now })
+        .where(eq(klingSceneJobsTable.id, orphan.id));
+      logger.info({ sceneId: orphan.id, operation: orphan.externalTaskId }, "[RenderMonitor] Veo orphan resumed from persisted operation");
+    } catch (err) {
+      logger.warn({ err, sceneId: orphan.id }, "[RenderMonitor] Veo orphan resume failed - will be re-evaluated next scan");
+    }
+  }
+
   // Find scenes stuck in "submitted" (never started processing)
   const stuckSubmitted = await db
     .select({ id: klingSceneJobsTable.id, videoId: klingSceneJobsTable.videoId, retryCount: klingSceneJobsTable.retryCount })
@@ -75,6 +113,7 @@ export async function recoverStuckScenes(): Promise<RecoveryResult> {
     .where(
       and(
         eq(klingSceneJobsTable.status, "processing"),
+        eq(klingSceneJobsTable.provider, "kling"),
         lt(klingSceneJobsTable.updatedAt, processingCutoff),
       ),
     );

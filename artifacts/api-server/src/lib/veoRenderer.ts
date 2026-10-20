@@ -4,6 +4,8 @@ import * as path from "path";
 import pino from "pino";
 import { objectStorageClient, signObjectURL } from "./objectStorage.js";
 import { extractLastFramePng } from "./wanFfmpeg.js";
+import { db, klingSceneJobsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const logger = pino({ name: "veoRenderer" });
 
@@ -231,6 +233,28 @@ export class VeoRenderer {
     const operationName = await startGeneration(instance, aspectRatio);
     logger.info({ sceneJobId: req.sceneJobId, operationName }, "[VeoRenderer] Operation started — polling");
 
+    await this.persistSubmitted(req.sceneJobId, operationName);
+    return this.finishScene(req, operationName);
+  }
+
+  /** Re-attach to an already-submitted operation (restart recovery) - no re-submit, no new charge. */
+  async resumeScene(req: VeoSceneRenderRequest, operationName: string): Promise<VeoSceneRenderResult> {
+    await this.persistSubmitted(req.sceneJobId, operationName);
+    return this.finishScene(req, operationName);
+  }
+
+  private async persistSubmitted(sceneJobId: number, operationName: string): Promise<void> {
+    try {
+      await db
+        .update(klingSceneJobsTable)
+        .set({ externalTaskId: operationName, status: "processing", updatedAt: new Date() })
+        .where(eq(klingSceneJobsTable.id, sceneJobId));
+    } catch (err) {
+      logger.warn({ err, sceneJobId, operationName }, "[VeoRenderer] Could not persist operation id (non-fatal)");
+    }
+  }
+
+  private async finishScene(req: VeoSceneRenderRequest, operationName: string): Promise<VeoSceneRenderResult> {
     const response = await pollOperation(operationName);
     const samples = response.generateVideoResponse?.generatedSamples ?? response.generatedSamples;
     const uri = samples?.[0]?.video?.uri;
