@@ -139,3 +139,21 @@ Additionally, 3 suites fail to **import** when run without `.env` loaded
 - No per-item regenerate + no content/social export (strategy PDF only).
 
 **Blocks GO beyond beta (require owner approval):** production deployment, live billing, real social publishing, paid video generation, Coming Soon removal.
+
+
+## 8. Release preparation - controlled-beta (in progress)
+
+### Phase 1 - Backup & restore readiness ✅ DONE
+Restore drill (`deploy/restore-test-prod.sh`, hardened `c17cde6`) run on the live
+server with the latest prod backup (`_infra-backups/growthforge-prod/...-21-52-13Z.dump.gpg`):
+- Restored **only** into isolated `growthforge_prod_restore_test` (never `growthforge_prod`).
+- GPG AES256 decrypt → valid PGDMP archive (40,565 B encrypted → 276,534 B decrypted).
+- Schema verified: **57 public + 29 stripe tables** restored.
+- Representative data verified: all 0 rows (correct - prod has no signups yet).
+- **Elapsed recovery: 9 seconds.** Cleanup: throwaway DB dropped, temp dir removed.
+- Post-check: `growthforge_prod` unchanged (57 tables), prod API service `active`,
+  `usegrowthforge.com` still serves Coming Soon (HTTP 200).
+
+### Phase 2 - Stripe test checkout ⏳ pending
+### Phase 3 - Production promotion plan ⏳ pending
+### Phase 4 - Controlled-beta release checklist ⏳ pending
