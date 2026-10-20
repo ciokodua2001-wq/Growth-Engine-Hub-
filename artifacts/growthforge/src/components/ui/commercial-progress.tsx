@@ -278,6 +278,12 @@ const CAPTION_PRESET_LABELS: Record<CaptionPreset, string> = {
 
 const KARAOKE_HIGHLIGHT_COLOR = "#00E676";
 
+/** Mirrors ffmpegAssembler CAPTION_STYLES.sizeMul so the preview font matches export. */
+const CAPTION_SIZE_MUL: Record<CaptionPreset, number> = {
+  clean: 1.0, boldPop: 1.15, karaoke: 1.05, neonGlow: 1.05,
+  cinematic: 0.9, gradientChip: 0.95, retroVHS: 1.05, socialBubble: 1.0,
+};
+
 type OutputFormat = "landscape" | "square" | "vertical";
 
 /** Maps the server's provider-agnostic aspect-ratio strings to picker keys. */
@@ -337,7 +343,7 @@ function getCaptionOverlayStyle(x: number, y: number, scale: number, preset: Cap
     textAlign: "center",
     lineHeight: 1.45,
     letterSpacing: "0.01em",
-    fontSize: "3.5cqw",
+    fontSize: `${(3.5 * (CAPTION_SIZE_MUL[preset] ?? 1)).toFixed(2)}cqw`,
     whiteSpace: "pre-wrap",
     ...CAPTION_PRESET_STYLES[preset],
   };
@@ -442,6 +448,15 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const [captionX, setCaptionX] = useState(0.5);
   const [captionY, setCaptionY] = useState(0.85);
   const [captionScale, setCaptionScale] = useState(1.0);
+  // Edit vs Play caption modes: PAUSED = editing (shows the SELECTED transcript
+  // segment as a real sample); PLAYING = live time-synced captions (hidden
+  // outside speech intervals). Never a generic placeholder.
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [editSegmentIndex, setEditSegmentIndex] = useState(0);
+  const [transcriptSegments, setTranscriptSegments] = useState<Array<{ text: string; startSec: number; endSec: number }>>([]);
+  // Intrinsic aspect ratio (videoWidth/videoHeight) - used to size the stage so
+  // the caption overlay anchors to the VISIBLE video rect, not pillarbox/letterbox.
+  const [videoAspect, setVideoAspect] = useState<number | null>(null);
   const [currentCaptionText, setCurrentCaptionText] = useState<string | null>(null);
   const [currentKaraokeWords, setCurrentKaraokeWords] = useState<Array<{ word: string; active: boolean }> | null>(null);
   // Static fallback shown whenever the video is paused / hasn't reached a
@@ -484,6 +499,24 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   useEffect(() => { captionXRef.current = captionX; }, [captionX]);
   useEffect(() => { captionYRef.current = captionY; }, [captionY]);
   useEffect(() => { captionScaleRef.current = captionScale; }, [captionScale]);
+  // Persist caption settings across refresh (Phase 2 requirement).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("gf-caption-settings");
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved.captionPreset) setCaptionPreset(saved.captionPreset);
+        if (typeof saved.captionX === "number") setCaptionX(saved.captionX);
+        if (typeof saved.captionY === "number") setCaptionY(saved.captionY);
+        if (typeof saved.captionScale === "number") setCaptionScale(saved.captionScale);
+      }
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem("gf-caption-settings", JSON.stringify({ captionPreset, captionX, captionY, captionScale }));
+    } catch { /* ignore */ }
+  }, [captionPreset, captionX, captionY, captionScale]);
 
   // Lock page scroll while theater mode is open, and allow Escape to close it.
   useEffect(() => {
@@ -535,7 +568,11 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       karaokeTimingsRef.current = karaoke;
       setPreviewCaptionText(subtitle[0]?.text ?? null);
       setPreviewKaraokeWords(karaoke[0]?.words ?? null);
+      setTranscriptSegments(subtitle);
+      if (v.videoWidth && v.videoHeight) setVideoAspect(v.videoWidth / v.videoHeight);
     };
+    const onPlay = () => setIsVideoPlaying(true);
+    const onPause = () => setIsVideoPlaying(false);
     const onTimeUpdate = () => {
       const t = v.currentTime;
       const entry = subtitleTimingsRef.current.find(e => t >= e.startSec && t < e.endSec) ?? null;
@@ -553,6 +590,8 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     v.addEventListener("loadedmetadata", buildTimings);
     v.addEventListener("timeupdate", onTimeUpdate);
     v.addEventListener("seeked", onTimeUpdate);
+    v.addEventListener("play", onPlay);
+    v.addEventListener("pause", onPause);
     buildTimings();
     onTimeUpdate(); // seed from the current position so paused/scrubbed preview is correct
 
@@ -560,6 +599,8 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       v.removeEventListener("loadedmetadata", buildTimings);
       v.removeEventListener("timeupdate", onTimeUpdate);
       v.removeEventListener("seeked", onTimeUpdate);
+      v.removeEventListener("play", onPlay);
+      v.removeEventListener("pause", onPause);
     };
   }, [phase, finalVideoUrl, video.dialogueTranscript]);
 
@@ -1307,16 +1348,21 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
         <div className={isTheaterMode ? "fixed inset-0 z-[999] bg-black flex items-center justify-center" : ""}>
         <div
           ref={videoStageRef}
-          className={isTheaterMode ? "relative select-none" : "relative rounded-xl overflow-hidden border border-[#00E676]/30 bg-black select-none"}
-          style={{ containerType: "inline-size", ...(isTheaterMode ? { maxWidth: "100vw", maxHeight: "100vh" } : {}) }}
+          className={isTheaterMode ? "relative select-none" : "relative mx-auto rounded-xl overflow-hidden border border-[#00E676]/30 bg-black select-none"}
+          style={{
+            containerType: "inline-size",
+            aspectRatio: videoAspect ? String(videoAspect) : undefined,
+            ...(isTheaterMode
+              ? { height: videoAspect ? `min(90vh, ${(90 / videoAspect).toFixed(2)}vw)` : undefined, maxWidth: "90vw", maxHeight: "90vh" }
+              : { height: "320px", maxWidth: "100%" }),
+          }}
         >
           <video
             ref={videoRef}
             controls
             controlsList="nofullscreen"
             playsInline
-            className={isTheaterMode ? undefined : "w-full"}
-            style={isTheaterMode ? { maxWidth: "100vw", maxHeight: "100vh", display: "block" } : { maxHeight: "300px", display: "block" }}
+            style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
             src={finalVideoUrl}
           />
           <button
@@ -1344,13 +1390,18 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             // paused (or before Play is first pressed) it falls back to the
             // first line so clients can position, resize, and preview a style
             // immediately, exactly as requested.
-            const displayKaraokeWords =
-              captionPreset === "karaoke"
-                ? (currentKaraokeWords ?? (previewKaraokeWords?.map((w, i) => ({ word: w, active: i === 0 })) ?? null))
-                : null;
+            // EDITING (paused): show the SELECTED transcript segment - real text,
+            // no placeholder. PLAYING: follow live time-sync, hide outside speech.
+            const editingSegment = transcriptSegments[editSegmentIndex] ?? null;
             const displayCaptionText =
               captionPreset !== "karaoke"
-                ? (currentCaptionText ?? previewCaptionText)
+                ? (isVideoPlaying ? currentCaptionText : (editingSegment?.text ?? null))
+                : null;
+            const displayKaraokeWords =
+              captionPreset === "karaoke"
+                ? (isVideoPlaying
+                    ? currentKaraokeWords
+                    : (editingSegment?.text.split(/\s+/).filter(Boolean).map((w, i) => ({ word: w, active: i === 0 })) ?? null))
                 : null;
             return (
               // Outer wrapper is pointerEvents:none so it never blocks the native
@@ -1454,6 +1505,40 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                         </span>
                       </button>
                     ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-[9px] text-white/30 uppercase tracking-wider">Preview segment (paused)</p>
+                    <p className="text-[9px] font-semibold text-white/50">{isVideoPlaying ? "Following playback" : `Editing segment ${editSegmentIndex + 1}`}</p>
+                  </div>
+                  <div className="flex gap-1 flex-wrap mb-2">
+                    {transcriptSegments.map((seg, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setEditSegmentIndex(i)}
+                        title={seg.text}
+                        className={`px-2 py-1 rounded text-[9px] font-bold border transition-all ${
+                          editSegmentIndex === i ? "bg-[#00E676]/15 border-[#00E676]/50" : "bg-black/30 border-white/8 hover:border-white/25"
+                        }`}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block">
+                      <span className="flex justify-between text-[9px] text-white/40"><span>Size</span><span>{Math.round(captionScale * 100)}%</span></span>
+                      <input type="range" min={0.5} max={2.0} step={0.05} value={captionScale} onChange={e => setCaptionScale(Number(e.target.value))} className="w-full accent-[#00E676]" />
+                    </label>
+                    <label className="block">
+                      <span className="flex justify-between text-[9px] text-white/40"><span>Vertical position</span><span>{Math.round(captionY * 100)}%</span></span>
+                      <input type="range" min={0.08} max={0.92} step={0.01} value={captionY} onChange={e => setCaptionY(Number(e.target.value))} className="w-full accent-[#00E676]" />
+                    </label>
+                    <label className="block">
+                      <span className="flex justify-between text-[9px] text-white/40"><span>Horizontal position</span><span>{Math.round(captionX * 100)}%</span></span>
+                      <input type="range" min={0.15} max={0.85} step={0.01} value={captionX} onChange={e => setCaptionX(Number(e.target.value))} className="w-full accent-[#00E676]" />
+                    </label>
                   </div>
                 </div>
                 <div className="flex items-center justify-between pt-0.5">
