@@ -168,5 +168,23 @@ Full TEST-MODE lifecycle verified with card 4242... (no real charge):
 **Env change (server-only, not committed):** `.env` gained `REPLIT_DOMAINS=dev.usegrowthforge.com`; `STRIPE_WEBHOOK_SECRET` blanked (backup `.env.bak-stripe-webhook-*` kept).
 
 **Edge case (noted, not blocking):** `customer.subscription.deleted` marks the user `cancelled` without checking for other active subscriptions (worked around in test by re-triggering an update on the surviving subscription).
-### Phase 3 - Production promotion plan ⏳ pending
-### Phase 4 - Controlled-beta release checklist ⏳ pending
+### Phase 3 - Production promotion plan ✅ ready for review
+See `PRODUCTION_PROMOTION_PLAN.md` (draft, NOT executed): authoritative commit, backup/rollback
+points, Supabase-era migration, Better Auth + Wasabi + Stripe prod config, forward-only migration
+risk, build/deploy/smoke, rollback, Coming Soon preservation, and approval gates.
+### Phase 4 - Controlled-beta release checklist ✅ drafted
+
+1. **Verified completed gates** — dev auth (Better Auth, no Supabase), core journey, video, social
+   honesty, Wasabi dev, forward-only migrations, backup/restore drill (9s), Stripe test-mode lifecycle
+   (payment→webhook→subscription→plan→entitlement).
+2. **Remaining blockers** — prod still Supabase-era (not migrated); prod Wasabi bucket/creds absent;
+   prod DB on a different migration track (needs dry-run drift diff); prod webhook not registered.
+3. **Actions requiring owner approval** — prod DB migration, prod Wasabi bucket + sub-user, prod `.env`
+   contents, enabling `/api/*` on the prod host for smoke tests, live Stripe key (launch only), Coming Soon removal.
+4. **Expected downtime / risks** — zero public downtime if executed as additive (Coming Soon stays up).
+   Primary risk = prod DB schema drift during migration (mitigate with throwaway dry-run + encrypted backup).
+5. **Deploy + rollback sequence** — see `PRODUCTION_PROMOTION_PLAN.md` §2 (backup), §3 (replace app),
+   §10 (build/deploy/smoke), §11 (rollback).
+6. **GO / NO-GO criteria** — GO when: prod DB migration dry-run clean, prod `/api/healthz` ok, smoke test
+   passes on prod, Coming Soon still intact. NO-GO if: any drift diff unresolved, Wasabi least-privilege
+   unverified, or webhook/Stripe smoke fails.
