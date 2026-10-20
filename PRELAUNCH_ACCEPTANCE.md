@@ -365,3 +365,37 @@ Dialogue unit tests 12/12; localization (incl. `pcm`) 6/6; typecheck clean acros
 - Simulated-user onboarding, security-isolation, concurrency, stress, failure/recovery - not yet run.
 
 **Production release:** NOT prepared and NOT executed. Awaiting explicit authorization for the final cutover.
+
+
+---
+
+## Commercial Studio - browser acceptance (DEV, authenticated as charlieokos2001)
+
+All exercised against the live `dev.usegrowthforge.com` (Project 13 / Allbirds) in the shared browser.
+
+| # | Acceptance item | Result |
+|---|---|---|
+| 1 | Auto / Prompt / My Script modes | ✅ all three tabs render; My Script input + Save present |
+| 2 | Script edit / approval / version | ✅ "Draft - not approved" → click Approve → "Approved v1"; `approved_script` + `script_status=approved` persisted in DB (video #4) |
+| 3 | Dialogue-fit + pre-flight warnings | ✅ "28 words ≈ 10.8s vs ~12.8s budget"; "No clear CTA" warning |
+| 4 | Actual-audio transcription + mismatch | ✅ assembled video #2 shows DIFFERENCE DETECTED, Similarity 51%, missing/added word list; unassembled videos correctly return "Assemble the video first" (no fabricated transcript) |
+| 5 | Transcript review + correction | ✅ segments render with `[0.1-5.2s]` timing; "Correct transcript / timing" + "Accept performance" present |
+| 6 | Caption timing + transcript-sourced preview | ✅ code sources preview from `dialogueTranscript`; video player renders assembled MP4 |
+| 7 | Original + captioned MP4 downloads | ✅ Share / Copy Link / Download controls present on assembled video; video src = Wasabi assembled MP4 |
+| 8 | Captioned-video audio/visual verification | ✅ (backend) `captioned.mp4` produced from transcript segments; caption text = transcript, not narrationLine (verified earlier, commit `29addb2`) |
+| 9 | Refresh / reopen persistence | ✅ "Approved v1" persists after reload + re-expand |
+| 10 | Cross-project authorization | ✅ other user's project returns 404 "Project not found"; own project 200; no data leak |
+
+**Meta test failures (7) - classified:** all in `publishRoute.test.ts` (6) + `statsRoute.test.ts` (1), all
+"expected 200 got 500", in the Meta publish/stats path (`content.ts` + `metaPublisher.ts`). Root cause is
+**test-harness** - the tests stub `@workspace/db` + `drizzle-orm` with minimal `_tag`/`vi.fn()` objects that do not
+chain with the route's current query patterns (optimistic lock `and(eq,eq,isNull)`, token-encryption migration,
+`.returning()`), so the routes throw inside the mocked DB. **Not caused by, and unrelated to, the Commercial Studio
+changes** (those files are untouched). Recommendation: refresh the publish/stats route mocks (non-blocking, separate item).
+
+## Remaining (not yet complete)
+- Optional single AI script suggestion (caching + cost control).
+- Simulated-user onboarding, cross-user isolation, concurrency, stress, failure/recovery.
+- Refresh the 7 Meta publish/stats test mocks (test-harness, non-blocking).
+
+Production untouched: Coming Soon live, prod DB un-migrated, prod API not serving, staging on old commit.
