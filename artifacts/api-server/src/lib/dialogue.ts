@@ -191,11 +191,15 @@ export function compareScriptToTranscript(approvedScript: string, transcript: st
   const approvedSet = new Set(approved);
   const spokenSet = new Set(spoken);
 
-  const missing = approved.filter(w => !spokenSet.has(w));
-  const added = spoken.filter(w => !approvedSet.has(w));
+  // Compare UNIQUE word sets so repeated words in one side cannot inflate
+  // intersection past the union (previously produced similarity > 1.0 / "104%").
+  const approvedUnique = [...approvedSet];
+  const spokenUnique = [...spokenSet];
+  const missing = approvedUnique.filter(w => !spokenSet.has(w));
+  const added = spokenUnique.filter(w => !approvedSet.has(w));
 
-  const intersection = approved.filter(w => spokenSet.has(w)).length;
-  const union = new Set([...approved, ...spoken]).size;
+  const intersection = approvedUnique.filter(w => spokenSet.has(w)).length;
+  const union = new Set([...approvedUnique, ...spokenUnique]).size;
   const similarity = union === 0 ? 1 : intersection / union;
 
   const differences: FidelityDifference[] = [];

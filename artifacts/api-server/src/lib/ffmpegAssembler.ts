@@ -276,7 +276,7 @@ export class CommercialAssembler {
           formatAssFile = path.join(tmpDir, `captions_${format}.ass`);
           const events = captionPreset === "karaoke"
             ? buildKaraokeForScenes(captionsEntries)
-            : captionsEntries.map(e => ({ startSec: e.startSec, endSec: e.endSec, assText: wrapSubtitleLine(escapeAssText(e.text), 40) }));
+            : captionsEntries.map(e => ({ startSec: e.startSec, endSec: e.endSec, assText: escapeAssText(e.text) }));
 
           fs.writeFileSync(
             formatAssFile,
@@ -915,8 +915,15 @@ function buildAssDocument(
   const outline = Math.round(baseOutline * s.outlineMul);
   const shadow = Math.round(fontSize * 0.1 * s.shadowMul);
 
-  const px = Math.round(captionX * videoWidth);
-  const py = Math.round(captionY * videoHeight);
+  // Safe-area layout: captions must stay inside the actual frame (not spill
+  // into letterbox/pillarbox). 8% horizontal margin each side; vertical clamped
+  // clear of the bottom social-UI zone and the top edge.
+  const maxCaptionWidth = Math.max(80, Math.floor(videoWidth * 0.84));
+  const charWidthPx = Math.max(8, fontSize * 0.52);
+  const maxChars = Math.max(8, Math.floor(maxCaptionWidth / charWidthPx));
+  const halfCaption = Math.ceil(maxCaptionWidth / 2);
+  const px = clamp(Math.round(captionX * videoWidth), halfCaption, videoWidth - halfCaption);
+  const py = clamp(Math.round(captionY * videoHeight), Math.round(fontSize), videoHeight - Math.round(fontSize * 2.5));
   const posTag = `{\\pos(${px},${py})}`;
 
   const header = [
@@ -938,7 +945,8 @@ function buildAssDocument(
 
   const body = events
     .map(e => {
-      const text = s.uppercase ? e.assText.toUpperCase() : e.assText;
+      const wrapped = wrapSubtitleLine(e.assText, maxChars);
+      const text = s.uppercase ? wrapped.toUpperCase() : wrapped;
       return `Dialogue: 0,${toAssTime(e.startSec)},${toAssTime(e.endSec)},Default,,0,0,0,,${posTag}${text}`;
     })
     .join("\n");

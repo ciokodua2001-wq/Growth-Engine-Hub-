@@ -256,7 +256,7 @@ function buildTranscriptTimings(
 ): { subtitle: Array<{ text: string; startSec: number; endSec: number }>; karaoke: KaraokeSentenceTiming[] } {
   const segs = (transcript ?? [])
     .filter(x => (x.text ?? "").trim() && typeof x.startSec === "number" && typeof x.endSec === "number");
-  const subtitle = segs.map(x => ({ text: wrapCaptionText(x.text!.trim(), 32), startSec: x.startSec!, endSec: x.endSec! }));
+  const subtitle = segs.map(x => ({ text: wrapCaptionText(x.text!.trim(), 40), startSec: x.startSec!, endSec: x.endSec! }));
   const karaoke = segs.map(x => ({ words: x.text!.trim().split(/\s+/).filter(Boolean), startSec: x.startSec!, endSec: x.endSec! }));
   return { subtitle, karaoke };
 }
@@ -552,11 +552,14 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
 
     v.addEventListener("loadedmetadata", buildTimings);
     v.addEventListener("timeupdate", onTimeUpdate);
+    v.addEventListener("seeked", onTimeUpdate);
     buildTimings();
+    onTimeUpdate(); // seed from the current position so paused/scrubbed preview is correct
 
     return () => {
       v.removeEventListener("loadedmetadata", buildTimings);
       v.removeEventListener("timeupdate", onTimeUpdate);
+      v.removeEventListener("seeked", onTimeUpdate);
     };
   }, [phase, finalVideoUrl, video.dialogueTranscript]);
 
@@ -927,8 +930,8 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     const onMove = (ev: PointerEvent) => {
       const dx = (ev.clientX - startPointerX) / rect.width;
       const dy = (ev.clientY - startPointerY) / rect.height;
-      setCaptionX(clampNum(startX + dx, 0.06, 0.94));
-      setCaptionY(clampNum(startY + dy, 0.06, 0.94));
+      setCaptionX(clampNum(startX + dx, 0.15, 0.85));
+      setCaptionY(clampNum(startY + dy, 0.08, 0.92));
     };
     const onUp = () => {
       target.releasePointerCapture(e.pointerId);
@@ -1334,7 +1337,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
               <CloseIcon className="w-4 h-4" />
             </button>
           )}
-          {captionsEnabled && (() => {
+          {captionsEnabled && (currentCaptionText || currentKaraokeWords?.length) && (() => {
             // Show a caption box the moment captions are turned on / a style is
             // picked — never gated on the video actually being mid-playback.
             // While playing, the live time-synced line/word takes over; while
@@ -1342,13 +1345,9 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             // first line so clients can position, resize, and preview a style
             // immediately, exactly as requested.
             const displayKaraokeWords =
-              captionPreset === "karaoke"
-                ? (currentKaraokeWords ?? (previewKaraokeWords ?? ["Your", "caption", "preview"]).map((w, i) => ({ word: w, active: i === 0 })))
-                : null;
+              captionPreset === "karaoke" ? currentKaraokeWords : null;
             const displayCaptionText =
-              captionPreset !== "karaoke"
-                ? (currentCaptionText ?? previewCaptionText ?? "Your caption preview")
-                : null;
+              captionPreset !== "karaoke" ? currentCaptionText : null;
             return (
               // Outer wrapper is pointerEvents:none so it never blocks the native
               // video controls underneath — only the small drag/resize handles

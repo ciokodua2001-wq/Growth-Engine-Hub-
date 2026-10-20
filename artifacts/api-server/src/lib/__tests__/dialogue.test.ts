@@ -121,3 +121,43 @@ describe("transcriptToCaptionEntries", () => {
     expect(transcriptToCaptionEntries(null)).toEqual([]);
   });
 });
+
+describe("compareScriptToTranscript (fidelity score bounded 0..1)", () => {
+  it("identical scripts -> similarity 1 and status matches", () => {
+    const r = compareScriptToTranscript("step into allbirds today", "step into allbirds today");
+    expect(r.similarity).toBe(1);
+    expect(r.status).toBe("matches");
+  });
+
+  it("repeated words cannot push similarity above 1 (regression: 104%)", () => {
+    const r = compareScriptToTranscript("a a b", "a b");
+    expect(r.similarity).toBeLessThanOrEqual(1);
+    expect(r.similarity).toBe(1);
+  });
+
+  it("partial match -> similarity < 1 and status difference", () => {
+    const r = compareScriptToTranscript("step into allbirds today", "step into allbirds");
+    expect(r.similarity).toBeLessThan(1);
+    expect(r.status).toBe("difference");
+    expect(r.differences.some((d) => d.type === "missing" && d.approved === "today")).toBe(true);
+  });
+
+  it("extra spoken words -> similarity < 1", () => {
+    const r = compareScriptToTranscript("try allbirds", "try allbirds today now");
+    expect(r.similarity).toBeLessThan(1);
+    expect(r.differences.some((d) => d.type === "added" && d.spoken === "today")).toBe(true);
+    expect(r.differences.some((d) => d.type === "added" && d.spoken === "now")).toBe(true);
+  });
+
+  it("empty transcript vs non-empty script -> similarity 0", () => {
+    const r = compareScriptToTranscript("hello world", "");
+    expect(r.similarity).toBe(0);
+    expect(r.status).toBe("difference");
+  });
+
+  it("empty vs empty -> similarity 1", () => {
+    const r = compareScriptToTranscript("", "");
+    expect(r.similarity).toBe(1);
+  });
+});
+
