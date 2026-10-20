@@ -49,7 +49,7 @@ Kling/Wan are decommissioned; **do not reactivate**. The `KLING_API_KEY` absence
 
 ## 4. Commercial & production readiness (WS4) - to audit
 
-- Stripe test checkout/subscriptions/webhooks
+- Stripe test checkout/subscriptions/webhooks — ✅ **audited (test mode)**: `STRIPE_SECRET_KEY` = `sk_test_*`, `STRIPE_WEBHOOK_SECRET` set; `/api/stripe/webhook` raw-body + signature verified; `findOrCreateManagedWebhook` + `syncBackfill` at startup; handlers cover `checkout.session.completed` (payment_status==paid), `customer.subscription.created/updated/deleted`; `requireActiveSubscription` blocks cancelled users (403 read-only). 4 test products live via `/api/stripe/products` (Starter $80, Get-Going $99, Growth $249, Agency $599). ⚠️ No test checkout completed yet (no user has `stripe_customer_id`) — payment loop wired but not end-to-end exercised
 - Plan inheritance + project limits
 - Better Auth + email flows — ✅ **verified active**: server `betterAuth.ts` (Drizzle adapter → PostgreSQL) + frontend `authClient` (`better-auth/react`). No live Supabase dependency: zero `@supabase/supabase-js` imports, no `SUPABASE_URL` usage, no `@supabase` in any package.json. Legacy `supabaseAuth.ts` is a renamed compat layer that now calls Better Auth. **Fixed** `forgot-password.tsx` `forgetPassword` → `requestPasswordReset` (Better Auth 1.7.10 API), typecheck now clean
 - Production media storage
