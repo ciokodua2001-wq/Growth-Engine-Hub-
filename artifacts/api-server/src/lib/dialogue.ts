@@ -138,14 +138,14 @@ export interface TimedPhrase {
  * Global caption lead (seconds). Captions are shifted EARLIER by this amount so
  * the text anticipates the spoken phrase. This is the single calibration knob for
  * audio/caption sync - tune CAPION_LEAD_SEC (server) without regenerating any
- * transcript. Default 0.1s (100ms early); use 0 for exact alignment. Applied
+ * transcript. Default 0.25s (250ms early); use 0 for exact alignment. Applied
  * identically in the browser preview and the FFmpeg export so the two never drift
  * apart. KEEP IN SYNC with the frontend (VITE_CAPION_LEAD_SEC).
  */
 function parseCaptionLead(raw: string | undefined): number {
-  if (raw === undefined || raw.trim() === "") return 0.1;
+  if (raw === undefined || raw.trim() === "") return 0.25;
   const n = Number(raw);
-  return Number.isFinite(n) ? n : 0.1;
+  return Number.isFinite(n) ? n : 0.25;
 }
 const CAPION_LEAD_SEC = parseCaptionLead(process.env.CAPION_LEAD_SEC);
 const MIN_CAPTION_START_SEC = 0.05;

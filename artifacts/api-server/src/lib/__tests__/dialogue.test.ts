@@ -202,10 +202,10 @@ describe("segmentTextToPhrases and transcriptToCaptionEntries phrase flow", () =
   });
 
   it("shifts captions earlier by the global caption lead (never late)", () => {
-    // Default 0.1s lead: [1.0, 3.0] becomes [0.9, 2.9].
+    // Default 0.25s lead: [1.0, 3.0] becomes [0.75, 2.75].
     const phrases = segmentTextToPhrases("Hello world this is a test sentence.", 1.0, 3.0);
-    expect(phrases[0]!.startSec).toBeCloseTo(0.9, 2);
-    expect(phrases[phrases.length - 1]!.endSec).toBeCloseTo(2.9, 2);
+    expect(phrases[0]!.startSec).toBeCloseTo(0.75, 2);
+    expect(phrases[phrases.length - 1]!.endSec).toBeCloseTo(2.75, 2);
   });
 
   it("allows the caption lead to be overridden for fine-tuning", () => {
@@ -215,7 +215,7 @@ describe("segmentTextToPhrases and transcriptToCaptionEntries phrase flow", () =
   });
 
   it("clamps the caption lead so the first phrase never starts before the video", () => {
-    // 0.1 - 0.1 = 0.0, clamped to the 0.05 floor.
+    // 0.1 - 0.25 = -0.15, clamped to the 0.05 floor.
     const phrases = segmentTextToPhrases("Hello world.", 0.1, 2.0);
     expect(phrases[0]!.startSec).toBeCloseTo(0.05, 2);
     expect(phrases[0]!.startSec).toBeGreaterThanOrEqual(0);
