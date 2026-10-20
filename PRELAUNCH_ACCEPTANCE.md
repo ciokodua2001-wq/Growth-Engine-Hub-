@@ -62,7 +62,12 @@ Kling/Wan are decommissioned; **do not reactivate**. The `KLING_API_KEY` absence
 - Hybrid website + authorized Meta: **pending** (project 13 ready)
 - Meta publishing: **deferred external dependency** (needs `pages_manage_posts`/`instagram_*` Advanced Access)
 
-## 6. Pre-existing test failures (launch checklist - open)
+## 6. Pre-existing test failures (reconciled)
+
+**Re-verified test run (`vitest run` with `.env` sourced): 217/224 pass, 7 fail —**
+the 7 failures are exactly the Facebook/Instagram direct-publish path below; the
+3 import failures are gone once `.env` is loaded (confirmed test-harness env gap,
+not product defects).
 
 Confirmed present on the clean tree at `de0408b` (before the IDOR/edit work); these
 are **not** regressions from the recent changes but must be classified before beta.
