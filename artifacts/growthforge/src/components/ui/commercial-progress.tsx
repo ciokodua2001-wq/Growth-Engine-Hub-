@@ -251,13 +251,106 @@ function activeKaraokeWordIndex(entry: KaraokeSentenceTiming, t: number): number
 /** Builds preview timings from the REVIEWED actual-audio transcript segments
  *  (real timing windows), so the browser preview matches the FFmpeg export -
  *  both are sourced from the transcript, never the voiceover/script. */
+
+export interface TimedPhrase {
+  text: string;
+  startSec: number;
+  endSec: number;
+  words: string[];
+}
+
+/**
+ * Splits a transcript segment into concise, readable phrase-level captions
+ * (max ~32 characters / ~5-7 words) and distributes the segment's start/end
+ * window proportionally by word count.
+ */
+export function segmentTextToPhrases(
+  text: string,
+  startSec: number,
+  endSec: number,
+  maxChars = 32,
+): TimedPhrase[] {
+  const trimmed = (text ?? "").trim();
+  if (!trimmed) return [];
+
+  // Split on sentence terminators (. ! ?)
+  const rawSentences = trimmed.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
+  const phraseList: string[] = [];
+
+  for (const sent of rawSentences) {
+    if (sent.length <= maxChars) {
+      phraseList.push(sent);
+    } else {
+      // Split on clauses (, ; :) or mid-point space
+      const clauseParts = sent.split(/(?<=[,;:])\s+/).map(c => c.trim()).filter(Boolean);
+      for (const cp of clauseParts) {
+        if (cp.length <= maxChars) {
+          phraseList.push(cp);
+        } else {
+          const words = cp.split(/\s+/);
+          const mid = Math.ceil(words.length / 2);
+          const p1 = words.slice(0, mid).join(" ");
+          const p2 = words.slice(mid).join(" ");
+          if (p1) phraseList.push(p1);
+          if (p2) phraseList.push(p2);
+        }
+      }
+    }
+  }
+
+  if (phraseList.length === 0) return [];
+
+  const wordsPerPhrase = phraseList.map(p => Math.max(1, p.split(/\s+/).length));
+  const totalWords = wordsPerPhrase.reduce((a, b) => a + b, 0);
+  const totalDuration = Math.max(0.5, endSec - startSec);
+
+  const phrases: TimedPhrase[] = [];
+  let currStart = startSec;
+
+  for (let i = 0; i < phraseList.length; i++) {
+    const pText = phraseList[i]!;
+    const wCount = wordsPerPhrase[i]!;
+    const dur = (wCount / totalWords) * totalDuration;
+    const currEnd = i < phraseList.length - 1 ? currStart + dur : endSec;
+
+    phrases.push({
+      text: pText,
+      startSec: Math.round(currStart * 1000) / 1000,
+      endSec: Math.round(currEnd * 1000) / 1000,
+      words: pText.split(/\s+/).filter(Boolean),
+    });
+    currStart = currEnd;
+  }
+
+  return phrases;
+}
+
 function buildTranscriptTimings(
   transcript: Array<{ text?: string; startSec?: number; endSec?: number }> | null | undefined,
 ): { subtitle: Array<{ text: string; startSec: number; endSec: number }>; karaoke: KaraokeSentenceTiming[] } {
   const segs = (transcript ?? [])
     .filter(x => (x.text ?? "").trim() && typeof x.startSec === "number" && typeof x.endSec === "number");
-  const subtitle = segs.map(x => ({ text: wrapCaptionText(x.text!.trim(), 40), startSec: x.startSec!, endSec: x.endSec! }));
-  const karaoke = segs.map(x => ({ words: x.text!.trim().split(/\s+/).filter(Boolean), startSec: x.startSec!, endSec: x.endSec! }));
+
+  const subtitle: Array<{ text: string; startSec: number; endSec: number }> = [];
+  const karaoke: KaraokeSentenceTiming[] = [];
+
+  for (const seg of segs) {
+    const rawText = seg.text!.trim();
+    const phrases = segmentTextToPhrases(rawText, seg.startSec!, seg.endSec!, 32);
+    for (const p of phrases) {
+      subtitle.push({
+        text: wrapCaptionText(p.text, 28),
+        startSec: p.startSec,
+        endSec: p.endSec,
+      });
+      karaoke.push({
+        words: p.words,
+        startSec: p.startSec,
+        endSec: p.endSec,
+      });
+    }
+  }
+
   return { subtitle, karaoke };
 }
 

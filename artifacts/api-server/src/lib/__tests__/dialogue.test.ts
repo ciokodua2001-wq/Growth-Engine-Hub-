@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
 import {
+  segmentTextToPhrases, describe, expect, it } from "vitest";
+import {
+  segmentTextToPhrases,
   extractDialogueLines,
   distributeDialogue,
   estimateDialogueFit,
@@ -161,3 +163,33 @@ describe("compareScriptToTranscript (fidelity score bounded 0..1)", () => {
   });
 });
 
+describe("segmentTextToPhrases and transcriptToCaptionEntries phrase flow", () => {
+  it("splits a long multi-sentence transcript segment into short phrase-level captions", () => {
+    const longText = "Ever feel like your daily shoes are holding you back? Upgrade to sugarcane and tree fiber comfort. Step naturally today.";
+    const phrases = segmentTextToPhrases(longText, 0.1, 15.0);
+
+    expect(phrases.length).toBeGreaterThanOrEqual(3);
+    for (const p of phrases) {
+      expect(p.text.length).toBeLessThanOrEqual(40);
+      expect(p.startSec).toBeGreaterThanOrEqual(0.1);
+      expect(p.endSec).toBeLessThanOrEqual(15.0);
+      expect(p.endSec).toBeGreaterThan(p.startSec);
+    }
+
+    // Confirm phrases sequential timestamps
+    for (let i = 0; i < phrases.length - 1; i++) {
+      expect(phrases[i]!.endSec).toBeCloseTo(phrases[i + 1]!.startSec, 2);
+    }
+  });
+
+  it("transcriptToCaptionEntries maps long segments into phrase-level ASS caption entries", () => {
+    const segments = [
+      { text: "Ever feel like your daily shoes are holding you back? Upgrade to sugarcane and tree fiber comfort. Step naturally today.", startSec: 0.1, endSec: 15.0, reviewed: true }
+    ];
+    const entries = transcriptToCaptionEntries(segments);
+
+    expect(entries.length).toBeGreaterThanOrEqual(3);
+    expect(entries[0]!.text).not.toContain("Step naturally today");
+    expect(entries[entries.length - 1]!.text).toBe("Step naturally today.");
+  });
+});
