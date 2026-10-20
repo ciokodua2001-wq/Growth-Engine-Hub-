@@ -487,5 +487,103 @@
       ],
       "formal_register": "Respectful but approachable; 'you' is fine for most B2C. For B2B and older audiences use full sentences and titles (Mr/Mrs/Dr) where appropriate."
     }
+  },
+  "pcm": {
+    "language_name": "Nigerian Pidgin (Naijá)",
+    "regional_nuance": {
+      "tone": "Warm, expressive, conversational Nigerian Pidgin (Naijá). Pidgin is informal and spoken-first, so write the way people actually talk, with natural rhythm and short clauses. Keep it broadly intelligible (avoid niche slang that only one city/age group knows). Use Pidgin for consumer/youth brands and the spoken voice layer; for formal B2B or older audiences default to standard Nigerian English (en-NG). Never claim natural spoken-Pidgin delivery is verified without fluent-speaker review.",
+      "cultural_values": [
+        "community and extended family ('we dey carry each other')",
+        "hustle, ambition and entrepreneurship (positive)",
+        "respect for elders, titles and authority",
+        "faith and optimism (reference respectfully)",
+        "pride in Naija identity and creativity"
+      ],
+      "taboos": [
+        "Do not claim natural spoken-Pidgin audio is verified - written Pidgin only, until fluent-speaker review",
+        "Do not overuse slang that excludes older or non-youth audiences",
+        "Avoid negative stereotypes about any ethnic group, region or religion",
+        "Keep any prices/claims factual - convert to ₦ with 'aprox.' where the source is USD",
+        "Do not mock or overuse religious language"
+      ],
+      "motivators": [
+        "success, status and visible progress",
+        "value for money and trustworthiness (fraud is a real concern — prove legitimacy)",
+        "belonging to community and social proof",
+        "aspiration, upward mobility and 'making it'"
+      ]
+    },
+    "slang_and_idioms": [
+      {
+        "term": "How far?",
+        "meaning": "How are you / what's up",
+        "usage": "Friendly opening / greeting"
+      },
+      {
+        "term": "Wetin dey happen?",
+        "meaning": "What's happening",
+        "usage": "Engagement hooks"
+      },
+      {
+        "term": "Abeg",
+        "meaning": "Please",
+        "usage": "Polite requests / CTAs"
+      },
+      {
+        "term": "No wahala",
+        "meaning": "No problem / no stress",
+        "usage": "Reassurance and ease-of-use"
+      },
+      {
+        "term": "I go / We go",
+        "meaning": "I will / We will",
+        "usage": "Future benefit and commitment"
+      },
+      {
+        "term": "Make e sweet",
+        "meaning": "Make it enjoyable / delightful",
+        "usage": "Lifestyle and experience copy"
+      },
+      {
+        "term": "E choke",
+        "meaning": "It's overwhelming / impressive (youth)",
+        "usage": "Optional - youth brands only"
+      }
+    ],
+    "seo_behavior": {
+      "search_engine": "Google.com.ng dominates, with strong Google (general) and social discovery (Instagram, TikTok, WhatsApp) for Nigerian users",
+      "keyword_style": "Nigerian users search in full conversational phrases, often adding 'in Nigeria', city names (Lagos, Abuja, Port Harcourt, Ibadan), 'price', and 'how to'. Include long-tail question keywords and local place names.",
+      "preferred_query_patterns": [
+        "How to… in Nigeria",
+        "Price of… in Nigeria",
+        "Best… in Lagos",
+        "Where to buy… in Nigeria",
+        "How much is…",
+        "…near me"
+      ],
+      "local_signals": "Reference NGN pricing, Lagos/Abuja/Port Harcourt, 'nationwide delivery', 'Pay on delivery' where relevant, and trust signals (verified, secure payment) for legitimacy",
+      "meta_title_style": "Lead with the benefit, include 'Nigeria' or a city for local intent, keep under 60 characters",
+      "meta_description_style": "Conversational, include a clear action and a trust signal ('Nationwide delivery', 'Pay on delivery'), 150–160 characters",
+      "content_length_preference": "Mid-form (600–900 words) with clear H2/H3 structure; how-to guides, listicles and price-focused content perform well"
+    },
+    "formatting": {
+      "date_format": "DD/MM/YYYY (e.g., 25/07/2026)",
+      "time_format": "Africa/Lagos (WAT, UTC+1, no DST). 12-hour with AM/PM for consumer copy (e.g., 3:00 PM WAT); 24-hour for logistics/B2B.",
+      "currency": "NGN (Nigerian Naira) — format as ₦ with comma thousands and no decimals unless needed (e.g., ₦1,299). Convert any USD references to ₦ with an approximate rate (~₦1,500 = $1 USD) and flag with '(aprox.)'.",
+      "number_separators": "Comma for thousands, period for decimals (e.g., 1,299.50)",
+      "punctuation_style": "Standard English punctuation; exclamation marks are acceptable for excitement but do not overuse",
+      "address_order": "House number + street, area, city, state, Nigeria",
+      "reading_direction": "Left to right",
+      "preferred_cta_verbs": [
+        "Buy am now",
+        "Order now",
+        "Chat us for WhatsApp",
+        "Try am today",
+        "Get started",
+        "Call now",
+        "Learn more"
+      ],
+      "formal_register": "Pidgin is informal - do not use for formal B2B or legal copy; default to en-NG there."
+    }
   }
 }

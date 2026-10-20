@@ -33,3 +33,21 @@ describe("Nigeria localization (en-NG)", () => {
     expect(mapToSupportedLocale(result, ["en-NG", "es-MX"])).toBe("en-NG");
   });
 });
+
+describe("Nigerian Pidgin (pcm) written workflow", () => {
+  it("registers pcm as a distinct locale with a Pidgin profile", () => {
+    expect(getSupportedLocales()).toContain("pcm");
+    const profile = getLocaleProfile("pcm");
+    expect(profile).not.toBeNull();
+    expect(profile!.language_name).toBe("Nigerian Pidgin (Naijá)");
+    expect(profile!.regional_nuance.tone.toLowerCase()).toContain("pidgin");
+  });
+
+  it("does NOT falsely claim spoken-Pidgin is verified", () => {
+    const profile = getLocaleProfile("pcm")!;
+    const out = injectCulturalNuance("BASE.", profile, "pcm");
+    // The written workflow warns that spoken Pidgin is unverified.
+    expect(out.toLowerCase()).toContain("spoken");
+  });
+});
+

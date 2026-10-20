@@ -109,6 +109,8 @@ const COPYWRITING_FORMULA_OVERRIDES: Record<string, string> = {
   professionalism reads as distrust. Always mention parcelamento (instalment options)
   in e-commerce contexts. Urgency should feel like excitement, not pressure.`,
 
+  "pcm": `Write in Nigerian Pidgin (Naijá), the informal creole spoken across Nigeria, but keep it broadly intelligible and respectful (avoid niche slang). Pattern: "Gree the problem → Show say you sabi → Better life → Do am now" (Acknowledge the problem → prove you understand → the better outcome → act now). Keep the rhythm conversational and upbeat. Use Pidgin for the spoken/voice layer or youth/consumer brands; default to en-NG for formal B2B. Keep prices/claims factual (₦, 'aprox.' where converted). NOTE: natural SPOKEN Pidgin delivery is not yet verified - do not claim authentic spoken Pidgin without fluent-speaker review.`,
+
   "en-NG": `Replace English ad frameworks (AIDA, PAS) with a Nigerian persuasion pattern:
   "Recognition → Proof & Trust → Aspiration → Clear Next Step"
   Nigerian audiences are marketing-savvy and wary of scams — establish legitimacy and
