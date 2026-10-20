@@ -59,6 +59,13 @@ export const videosTable = pgTable("videos", {
   transcriptStatus: text("transcript_status").notNull().default("pending"),
   fidelityStatus: text("fidelity_status").notNull().default("unverified"),
   fidelityReport: jsonb("fidelity_report"),
+
+  // ── Optional single AI script-improvement suggestion ───────────────────────
+  // Cached per script version (scriptHash) so a customer never pays twice for the
+  // same suggestion. status: pending | accepted | rejected. Acceptance replaces
+  // `script` and resets scriptStatus to "proposed" (re-approval required) - never
+  // a silent rewrite.
+  scriptSuggestion: jsonb("script_suggestion"),
 });
 
 export const insertVideoSchema = createInsertSchema(videosTable).omit({ id: true, createdAt: true });
