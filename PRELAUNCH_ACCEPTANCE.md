@@ -505,3 +505,33 @@ Commits: `b9a15e0` (editor/centering/parity), assemble cache key + in-flight reu
 
 Commit: `c41e3d0`.
 
+
+
+---
+
+## Caption preview during playback (final fix)
+
+### Root cause
+`isVideoPlaying` depended only on the video `play`/`pause` event listeners. When
+the timing effect re-runs (re-attaching listeners after a dep change) while the
+video is already playing, the `play` event has already fired and is never seen
+again - so the editor stayed stuck in "editing" mode and showed the selected
+segment instead of the live time-synced caption. Fix: derive playing state from
+`v.paused` on every `timeupdate` (fires ~4x/sec during playback).
+
+### Browser evidence (DEV, Video #5 "Natural Comfort Step", editor video, no new Veo)
+- Paused at t=0: "Editing segment 1" + selected segment text.
+- Play: mode flips to "Following playback"; caption shows the correct segment at
+  each timestamp:
+  - 0.37-4.27s → "Stop squeezing your feet into rigid, synthetic shoes."
+  - 10.8-12.4s → "These Eucalyptus tree fiber sneakers are wildly soft..."
+  - 12.8s → empty (brief silence between segments 2 and 3)
+  - 13.2-14.8s → "And so, please, [unclear] some."
+  - >14.99s → empty (after final segment)
+- Pause (mid-playback or end) restores "Editing segment 1" + selected segment.
+- Seeking to t=5 while paused shows selected segment; playing from there shows
+  segment 2.
+- Theater/fullscreen: video centered, same time-synced caption behavior.
+
+Commit: `a0593fc`.
+
