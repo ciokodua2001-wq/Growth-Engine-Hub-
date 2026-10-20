@@ -22,6 +22,10 @@
  */
 
 import { createHash, randomUUID } from "crypto";
+
+// Bump whenever the caption layout/ASS renderer changes so cached captioned
+// assemblies are invalidated and re-rendered with the new rules.
+const CAPTION_RENDERER_VERSION = "v3-safe-area-wrap";
 import { Readable } from "stream";
 import { Router } from "express";
 import multer from "multer";
@@ -31,7 +35,7 @@ import {
   klingSceneJobsTable,
   commercialAssembliesTable,
 } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, notInArray } from "drizzle-orm";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
 import { objectStorageClient, signObjectURL } from "../lib/objectStorage.js";
 import {
@@ -229,6 +233,13 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
       captionScale: captionsEnabled ? captionScale : null,
       hasLogo: !!options.logoUrl,
       hasMusic: !!options.backgroundMusicUrl,
+      // Invalidate the cache when the underlying material changes:
+      // transcript text/timing, caption renderer version, or the source render.
+      transcript: captionsEnabled ? video.dialogueTranscript : null,
+      rendererVersion: CAPTION_RENDERER_VERSION,
+      sourceVersion: video.renderCompletedAt?.toISOString()
+        ?? video.renderStartedAt?.toISOString()
+        ?? video.createdAt.toISOString(),
     }))
     .digest("hex");
 
@@ -272,7 +283,27 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
     }
   }
 
-  const formatsNeedingRender = requestedFormats.filter(f => !cachedByFormat.has(f));
+  // Reuse in-flight (pending/processing) assemblies with the SAME fingerprint so
+  // two concurrent identical requests don't cancel + re-queue a duplicate render.
+  const inFlightByFormat = new Map<OutputFormat, AssemblyRow>();
+  const inFlightAssemblies = await db
+    .select()
+    .from(commercialAssembliesTable)
+    .where(
+      and(
+        eq(commercialAssembliesTable.videoId, videoId),
+        inArray(commercialAssembliesTable.status, ["pending", "processing"]),
+      ),
+    );
+  for (const a of inFlightAssemblies) {
+    const opts = a.options as Record<string, unknown> | null;
+    if (opts?.optionsFingerprint === optionsFingerprint) {
+      inFlightByFormat.set(a.outputFormat as OutputFormat, a);
+    }
+  }
+  const matchingInFlightIds = [...inFlightByFormat.values()].map(a => a.id);
+
+  const formatsNeedingRender = requestedFormats.filter(f => !cachedByFormat.has(f) && !inFlightByFormat.has(f));
   const formatsServedFromCache = requestedFormats.filter(f => cachedByFormat.has(f));
 
   if (formatsServedFromCache.length > 0) {
@@ -307,8 +338,8 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
       videoId,
       formats: requestedFormats,
       cached: true,
-      assemblyIds: [...cachedByFormat.values()].map(a => a.id),
-      assemblies: [...cachedByFormat.values()].map(formatAssembly),
+      assemblyIds: [...cachedByFormat.values(), ...inFlightByFormat.values()].map(a => a.id),
+      assemblies: [...cachedByFormat.values(), ...inFlightByFormat.values()].map(formatAssembly),
     });
     return;
   }
@@ -321,6 +352,9 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
       and(
         eq(commercialAssembliesTable.videoId, videoId),
         inArray(commercialAssembliesTable.status, ["pending", "processing"]),
+        ...(matchingInFlightIds.length > 0
+          ? [notInArray(commercialAssembliesTable.id, matchingInFlightIds)]
+          : []),
       ),
     );
 
