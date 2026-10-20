@@ -165,6 +165,22 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
 
   // Caption burn-in is opt-in (default: false — clean MP4, browser overlay in UI).
   const captionsEnabled = body.captionsEnabled === true;
+
+  // Captions must come from the REVIEWED actual-audio transcript. Never silently
+  // substitute the approved script or per-scene narrationLine for the spoken
+  // words. Require a transcript whose timing has been reviewed before burning.
+  if (captionsEnabled) {
+    const reviewed = (video.transcriptStatus === "ready" || video.transcriptStatus === "accepted")
+      && Array.isArray(video.dialogueTranscript)
+      && video.dialogueTranscript.length > 0;
+    if (!reviewed) {
+      res.status(422).json({
+        error: "Captions require a reviewed transcript",
+        message: "Transcribe the actual audio and review/correct the transcript (including timing) before exporting captions.",
+      });
+      return;
+    }
+  }
   const VALID_CAPTION_PRESETS = [
     "clean", "boldPop", "karaoke", "neonGlow", "cinematic", "gradientChip", "retroVHS", "socialBubble",
   ];

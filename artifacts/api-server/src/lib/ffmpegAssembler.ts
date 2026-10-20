@@ -38,6 +38,7 @@ import { eq, and } from "drizzle-orm";
 import pino from "pino";
 import { objectStorageClient, signObjectURL } from "./objectStorage.js";
 import { prepareScript } from "./googleNarrator.js";
+import { transcriptToCaptionEntries, type TranscriptSegment } from "./dialogue.js";
 
 const FFMPEG_BIN = "ffmpeg";
 const logger = pino({ name: "ffmpegAssembler" });
@@ -252,8 +253,11 @@ export class CommercialAssembler {
       // Captions must match the dialogue actually passed to Veo - the verbatim
       // per-scene narration lines (never an AI paraphrase, never the whole script).
       // Timing is per-scene (real clip boundaries), not proportional char count.
+      // Captions MUST come from the reviewed actual-audio transcript - never the
+      // approved script, never the per-scene narrationLine. assemble.ts already
+      // rejects captioned requests that lack a reviewed transcript.
       const captionsEntries = captionsEnabled
-        ? buildSceneCaptionEntries(scenes, sceneDuration, transitionDuration)
+        ? transcriptToCaptionEntries((video as any).dialogueTranscript as TranscriptSegment[] | null)
         : [];
 
       // ── 5. Encode each requested output format ────────────────────────────
@@ -737,30 +741,7 @@ function buildScriptSubtitles(script: string, totalDuration: number): SubtitleEn
   return entries;
 }
 
-/**
- * Builds caption entries from each scene's VERBATIM narration line, timed to
- * the scene's real clip boundary in the assembled timeline. This is the
- * fix for the caption-mismatch bug: captions previously used the whole
- * voiceover script with proportional char-count timing (which drifted from the
- * audio); now they use the exact dialogue that was passed to Veo, timed to the
- * actual scene windows.
- */
-function buildSceneCaptionEntries(
-  scenes: Array<{ narrationLine: string | null }>,
-  sceneDuration: number,
-  transitionDuration: number,
-): SubtitleEntry[] {
-  const step = Math.max(0.1, sceneDuration - transitionDuration);
-  const entries: SubtitleEntry[] = [];
-  scenes.forEach((scene, i) => {
-    const line = (scene.narrationLine ?? "").trim();
-    if (!line) return; // silent/hero scene - no spoken dialogue, no caption
-    entries.push({ text: line, startSec: i * step, endSec: i * step + sceneDuration });
-  });
-  return entries;
-}
-
-/** Karaoke variant: word-level colouring within each scene's own time window. */
+/** Karaoke variant: word-level colouring within each segment's own time window. */
 function buildKaraokeForScenes(entries: SubtitleEntry[]): AssEvent[] {
   const out: AssEvent[] = [];
   for (const e of entries) {

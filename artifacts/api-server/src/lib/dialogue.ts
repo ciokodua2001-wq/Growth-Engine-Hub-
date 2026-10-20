@@ -10,6 +10,8 @@ export interface TranscriptSegment {
   startSec?: number;
   endSec?: number;
   confidence?: number; // 0-1, optional; Gemini transcription is approximate
+  timingSource?: "estimated" | "manual"; // how startSec/endSec were produced
+  reviewed?: boolean; // customer confirmed text + timing (gate for caption export)
 }
 
 export type FidelityStatus = "unverified" | "matches" | "difference";
@@ -77,6 +79,54 @@ export function distributeDialogue(lines: string[], sceneCount: number): string[
   const per = Math.ceil(lines.length / n);
   for (let i = 0; i < n; i++) {
     out.push(lines.slice(i * per, (i + 1) * per).join(" "));
+  }
+  return out;
+}
+
+// ── Transcript timing + caption entries ──────────────────────────────────────
+// Gemini transcription is phrase-level (no reliable word timestamps). We never
+// pretend estimated timing is word-accurate: segments start as `estimated`
+// (proportional to character count across the real assembled duration) and are
+// only eligible for caption export once the customer reviews them (manual).
+
+export interface CaptionEntry {
+  text: string;
+  startSec: number;
+  endSec: number;
+}
+
+/**
+ * Assigns proportional estimated timing to transcript segments across the real
+ * assembled duration. Explicitly labeled `estimated` - NOT word-accurate.
+ */
+export function assignEstimatedTiming(segments: TranscriptSegment[], totalDuration: number): TranscriptSegment[] {
+  const texts = segments.map(x => x.text.trim()).filter(Boolean);
+  if (texts.length === 0) return segments;
+  const totalChars = texts.reduce((n, t) => n + t.length, 0) || 1;
+  let cursor = 0.1;
+  return texts.map((text, i) => {
+    const dur = Math.max(0.8, (text.length / totalChars) * totalDuration * 0.95);
+    const startSec = Math.min(cursor, totalDuration - 0.3);
+    const endSec = Math.min(startSec + dur, totalDuration - 0.1);
+    cursor = endSec + 0.08;
+    return { text, startSec, endSec, timingSource: "estimated" as const, reviewed: false, confidence: segments[i]?.confidence };
+  });
+}
+
+/**
+ * Turns reviewed transcript segments into FFmpeg caption entries. Only
+ * reviewed segments with text + timing are eligible - never the approved
+ * script, never the per-scene narrationLine. Escapes ASS control chars and
+ * wraps long lines.
+ */
+export function transcriptToCaptionEntries(segments: TranscriptSegment[] | null | undefined): CaptionEntry[] {
+  if (!segments) return [];
+  const out: CaptionEntry[] = [];
+  for (const seg of segments) {
+    const text = (seg.text ?? "").trim();
+    if (!text) continue;
+    if (typeof seg.startSec !== "number" || typeof seg.endSec !== "number") continue;
+    out.push({ text, startSec: seg.startSec, endSec: seg.endSec });
   }
   return out;
 }

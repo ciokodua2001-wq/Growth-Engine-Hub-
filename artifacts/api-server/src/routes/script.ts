@@ -11,6 +11,7 @@ import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
 import {
   compareScriptToTranscript,
   transcribeAudioWithGemini,
+  assignEstimatedTiming,
   type TranscriptSegment,
 } from "../lib/dialogue.js";
 import pino from "pino";
@@ -130,11 +131,16 @@ router.post("/projects/:id/videos/:videoId/transcript", async (req, res) => {
     const languageHint = typeof req.body?.languageHint === "string" ? req.body.languageHint : undefined;
     const transcriptText = await transcribeAudioWithGemini(audioB64, "audio/mp3", languageHint);
 
-    const segments: TranscriptSegment[] = transcriptText
+    const rawSegments: TranscriptSegment[] = transcriptText
       .split(/\n+/)
       .map(t => t.trim())
       .filter(Boolean)
       .map(text => ({ text }));
+
+    // Real assembled duration for estimated timing - never pretend word-accurate.
+    // Segments start as `estimated`; they must be reviewed before caption export.
+    const totalDuration = Number(assembly?.durationSec) || Number(video.duration) || 15;
+    const segments = assignEstimatedTiming(rawSegments, totalDuration);
 
     // 4. Compare against the approved (or draft) script.
     const reference = video.approvedScript ?? video.script ?? "";
@@ -144,7 +150,7 @@ router.post("/projects/:id/videos/:videoId/transcript", async (req, res) => {
       .update(videosTable)
       .set({
         dialogueTranscript: segments,
-        transcriptStatus: report.status === "matches" ? "ready" : "needs_review",
+        transcriptStatus: "needs_review", // always review before caption export
         fidelityStatus: report.status,
         fidelityReport: report,
       })
@@ -154,6 +160,71 @@ router.post("/projects/:id/videos/:videoId/transcript", async (req, res) => {
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
+});
+
+// ── PUT transcript (customer correction + manual timing review) ──────────────
+// The customer reviews the transcript, fixes any mis-heard words, and sets the
+// timing windows. This is the ONLY thing eligible for caption export - never the
+// approved script, never the per-scene narrationLine.
+router.put("/projects/:id/videos/:videoId/transcript", async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const projectId = parseInt(req.params.id, 10);
+  const videoId = parseInt(req.params.videoId, 10);
+  if (isNaN(projectId) || isNaN(videoId)) { res.status(400).json({ error: "Invalid IDs" }); return; }
+
+  const video = await loadOwnedVideo(projectId, videoId);
+  if (!video) { res.status(404).json({ error: "Video not found" }); return; }
+
+  const body = req.body?.segments;
+  if (!Array.isArray(body) || body.length === 0) {
+    res.status(422).json({ error: "segments must be a non-empty array" });
+    return;
+  }
+
+  const segments: TranscriptSegment[] = body
+    .map(s => ({
+      text: String((s as any)?.text ?? "").trim(),
+      startSec: typeof (s as any)?.startSec === "number" ? (s as any).startSec : undefined,
+      endSec: typeof (s as any)?.endSec === "number" ? (s as any).endSec : undefined,
+      timingSource: "manual" as const,
+      reviewed: true,
+    }))
+    .filter(s => s.text);
+
+  if (segments.length === 0) { res.status(422).json({ error: "No non-empty transcript segments" }); return; }
+
+  const transcriptText = segments.map(s => s.text).join("\n");
+  const report = compareScriptToTranscript(video.approvedScript ?? video.script ?? "", transcriptText);
+
+  await db
+    .update(videosTable)
+    .set({
+      dialogueTranscript: segments,
+      transcriptStatus: "ready",
+      fidelityStatus: report.status,
+      fidelityReport: report,
+    })
+    .where(eq(videosTable.id, videoId));
+
+  res.json({ transcript: segments, fidelity: report, transcriptStatus: "ready" });
+});
+
+// ── POST accept performance ──────────────────────────────────────────────────
+// Customer accepts the spoken performance even if it deviates from the approved
+// script. Does NOT change the historical approved-script record.
+router.post("/projects/:id/videos/:videoId/transcript/accept", async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const projectId = parseInt(req.params.id, 10);
+  const videoId = parseInt(req.params.videoId, 10);
+  if (isNaN(projectId) || isNaN(videoId)) { res.status(400).json({ error: "Invalid IDs" }); return; }
+
+  const video = await loadOwnedVideo(projectId, videoId);
+  if (!video) { res.status(404).json({ error: "Video not found" }); return; }
+
+  await db.update(videosTable).set({ transcriptStatus: "accepted" }).where(eq(videosTable.id, videoId));
+  res.json({ transcriptStatus: "accepted", note: "Performance accepted - approved-script record unchanged." });
 });
 
 // ── GET fidelity report + transcript ─────────────────────────────────────────

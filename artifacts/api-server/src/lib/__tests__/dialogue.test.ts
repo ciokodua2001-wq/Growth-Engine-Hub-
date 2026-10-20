@@ -4,6 +4,8 @@ import {
   distributeDialogue,
   estimateDialogueFit,
   compareScriptToTranscript,
+  assignEstimatedTiming,
+  transcriptToCaptionEntries,
 } from "../dialogue.js";
 
 const ALLBIRDS_PLAN = JSON.stringify({
@@ -80,5 +82,32 @@ describe("compareScriptToTranscript", () => {
     const r = compareScriptToTranscript("Get 50% off today", "Get 80% off today");
     expect(r.status).toBe("difference");
     expect(r.differences.some(d => d.type === "material")).toBe(true);
+  });
+});
+
+describe("assignEstimatedTiming", () => {
+  it("produces estimated, unreviewed, ordered timing across the duration", () => {
+    const segs = assignEstimatedTiming([{ text: "Hello there" }, { text: "Goodbye now" }], 15);
+    expect(segs).toHaveLength(2);
+    expect(segs[0]!.timingSource).toBe("estimated");
+    expect(segs[0]!.reviewed).toBe(false);
+    expect(segs[0]!.startSec).toBeGreaterThanOrEqual(0);
+    expect(segs[1]!.startSec).toBeGreaterThanOrEqual(segs[0]!.endSec!);
+  });
+});
+
+describe("transcriptToCaptionEntries", () => {
+  it("only returns segments with text AND timing", () => {
+    const entries = transcriptToCaptionEntries([
+      { text: "A line", startSec: 1, endSec: 3 },
+      { text: "no timing yet" },
+      { text: "", startSec: 1, endSec: 2 },
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.text).toBe("A line");
+  });
+
+  it("returns empty for null transcript (never falls back to script)", () => {
+    expect(transcriptToCaptionEntries(null)).toEqual([]);
   });
 });
