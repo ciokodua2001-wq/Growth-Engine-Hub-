@@ -54,11 +54,13 @@ Constraints (non-negotiable):
 - Already isolated: `growthforge_prod` DB owned by role `growthforge_prod` (dev uses
   `growthforge_dev` / `growthforge_app_dev`). No change to that separation.
 - Set `DATABASE_URL` and `DIRECT_DATABASE_URL` to the `growthforge_prod` connection string.
-- **Migration risk to validate:** the prod DB is on a different (older) migration track and
-  already contains some Better Auth tables. Run the forward-only Drizzle migrations
-  (`0000_baseline.sql`, `0001_better_auth.sql`) against a THROWAWAY copy of prod first and
-  diff table/column drift. If the baseline conflicts, write an additive reconciliation
-  migration (never a destructive down-migration). This is the single highest-risk step.
+- **Migration risk - RESOLVED (drift diff run on a throwaway copy 2026-10-20):** the prod DB
+  is schema-compatible with dev except for **exactly two missing columns** -
+  `competitors.superseded_at` and `personas.superseded_at`. The 3 tables present in dev but not
+  prod (`_phase3_backup_*`) are ad-hoc dev backup artifacts, not schema. Reconciliation is a
+  forward-only 2-line ALTER (see `deploy/reconcile-prod-schema.sql`), verified on a throwaway:
+  after applying it, column drift = 0. The `stripe.*` schema self-heals via
+  `stripe-replit-sync runMigrations()` at startup.
 
 ## 6. Wasabi production media bucket + least-privilege credentials
 

@@ -144,6 +144,12 @@ Additionally, 3 suites fail to **import** when run without `.env` loaded
 ## 8. Release preparation - controlled-beta (in progress)
 
 ### Phase 1 - Backup & restore readiness ✅ DONE
+
+> **Operational note (keep validating as data grows):** the 9s restore proved *mechanics* only -
+> the prod DB currently has **0 user rows** (Coming Soon, no signups). Recovery of a *populated*
+> customer DB is not yet demonstrated. Re-run the restore drill (and add row-count assertions for
+> users/projects/content/social_posts) once real beta customers exist, and keep this in the
+> operational checklist until then.
 Restore drill (`deploy/restore-test-prod.sh`, hardened `c17cde6`) run on the live
 server with the latest prod backup (`_infra-backups/growthforge-prod/...-21-52-13Z.dump.gpg`):
 - Restored **only** into isolated `growthforge_prod_restore_test` (never `growthforge_prod`).
