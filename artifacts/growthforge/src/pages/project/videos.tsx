@@ -998,24 +998,29 @@ function VideoCard({
           >
             {(() => {
               const plan = parseCinematicPlan(video.cinematicPlan);
-              if (plan) return <CinematicBlueprintViewer plan={plan} script={video.script} />;
-              return video.script ? (
-                <div className="mt-4 pt-4 border-t border-border space-y-3">
-                  <div>
-                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Script</div>
-                    <pre className="text-xs text-foreground whitespace-pre-wrap leading-relaxed font-sans">{video.script}</pre>
-                  </div>
-                  {video.storyboard && (
-                    <div>
-                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Storyboard</div>
-                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed font-sans">{video.storyboard}</pre>
+              return (
+                <>
+                  {plan ? (
+                    <CinematicBlueprintViewer plan={plan} script={video.script} />
+                  ) : video.script ? (
+                    <div className="mt-4 pt-4 border-t border-border space-y-3">
+                      <div>
+                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Script</div>
+                        <pre className="text-xs text-foreground whitespace-pre-wrap leading-relaxed font-sans">{video.script}</pre>
+                      </div>
+                      {video.storyboard && (
+                        <div>
+                          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Storyboard</div>
+                          <pre className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed font-sans">{video.storyboard}</pre>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ) : null;
+                  ) : null}
+                  <ScriptFidelityPanel video={video} projectId={projectId} />
+                  <CommercialProductionProgress video={video} projectId={projectId} isTrial={isTrial} />
+                </>
+              );
             })()}
-            <ScriptFidelityPanel video={video} projectId={projectId} />
-            <CommercialProductionProgress video={video} projectId={projectId} isTrial={isTrial} />
           </motion.div>
         )}
       </AnimatePresence>

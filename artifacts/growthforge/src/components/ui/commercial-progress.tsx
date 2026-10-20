@@ -10,7 +10,7 @@
  *   → Complete          (inline video player + download)
  */
 
-import { useState, useEffect, useCallback, useRef, type CSSProperties } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, type CSSProperties } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -453,7 +453,36 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   // outside speech intervals). Never a generic placeholder.
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [editSegmentIndex, setEditSegmentIndex] = useState(0);
-  const [transcriptSegments, setTranscriptSegments] = useState<Array<{ text: string; startSec: number; endSec: number }>>([]);
+  // Synchronous derived segments - guarantees derivedSegments is NEVER empty []
+  // when dialogueTranscript or script is present, so edit mode preview can never fail.
+  const derivedSegments = useMemo(() => {
+    const { subtitle } = buildTranscriptTimings(video.dialogueTranscript);
+    if (subtitle.length > 0) return subtitle;
+    const fallback = (video.script || video.voiceover || "Sample caption text").trim();
+    return [{ text: wrapCaptionText(fallback, 40), startSec: 0, endSec: 15 }];
+  }, [video.dialogueTranscript, video.script, video.voiceover]);
+
+  // Track state for transcript corrections
+  const [localTranscript, setLocalTranscript] = useState(video.dialogueTranscript);
+  useEffect(() => {
+    setLocalTranscript(video.dialogueTranscript);
+    if (!video.dialogueTranscript && video.id && projectId) {
+      fetch(`/api/projects/${projectId}/videos/${video.id}/script`, { credentials: "include" })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (Array.isArray(d?.transcript) && d.transcript.length > 0) {
+            setLocalTranscript(d.transcript);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [video.dialogueTranscript, video.id, projectId]);
+
+  const activeSegments = useMemo(() => {
+    const { subtitle } = buildTranscriptTimings(localTranscript);
+    if (subtitle.length > 0) return subtitle;
+    return derivedSegments;
+  }, [localTranscript, derivedSegments]);
   // Intrinsic aspect ratio (videoWidth/videoHeight) - used to size the stage so
   // the caption overlay anchors to the VISIBLE video rect, not pillarbox/letterbox.
   const [videoAspect, setVideoAspect] = useState<number | null>(null);
@@ -478,6 +507,39 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const captionFingerprintRef = useRef<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  // Unclear speech review state
+  const unclearSegmentIndex = useMemo(() => {
+    return (localTranscript ?? []).findIndex(s => /\[(?:unclear|inaudible|mumbled|\?)\]/i.test(s.text ?? ""));
+  }, [localTranscript]);
+
+  const unclearSegment = unclearSegmentIndex >= 0 ? localTranscript![unclearSegmentIndex] : null;
+  const [correctionText, setCorrectionText] = useState("");
+  const [isSavingCorrection, setIsSavingCorrection] = useState(false);
+
+  useEffect(() => {
+    if (unclearSegment) {
+      setCorrectionText(unclearSegment.text?.replace(/\[(?:unclear|inaudible|mumbled|\?)\]/gi, "").replace(/\s+/g, " ").trim() ?? "");
+    }
+  }, [unclearSegment]);
+
+  const handleReplaySegment = useCallback((startSec?: number, endSec?: number, speed = 1.0) => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = startSec ?? 0;
+    v.playbackRate = speed;
+    void v.play();
+    if (typeof endSec === "number") {
+      const checkEnd = () => {
+        if (v.currentTime >= endSec) {
+          v.pause();
+          v.playbackRate = 1.0;
+          v.removeEventListener("timeupdate", checkEnd);
+        }
+      };
+      v.addEventListener("timeupdate", checkEnd);
+    }
+  }, []);
   // Custom "theater mode" fullscreen — a CSS-only, full-viewport overlay used
   // INSTEAD of the browser's native Fullscreen API. Mobile browsers commonly
   // force native video fullscreen into landscape orientation regardless of
@@ -563,13 +625,12 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     if (!v || phase !== "complete") return;
 
     const buildTimings = () => {
-      const { subtitle, karaoke } = buildTranscriptTimings(video.dialogueTranscript);
+      const { subtitle, karaoke } = buildTranscriptTimings(localTranscript ?? video.dialogueTranscript);
       subtitleTimingsRef.current = subtitle;
       karaokeTimingsRef.current = karaoke;
       setPreviewCaptionText(subtitle[0]?.text ?? null);
       setPreviewKaraokeWords(karaoke[0]?.words ?? null);
-      setTranscriptSegments(subtitle);
-      if (v.videoWidth && v.videoHeight) setVideoAspect(v.videoWidth / v.videoHeight);
+            if (v.videoWidth && v.videoHeight) setVideoAspect(v.videoWidth / v.videoHeight);
     };
     const onPlay = () => setIsVideoPlaying(true);
     const onPause = () => setIsVideoPlaying(false);
@@ -602,7 +663,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       v.removeEventListener("play", onPlay);
       v.removeEventListener("pause", onPause);
     };
-  }, [phase, finalVideoUrl, video.dialogueTranscript]);
+  }, [phase, finalVideoUrl, video.dialogueTranscript, localTranscript, isTheaterMode]);
 
   // ── Elapsed timer ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1020,6 +1081,28 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     invalidateCaptionCache();
   }, [invalidateCaptionCache]);
 
+  const handleSaveCorrection = useCallback(async (index: number, newText: string) => {
+    if (!localTranscript) return;
+    setIsSavingCorrection(true);
+    try {
+      const updated = localTranscript.map((seg, i) => {
+        if (i !== index) return seg;
+        return { ...seg, text: newText, reviewed: true };
+      });
+      const res = await fetch(`${apiBase}/transcript`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ segments: updated }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLocalTranscript(data.transcript ?? updated);
+        invalidateCaptionCache();
+      }
+    } catch { /* non-fatal */ }
+    finally { setIsSavingCorrection(false); }
+  }, [apiBase, localTranscript, invalidateCaptionCache]);
+
   // ── Assembly trigger ───────────────────────────────────────────────────────
   // Assembly hiccups (a stitching failure, a stuck/idle job, a timeout) are
   // never shown to the customer as an error. We quietly re-trigger assembly
@@ -1392,17 +1475,17 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             // immediately, exactly as requested.
             // EDITING (paused): show the SELECTED transcript segment - real text,
             // no placeholder. PLAYING: follow live time-sync, hide outside speech.
-            const editingSegment = transcriptSegments[editSegmentIndex] ?? null;
-            const displayCaptionText =
-              captionPreset !== "karaoke"
-                ? (isVideoPlaying ? currentCaptionText : (editingSegment?.text ?? null))
-                : null;
-            const displayKaraokeWords =
-              captionPreset === "karaoke"
-                ? (isVideoPlaying
-                    ? currentKaraokeWords
-                    : (editingSegment?.text.split(/\s+/).filter(Boolean).map((w, i) => ({ word: w, active: i === 0 })) ?? null))
-                : null;
+            const editingSegment = activeSegments[editSegmentIndex] ?? activeSegments[0]!;
+            const activeText = isVideoPlaying
+              ? currentCaptionText
+              : editingSegment.text;
+
+            const displayCaptionText = captionPreset !== "karaoke" ? activeText : null;
+            const displayKaraokeWords = captionPreset === "karaoke"
+              ? (isVideoPlaying && currentKaraokeWords?.length
+                  ? currentKaraokeWords
+                  : (activeText ? activeText.split(/\s+/).filter(Boolean).map((w: string, i: number) => ({ word: w, active: i === 0 })) : null))
+              : null;
             return (
               // Outer wrapper is pointerEvents:none so it never blocks the native
               // video controls underneath — only the small drag/resize handles
@@ -1428,14 +1511,14 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                   <div style={{ border: "1px dashed rgba(255,255,255,0.35)", borderRadius: "6px", padding: "4px 6px" }}>
                     {displayKaraokeWords ? (
                       <span>
-                        {displayKaraokeWords.map((w, i) => (
+                        {displayKaraokeWords.map((w: { word: string; active: boolean }, i: number) => (
                           <span key={i} style={{ color: w.active ? KARAOKE_HIGHLIGHT_COLOR : undefined }}>
                             {w.word}{i < displayKaraokeWords.length - 1 ? " " : ""}
                           </span>
                         ))}
                       </span>
                     ) : (
-                      displayCaptionText?.split("\n").map((line, i) => (
+                      displayCaptionText?.split("\n").map((line: string, i: number) => (
                         <span key={i} style={{ display: "block" }}>{line}</span>
                       ))
                     )}
@@ -1468,6 +1551,65 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
         </div>
 
         {/* Caption editor — post-render, before Share/Publish. Default is OFF ("leave blank"). */}
+        {unclearSegment && (
+          <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 space-y-2.5 mb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">Unclear Actor Speech Detected</span>
+              </div>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-semibold">Review Needed</span>
+            </div>
+            <p className="text-[10px] text-white/80 leading-snug">
+              Segment {unclearSegmentIndex + 1}: <span className="font-mono text-amber-200 bg-black/40 px-1.5 py-0.5 rounded border border-amber-500/20">"{unclearSegment.text}"</span>
+            </p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => handleReplaySegment(unclearSegment.startSec, unclearSegment.endSec, 1.0)}
+                className="px-2 py-1 rounded bg-white/10 hover:bg-white/15 text-white text-[10px] font-semibold border border-white/10 transition-all flex items-center gap-1"
+              >
+                <Play className="w-2.5 h-2.5 text-[#00E676]" /> Replay
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReplaySegment(unclearSegment.startSec, unclearSegment.endSec, 0.75)}
+                className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[10px] font-semibold border border-amber-500/30 transition-all"
+              >
+                🐢 0.75x Slow
+              </button>
+              <button
+                type="button"
+                onClick={() => handleReplaySegment(unclearSegment.startSec, unclearSegment.endSec, 0.5)}
+                className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[10px] font-semibold border border-amber-500/30 transition-all"
+              >
+                🐢 0.5x Slow
+              </button>
+            </div>
+            <div className="space-y-1.5 pt-1 border-t border-amber-500/20">
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={correctionText}
+                  onChange={e => setCorrectionText(e.target.value)}
+                  className="flex-1 bg-black/50 border border-white/20 rounded px-2 py-1 text-[11px] text-white focus:outline-none focus:border-[#00E676]"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleSaveCorrection(unclearSegmentIndex, correctionText)}
+                  disabled={isSavingCorrection || !correctionText.trim()}
+                  className="px-2.5 py-1 rounded bg-[#00E676] text-black font-bold text-[10px] hover:bg-[#14F195] transition-all disabled:opacity-40"
+                >
+                  {isSavingCorrection ? "Saving..." : "Save Correction"}
+                </button>
+              </div>
+              <p className="text-[9px] text-amber-300/80 italic leading-snug">
+                💡 Note: Editing captions updates subtitles on screen. It does not alter the actor's spoken audio in the clip.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="rounded-xl bg-white/3 border border-white/8 p-3 space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -1486,7 +1628,8 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                 <div>
                   <p className="text-[9px] text-white/30 uppercase tracking-wider mb-1.5">Style</p>
                   <div className="grid grid-cols-4 gap-1">
-                    {CAPTION_PRESET_ORDER.map(p => (
+
+                {CAPTION_PRESET_ORDER.map(p => (
                       <button
                         key={p}
                         onClick={() => setCaptionPreset(p)}
@@ -1513,7 +1656,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                     <p className="text-[9px] font-semibold text-white/50">{isVideoPlaying ? "Following playback" : `Editing segment ${editSegmentIndex + 1}`}</p>
                   </div>
                   <div className="flex gap-1 flex-wrap mb-2">
-                    {transcriptSegments.map((seg, i) => (
+                    {activeSegments.map((seg: { text: string; startSec: number; endSec: number }, i: number) => (
                       <button
                         key={i}
                         onClick={() => setEditSegmentIndex(i)}

@@ -184,6 +184,20 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
       });
       return;
     }
+    // Unresolved uncertain speech must never burn onto a finished video. A
+    // segment marked [unclear]/[inaudible]/[mumbled]/[?] means the transcription
+    // was not reliably understood - block the export until the customer corrects
+    // or accepts it in the caption editor. This is the honesty guard: no silent
+    // word substitution, no "[unclear]" burned into the final MP4.
+    const UNCLEAR_RE = /\[(?:unclear|inaudible|mumbled|\?)\]/i;
+    const unclearCount = (video.dialogueTranscript as Array<{ text?: string }> | null ?? []).filter(s => UNCLEAR_RE.test(s?.text ?? "")).length;
+    if (unclearCount > 0) {
+      res.status(422).json({
+        error: "Unclear speech must be reviewed first",
+        message: `${unclearCount} caption segment(s) contain uncertain transcription (marked [unclear]). Open the caption editor, replay the audio, and correct or accept the wording before exporting.`,
+      });
+      return;
+    }
   }
   const VALID_CAPTION_PRESETS = [
     "clean", "boldPop", "karaoke", "neonGlow", "cinematic", "gradientChip", "retroVHS", "socialBubble",
