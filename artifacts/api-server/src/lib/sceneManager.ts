@@ -10,6 +10,7 @@ import { getActiveVideoProvider } from "./videoProviderConfig.js";
 import { getWanRenderer } from "./wanRenderer.js";
 import { getVeoRenderer, VEO_SCENE_DURATION_SEC } from "./veoRenderer.js";
 import type { CommercialSceneType, KlingSceneJob } from "@workspace/db";
+import { extractDialogueLines, distributeDialogue } from "./dialogue.js";
 
 const logger = pino({ name: "sceneManager" });
 
@@ -245,6 +246,22 @@ export class SceneManager {
     const groundingBlock = ctx ? renderGroundingBlock(ctx) : null;
 
     const scenes = await this.callDecomposeAI(video, groundingBlock, targetSceneCount);
+
+    // ── Preserve the customer's exact wording (never AI-paraphrase) ──────────
+    // The AI decomposition above writes punchy marketing narration lines, but
+    // the product principle is that customers own their approved dialogue.
+    // Override every scene's narrationLine with the approved (or draft) script
+    // split VERBATIM across scenes, so Veo's native audio speaks the customer's
+    // words instead of an AI rewrite. This is what fixes the script/audio drift.
+    const sourceScript =
+      (video.scriptStatus === "approved" && video.approvedScript)
+        ? video.approvedScript
+        : (video.script ?? "");
+    const dialogueLines = extractDialogueLines(sourceScript, video.cinematicPlan);
+    if (dialogueLines.length > 0) {
+      const perScene = distributeDialogue(dialogueLines, scenes.length);
+      scenes.forEach((s, i) => { s.narrationLine = perScene[i] ?? ""; });
+    }
 
     logger.info(
       { videoId, sceneCount: scenes.length },

@@ -15,6 +15,13 @@
       "when": 1792218490414,
       "tag": "0001_better_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792462959644,
+      "tag": "0002_script_fidelity",
+      "breakpoints": true
     }
   ]
 }

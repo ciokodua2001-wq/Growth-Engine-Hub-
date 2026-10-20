@@ -249,10 +249,12 @@ export class CommercialAssembler {
       const captionX = clamp(options.captionX ?? 0.5, 0.05, 0.95);
       const captionY = clamp(options.captionY ?? 0.85, 0.05, 0.95);
       const captionScale = clamp(options.captionScale ?? 1.0, 0.5, 2.0);
-      // Script text is prepared once; captions are written per-format below.
-      const captionsScript = (captionsEnabled && rawVoiceover)
-        ? prepareScript(rawVoiceover)
-        : null;
+      // Captions must match the dialogue actually passed to Veo - the verbatim
+      // per-scene narration lines (never an AI paraphrase, never the whole script).
+      // Timing is per-scene (real clip boundaries), not proportional char count.
+      const captionsEntries = captionsEnabled
+        ? buildSceneCaptionEntries(scenes, sceneDuration, transitionDuration)
+        : [];
 
       // ── 5. Encode each requested output format ────────────────────────────
       for (let fi = 0; fi < outputFormats.length; fi++) {
@@ -266,17 +268,11 @@ export class CommercialAssembler {
         // dragging the caption box over the (possibly letterboxed) preview —
         // what-you-see-is-what-you-get.
         let formatAssFile: string | null = null;
-        if (captionsScript) {
+                if (captionsEntries.length > 0) {
           formatAssFile = path.join(tmpDir, `captions_${format}.ass`);
-          // buildScriptSubtitles already escapes ASS control characters internally
-          // (before inserting literal "\N" line breaks) — do not re-escape here.
           const events = captionPreset === "karaoke"
-            ? buildKaraokeEvents(captionsScript, totalOutputDuration)
-            : buildScriptSubtitles(captionsScript, totalOutputDuration).map(e => ({
-                startSec: e.startSec,
-                endSec: e.endSec,
-                assText: e.text,
-              }));
+            ? buildKaraokeForScenes(captionsEntries)
+            : captionsEntries.map(e => ({ startSec: e.startSec, endSec: e.endSec, assText: wrapSubtitleLine(escapeAssText(e.text), 40) }));
 
           fs.writeFileSync(
             formatAssFile,
@@ -739,6 +735,41 @@ function buildScriptSubtitles(script: string, totalDuration: number): SubtitleEn
   }
 
   return entries;
+}
+
+/**
+ * Builds caption entries from each scene's VERBATIM narration line, timed to
+ * the scene's real clip boundary in the assembled timeline. This is the
+ * fix for the caption-mismatch bug: captions previously used the whole
+ * voiceover script with proportional char-count timing (which drifted from the
+ * audio); now they use the exact dialogue that was passed to Veo, timed to the
+ * actual scene windows.
+ */
+function buildSceneCaptionEntries(
+  scenes: Array<{ narrationLine: string | null }>,
+  sceneDuration: number,
+  transitionDuration: number,
+): SubtitleEntry[] {
+  const step = Math.max(0.1, sceneDuration - transitionDuration);
+  const entries: SubtitleEntry[] = [];
+  scenes.forEach((scene, i) => {
+    const line = (scene.narrationLine ?? "").trim();
+    if (!line) return; // silent/hero scene - no spoken dialogue, no caption
+    entries.push({ text: line, startSec: i * step, endSec: i * step + sceneDuration });
+  });
+  return entries;
+}
+
+/** Karaoke variant: word-level colouring within each scene's own time window. */
+function buildKaraokeForScenes(entries: SubtitleEntry[]): AssEvent[] {
+  const out: AssEvent[] = [];
+  for (const e of entries) {
+    const dur = Math.max(0.5, e.endSec - e.startSec);
+    for (const ev of buildKaraokeEvents(e.text, dur)) {
+      out.push({ startSec: ev.startSec + e.startSec, endSec: ev.endSec + e.startSec, assText: ev.assText });
+    }
+  }
+  return out;
 }
 
 function wrapSubtitleLine(text: string, maxChars: number): string {

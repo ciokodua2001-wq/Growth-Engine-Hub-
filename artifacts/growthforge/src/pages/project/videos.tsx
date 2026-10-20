@@ -1125,7 +1125,8 @@ export default function ProjectVideos() {
   const projectId = parseInt(params.projectId, 10);
 
   // Generation controls
-  const [mode, setMode]                   = useState<"auto" | "prompt">("auto");
+  const [mode, setMode]                   = useState<"auto" | "prompt" | "my_script">("auto");
+  const [myScript, setMyScript]           = useState("");
   const [targetDuration, setTargetDuration] = useState<15 | 30 | 45 | 60 | 90>(45);
   const [blueprintCount, setBlueprintCount] = useState(5);
   const [modalOpen, setModalOpen]         = useState(false);
@@ -1236,14 +1237,37 @@ export default function ProjectVideos() {
           <div className="flex flex-col gap-0.5">
             <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider px-0.5">Mode</p>
             <div className="flex rounded-xl border border-border overflow-hidden">
-              {(["auto", "prompt"] as const).map((m) => (
+              {(["auto", "prompt", "my_script"] as const).map((m) => (
                 <button key={m} onClick={() => setMode(m)}
                   className={`px-4 py-2 text-sm font-medium transition-colors ${mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-                  {m === "auto" ? "Auto" : "Prompt"}
+                  {m === "auto" ? "Auto" : m === "prompt" ? "Prompt" : "My Script"}
                 </button>
               ))}
             </div>
           </div>
+          {mode === "my_script" && (
+            <div className="flex flex-col gap-0.5">
+              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider px-0.5">Your exact dialogue</p>
+              <div className="flex items-center gap-2">
+                <textarea
+                  value={myScript}
+                  onChange={(e) => setMyScript(e.target.value)}
+                  placeholder="Paste your exact dialogue / narration - GrowthForge adds cinematic direction, never rewrites your words."
+                  className="w-80 h-[38px] px-3 py-2 rounded-xl bg-white/4 border border-white/8 text-xs text-white placeholder:text-white/25 focus:outline-none focus:border-white/20 transition-colors resize-none"
+                />
+                <button
+                  onClick={() => generateVideos.mutate(
+                    { id: projectId, data: { mode: "my_script", prompt: myScript, targetDuration } },
+                    { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) }) },
+                  )}
+                  disabled={!myScript.trim() || generateVideos.isPending}
+                  className="flex items-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-40 text-primary-foreground font-bold px-4 py-2 rounded-xl text-sm transition-colors"
+                >
+                  <Sparkles className="h-4 w-4" /> Save Script
+                </button>
+              </div>
+            </div>
+          )}
           {isTrial ? (
             <a
               href="/plans"

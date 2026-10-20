@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { projectsTable } from "./projects";
@@ -36,6 +36,29 @@ export const videosTable = pgTable("videos", {
 
   // Narration
   narrationVoiceStyle: text("narration_voice_style"),
+
+  // ── Creative mode (Phase B) ────────────────────────────────────────────────
+  // auto | prompt | my_script. Determines whether the customer's words are a
+  // creative brief (auto/prompt) or exact dialogue to preserve (my_script).
+  creativeMode: text("creative_mode").notNull().default("auto"),
+
+  // ── Script approval & versioning (Phase C) ─────────────────────────────────
+  // proposed = AI-authored or customer-edited but not yet approved for filming.
+  // approved = locked production script. approvedScript is the exact wording to
+  // film; version increments on each approval so a video keeps the wording it
+  // was actually generated from, even if the draft is later edited.
+  scriptStatus: text("script_status").notNull().default("proposed"),
+  approvedScript: text("approved_script"),
+  approvedScriptVersion: integer("approved_script_version").notNull().default(0),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+
+  // ── Actual-audio transcription & fidelity (Phases F/G) ─────────────────────
+  // dialogueTranscript is a JSON array of { text, startSec?, endSec?, confidence? }
+  // produced from the FINAL assembled audio (not from the script).
+  dialogueTranscript: jsonb("dialogue_transcript"),
+  transcriptStatus: text("transcript_status").notNull().default("pending"),
+  fidelityStatus: text("fidelity_status").notNull().default("unverified"),
+  fidelityReport: jsonb("fidelity_report"),
 });
 
 export const insertVideoSchema = createInsertSchema(videosTable).omit({ id: true, createdAt: true });

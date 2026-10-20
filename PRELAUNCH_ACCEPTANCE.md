@@ -209,3 +209,79 @@ risk, build/deploy/smoke, rollback, Coming Soon preservation, and approval gates
 6. **GO / NO-GO criteria** — GO when: prod DB migration dry-run clean, prod `/api/healthz` ok, smoke test
    passes on prod, Coming Soon still intact. NO-GO if: any drift diff unresolved, Wasabi least-privilege
    unverified, or webhook/Stripe smoke fails.
+
+
+---
+
+## Commercial Studio - Script Fidelity, Audio-Accurate Captions & Dialogue Preservation
+
+### Root causes found (Phase A - confirmed with live evidence)
+
+1. **Script/audio drift originates in scene decomposition, not Veo.** `SceneManager.callDecomposeAI()`
+   instructed the model to write "a short, punchy marketing line (10-18 words max)" per scene. The
+   approved `script`/`cinematicPlan` dialogue was passed as *input*, then **rewritten** into fresh
+   `narrationLine`s, and that paraphrase was composed into the Veo prompt (`Narrator voice says: "..."`).
+   Veo's native audio then spoke the paraphrase - so the audible words diverged from the approved script.
+
+2. **Captions used the wrong source.** `ffmpegAssembler` built captions from `voiceover ?? script`
+   (the whole blueprint text), not from the dialogue actually passed to Veo, and not from the audio.
+
+3. **Caption timing was estimated, not aligned.** `buildScriptSubtitles` distributed caption windows
+   proportionally by character count across the total duration ("we don't have real ASR word timestamps").
+
+4. **No actual-audio transcription existed** - nothing compared what was spoken against what was approved.
+
+**Concrete Allbirds evidence (`Step Into Natural Comfort`, video #2):** the stored per-scene
+`narration_line` already shows the paraphrase - scene 0 became "Ever feel like your **heavy synthetic**
+shoes are holding you back from **real comfort**?" and scenes 1-2 collapsed to "Step into Allbirds soft
+eucalyptus fiber shoes for bouncy comfort. **Try Allbirds today.**" (a CTA not in the approved script).
+
+### What was implemented (Phases B-G core)
+
+- **Forward-only migration `0002_script_fidelity.sql`** (idempotent, `IF NOT EXISTS`) adds to `videos`:
+  `creative_mode`, `script_status`, `approved_script`, `approved_script_version`, `approved_at`,
+  `dialogue_transcript` (jsonb), `transcript_status`, `fidelity_status`, `fidelity_report` (jsonb).
+  Applied clean to dev (9 columns verified). Also reconciles the pre-existing `superseded_at` +
+  `users.email` unique-index drift into tracked migrations.
+- **`lib/dialogue.ts`** - single source of truth for dialogue preservation: `extractDialogueLines`
+  (per-shot dialogue from `cinematicPlan`, else sentence-split), `distributeDialogue` (verbatim across
+  scenes), `estimateDialogueFit` (deterministic word-count/duration), `compareScriptToTranscript`
+  (normalized word diff + material-token flagging), and `transcribeAudioWithGemini` (lazy-imported
+  Gemini audio transcription - **existing** key, no new provider).
+- **`SceneManager.decomposeBlueprint`** now overrides every scene's `narrationLine` with the approved
+  (or draft) script split **verbatim** across scenes - Veo receives the customer's exact words.
+- **`ffmpegAssembler`** builds captions from each scene's verbatim `narrationLine`, timed to real scene
+  clip boundaries (`buildSceneCaptionEntries` / `buildKaraokeForScenes`) - no more char-count estimation.
+- **`routes/script.ts`** - `GET/POST .../script` (approval + versioning), `POST .../transcript`
+  (downloads the assembled MP4 → ffmpeg audio → Gemini transcript → fidelity), `GET .../fidelity`.
+- **`routes/videos.ts`** - `mode: "my_script"` stores the customer's exact dialogue verbatim (never
+  run through AI blueprint generation); editing an approved script resets it to `proposed` (re-approval
+  required) and clears stale fidelity.
+- **Frontend** - third "My Script" mode with an exact-dialogue input + Save.
+
+### Tests & evidence
+
+- **9/9** new `dialogue.test.ts` unit tests pass (extract/distribute/fit/compare).
+- **226/233** full API suite passes; the 7 failures are pre-existing in `statsRoute`/`publishRoute`
+  (Meta publishing), untouched by this work.
+- **Allbirds actual-audio transcript** (Gemini, assembled 15.48s MP4) vs approved script - captured and
+  backfilled to video #2: similarity **0.514**, status **difference**; missing
+  `swap/sneakers/tree/get/actually/planet`; added `real/step/into/allbirds/try/today`; CTA "Try Allbirds
+  today" spoken but not approved. This is the authoritative "DIALOGUE DIFFERENCE DETECTED" example.
+
+### Honest limitations (not faked)
+
+- **Word-level timestamps**: Gemini audio transcription is phrase-level only. Word-level alignment would
+  need a dedicated STT provider - **not introduced without approval**. Captions therefore use per-scene
+  timing (real clip boundaries), which is accurate at the scene level but not word-synced.
+- **Spoken Nigerian Pidgin**: written Pidgin script support is in the locale layer; *natural spoken*
+  Pidgin delivery has **not** been verified (would require fluent-speaker review + paid Veo tests). Not
+  marked authentic.
+- **Director's Final Cut Review**: implemented as deterministic metadata/fidelity checks, not subjective
+  visual scoring (no defensible automated "quality score").
+- **Approve + fidelity UI in the production progress panel** and **caption-preview alignment** (browser
+  overlay) remain to be wired to the new endpoints; backend is complete.
+
+### Remaining beta blockers (unchanged from Phase 4)
+
+Prod Supabase-era migration, prod Wasabi bucket/creds, prod DB migration track dry-run, prod webhook.

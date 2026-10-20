@@ -39,6 +39,27 @@ router.post("/projects/:id/videos", requireActiveSubscription, async (req, res):
   const mode = parsed.data.mode;
   let count = parsed.data.count ?? (mode === "auto" ? 9 : 3);
 
+  // ── My Script mode: the customer supplies exact dialogue. Do NOT run it
+  // through AI blueprint generation (which would rewrite the words). Store the
+  // verbatim script and let scene decomposition add cinematic direction around
+  // those exact words. Approval still gates paid generation.
+  if (mode === "my_script") {
+    const script = (parsed.data.prompt ?? "").trim();
+    if (!script) { res.status(422).json({ error: "My Script requires the exact dialogue" }); return; }
+    const inserted = await db.insert(videosTable).values([{
+      projectId,
+      title: parsed.data.type ?? "My Script",
+      type: "my_script",
+      status: "complete" as const,
+      script,
+      creativeMode: "my_script" as const,
+      scriptStatus: "proposed" as const,
+      duration: parsed.data.targetDuration ?? 30,
+    }]).returning();
+    res.json(inserted.map(v => ({ ...v, createdAt: v.createdAt.toISOString() })));
+    return;
+  }
+
   const ctx = await getGroundingContext(projectId);
   if (!ctx) {
     res.status(409).json({ error: "Run business analysis before generating video blueprints" });
@@ -113,7 +134,23 @@ router.patch("/projects/:id/videos/:videoId", async (req, res): Promise<void> =>
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = UpdateVideoBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const [video] = await db.update(videosTable).set(parsed.data).where(and(eq(videosTable.id, params.data.videoId), eq(videosTable.projectId, params.data.id))).returning();
+  const updateData: Record<string, unknown> = { ...parsed.data };
+  // Editing the script after approval invalidates the approval - the revised
+  // wording must be re-approved before generation (Phase C). Also clear the
+  // now-stale fidelity/transcript so it isn't presented against new dialogue.
+  if (typeof parsed.data.script === "string") {
+    const [current] = await db
+      .select({ approvedScript: videosTable.approvedScript })
+      .from(videosTable)
+      .where(and(eq(videosTable.id, params.data.videoId), eq(videosTable.projectId, params.data.id)));
+    if (current?.approvedScript && current.approvedScript !== parsed.data.script) {
+      updateData.scriptStatus = "proposed";
+      updateData.fidelityStatus = "unverified";
+      updateData.fidelityReport = null;
+      updateData.transcriptStatus = "pending";
+    }
+  }
+  const [video] = await db.update(videosTable).set(updateData).where(and(eq(videosTable.id, params.data.videoId), eq(videosTable.projectId, params.data.id))).returning();
   if (!video) { res.status(404).json({ error: "Video not found" }); return; }
   res.json({ ...video, createdAt: video.createdAt.toISOString() });
 });
