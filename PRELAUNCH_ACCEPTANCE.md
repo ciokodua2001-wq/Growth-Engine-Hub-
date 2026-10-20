@@ -16,7 +16,7 @@
 | Social posts + images | **Working** | browser: 12 posts w/ captions+hashtags+CTAs+Imagen | - | ✅ required |
 | Social sharing (non-publishing) | **Honest** | Labels corrected (`51ecf08`): X = web share *intent* (`x.com/intent/tweet` pre-fills composer); LinkedIn/TikTok/Facebook/Instagram = copy caption + open platform for manual paste. No button claims auto-publish | - | ✅ ready |
 | Competitors / personas | **Working** | DB: 24 competitors + 9 personas; browser: project 8 shows 5 competitors (Square One, Apollo, Westland, Surex, BrokerLink) + 3 personas (Fiona/Liam/Ryan) on Analysis & Competitors pages. `competitor_report` (summary synthesis) is a *separate* \"Generate Report\" action, empty only because it has not been triggered — not a generation failure | - | ✅ required |
-| Save / edit / export | **Done** | save ✅, copy ✅, edit ✅ (PATCH + inline UI, `8250eb8`) | P1 | ✅ ready |
+| Save / edit / export | **Done (browser-verified)** | content + social inline edit → save → refresh → reopen all persist (browser: content title + social caption marker survived reload, `8250eb8` + re-verified) | P1 | ✅ ready |
 
 ## 2. Google Veo video generation (WS2) - CORRECTED
 
@@ -51,7 +51,7 @@ Kling/Wan are decommissioned; **do not reactivate**. The `KLING_API_KEY` absence
 
 - Stripe test checkout/subscriptions/webhooks
 - Plan inheritance + project limits
-- Better Auth + email flows
+- Better Auth + email flows — ✅ **verified active**: server `betterAuth.ts` (Drizzle adapter → PostgreSQL) + frontend `authClient` (`better-auth/react`). No live Supabase dependency: zero `@supabase/supabase-js` imports, no `SUPABASE_URL` usage, no `@supabase` in any package.json. Legacy `supabaseAuth.ts` is a renamed compat layer that now calls Better Auth. **Fixed** `forgot-password.tsx` `forgetPassword` → `requestPasswordReset` (Better Auth 1.7.10 API), typecheck now clean
 - Production media storage
 - Migrations (`superseded_at`)
 - Deployment reproducibility + backup/rollback
