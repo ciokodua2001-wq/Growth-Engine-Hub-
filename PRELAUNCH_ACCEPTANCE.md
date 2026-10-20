@@ -441,3 +441,31 @@ Production untouched: Coming Soon live, prod DB un-migrated, prod API not servin
 - **Styles:** all 8 presets (clean, boldPop, karaoke, neonGlow, cinematic, gradientChip, retroVHS, socialBubble) preserved and go through the same safe-area wrap path.
 
 Commits: `c92e1f6` (caption safe-area + preview + fidelity) and the follow-up cqw parity commit.
+
+
+---
+
+## Caption editor, sync & cost optimization (final caption milestone)
+
+### Root causes
+- **Invisible preview:** `onTimeUpdate` nulled the caption whenever `currentTime` was outside a speech interval (e.g. paused at 0:00 before `startSec: 0.1`), so the editor showed nothing. Fixed with explicit **Edit (paused) vs Play** modes.
+- **Off-center theater:** the player stage used `width: fit-content` which resolves to 0px inside the flex backdrop, so the video overflowed to one side and the caption overlay anchored to the wrong rect. Fixed by sizing the stage from the video intrinsic `videoWidth/videoHeight` aspect ratio.
+- **Preview/export divergence:** preview used a uniform font base; export applies per-preset `sizeMul`. Added the same multipliers to the preview.
+- **Cache misses on changed material:** `optionsFingerprint` omitted transcript/timing, renderer version, and source identity. Extended it.
+
+### Browser evidence (DEV, Allbirds Project 13, no new Veo)
+- Paused editor shows the real transcript segment ("Ever feel like your heavy, synthetic shoes...") with label "Editing segment 1"; segment selector (1..N) + size/vertical/horizontal sliders + Reset present; drag handle + green resize dot visible and wired (onPointerDown).
+- Normal mode: stage 569x320 matches the video rect (567x318); caption box stays inside the frame.
+- Theater mode: video horizontally centered (center == viewport center); stage rect == video rect.
+
+### Synchronization evidence
+- Scene 0 (Hook) audio: speech 0-2.9s, pause 2.9-3.2s, speech 3.2-8s. Scene 1 (Solution): continuous audio 0-8s (starts at ~7.5s after the 0.5s xfade).
+- Transcript timings are `timingSource: "manual"` and do not map 1:1 to the 2-scene structure, which is why captions drift from speech. No renderer bug. Remaining work: expose manual start/end correction controls in the UI (honest alternative to unavailable word-level alignment).
+
+### Cost audit (verified code paths)
+- Caption style/size/position/timing changes and "Download with Captions" call only POST /assemble -> FFmpeg + Wasabi. **No Veo/Gemini/transcription/script calls, no credit deduction** in that path.
+- Identical exports hit the fingerprint cache (same assembly id returned). Concurrent identical requests reuse the in-flight assembly (same id, no duplicate render/upload).
+- Residual costs (not zero): FFmpeg CPU, Wasabi storage (~few MB per render) + egress bandwidth per download.
+
+Commits: `b9a15e0` (editor/centering/parity), assemble cache key + in-flight reuse.
+
