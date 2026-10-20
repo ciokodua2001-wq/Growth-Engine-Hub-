@@ -332,3 +332,36 @@ caption system, so only the source changed. 12/12 dialogue unit tests pass; api-
 
 Prod DB, prod API, Caddy/Coming Soon, live billing all unchanged. Staging build at
 `/home/ubuntu/prod/app-new` is from an older commit and must NOT be promoted.
+
+
+---
+
+## Commercial Studio - DEV completion status (commits `e6b2275` → `1b79a7c`)
+
+**Deployed to DEV (`dev.usegrowthforge.com`) and verified healthy.** Production untouched
+(Coming Soon live, prod DB un-migrated, prod API not serving the app, staging build on old commit).
+
+| Commit | Scope |
+|---|---|
+| `e6b2275` | Script approval/versioning + migration `0002_script_fidelity.sql` (9 columns) + verbatim dialogue to Veo |
+| `29addb2` | Captions sourced from reviewed actual-audio transcript (not narrationLine); transcript correction + accept endpoints |
+| `fe32a63` | Docs: transcript-sourced caption verification + remaining scope |
+| `8bb8fc2` | Customer workflow UI (Approve/Fidelity/transcript-correction) + transcript-sourced caption preview + regenerated client types |
+| `99636f9` | Deterministic pre-flight review (dialogue-fit warning + CTA check) |
+| `1b79a7c` | Nigerian Pidgin (`pcm`) written workflow (spoken unverified) |
+
+**Verified:** migration 0002 applied to dev DB; dev API `healthz` 200 after each restart; new endpoints
+`/script`, `/script/approve`, `/transcript`, `/transcript` (PUT), `/transcript/accept`, `/fidelity` reachable
+(401 auth-gated); frontend rebuilt and served; captioned MP4 produced from the reviewed transcript segments
+(Allbirds #2) with caption text = actual-audio transcript, not narrationLine.
+
+**Tests:** 231/238 pass; 7 failures are pre-existing in `statsRoute`/`publishRoute` (Meta publishing, untouched).
+Dialogue unit tests 12/12; localization (incl. `pcm`) 6/6; typecheck clean across libs/api/frontend.
+
+**Remaining (reported honestly):**
+- Optional single AI script suggestion (with caching + cost control) - not yet implemented.
+- Full browser acceptance (10-item Allbirds list) - pending; requires DEV host Basic-Auth + app sign-in in the
+  shared browser / Windows companion, which need credentials I don't hold.
+- Simulated-user onboarding, security-isolation, concurrency, stress, failure/recovery - not yet run.
+
+**Production release:** NOT prepared and NOT executed. Awaiting explicit authorization for the final cutover.
