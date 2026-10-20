@@ -1337,7 +1337,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
               <CloseIcon className="w-4 h-4" />
             </button>
           )}
-          {captionsEnabled && (currentCaptionText || currentKaraokeWords?.length) && (() => {
+          {captionsEnabled && (() => {
             // Show a caption box the moment captions are turned on / a style is
             // picked — never gated on the video actually being mid-playback.
             // While playing, the live time-synced line/word takes over; while
@@ -1345,9 +1345,13 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             // first line so clients can position, resize, and preview a style
             // immediately, exactly as requested.
             const displayKaraokeWords =
-              captionPreset === "karaoke" ? currentKaraokeWords : null;
+              captionPreset === "karaoke"
+                ? (currentKaraokeWords ?? (previewKaraokeWords?.map((w, i) => ({ word: w, active: i === 0 })) ?? null))
+                : null;
             const displayCaptionText =
-              captionPreset !== "karaoke" ? currentCaptionText : null;
+              captionPreset !== "karaoke"
+                ? (currentCaptionText ?? previewCaptionText)
+                : null;
             return (
               // Outer wrapper is pointerEvents:none so it never blocks the native
               // video controls underneath — only the small drag/resize handles
