@@ -12,6 +12,8 @@ import {
   compareScriptToTranscript,
   transcribeAudioWithGemini,
   assignEstimatedTiming,
+  hashScript,
+  suggestScriptImprovement,
   type TranscriptSegment,
 } from "../lib/dialogue.js";
 import pino from "pino";
@@ -225,6 +227,101 @@ router.post("/projects/:id/videos/:videoId/transcript/accept", async (req, res) 
 
   await db.update(videosTable).set({ transcriptStatus: "accepted" }).where(eq(videosTable.id, videoId));
   res.json({ transcriptStatus: "accepted", note: "Performance accepted - approved-script record unchanged." });
+});
+
+// ── Optional single AI script-improvement suggestion (cached per script version) ─
+interface ScriptSuggestion {
+  scriptHash: string;
+  suggestion: string;
+  status: "pending" | "accepted" | "rejected";
+  generatedAt: string;
+}
+
+function parseSuggestion(raw: unknown): ScriptSuggestion | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.scriptHash !== "string" || typeof o.suggestion !== "string") return null;
+  return {
+    scriptHash: o.scriptHash,
+    suggestion: o.suggestion,
+    status: (o.status as ScriptSuggestion["status"]) ?? "pending",
+    generatedAt: typeof o.generatedAt === "string" ? o.generatedAt : new Date().toISOString(),
+  };
+}
+
+router.post("/projects/:id/videos/:videoId/script/suggestion", async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const projectId = parseInt(req.params.id, 10);
+  const videoId = parseInt(req.params.videoId, 10);
+  if (isNaN(projectId) || isNaN(videoId)) { res.status(400).json({ error: "Invalid IDs" }); return; }
+
+  const video = await loadOwnedVideo(projectId, videoId);
+  if (!video) { res.status(404).json({ error: "Video not found" }); return; }
+
+  const base = (video.approvedScript ?? video.script ?? "").trim();
+  if (!base) { res.status(422).json({ error: "No script to improve yet" }); return; }
+
+  const h = hashScript(base);
+  const existing = parseSuggestion(video.scriptSuggestion);
+  // Cache hit: same script version already suggested - return it, no new AI charge.
+  if (existing && existing.scriptHash === h && existing.suggestion) {
+    res.json({ ...existing, cached: true });
+    return;
+  }
+
+  try {
+    const suggestion = await suggestScriptImprovement(base);
+    const record: ScriptSuggestion = { scriptHash: h, suggestion, status: "pending", generatedAt: new Date().toISOString() };
+    await db.update(videosTable).set({ scriptSuggestion: record }).where(eq(videosTable.id, videoId));
+    res.json({ ...record, cached: false });
+  } catch (err) {
+    req.log?.error?.({ err, videoId }, "Script suggestion generation failed");
+    res.status(502).json({ error: "Could not generate a suggestion. Please try again." });
+  }
+});
+
+router.post("/projects/:id/videos/:videoId/script/suggestion/accept", async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const projectId = parseInt(req.params.id, 10);
+  const videoId = parseInt(req.params.videoId, 10);
+  if (isNaN(projectId) || isNaN(videoId)) { res.status(400).json({ error: "Invalid IDs" }); return; }
+
+  const video = await loadOwnedVideo(projectId, videoId);
+  if (!video) { res.status(404).json({ error: "Video not found" }); return; }
+
+  const s = parseSuggestion(video.scriptSuggestion);
+  if (!s || !s.suggestion) { res.status(409).json({ error: "No pending suggestion to accept" }); return; }
+
+  // Explicit accept: replace script and reset approval (re-approval required). No silent rewrite.
+  await db.update(videosTable).set({
+    script: s.suggestion,
+    scriptStatus: "proposed",
+    approvedScript: null,
+    approvedScriptVersion: 0,
+    approvedAt: null,
+    scriptSuggestion: { ...s, status: "accepted" },
+  }).where(eq(videosTable.id, videoId));
+
+  res.json({ accepted: true, script: s.suggestion, note: "Script updated - re-approval required before filming." });
+});
+
+router.post("/projects/:id/videos/:videoId/script/suggestion/reject", async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const projectId = parseInt(req.params.id, 10);
+  const videoId = parseInt(req.params.videoId, 10);
+  if (isNaN(projectId) || isNaN(videoId)) { res.status(400).json({ error: "Invalid IDs" }); return; }
+
+  const video = await loadOwnedVideo(projectId, videoId);
+  if (!video) { res.status(404).json({ error: "Video not found" }); return; }
+
+  const s = parseSuggestion(video.scriptSuggestion);
+  if (s) {
+    await db.update(videosTable).set({ scriptSuggestion: { ...s, status: "rejected" } }).where(eq(videosTable.id, videoId));
+  }
+  res.json({ rejected: true });
 });
 
 // ── GET fidelity report + transcript ─────────────────────────────────────────

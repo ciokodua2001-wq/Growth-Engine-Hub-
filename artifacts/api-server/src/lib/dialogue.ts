@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 // ── Script fidelity & dialogue-preservation helpers ──────────────────────────
 // Single source of truth for the "captions must match actual audio" and
 // "customers own their approved dialogue" product principles. Everything here
@@ -261,3 +263,26 @@ export async function transcribeAudioWithGemini(
 
   return (response.text ?? "").trim();
 }
+
+// ── Optional single AI script-improvement suggestion ─────────────────────────
+// Cached per script version via a content hash so a customer never pays twice for
+// the same suggestion. Explicit accept/reject - never a silent rewrite.
+
+const SUGGEST_MODEL = "gemini-3.1-flash-lite";
+
+export function hashScript(script: string): string {
+  return createHash("sha256").update(script.trim()).digest("hex").slice(0, 24);
+}
+
+export async function suggestScriptImprovement(script: string): Promise<string> {
+  const { genai } = await import("@workspace/integrations-google-genai");
+  const prompt =
+    `You are a senior direct-response ad copywriter. Improve the following commercial script for ` +
+    `persuasion, clarity and pacing while keeping the SAME brand voice and product claims. ` +
+    `Do NOT change prices, numbers, guarantees, or add claims that are not already implied. ` +
+    `Return ONLY the improved script text (no preamble, no commentary, no quotes).\n\n` +
+    `Script:\n${script}`;
+  const response = await genai.models.generateContent({ model: SUGGEST_MODEL, contents: [{ text: prompt }] });
+  return (response.text ?? "").trim();
+}
+

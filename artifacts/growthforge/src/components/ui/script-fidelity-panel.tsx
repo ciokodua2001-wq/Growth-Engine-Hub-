@@ -40,6 +40,8 @@ export default function ScriptFidelityPanel({ video, projectId }: Props) {
   );
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [suggestionCached, setSuggestionCached] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const api = async (url: string, opts?: RequestInit) => {
@@ -76,6 +78,19 @@ export default function ScriptFidelityPanel({ video, projectId }: Props) {
     setTranscriptStatus("accepted");
   });
 
+  const suggest = () => run("suggesting", async () => {
+    const j = await api(`${base}/script/suggestion`, { method: "POST", body: JSON.stringify({}) });
+    setSuggestion(j.suggestion); setSuggestionCached(!!j.cached);
+  });
+  const acceptSuggestion = () => run("applying suggestion", async () => {
+    await api(`${base}/script/suggestion/accept`, { method: "POST", body: JSON.stringify({}) });
+    setScriptStatus("proposed"); setApprovedScript(null); setApprovedVersion(0); setSuggestion(null);
+  });
+  const rejectSuggestion = () => run("dismissing", async () => {
+    await api(`${base}/script/suggestion/reject`, { method: "POST", body: JSON.stringify({}) });
+    setSuggestion(null);
+  });
+
   const updateSeg = (i: number, patch: Partial<TranscriptSeg>) =>
     setSegments(prev => prev.map((s, idx) => idx === i ? { ...s, ...patch } : s));
 
@@ -100,6 +115,32 @@ export default function ScriptFidelityPanel({ video, projectId }: Props) {
           </button>
         </div>
         {approvedScript && <pre className="text-[11px] text-emerald-200/80 whitespace-pre-wrap leading-relaxed font-sans">{approvedScript}</pre>}
+      </div>
+
+      {/* ── Optional AI script suggestion (cached per script version) ── */}
+      <div className="rounded-xl bg-white/3 border border-white/8 p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-xs font-semibold text-foreground">AI script suggestion</span>
+          <button onClick={suggest} disabled={busy !== null || !video.script}
+            className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 disabled:opacity-40 text-foreground text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">
+            {busy === "suggesting" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+            Suggest improvement
+          </button>
+        </div>
+        {suggestion && (
+          <div className="space-y-2">
+            {suggestionCached && <p className="text-[10px] text-white/40">Cached - no extra AI charge for this script version.</p>}
+            <pre className="text-[11px] text-white/80 whitespace-pre-wrap leading-relaxed font-sans bg-black/20 rounded-lg p-2">{suggestion}</pre>
+            <div className="flex items-center gap-2">
+              <button onClick={acceptSuggestion} disabled={busy !== null}
+                className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-black text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">
+                Accept (replaces script - re-approval required)
+              </button>
+              <button onClick={rejectSuggestion} disabled={busy !== null}
+                className="text-[11px] font-medium text-white/50 hover:text-white/70">Reject</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Pre-flight review (deterministic, no AI cost) ── */}

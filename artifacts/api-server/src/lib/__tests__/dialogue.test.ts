@@ -6,6 +6,7 @@ import {
   compareScriptToTranscript,
   assignEstimatedTiming,
   transcriptToCaptionEntries,
+  hashScript,
 } from "../dialogue.js";
 
 const ALLBIRDS_PLAN = JSON.stringify({
@@ -93,6 +94,15 @@ describe("assignEstimatedTiming", () => {
     expect(segs[0]!.reviewed).toBe(false);
     expect(segs[0]!.startSec).toBeGreaterThanOrEqual(0);
     expect(segs[1]!.startSec).toBeGreaterThanOrEqual(segs[0]!.endSec!);
+  });
+});
+
+describe("hashScript", () => {
+  it("is deterministic (cache key for suggestion cost-control)", () => {
+    const a = hashScript("  Same script\n");
+    const b = hashScript("Same script");
+    expect(a).toBe(b);
+    expect(a).toHaveLength(24);
   });
 });
 
