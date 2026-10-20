@@ -178,6 +178,21 @@ Full TEST-MODE lifecycle verified with card 4242... (no real charge):
 See `PRODUCTION_PROMOTION_PLAN.md` (draft, NOT executed): authoritative commit, backup/rollback
 points, Supabase-era migration, Better Auth + Wasabi + Stripe prod config, forward-only migration
 risk, build/deploy/smoke, rollback, Coming Soon preservation, and approval gates.
+### Phase 4b - Staging build + Wasabi prep (in progress)
+
+- **Prod schema drift diff ✅** — throwaway copy of `growthforge_prod` vs dev: exactly 2 missing
+  columns (`competitors.superseded_at`, `personas.superseded_at`). Reconciliation proven on the
+  throwaway (0 drift after 2 ALTERs); prod untouched (57 tables / 0 superseded_at). See
+  `deploy/reconcile-prod-schema.sql`.
+- **Staging build ✅** — clean clone of `main@389fe73` at `/home/ubuntu/prod/app-new`, full
+  `pnpm run build` (API + frontend) succeeded; frontend hash `index-Ber1wL9N.js` matches dev
+  (identical source). `betterAuth.ts` present (not Aug-4). systemd still points to old prod app;
+  Caddy still Coming Soon — nothing deployed.
+- **Production Wasabi ⏳ awaiting console login** — needs the owner's root account to create:
+  bucket `growthforge-prod-media` (region ca-central-1) + least-privilege sub-user with only
+  `s3:ListBucket` on the bucket and `s3:GetObject`/`s3:PutObject`/`s3:DeleteObject` on
+  `growthforge-prod-media/*`. Existing server creds are bucket-scoped and cannot create buckets.
+
 ### Phase 4 - Controlled-beta release checklist ✅ drafted
 
 1. **Verified completed gates** — dev auth (Better Auth, no Supabase), core journey, video, social
