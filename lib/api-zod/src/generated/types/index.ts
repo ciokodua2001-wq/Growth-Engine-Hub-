@@ -77,6 +77,8 @@ export * from './socialPostUpdate';
 export * from './uploadUrlRequest';
 export * from './uploadUrlResponse';
 export * from './video';
+export * from './videoDialogueTranscriptItem';
+export * from './videoFidelityReport';
 export * from './videoInput';
 export * from './videoInputTargetDuration';
 export * from './videoRenderInput';

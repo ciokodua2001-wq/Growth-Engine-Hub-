@@ -2472,6 +2472,32 @@ components:
           type: ["string", "null"]
         voiceoverUrl:
           type: ["string", "null"]
+        creativeMode:
+          type: ["string", "null"]
+          description: auto | prompt | my_script
+        scriptStatus:
+          type: ["string", "null"]
+          description: proposed | approved
+        approvedScript:
+          type: ["string", "null"]
+          description: exact locked production wording
+        approvedScriptVersion:
+          type: ["integer", "null"]
+        approvedAt:
+          type: ["string", "null"]
+        dialogueTranscript:
+          type: ["array", "null"]
+          description: actual-audio transcript segments with optional timing
+          items:
+            type: object
+        transcriptStatus:
+          type: ["string", "null"]
+          description: pending | needs_review | ready | accepted
+        fidelityStatus:
+          type: ["string", "null"]
+          description: unverified | matches | difference
+        fidelityReport:
+          type: ["object", "null"]
 
     VideoUpdate:
       type: object

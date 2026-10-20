@@ -515,6 +515,13 @@ export interface VideoInput {
   targetLocale?: string;
 }
 
+export type VideoDialogueTranscriptItem = { [key: string]: unknown };
+
+/**
+ * @nullable
+ */
+export type VideoFidelityReport = { [key: string]: unknown } | null;
+
 export interface Video {
   id: number;
   projectId: number;
@@ -558,6 +565,42 @@ export interface Video {
   renderError?: string | null;
   /** @nullable */
   voiceoverUrl?: string | null;
+  /**
+     * auto | prompt | my_script
+     * @nullable
+     */
+  creativeMode?: string | null;
+  /**
+     * proposed | approved
+     * @nullable
+     */
+  scriptStatus?: string | null;
+  /**
+     * exact locked production wording
+     * @nullable
+     */
+  approvedScript?: string | null;
+  /** @nullable */
+  approvedScriptVersion?: number | null;
+  /** @nullable */
+  approvedAt?: string | null;
+  /**
+     * actual-audio transcript segments with optional timing
+     * @nullable
+     */
+  dialogueTranscript?: VideoDialogueTranscriptItem[] | null;
+  /**
+     * pending | needs_review | ready | accepted
+     * @nullable
+     */
+  transcriptStatus?: string | null;
+  /**
+     * unverified | matches | difference
+     * @nullable
+     */
+  fidelityStatus?: string | null;
+  /** @nullable */
+  fidelityReport?: VideoFidelityReport;
 }
 
 export interface VideoUpdate {

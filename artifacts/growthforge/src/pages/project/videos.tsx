@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 import CommercialProductionProgress from "@/components/ui/commercial-progress";
+import ScriptFidelityPanel from "@/components/ui/script-fidelity-panel";
 import VideoWalletWidget from "@/components/video-wallet-widget";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { downloadFile } from "@/lib/utils";
@@ -1013,6 +1014,7 @@ function VideoCard({
                 </div>
               ) : null;
             })()}
+            <ScriptFidelityPanel video={video} projectId={projectId} />
             <CommercialProductionProgress video={video} projectId={projectId} isTrial={isTrial} />
           </motion.div>
         )}

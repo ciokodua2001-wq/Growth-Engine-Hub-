@@ -248,6 +248,19 @@ function activeKaraokeWordIndex(entry: KaraokeSentenceTiming, t: number): number
   return entry.words.length - 1;
 }
 
+/** Builds preview timings from the REVIEWED actual-audio transcript segments
+ *  (real timing windows), so the browser preview matches the FFmpeg export -
+ *  both are sourced from the transcript, never the voiceover/script. */
+function buildTranscriptTimings(
+  transcript: Array<{ text?: string; startSec?: number; endSec?: number }> | null | undefined,
+): { subtitle: Array<{ text: string; startSec: number; endSec: number }>; karaoke: KaraokeSentenceTiming[] } {
+  const segs = (transcript ?? [])
+    .filter(x => (x.text ?? "").trim() && typeof x.startSec === "number" && typeof x.endSec === "number");
+  const subtitle = segs.map(x => ({ text: wrapCaptionText(x.text!.trim(), 32), startSec: x.startSec!, endSec: x.endSec! }));
+  const karaoke = segs.map(x => ({ words: x.text!.trim().split(/\s+/).filter(Boolean), startSec: x.startSec!, endSec: x.endSec! }));
+  return { subtitle, karaoke };
+}
+
 // ── Curated caption style catalogue (mirrors ffmpegAssembler.ts CAPTION_STYLES) ─
 
 export type CaptionPreset =
@@ -345,6 +358,7 @@ export interface CommercialProgressVideo {
   renderStatus?: string | null;
   videoUrl?: string | null;
   voiceover?: string | null;
+  dialogueTranscript?: Array<{ text?: string; startSec?: number; endSec?: number }> | null;
 }
 
 interface Props {
@@ -513,15 +527,14 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   // ── Caption overlay timing ─────────────────────────────────────────────────
   useEffect(() => {
     const v = videoRef.current;
-    if (!v || !video.voiceover || phase !== "complete") return;
+    if (!v || phase !== "complete") return;
 
     const buildTimings = () => {
-      if (v.duration && isFinite(v.duration)) {
-        subtitleTimingsRef.current = buildSubtitleTimings(video.voiceover!, v.duration);
-        karaokeTimingsRef.current = buildKaraokeTimings(video.voiceover!, v.duration);
-        setPreviewCaptionText(subtitleTimingsRef.current[0]?.text ?? null);
-        setPreviewKaraokeWords(karaokeTimingsRef.current[0]?.words ?? null);
-      }
+      const { subtitle, karaoke } = buildTranscriptTimings(video.dialogueTranscript);
+      subtitleTimingsRef.current = subtitle;
+      karaokeTimingsRef.current = karaoke;
+      setPreviewCaptionText(subtitle[0]?.text ?? null);
+      setPreviewKaraokeWords(karaoke[0]?.words ?? null);
     };
     const onTimeUpdate = () => {
       const t = v.currentTime;
@@ -545,7 +558,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       v.removeEventListener("loadedmetadata", buildTimings);
       v.removeEventListener("timeupdate", onTimeUpdate);
     };
-  }, [phase, finalVideoUrl, video.voiceover]);
+  }, [phase, finalVideoUrl, video.dialogueTranscript]);
 
   // ── Elapsed timer ──────────────────────────────────────────────────────────
   useEffect(() => {

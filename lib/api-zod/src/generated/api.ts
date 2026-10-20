@@ -1110,7 +1110,20 @@ export const ListVideosResponseItem = zod.object({
   "renderStartedAt": zod.string().nullish(),
   "renderCompletedAt": zod.string().nullish(),
   "renderError": zod.string().nullish(),
-  "voiceoverUrl": zod.string().nullish()
+  "voiceoverUrl": zod.string().nullish(),
+  "creativeMode": zod.string().nullish().describe('auto | prompt | my_script'),
+  "scriptStatus": zod.string().nullish().describe('proposed | approved'),
+  "approvedScript": zod.string().nullish().describe('exact locked production wording'),
+  "approvedScriptVersion": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "dialogueTranscript": zod.array(zod.object({
+
+}).passthrough()).nullish().describe('actual-audio transcript segments with optional timing'),
+  "transcriptStatus": zod.string().nullish().describe('pending | needs_review | ready | accepted'),
+  "fidelityStatus": zod.string().nullish().describe('unverified | matches | difference'),
+  "fidelityReport": zod.object({
+
+}).passthrough().nullish()
 })
 export const ListVideosResponse = zod.array(ListVideosResponseItem)
 
@@ -1154,7 +1167,20 @@ export const GenerateVideosResponseItem = zod.object({
   "renderStartedAt": zod.string().nullish(),
   "renderCompletedAt": zod.string().nullish(),
   "renderError": zod.string().nullish(),
-  "voiceoverUrl": zod.string().nullish()
+  "voiceoverUrl": zod.string().nullish(),
+  "creativeMode": zod.string().nullish().describe('auto | prompt | my_script'),
+  "scriptStatus": zod.string().nullish().describe('proposed | approved'),
+  "approvedScript": zod.string().nullish().describe('exact locked production wording'),
+  "approvedScriptVersion": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "dialogueTranscript": zod.array(zod.object({
+
+}).passthrough()).nullish().describe('actual-audio transcript segments with optional timing'),
+  "transcriptStatus": zod.string().nullish().describe('pending | needs_review | ready | accepted'),
+  "fidelityStatus": zod.string().nullish().describe('unverified | matches | difference'),
+  "fidelityReport": zod.object({
+
+}).passthrough().nullish()
 })
 export const GenerateVideosResponse = zod.array(GenerateVideosResponseItem)
 
@@ -1187,7 +1213,20 @@ export const GetVideoResponse = zod.object({
   "renderStartedAt": zod.string().nullish(),
   "renderCompletedAt": zod.string().nullish(),
   "renderError": zod.string().nullish(),
-  "voiceoverUrl": zod.string().nullish()
+  "voiceoverUrl": zod.string().nullish(),
+  "creativeMode": zod.string().nullish().describe('auto | prompt | my_script'),
+  "scriptStatus": zod.string().nullish().describe('proposed | approved'),
+  "approvedScript": zod.string().nullish().describe('exact locked production wording'),
+  "approvedScriptVersion": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "dialogueTranscript": zod.array(zod.object({
+
+}).passthrough()).nullish().describe('actual-audio transcript segments with optional timing'),
+  "transcriptStatus": zod.string().nullish().describe('pending | needs_review | ready | accepted'),
+  "fidelityStatus": zod.string().nullish().describe('unverified | matches | difference'),
+  "fidelityReport": zod.object({
+
+}).passthrough().nullish()
 })
 
 
@@ -1226,7 +1265,20 @@ export const UpdateVideoResponse = zod.object({
   "renderStartedAt": zod.string().nullish(),
   "renderCompletedAt": zod.string().nullish(),
   "renderError": zod.string().nullish(),
-  "voiceoverUrl": zod.string().nullish()
+  "voiceoverUrl": zod.string().nullish(),
+  "creativeMode": zod.string().nullish().describe('auto | prompt | my_script'),
+  "scriptStatus": zod.string().nullish().describe('proposed | approved'),
+  "approvedScript": zod.string().nullish().describe('exact locked production wording'),
+  "approvedScriptVersion": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "dialogueTranscript": zod.array(zod.object({
+
+}).passthrough()).nullish().describe('actual-audio transcript segments with optional timing'),
+  "transcriptStatus": zod.string().nullish().describe('pending | needs_review | ready | accepted'),
+  "fidelityStatus": zod.string().nullish().describe('unverified | matches | difference'),
+  "fidelityReport": zod.object({
+
+}).passthrough().nullish()
 })
 
 
@@ -1279,7 +1331,20 @@ export const StartVideoRenderResponse = zod.object({
   "renderStartedAt": zod.string().nullish(),
   "renderCompletedAt": zod.string().nullish(),
   "renderError": zod.string().nullish(),
-  "voiceoverUrl": zod.string().nullish()
+  "voiceoverUrl": zod.string().nullish(),
+  "creativeMode": zod.string().nullish().describe('auto | prompt | my_script'),
+  "scriptStatus": zod.string().nullish().describe('proposed | approved'),
+  "approvedScript": zod.string().nullish().describe('exact locked production wording'),
+  "approvedScriptVersion": zod.number().nullish(),
+  "approvedAt": zod.string().nullish(),
+  "dialogueTranscript": zod.array(zod.object({
+
+}).passthrough()).nullish().describe('actual-audio transcript segments with optional timing'),
+  "transcriptStatus": zod.string().nullish().describe('pending | needs_review | ready | accepted'),
+  "fidelityStatus": zod.string().nullish().describe('unverified | matches | difference'),
+  "fidelityReport": zod.object({
+
+}).passthrough().nullish()
 })
 
 

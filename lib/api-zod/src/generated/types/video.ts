@@ -5,6 +5,8 @@
  * GrowthForge AI API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { VideoDialogueTranscriptItem } from './videoDialogueTranscriptItem';
+import type { VideoFidelityReport } from './videoFidelityReport';
 
 export interface Video {
   id: number;
@@ -49,4 +51,40 @@ export interface Video {
   renderError?: string | null;
   /** @nullable */
   voiceoverUrl?: string | null;
+  /**
+     * auto | prompt | my_script
+     * @nullable
+     */
+  creativeMode?: string | null;
+  /**
+     * proposed | approved
+     * @nullable
+     */
+  scriptStatus?: string | null;
+  /**
+     * exact locked production wording
+     * @nullable
+     */
+  approvedScript?: string | null;
+  /** @nullable */
+  approvedScriptVersion?: number | null;
+  /** @nullable */
+  approvedAt?: string | null;
+  /**
+     * actual-audio transcript segments with optional timing
+     * @nullable
+     */
+  dialogueTranscript?: VideoDialogueTranscriptItem[] | null;
+  /**
+     * pending | needs_review | ready | accepted
+     * @nullable
+     */
+  transcriptStatus?: string | null;
+  /**
+     * unverified | matches | difference
+     * @nullable
+     */
+  fidelityStatus?: string | null;
+  /** @nullable */
+  fidelityReport?: VideoFidelityReport;
 }
