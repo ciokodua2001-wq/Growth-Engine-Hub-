@@ -285,3 +285,50 @@ eucalyptus fiber shoes for bouncy comfort. **Try Allbirds today.**" (a CTA not i
 ### Remaining beta blockers (unchanged from Phase 4)
 
 Prod Supabase-era migration, prod Wasabi bucket/creds, prod DB migration track dry-run, prod webhook.
+
+
+---
+
+## Commercial Studio - Caption architecture: transcript-sourced (commit `29addb2`)
+
+**Verified correction:** captions no longer originate from `narrationLine` or the approved script.
+The assembled audio is transcribed (Gemini, existing key), persisted as `dialogue_transcript` with
+per-segment timing, and only *reviewed* segments (text + timing) are eligible for caption export.
+
+- `dialogue.ts`: `assignEstimatedTiming` (labeled `estimated`, never word-accurate) + `transcriptToCaptionEntries`
+  (only reviewed, timed segments returned - never falls back to script).
+- `script.ts`: `POST /transcript` assigns estimated timing and sets `needs_review`; `PUT /transcript`
+  stores the customer's corrected text + manual timing → `ready`; `POST /transcript/accept` accepts the
+  performance without rewriting the approved-script record.
+- `ffmpegAssembler.ts`: caption source = `dialogueTranscript` (reviewed), not scene `narrationLine`.
+- `assemble.ts`: captioned export returns **422** unless `transcriptStatus` is `ready`/`accepted` and a
+  non-empty transcript exists - never silently substitutes the script.
+
+**End-to-end verification (Allbirds video #2):** reviewed transcript (3 actual-audio segments + manual
+timing) persisted with `transcript_status=ready`; scene clips assembled and burned through the real
+`ass`→ffmpeg path producing `captioned.mp4` (75.6 MB) + an extracted frame. Caption text confirmed to be
+the *transcript* (actual audio), which differs from the *approved* script. Full OCR of the frame wasn't
+possible on the box (no tesseract) - the ASS→ffmpeg render path is unchanged from the previously working
+caption system, so only the source changed. 12/12 dialogue unit tests pass; api-server typecheck clean.
+
+## Remaining Commercial Studio scope (NOT yet complete - reported honestly)
+
+1. **Frontend customer-workflow UI** (backend endpoints exist): Approve Script + version display,
+   Transcribe & Check Fidelity, mismatch review, transcript correction + timing editor, and caption
+   preview switched from `voiceover` to the reviewed transcript. Requires adding the new video fields to
+   the generated `api-zod`/`api-client` types (currently `dialogueTranscript`, `approvedScript`,
+   `scriptStatus`, `fidelityStatus`, etc. are returned by the routes but not declared in the generated
+   client types).
+2. **Single AI script suggestion** (optional, with explicit acceptance + caching + cost control).
+3. **Dialogue-fit warning** surfaced in the UI before paid generation.
+4. **Nigerian Pidgin** written-script workflow (do NOT claim spoken-Pidgin support without testing +
+   fluent-speaker review).
+5. **Director's Final Cut Review** - lightweight, evidence-based (no invented subjective scores, no paid
+   AI calls).
+6. **Browser acceptance** for Allbirds (all 10 items), then simulated-user onboarding, security-isolation,
+   concurrency, and stress testing.
+
+## Production release (still awaiting explicit authorization - untouched)
+
+Prod DB, prod API, Caddy/Coming Soon, live billing all unchanged. Staging build at
+`/home/ubuntu/prod/app-new` is from an older commit and must NOT be promoted.
