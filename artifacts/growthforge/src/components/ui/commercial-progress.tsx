@@ -456,11 +456,11 @@ const CAPTION_PRESET_STYLES: Record<CaptionPreset, CSSProperties> = {
 // Shared between the browser preview and the FFmpeg export so captions wrap and
 // stay inside the frame identically everywhere. KEEP IN SYNC with
 // artifacts/api-server/src/lib/dialogue.ts.
-const CAPION_SAFE_MARGIN_X = 0.04;     // left + right
-const CAPION_SAFE_MARGIN_TOP = 0.06;
-const CAPION_SAFE_MARGIN_BOTTOM = 0.10;
-const CAPION_NOMINAL_HALF_WIDTH = 0.24;   // ~half a full caption line @ scale 1
-const CAPION_NOMINAL_HALF_HEIGHT = 0.06;  // ~half a 1-2 line caption @ scale 1
+const CAPION_SAFE_MARGIN_X = 0.02;     // left + right margin
+const CAPION_SAFE_MARGIN_TOP = 0.02;     // top margin
+const CAPION_SAFE_MARGIN_BOTTOM = 0.02;  // bottom margin
+const CAPION_NOMINAL_HALF_WIDTH = 0.10;   // ~half a caption line @ scale 1
+const CAPION_NOMINAL_HALF_HEIGHT = 0.02;  // ~half a caption box @ scale 1
 
 function captionMaxCharsPerLine(aspect: number): number {
   if (aspect >= 1.3) return 34;   // 16:9 landscape

@@ -241,13 +241,13 @@ describe("caption layout (responsive safe-area)", () => {
     expect(clampCaptionX(0.5, 1.0)).toBeCloseTo(0.5);
   });
 
-  it("clamps Y so the caption box never leaves the vertical safe area", () => {
-    expect(clampCaptionY(0.0, 1.0)).toBeCloseTo(CAPION_SAFE_MARGIN_TOP + CAPION_NOMINAL_HALF_HEIGHT);
-    expect(clampCaptionY(1.0, 1.0)).toBeCloseTo(1 - CAPION_SAFE_MARGIN_BOTTOM - CAPION_NOMINAL_HALF_HEIGHT);
+  it("clamps Y so the caption box allows nearly full vertical range (0.04 to 0.96) at scale 1.0", () => {
+    expect(clampCaptionY(0.0, 1.0)).toBeCloseTo(0.04);
+    expect(clampCaptionY(1.0, 1.0)).toBeCloseTo(0.96);
   });
 
   it("centers the caption when it is scaled larger than the safe area", () => {
-    expect(clampCaptionX(0.1, 3.0)).toBeCloseTo(0.5);
+    expect(clampCaptionX(0.1, 5.0)).toBeCloseTo(0.5);
   });
 });
 
