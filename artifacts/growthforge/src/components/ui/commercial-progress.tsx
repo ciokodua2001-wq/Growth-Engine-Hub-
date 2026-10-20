@@ -598,6 +598,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   // so customers are never stuck waiting on the captioned render.
   const [captionPrepState, setCaptionPrepState] = useState<"idle" | "preparing">("idle");
   const captionFingerprintRef = useRef<string | null>(null);
+  const captionFailReasonRef = useRef<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
@@ -911,19 +912,29 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
           force: true,
         }),
       });
-      if (!r.ok) return null;
+      if (!r.ok) {
+        let reason = "We couldn't prepare your captioned video. Check that the transcript is reviewed and has no unresolved [unclear] speech, then try again.";
+        try {
+          const err = (await r.json()) as { message?: string; error?: string };
+          reason = err?.message || err?.error || reason;
+        } catch { /* ignore JSON parse failure */ }
+        captionFailReasonRef.current = reason;
+        return null;
+      }
       const { assemblyIds } = (await r.json()) as { assemblyIds: number[] };
       const targetId = assemblyIds[0];
-      if (!targetId) return null;
+      if (!targetId) { captionFailReasonRef.current = "We couldn't start your captioned render - please try again."; return null; }
 
       const result = await pollForAssembly(targetId, 90_000);
-      if (!result?.videoUrl) return null;
+      if (!result?.videoUrl) { captionFailReasonRef.current = "The captioned render didn't finish in time - please try again."; return null; }
 
       captionFingerprintRef.current = fingerprint;
       setCaptionedAssemblyId(result.id);
       setCaptionedVideoUrl(result.videoUrl);
+      captionFailReasonRef.current = null;
       return { id: result.id, videoUrl: result.videoUrl };
     } catch {
+      captionFailReasonRef.current = "We couldn't prepare your captioned video - please try again.";
       return null;
     } finally {
       setCaptionPrepState("idle");
@@ -952,8 +963,20 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     setDownloading(true);
     skipCaptionWaitRef.current = false;
     try {
-      const { assemblyId } = await resolveShareTarget();
-      if (skipCaptionWaitRef.current) return; // user already bailed out via the escape hatch
+      let assemblyId: number | null = finalAssemblyId;
+      if (captionsEnabled) {
+        const captioned = await ensureCaptionedAssembly();
+        if (skipCaptionWaitRef.current) return; // user already bailed out via the escape hatch
+        if (!captioned) {
+          // Never silently hand back a caption-less video when captions were requested.
+          toast({
+            title: "Captions not available",
+            description: captionFailReasonRef.current ?? "We couldn't prepare your captioned video - please try again.",
+          });
+          return;
+        }
+        assemblyId = captioned.id;
+      }
       const proxyUrl = getProxyDownloadUrl(assemblyId);
       if (!proxyUrl) return;
       const res = await fetch(proxyUrl);
@@ -968,13 +991,13 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       document.body.removeChild(a);
       URL.revokeObjectURL(objectUrl);
     } catch {
-      // Silent, calm fallback — never surface "error"/"failed" language.
-      toast({ title: "Still preparing", description: "Your download will be ready shortly — feel free to try again in a moment." });
+      // Calm fallback - never surface "error"/"failed" language.
+      toast({ title: "Still preparing", description: "Your download will be ready shortly - feel free to try again in a moment." });
     } finally {
       setDownloading(false);
       setCaptionPrepState("idle");
     }
-  }, [resolveShareTarget, getProxyDownloadUrl, video.title, captionsEnabled, toast]);
+  }, [ensureCaptionedAssembly, getProxyDownloadUrl, finalAssemblyId, captionsEnabled, video.title, toast]);
 
   const handleShare = useCallback(async () => {
     skipCaptionWaitRef.current = false;

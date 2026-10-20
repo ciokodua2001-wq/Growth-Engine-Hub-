@@ -805,8 +805,8 @@ interface AssEvent {
  * proportionally by character length; we don't have real ASR word timestamps).
  */
 function buildKaraokeEvents(script: string, totalDuration: number): AssEvent[] {
-  const BASE_COLOUR = "&H00FFFFFF"; // white
-  const HIGHLIGHT_COLOUR = "&H0000FF00"; // vivid green (ASS is &HAABBGGRR)
+  const BASE_COLOUR = "&H00FFFFFF"; // white (ASS &HAABBGGRR)
+  const HIGHLIGHT_COLOUR = "&H0076E600"; // #00E676 brand green (ASS BGR) - matches the live preview highlight
   const MAX_LINE_CHARS = 24;
   const MAX_LINES = 2;
 
@@ -856,7 +856,7 @@ function buildKaraokeEvents(script: string, totalDuration: number): AssEvent[] {
         lineWords
           .map(w => {
             const isActive = globalIdx++ === activeIdx;
-            return isActive ? `{\\c${HIGHLIGHT_COLOUR}}${w}{\\c${BASE_COLOUR}}` : w;
+            return isActive ? `{\\1c${HIGHLIGHT_COLOUR}&}${w}{\\1c${BASE_COLOUR}&}` : w;
           })
           .join(" "),
       );

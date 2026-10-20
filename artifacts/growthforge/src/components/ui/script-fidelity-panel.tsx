@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { getListVideosQueryKey } from "@workspace/api-client-react";
 import { Check, FileText, Mic, AlertTriangle, Loader2, Pencil, X } from "lucide-react";
 import type { Video as VideoModel } from "@workspace/api-client-react";
 
@@ -28,6 +30,7 @@ interface Props {
  */
 export default function ScriptFidelityPanel({ video, projectId }: Props) {
   const base = `/api/projects/${projectId}/videos/${video.id}`;
+  const queryClient = useQueryClient();
 
   const [approvedScript, setApprovedScript] = useState<string | null | undefined>(video.approvedScript);
   const [approvedVersion, setApprovedVersion] = useState<number>(video.approvedScriptVersion ?? 0);
@@ -65,17 +68,20 @@ export default function ScriptFidelityPanel({ video, projectId }: Props) {
     const j = await api(`${base}/transcript`, { method: "POST", body: JSON.stringify({}) });
     setSegments(j.transcript ?? []); setReport(j.fidelity); setFidelityStatus(j.fidelity?.status ?? "difference");
     setTranscriptStatus("needs_review"); setEditing(true);
+    void queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) });
   });
 
   const saveCorrection = () => run("saving", async () => {
     const j = await api(`${base}/transcript`, { method: "PUT", body: JSON.stringify({ segments }) });
     setSegments(j.transcript ?? segments); setReport(j.fidelity); setFidelityStatus(j.fidelity?.status ?? "difference");
     setTranscriptStatus("ready"); setEditing(false);
+    void queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) });
   });
 
   const accept = () => run("accepting", async () => {
     await api(`${base}/transcript/accept`, { method: "POST", body: JSON.stringify({}) });
     setTranscriptStatus("accepted");
+    void queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) });
   });
 
   const suggest = () => run("suggesting", async () => {
