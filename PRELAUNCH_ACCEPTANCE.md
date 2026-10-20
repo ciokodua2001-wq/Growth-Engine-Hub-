@@ -428,3 +428,16 @@ Production untouched: Coming Soon live, prod DB un-migrated, prod API not servin
 ## Remaining
 - Refresh the 7 Meta publish/stats test mocks (root cause above) and rerun the full suite.
 - Simulated-user onboarding, tenant isolation, concurrency, stress, failure/recovery (with measured latency/errors).
+
+---
+
+## Caption layout / preview / fidelity fixes (release blocker) — evidence
+
+- **Fidelity bounded 0..100%:** `compareScriptToTranscript` now compares UNIQUE word sets (was counting duplicate array words vs deduped union → could exceed 100%, the "104%" bug). 19/19 dialogue tests incl. 6 new regression cases (identical, duplicate-word, partial, extra, empty transcript, empty-vs-empty).
+- **Transcript preview:** removed the "Your caption preview" placeholder and the first-line fallback. The browser caption now shows the reviewed `dialogue_transcript` segment at the current playback time (paused/scrubbed/played); no caption outside intervals. `seeked` + initial seed added.
+- **9:16 safe-area export:** captions wrap to a pixel-aware max width (8% margin each side) instead of a fixed 40 chars, and the `\pos` anchor is clamped so text cannot spill into letterbox/pillarbox. Verified on the exact line "Swap those heavy synthetics for breathable eucalyptus fiber." → wraps to "Swap those heavy synthetics for breathable" + "eucalyptus fiber." (42 chars, ~830px) within the 907px safe width at 1080x1920.
+- **Re-export evidence (no regeneration):** assembly #14 (vertical, clean) re-exported from the existing Allbirds clips → h264 1080x1920, 15.5s; frames extracted at 2s/7s confirm captions render in-frame.
+- **Preview/export consistency:** preview now uses video-relative font (`3.5cqw` ≈ export 38px/1080) and `84%` width, matching the export contract; Theater mode gives full-size WYSIWYG.
+- **Styles:** all 8 presets (clean, boldPop, karaoke, neonGlow, cinematic, gradientChip, retroVHS, socialBubble) preserved and go through the same safe-area wrap path.
+
+Commits: `c92e1f6` (caption safe-area + preview + fidelity) and the follow-up cqw parity commit.
