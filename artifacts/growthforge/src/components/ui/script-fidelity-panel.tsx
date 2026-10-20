@@ -102,6 +102,32 @@ export default function ScriptFidelityPanel({ video, projectId }: Props) {
         {approvedScript && <pre className="text-[11px] text-emerald-200/80 whitespace-pre-wrap leading-relaxed font-sans">{approvedScript}</pre>}
       </div>
 
+      {/* ── Pre-flight review (deterministic, no AI cost) ── */}
+      {(() => {
+        const words = (video.script ?? "").trim().split(/\s+/).filter(Boolean).length;
+        const dur = video.duration ?? 30;
+        const budget = dur * 0.85;
+        const estSpeech = words / 2.6;
+        const fit = words === 0 || estSpeech <= budget;
+        const hasCta = /\b(try|get|visit|call|shop|buy|order|book|sign up|start|join|download|claim|save|learn)\b/i.test(video.script ?? "");
+        return (
+          <div className="rounded-xl bg-white/3 border border-white/8 p-3 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-foreground">Pre-flight review</span>
+              <span className="text-[10px] text-muted-foreground">(deterministic, evidence-based - no quality score)</span>
+            </div>
+            <p className="text-[11px] text-white/70">
+              {words === 0 ? "⚠️ No script yet." : fit
+                ? `✓ Dialogue fit: ${words} words ≈ ${estSpeech.toFixed(1)}s speech vs ~${budget.toFixed(1)}s budget in ${dur}s.`
+                : `⚠️ Dialogue too long: ${words} words ≈ ${estSpeech.toFixed(1)}s speech but ${dur}s format allows ~${budget.toFixed(1)}s - trim or lengthen.`}
+            </p>
+            <p className="text-[11px] text-white/70">
+              {hasCta ? "✓ Call-to-action present." : "⚠️ No clear call-to-action detected."}
+            </p>
+          </div>
+        );
+      })()}
+
       {/* ── Transcribe + fidelity review ── */}
       <div className="rounded-xl bg-white/3 border border-white/8 p-3 space-y-2">
         <div className="flex items-center justify-between gap-2 flex-wrap">
