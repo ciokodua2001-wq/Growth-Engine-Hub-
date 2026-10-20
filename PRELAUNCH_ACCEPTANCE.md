@@ -469,3 +469,39 @@ Commits: `c92e1f6` (caption safe-area + preview + fidelity) and the follow-up cq
 
 Commits: `b9a15e0` (editor/centering/parity), assemble cache key + in-flight reuse.
 
+
+
+---
+
+## Unclear-speech review + caption editor words (final fix)
+
+### Root causes (this round)
+- **Caption words missing in editor:** the caption overlay derived its text from a
+  `transcriptSegments` state that was only populated by a `videoRef` metadata
+  event, so it could be empty on first paint / theater mode. Fixed by deriving
+  segments synchronously from the transcript (with script/voiceover fallback +
+  auto-fetch when the list view omits `dialogueTranscript`).
+- **Caption editor never rendered for some videos:** `videos.tsx` early-returned
+  `CinematicBlueprintViewer` for blueprints with a `cinematicPlan`, skipping
+  `CommercialProductionProgress` entirely. Fixed.
+- **`[unclear]` was being silently stripped:** an earlier `transcriptToCaptionEntries`
+  change removed `[unclear]` markers, which concealed uncertainty. Reverted; the
+  marker is now preserved so the UI can flag it, and the export path blocks it.
+
+### Browser evidence (DEV, Allbirds Project 13, Video #5 "Natural Comfort Step", no new Veo)
+- Unclear panel: amber "Unclear Actor Speech Detected" banner shows segment 3
+  `"And so, please, [unclear] some."` with Replay / 0.75x Slow / 0.5x Slow and a
+  Save Correction input pre-filled with the `[unclear]`-stripped text.
+- Correction flow: typing "And so, please, try some." + Save Correction PUTs the
+  transcript, clears the banner, and updates the caption box to the corrected text.
+- Caption editor: normal + theater modes both show the REAL segment words
+  ("Stop squeezing your feet into rigid, synthetic shoes.") alongside the drag
+  handle and green resize dot. Segment selector shows all 3 segments.
+- Export guard: `POST /assemble` with captions on returns 422 "Unclear speech
+  must be reviewed first" while `[unclear]` is unresolved (no Veo, no credits).
+
+### Tests
+- api-server vitest: 238/245 pass (same 7 pre-existing Meta failures, no new).
+
+Commit: `c41e3d0`.
+
