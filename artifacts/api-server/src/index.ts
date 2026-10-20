@@ -355,7 +355,7 @@ async function initStripe(): Promise<void> {
     }
 
     // Backfill runs in the background — don't block startup
-    stripeSync.syncBackfill().then(() => {
+    stripeSync.syncBackfill({ object: "all" }).then(() => {
       logger.info("Stripe data backfill complete");
     }).catch((err) => {
       logger.warn({ err }, "Stripe backfill failed (non-fatal)");
