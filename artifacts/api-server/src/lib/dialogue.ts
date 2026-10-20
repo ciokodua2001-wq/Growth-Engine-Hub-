@@ -134,14 +134,33 @@ export interface TimedPhrase {
  * (max ~32 characters / ~5-7 words) and distributes the segment's start/end
  * window proportionally by word count.
  */
+/**
+ * Global caption lead (seconds). Captions are shifted EARLIER by this amount so
+ * the text appears at the start of the spoken phrase (reading ahead) rather than
+ * lagging the audio. Transcript timestamps are estimated (Gemini transcription
+ * provides no reliable word timestamps), so this small fixed lead compensates for
+ * that systematic drift and can be tuned in exactly one place. It is applied
+ * identically in the browser preview and the FFmpeg export so the two never drift
+ * apart. KEEP IN SYNC with the copy in the other package.
+ */
+const CAPION_LEAD_SEC = 0.4;
+const MIN_CAPTION_START_SEC = 0.05;
+
 export function segmentTextToPhrases(
   text: string,
   startSec: number,
   endSec: number,
   maxChars = 32,
+  leadSec = CAPION_LEAD_SEC,
 ): TimedPhrase[] {
   const trimmed = (text ?? "").trim();
   if (!trimmed) return [];
+
+  // Shift the whole phrase window earlier by the caption lead so the text leads
+  // the audio instead of trailing it. Clamp to a small positive floor so a lead
+  // never emits a negative timestamp.
+  const effStart = Math.max(MIN_CAPTION_START_SEC, startSec - leadSec);
+  const effEnd = Math.max(effStart + 0.1, endSec - leadSec);
 
   // Split on sentence terminators (. ! ?)
   const rawSentences = trimmed.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
@@ -172,16 +191,16 @@ export function segmentTextToPhrases(
 
   const wordsPerPhrase = phraseList.map(p => Math.max(1, p.split(/\s+/).length));
   const totalWords = wordsPerPhrase.reduce((a, b) => a + b, 0);
-  const totalDuration = Math.max(0.5, endSec - startSec);
+  const totalDuration = Math.max(0.5, effEnd - effStart);
 
   const phrases: TimedPhrase[] = [];
-  let currStart = startSec;
+  let currStart = effStart;
 
   for (let i = 0; i < phraseList.length; i++) {
     const pText = phraseList[i]!;
     const wCount = wordsPerPhrase[i]!;
     const dur = (wCount / totalWords) * totalDuration;
-    const currEnd = i < phraseList.length - 1 ? currStart + dur : endSec;
+    const currEnd = i < phraseList.length - 1 ? currStart + dur : effEnd;
 
     phrases.push({
       text: pText,

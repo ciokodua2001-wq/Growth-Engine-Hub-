@@ -264,14 +264,33 @@ export interface TimedPhrase {
  * (max ~32 characters / ~5-7 words) and distributes the segment's start/end
  * window proportionally by word count.
  */
+/**
+ * Global caption lead (seconds). Captions are shifted EARLIER by this amount so
+ * the text appears at the start of the spoken phrase (reading ahead) rather than
+ * lagging the audio. Transcript timestamps are estimated (Gemini transcription
+ * provides no reliable word timestamps), so this small fixed lead compensates for
+ * that systematic drift and can be tuned in exactly one place. It is applied
+ * identically in the browser preview and the FFmpeg export so the two never drift
+ * apart. KEEP IN SYNC with the copy in the other package.
+ */
+const CAPION_LEAD_SEC = 0.4;
+const MIN_CAPTION_START_SEC = 0.05;
+
 export function segmentTextToPhrases(
   text: string,
   startSec: number,
   endSec: number,
   maxChars = 32,
+  leadSec = CAPION_LEAD_SEC,
 ): TimedPhrase[] {
   const trimmed = (text ?? "").trim();
   if (!trimmed) return [];
+
+  // Shift the whole phrase window earlier by the caption lead so the text leads
+  // the audio instead of trailing it. Clamp to a small positive floor so a lead
+  // never emits a negative timestamp.
+  const effStart = Math.max(MIN_CAPTION_START_SEC, startSec - leadSec);
+  const effEnd = Math.max(effStart + 0.1, endSec - leadSec);
 
   // Split on sentence terminators (. ! ?)
   const rawSentences = trimmed.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
@@ -302,16 +321,16 @@ export function segmentTextToPhrases(
 
   const wordsPerPhrase = phraseList.map(p => Math.max(1, p.split(/\s+/).length));
   const totalWords = wordsPerPhrase.reduce((a, b) => a + b, 0);
-  const totalDuration = Math.max(0.5, endSec - startSec);
+  const totalDuration = Math.max(0.5, effEnd - effStart);
 
   const phrases: TimedPhrase[] = [];
-  let currStart = startSec;
+  let currStart = effStart;
 
   for (let i = 0; i < phraseList.length; i++) {
     const pText = phraseList[i]!;
     const wCount = wordsPerPhrase[i]!;
     const dur = (wCount / totalWords) * totalDuration;
-    const currEnd = i < phraseList.length - 1 ? currStart + dur : endSec;
+    const currEnd = i < phraseList.length - 1 ? currStart + dur : effEnd;
 
     phrases.push({
       text: pText,
@@ -724,39 +743,74 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       karaokeTimingsRef.current = karaoke;
       setPreviewCaptionText(subtitle[0]?.text ?? null);
       setPreviewKaraokeWords(karaoke[0]?.words ?? null);
-            if (v.videoWidth && v.videoHeight) setVideoAspect(v.videoWidth / v.videoHeight);
+      if (v.videoWidth && v.videoHeight) setVideoAspect(v.videoWidth / v.videoHeight);
     };
-    const onPlay = () => setIsVideoPlaying(true);
-    const onPause = () => setIsVideoPlaying(false);
-    const onTimeUpdate = () => {
-      setIsVideoPlaying(!v.paused);
-      const t = v.currentTime;
+
+    // Frame-accurate caption sync. The browser's `timeupdate` event fires only
+    // ~4x/sec, so a caption could appear up to ~250ms after the audio it belongs
+    // to. A requestAnimationFrame loop while playing reads `currentTime` every
+    // frame so captions flip exactly as the spoken phrase begins. State is only
+    // touched when the caption text or the karaoke active word actually changes,
+    // so this never re-renders React once per frame.
+    let lastCaptionText: string | null = null;
+    let lastKaraokeKey: string | null = null;
+    const syncCaption = (t: number) => {
       const entry = subtitleTimingsRef.current.find(e => t >= e.startSec && t < e.endSec) ?? null;
-      setCurrentCaptionText(entry?.text ?? null);
+      const text = entry?.text ?? null;
+      if (text !== lastCaptionText) {
+        lastCaptionText = text;
+        setCurrentCaptionText(text);
+      }
 
       const kEntry = karaokeTimingsRef.current.find(e => t >= e.startSec && t < e.endSec) ?? null;
       if (!kEntry) {
-        setCurrentKaraokeWords(null);
-      } else {
-        const activeIdx = activeKaraokeWordIndex(kEntry, t);
+        if (lastKaraokeKey !== null) {
+          lastKaraokeKey = null;
+          setCurrentKaraokeWords(null);
+        }
+        return;
+      }
+      const activeIdx = activeKaraokeWordIndex(kEntry, t);
+      const key = `${kEntry.startSec}:${activeIdx}`;
+      if (key !== lastKaraokeKey) {
+        lastKaraokeKey = key;
         setCurrentKaraokeWords(kEntry.words.map((word, i) => ({ word, active: i === activeIdx })));
       }
     };
 
+    const onPlay = () => setIsVideoPlaying(true);
+    const onPause = () => setIsVideoPlaying(false);
+    const onTimeUpdate = () => {
+      setIsVideoPlaying(!v.paused);
+      syncCaption(v.currentTime);
+    };
+
+    let rafId = 0;
+    const tick = () => {
+      if (v.paused) { rafId = 0; return; }
+      syncCaption(v.currentTime);
+      rafId = requestAnimationFrame(tick);
+    };
+    const startRaf = () => { if (!rafId) rafId = requestAnimationFrame(tick); };
+    const stopRaf = () => { if (rafId) { cancelAnimationFrame(rafId); rafId = 0; } };
+    const onPlayWithRaf = () => { onPlay(); startRaf(); };
+    const onPauseWithRaf = () => { onPause(); stopRaf(); };
+
     v.addEventListener("loadedmetadata", buildTimings);
     v.addEventListener("timeupdate", onTimeUpdate);
     v.addEventListener("seeked", onTimeUpdate);
-    v.addEventListener("play", onPlay);
-    v.addEventListener("pause", onPause);
+    v.addEventListener("play", onPlayWithRaf);
+    v.addEventListener("pause", onPauseWithRaf);
     buildTimings();
     onTimeUpdate(); // seed from the current position so paused/scrubbed preview is correct
 
     return () => {
+      stopRaf();
       v.removeEventListener("loadedmetadata", buildTimings);
       v.removeEventListener("timeupdate", onTimeUpdate);
       v.removeEventListener("seeked", onTimeUpdate);
-      v.removeEventListener("play", onPlay);
-      v.removeEventListener("pause", onPause);
+      v.removeEventListener("play", onPlayWithRaf);
+      v.removeEventListener("pause", onPauseWithRaf);
     };
   }, [phase, finalVideoUrl, video.dialogueTranscript, localTranscript, isTheaterMode]);
 
