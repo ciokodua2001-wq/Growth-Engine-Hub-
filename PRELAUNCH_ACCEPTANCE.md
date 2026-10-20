@@ -112,3 +112,30 @@ Additionally, 3 suites fail to **import** when run without `.env` loaded
 8. Meta/Google Ads automation
 9. Real AI ad creatives (currently hardcoded templates)
 10. Advanced analytics
+
+
+## 7. Controlled-beta GO/NO-GO checklist
+
+**Verdict: 🟢 GO — controlled beta (development, internal only).**
+
+| Gate | Status | Evidence |
+|---|---|---|
+| Auth (Better Auth, no Supabase) | ✅ | server + frontend on Better Auth; zero `@supabase` imports; `forgot-password` bug fixed (`427a9f0`) |
+| Core journey (analysis→strategy→content→social) | ✅ | projects 8/13 live, browser-verified |
+| Competitors + personas | ✅ | 24 competitors + 9 personas, rendered |
+| Video (Veo → assembly → playable) | ✅ | 30.5s 1080p MP4 in Wasabi, ffprobe h264+aac synced, browser readyState 4, download re-signs |
+| Social share honesty | ✅ | labels corrected (`51ecf08`); no false publish claims |
+| Stripe (test mode) | ✅ | 4 products live; webhook + enforcement wired (no test checkout yet) |
+| Media storage (dev Wasabi) | ✅ | `growthforge-media` bucket, working upload/sign/download |
+| Migrations (forward-only) | ✅ | no `.down.sql`; `superseded_at` soft-delete |
+| Backup/restore/rollback | ✅ | daily encrypted backups + Wasabi offsite + restore drill + `/api/healthz` |
+| Security (project isolation) | ✅ | IDOR fixed (`e3e2821`), 19 authz tests |
+| Test suite | ✅ (no beta blocker) | 217/224 pass; 7 failures confined to deferred FB/IG publish path |
+
+**Not blocking beta (deferred / pre-launch):**
+- Native Facebook/Instagram publishing — needs Meta Advanced Access (use "copy & open" fallback).
+- Prod Wasabi/Supabase re-provisioning — prod is Coming Soon only; reconcile at launch promotion.
+- Competitor-report synthesis not yet triggered (separate action, code wired).
+- No per-item regenerate + no content/social export (strategy PDF only).
+
+**Blocks GO beyond beta (require owner approval):** production deployment, live billing, real social publishing, paid video generation, Coming Soon removal.
