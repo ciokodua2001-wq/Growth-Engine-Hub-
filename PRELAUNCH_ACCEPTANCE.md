@@ -49,7 +49,7 @@ Kling/Wan are decommissioned; **do not reactivate**. The `KLING_API_KEY` absence
 
 ## 4. Commercial & production readiness (WS4) - to audit
 
-- Stripe test checkout/subscriptions/webhooks — ✅ **audited (test mode)**: `STRIPE_SECRET_KEY` = `sk_test_*`, `STRIPE_WEBHOOK_SECRET` set; `/api/stripe/webhook` raw-body + signature verified; `findOrCreateManagedWebhook` + `syncBackfill` at startup; handlers cover `checkout.session.completed` (payment_status==paid), `customer.subscription.created/updated/deleted`; `requireActiveSubscription` blocks cancelled users (403 read-only). 4 test products live via `/api/stripe/products` (Starter $80, Get-Going $99, Growth $249, Agency $599). ⚠️ No test checkout completed yet (no user has `stripe_customer_id`) — payment loop wired but not end-to-end exercised
+- Stripe test checkout/subscriptions/webhooks — ✅ **audited (test mode)**: `STRIPE_SECRET_KEY` = `sk_test_*`, `STRIPE_WEBHOOK_SECRET` set; `/api/stripe/webhook` raw-body + signature verified; `findOrCreateManagedWebhook` + `syncBackfill` at startup; handlers cover `checkout.session.completed` (payment_status==paid), `customer.subscription.created/updated/deleted`; `requireActiveSubscription` blocks cancelled users (403 read-only). 4 test products live via `/api/stripe/products` (Starter $39, Get-Going $99, Growth $249, Agency $599). ⚠️ No test checkout completed yet (no user has `stripe_customer_id`) — payment loop wired but not end-to-end exercised
 - Plan inheritance + project limits
 - Better Auth + email flows — ✅ **verified active**: server `betterAuth.ts` (Drizzle adapter → PostgreSQL) + frontend `authClient` (`better-auth/react`). No live Supabase dependency: zero `@supabase/supabase-js` imports, no `SUPABASE_URL` usage, no `@supabase` in any package.json. Legacy `supabaseAuth.ts` is a renamed compat layer that now calls Better Auth. **Fixed** `forgot-password.tsx` `forgetPassword` → `requestPasswordReset` (Better Auth 1.7.10 API), typecheck now clean
 - Production media storage — ⚠️ **dev/prod divergence (pre-launch gap)**: DEV ✅ on Wasabi (`OBJECT_STORAGE_*` set, bucket `growthforge-media`, endpoint `s3.ca-central-1.wasabisys.com`). PROD ❌ still on the OLD architecture — `/home/ubuntu/prod/app` is an Aug-4 codebase (no `betterAuth.ts`, old `objectStorage.ts`) with `SUPABASE_*` env vars and no `OBJECT_STORAGE_ENDPOINT/REGION/ACCESS_KEY`. Prod serves \"Coming Soon\" only, so this is not live-breaking, but prod must be re-provisioned from the current code + given its own Wasabi bucket/creds before launch
@@ -154,6 +154,19 @@ server with the latest prod backup (`_infra-backups/growthforge-prod/...-21-52-1
 - Post-check: `growthforge_prod` unchanged (57 tables), prod API service `active`,
   `usegrowthforge.com` still serves Coming Soon (HTTP 200).
 
-### Phase 2 - Stripe test checkout ⏳ pending
+### Phase 2 - Stripe test checkout ✅ DONE (2 bugs found & fixed)
+
+Full TEST-MODE lifecycle verified with card 4242... (no real charge):
+- Checkout → payment → webhook → subscription persistence → plan → entitlement: PASS.
+- Final user state: plan `growth`, status `active`, `stripe_customer_id` + `stripe_subscription_id` set.
+- Webhook events received & signature-verified (`customer.subscription.created`, `checkout.session.completed`, `payment_intent.succeeded`, `invoice.paid`).
+
+**Bug 1 (fixed):** webhook never delivered — `REPLIT_DOMAINS` was unset so `findOrCreateManagedWebhook` never ran, and the `.env` `STRIPE_WEBHOOK_SECRET` was a stale `whsec_` for a deleted endpoint. Fixed by adding `REPLIT_DOMAINS=dev.usegrowthforge.com` and blanking the stale secret (app now uses the managed webhook's auto-generated secret from `stripe._managed_webhooks`).
+
+**Bug 2 (fixed, `2abdb80`):** `syncBackfill()` called with no args is a no-op (object defaults to an array, hits `default`). So `stripe.products` was empty and every subscriber fell back to plan `starter`. Fixed to `syncBackfill({ object: "all" })` — now 4 products + metadata backfill on startup.
+
+**Env change (server-only, not committed):** `.env` gained `REPLIT_DOMAINS=dev.usegrowthforge.com`; `STRIPE_WEBHOOK_SECRET` blanked (backup `.env.bak-stripe-webhook-*` kept).
+
+**Edge case (noted, not blocking):** `customer.subscription.deleted` marks the user `cancelled` without checking for other active subscriptions (worked around in test by re-triggering an update on the surviving subscription).
 ### Phase 3 - Production promotion plan ⏳ pending
 ### Phase 4 - Controlled-beta release checklist ⏳ pending
