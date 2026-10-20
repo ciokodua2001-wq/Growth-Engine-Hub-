@@ -399,3 +399,32 @@ changes** (those files are untouched). Recommendation: refresh the publish/stats
 - Refresh the 7 Meta publish/stats test mocks (test-harness, non-blocking).
 
 Production untouched: Coming Soon live, prod DB un-migrated, prod API not serving, staging on old commit.
+
+
+---
+
+## Evidence round 2 (AI suggestion, downloads, Meta root cause)
+
+**AI script suggestion (`5555c21`)** - deployed + verified live:
+- `POST /script/suggestion` first call: generated (Gemini), `cached:false`; second call same script: `cached:true`, same hash + same text (no repeat AI charge).
+- `/accept` replaces `script`, resets `scriptStatus=proposed` + clears approval (re-approval required); `/reject` discards. No silent rewrite.
+- migration `0003_smooth_khan.sql` adds `videos.script_suggestion` jsonb (applied to dev).
+- 13/13 dialogue unit tests (hashScript determinism added).
+
+**Downloads - actually downloaded and inspected (Allbirds video #2):**
+- Plain MP4 (`renders/assembled/video-2-vertical-1792457705840.mp4`): 34,774,862 bytes, 15.5s, h264 1080x1920, aac.
+- Captioned MP4 (transcript burn): 70,483,331 bytes, 15.5s, h264 1080x1920, aac.
+- Burned caption lines = transcript, not narration:
+  1. "Ever feel like your heavy, synthetic shoes are holding you back from real comfort?"
+  2. "Step into Allbirds soft eucalyptus fiber shoes for bouncy comfort."
+  3. "Try Allbirds today."
+- Frame extracted at t=7s (4.79 MB PNG). Both files are valid MP4s (video+audio). Timing uses the reviewed transcript windows (manual alignment, labeled).
+
+**Meta publish/stats (7 failures) - root cause (test-harness, confirmed):**
+- Route `content.ts` publish handler performs three `db.select()` reads (post, Meta connection, final re-read) plus the optimistic-lock `update(...).returning()` and token-migration `update`.
+- The test mocks (`publishRoute.test.ts`) only configure two `mockDbSelect.mockReturnValueOnce(selectChain(...))` calls, so the route's third `db.select().from().where()` gets `undefined` and throws → 500 (also the `statsRoute` case).
+- Fix: add the missing third `selectChain([finalPost])` return (and match the exact query sequence) per test; do not alter production publishing behavior. This is a scoped test-mock refresh, not a product defect. Not yet fixed (deferred - remaining item).
+
+## Remaining
+- Refresh the 7 Meta publish/stats test mocks (root cause above) and rerun the full suite.
+- Simulated-user onboarding, tenant isolation, concurrency, stress, failure/recovery (with measured latency/errors).
