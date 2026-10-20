@@ -635,6 +635,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     const onPlay = () => setIsVideoPlaying(true);
     const onPause = () => setIsVideoPlaying(false);
     const onTimeUpdate = () => {
+      setIsVideoPlaying(!v.paused);
       const t = v.currentTime;
       const entry = subtitleTimingsRef.current.find(e => t >= e.startSec && t < e.endSec) ?? null;
       setCurrentCaptionText(entry?.text ?? null);
