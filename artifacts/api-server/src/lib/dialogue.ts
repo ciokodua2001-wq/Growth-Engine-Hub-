@@ -385,3 +385,41 @@ export async function suggestScriptImprovement(script: string): Promise<string> 
   return (response.text ?? "").trim();
 }
 
+// ── Caption layout (responsive safe-area) ─────────────────────────────────────
+// Shared between the browser preview and the FFmpeg export so captions wrap and
+// stay inside the frame identically everywhere. KEEP IN SYNC with
+// artifacts/growthforge/src/components/ui/commercial-progress.tsx.
+export const CAPION_SAFE_MARGIN_X = 0.04;     // left + right
+export const CAPION_SAFE_MARGIN_TOP = 0.06;
+export const CAPION_SAFE_MARGIN_BOTTOM = 0.10;
+export const CAPION_NOMINAL_HALF_WIDTH = 0.24;   // ~half a full caption line @ scale 1
+export const CAPION_NOMINAL_HALF_HEIGHT = 0.06;  // ~half a 1-2 line caption @ scale 1
+
+export function captionMaxCharsPerLine(aspect: number): number {
+  if (aspect >= 1.3) return 34;   // 16:9 landscape
+  if (aspect >= 0.85) return 30;  // 1:1 / 4:5
+  return 26;                      // 9:16 vertical
+}
+
+export function captionMaxWidthRatio(aspect: number): number {
+  if (aspect >= 1.3) return 0.88;
+  if (aspect >= 0.85) return 0.84;
+  return 0.80;
+}
+
+export function clampCaptionX(x: number, scale: number): number {
+  const halfW = CAPION_NOMINAL_HALF_WIDTH * scale;
+  const lo = CAPION_SAFE_MARGIN_X + halfW;
+  const hi = 1 - CAPION_SAFE_MARGIN_X - halfW;
+  if (lo >= hi) return 0.5;
+  return Math.min(hi, Math.max(lo, x));
+}
+
+export function clampCaptionY(y: number, scale: number): number {
+  const halfH = CAPION_NOMINAL_HALF_HEIGHT * scale;
+  const lo = CAPION_SAFE_MARGIN_TOP + halfH;
+  const hi = 1 - CAPION_SAFE_MARGIN_BOTTOM - halfH;
+  if (lo >= hi) return 0.85;
+  return Math.min(hi, Math.max(lo, y));
+}
+

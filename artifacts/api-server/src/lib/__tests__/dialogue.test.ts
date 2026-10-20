@@ -8,6 +8,15 @@ import {
   assignEstimatedTiming,
   transcriptToCaptionEntries,
   hashScript,
+  captionMaxCharsPerLine,
+  captionMaxWidthRatio,
+  clampCaptionX,
+  clampCaptionY,
+  CAPION_SAFE_MARGIN_X,
+  CAPION_SAFE_MARGIN_TOP,
+  CAPION_SAFE_MARGIN_BOTTOM,
+  CAPION_NOMINAL_HALF_WIDTH,
+  CAPION_NOMINAL_HALF_HEIGHT,
 } from "../dialogue.js";
 
 const ALLBIRDS_PLAN = JSON.stringify({
@@ -206,3 +215,33 @@ describe("segmentTextToPhrases and transcriptToCaptionEntries phrase flow", () =
     expect(phrases[0]!.startSec).toBeGreaterThanOrEqual(0);
   });
 });
+
+
+describe("caption layout (responsive safe-area)", () => {
+  it("wraps more characters per line on landscape than on vertical", () => {
+    expect(captionMaxCharsPerLine(1.78)).toBeGreaterThan(captionMaxCharsPerLine(0.5625));
+    expect(captionMaxCharsPerLine(1.0)).toBeGreaterThan(captionMaxCharsPerLine(0.5625));
+  });
+
+  it("widens the container ratio on landscape vs vertical", () => {
+    expect(captionMaxWidthRatio(1.78)).toBeGreaterThan(captionMaxWidthRatio(0.5625));
+  });
+
+  it("clamps X so the caption box never leaves the horizontal safe area", () => {
+    const lo = CAPION_SAFE_MARGIN_X + CAPION_NOMINAL_HALF_WIDTH;
+    const hi = 1 - CAPION_SAFE_MARGIN_X - CAPION_NOMINAL_HALF_WIDTH;
+    expect(clampCaptionX(0.01, 1.0)).toBeCloseTo(lo);
+    expect(clampCaptionX(0.99, 1.0)).toBeCloseTo(hi);
+    expect(clampCaptionX(0.5, 1.0)).toBeCloseTo(0.5);
+  });
+
+  it("clamps Y so the caption box never leaves the vertical safe area", () => {
+    expect(clampCaptionY(0.0, 1.0)).toBeCloseTo(CAPION_SAFE_MARGIN_TOP + CAPION_NOMINAL_HALF_HEIGHT);
+    expect(clampCaptionY(1.0, 1.0)).toBeCloseTo(1 - CAPION_SAFE_MARGIN_BOTTOM - CAPION_NOMINAL_HALF_HEIGHT);
+  });
+
+  it("centers the caption when it is scaled larger than the safe area", () => {
+    expect(clampCaptionX(0.1, 3.0)).toBeCloseTo(0.5);
+  });
+});
+

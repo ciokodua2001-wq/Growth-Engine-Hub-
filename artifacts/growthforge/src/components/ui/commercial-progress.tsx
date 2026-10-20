@@ -346,19 +346,21 @@ export function segmentTextToPhrases(
 
 function buildTranscriptTimings(
   transcript: Array<{ text?: string; startSec?: number; endSec?: number }> | null | undefined,
+  aspect: number = 0.5625,
 ): { subtitle: Array<{ text: string; startSec: number; endSec: number }>; karaoke: KaraokeSentenceTiming[] } {
   const segs = (transcript ?? [])
     .filter(x => (x.text ?? "").trim() && typeof x.startSec === "number" && typeof x.endSec === "number");
 
   const subtitle: Array<{ text: string; startSec: number; endSec: number }> = [];
   const karaoke: KaraokeSentenceTiming[] = [];
+  const maxChars = captionMaxCharsPerLine(aspect);
 
   for (const seg of segs) {
     const rawText = seg.text!.trim();
     const phrases = segmentTextToPhrases(rawText, seg.startSec!, seg.endSec!, 32);
     for (const p of phrases) {
       subtitle.push({
-        text: wrapCaptionText(p.text, 28),
+        text: wrapCaptionText(p.text, maxChars),
         startSec: p.startSec,
         endSec: p.endSec,
       });
@@ -445,13 +447,61 @@ const CAPTION_PRESET_STYLES: Record<CaptionPreset, CSSProperties> = {
 };
 
 /** Live overlay for a plain (non-karaoke) caption preset — positioned & scaled by the drag box. */
-function getCaptionOverlayStyle(x: number, y: number, scale: number, preset: CaptionPreset): CSSProperties {
+
+// ── Caption layout (responsive safe-area) ─────────────────────────────────────
+// Shared between the browser preview and the FFmpeg export so captions wrap and
+// stay inside the frame identically everywhere. KEEP IN SYNC with
+// artifacts/api-server/src/lib/dialogue.ts.
+const CAPION_SAFE_MARGIN_X = 0.04;     // left + right
+const CAPION_SAFE_MARGIN_TOP = 0.06;
+const CAPION_SAFE_MARGIN_BOTTOM = 0.10;
+const CAPION_NOMINAL_HALF_WIDTH = 0.24;   // ~half a full caption line @ scale 1
+const CAPION_NOMINAL_HALF_HEIGHT = 0.06;  // ~half a 1-2 line caption @ scale 1
+
+function captionMaxCharsPerLine(aspect: number): number {
+  if (aspect >= 1.3) return 34;   // 16:9 landscape
+  if (aspect >= 0.85) return 30;  // 1:1 / 4:5
+  return 26;                      // 9:16 vertical
+}
+
+function captionMaxWidthRatio(aspect: number): number {
+  if (aspect >= 1.3) return 0.88;
+  if (aspect >= 0.85) return 0.84;
+  return 0.80;
+}
+
+function clampCaptionX(x: number, scale: number): number {
+  const halfW = CAPION_NOMINAL_HALF_WIDTH * scale;
+  const lo = CAPION_SAFE_MARGIN_X + halfW;
+  const hi = 1 - CAPION_SAFE_MARGIN_X - halfW;
+  if (lo >= hi) return 0.5;
+  return Math.min(hi, Math.max(lo, x));
+}
+
+function clampCaptionY(y: number, scale: number): number {
+  const halfH = CAPION_NOMINAL_HALF_HEIGHT * scale;
+  const lo = CAPION_SAFE_MARGIN_TOP + halfH;
+  const hi = 1 - CAPION_SAFE_MARGIN_BOTTOM - halfH;
+  if (lo >= hi) return 0.85;
+  return Math.min(hi, Math.max(lo, y));
+}
+
+const CAPION_X_MIN = CAPION_SAFE_MARGIN_X + CAPION_NOMINAL_HALF_WIDTH;
+const CAPION_X_MAX = 1 - CAPION_SAFE_MARGIN_X - CAPION_NOMINAL_HALF_WIDTH;
+const CAPION_Y_MIN = CAPION_SAFE_MARGIN_TOP + CAPION_NOMINAL_HALF_HEIGHT;
+const CAPION_Y_MAX = 1 - CAPION_SAFE_MARGIN_BOTTOM - CAPION_NOMINAL_HALF_HEIGHT;
+
+function getCaptionOverlayStyle(x: number, y: number, scale: number, preset: CaptionPreset, aspect: number): CSSProperties {
+  const cx = clampCaptionX(x, scale);
+  const cy = clampCaptionY(y, scale);
+  const maxWidthPct = (captionMaxWidthRatio(aspect) * 100).toFixed(1);
   return {
     position: "absolute",
-    left: `${x * 100}%`,
-    top: `${y * 100}%`,
+    left: `${cx * 100}%`,
+    top: `${cy * 100}%`,
     transform: `translate(-50%, -50%) scale(${scale})`,
-    width: "84%",
+    width: `${maxWidthPct}%`,
+    maxWidth: `${maxWidthPct}%`,
     textAlign: "center",
     lineHeight: 1.45,
     letterSpacing: "0.01em",
@@ -567,12 +617,15 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const [editSegmentIndex, setEditSegmentIndex] = useState(0);
   // Synchronous derived segments - guarantees derivedSegments is NEVER empty []
   // when dialogueTranscript or script is present, so edit mode preview can never fail.
+  // Intrinsic aspect ratio (videoWidth/videoHeight) - used to size the stage so
+  // the caption overlay anchors to the VISIBLE video rect, not pillarbox/letterbox.
+  const [videoAspect, setVideoAspect] = useState<number | null>(null);
   const derivedSegments = useMemo(() => {
-    const { subtitle } = buildTranscriptTimings(video.dialogueTranscript);
+    const { subtitle } = buildTranscriptTimings(video.dialogueTranscript, videoAspect ?? 0.5625);
     if (subtitle.length > 0) return subtitle;
     const fallback = (video.script || video.voiceover || "Sample caption text").trim();
     return [{ text: wrapCaptionText(fallback, 40), startSec: 0, endSec: 15 }];
-  }, [video.dialogueTranscript, video.script, video.voiceover]);
+  }, [video.dialogueTranscript, video.script, video.voiceover, videoAspect]);
 
   // Track state for transcript corrections
   const [localTranscript, setLocalTranscript] = useState(video.dialogueTranscript);
@@ -591,13 +644,10 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   }, [video.dialogueTranscript, video.id, projectId]);
 
   const activeSegments = useMemo(() => {
-    const { subtitle } = buildTranscriptTimings(localTranscript);
+    const { subtitle } = buildTranscriptTimings(localTranscript, videoAspect ?? 0.5625);
     if (subtitle.length > 0) return subtitle;
     return derivedSegments;
-  }, [localTranscript, derivedSegments]);
-  // Intrinsic aspect ratio (videoWidth/videoHeight) - used to size the stage so
-  // the caption overlay anchors to the VISIBLE video rect, not pillarbox/letterbox.
-  const [videoAspect, setVideoAspect] = useState<number | null>(null);
+  }, [localTranscript, derivedSegments, videoAspect]);
   const [currentCaptionText, setCurrentCaptionText] = useState<string | null>(null);
   const [currentKaraokeWords, setCurrentKaraokeWords] = useState<Array<{ word: string; active: boolean }> | null>(null);
   // Static fallback shown whenever the video is paused / hasn't reached a
@@ -738,12 +788,13 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     if (!v || phase !== "complete") return;
 
     const buildTimings = () => {
-      const { subtitle, karaoke } = buildTranscriptTimings(localTranscript ?? video.dialogueTranscript);
+      const aspect = (v.videoWidth && v.videoHeight) ? (v.videoWidth / v.videoHeight) : 0.5625;
+      const { subtitle, karaoke } = buildTranscriptTimings(localTranscript ?? video.dialogueTranscript, aspect);
       subtitleTimingsRef.current = subtitle;
       karaokeTimingsRef.current = karaoke;
       setPreviewCaptionText(subtitle[0]?.text ?? null);
       setPreviewKaraokeWords(karaoke[0]?.words ?? null);
-      if (v.videoWidth && v.videoHeight) setVideoAspect(v.videoWidth / v.videoHeight);
+      if (v.videoWidth && v.videoHeight) setVideoAspect(aspect);
     };
 
     // Frame-accurate caption sync. The browser's `timeupdate` event fires only
@@ -1203,8 +1254,8 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     const onMove = (ev: PointerEvent) => {
       const dx = (ev.clientX - startPointerX) / rect.width;
       const dy = (ev.clientY - startPointerY) / rect.height;
-      setCaptionX(clampNum(startX + dx, 0.15, 0.85));
-      setCaptionY(clampNum(startY + dy, 0.08, 0.92));
+      setCaptionX(clampCaptionX(startX + dx, captionScaleRef.current));
+      setCaptionY(clampCaptionY(startY + dy, captionScaleRef.current));
     };
     const onUp = () => {
       target.releasePointerCapture(e.pointerId);
@@ -1661,7 +1712,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
               // Outer wrapper is pointerEvents:none so it never blocks the native
               // video controls underneath — only the small drag/resize handles
               // (explicitly pointerEvents:auto below) are actually interactive.
-              <div style={{ ...getCaptionOverlayStyle(captionX, captionY, captionScale, captionPreset), pointerEvents: "none" }}>
+              <div style={{ ...getCaptionOverlayStyle(captionX, captionY, captionScale, captionPreset, videoAspect ?? 0.5625), pointerEvents: "none" }}>
                 {/* inline-block so the wrapper shrinks to the actual caption box size —
                     otherwise the drag/resize handles below would anchor to the full
                     (much wider) text-centering column instead of the visible box. */}
@@ -1847,11 +1898,11 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                     </label>
                     <label className="block">
                       <span className="flex justify-between text-[9px] text-white/40"><span>Vertical position</span><span>{Math.round(captionY * 100)}%</span></span>
-                      <input type="range" min={0.08} max={0.92} step={0.01} value={captionY} onChange={e => setCaptionY(Number(e.target.value))} className="w-full accent-[#00E676]" />
+                      <input type="range" min={CAPION_Y_MIN} max={CAPION_Y_MAX} step={0.01} value={captionY} onChange={e => setCaptionY(Number(e.target.value))} className="w-full accent-[#00E676]" />
                     </label>
                     <label className="block">
                       <span className="flex justify-between text-[9px] text-white/40"><span>Horizontal position</span><span>{Math.round(captionX * 100)}%</span></span>
-                      <input type="range" min={0.15} max={0.85} step={0.01} value={captionX} onChange={e => setCaptionX(Number(e.target.value))} className="w-full accent-[#00E676]" />
+                      <input type="range" min={CAPION_X_MIN} max={CAPION_X_MAX} step={0.01} value={captionX} onChange={e => setCaptionX(Number(e.target.value))} className="w-full accent-[#00E676]" />
                     </label>
                   </div>
                 </div>

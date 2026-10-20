@@ -38,7 +38,7 @@ import { eq, and } from "drizzle-orm";
 import pino from "pino";
 import { objectStorageClient, signObjectURL } from "./objectStorage.js";
 import { prepareScript } from "./googleNarrator.js";
-import { transcriptToCaptionEntries, type TranscriptSegment } from "./dialogue.js";
+import { transcriptToCaptionEntries, captionMaxCharsPerLine, clampCaptionX, clampCaptionY, type TranscriptSegment } from "./dialogue.js";
 
 const FFMPEG_BIN = "ffmpeg";
 const logger = pino({ name: "ffmpegAssembler" });
@@ -915,15 +915,12 @@ function buildAssDocument(
   const outline = Math.round(baseOutline * s.outlineMul);
   const shadow = Math.round(fontSize * 0.1 * s.shadowMul);
 
-  // Safe-area layout: captions must stay inside the actual frame (not spill
-  // into letterbox/pillarbox). 8% horizontal margin each side; vertical clamped
-  // clear of the bottom social-UI zone and the top edge.
-  const maxCaptionWidth = Math.max(80, Math.floor(videoWidth * 0.84));
-  const charWidthPx = Math.max(8, fontSize * 0.52);
-  const maxChars = Math.max(8, Math.floor(maxCaptionWidth / charWidthPx));
-  const halfCaption = Math.ceil(maxCaptionWidth / 2);
-  const px = clamp(Math.round(captionX * videoWidth), halfCaption, videoWidth - halfCaption);
-  const py = clamp(Math.round(captionY * videoHeight), Math.round(fontSize), videoHeight - Math.round(fontSize * 2.5));
+  // Safe-area layout: captions must stay inside the actual frame (never spill
+  // past the edges) and wrap identically to the browser preview.
+  const aspect = videoWidth / videoHeight;
+  const maxChars = captionMaxCharsPerLine(aspect);
+  const px = Math.round(clampCaptionX(captionX, captionScale) * videoWidth);
+  const py = Math.round(clampCaptionY(captionY, captionScale) * videoHeight);
   const posTag = `{\\pos(${px},${py})}`;
 
   const header = [
