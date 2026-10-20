@@ -333,11 +333,11 @@ function getCaptionOverlayStyle(x: number, y: number, scale: number, preset: Cap
     left: `${x * 100}%`,
     top: `${y * 100}%`,
     transform: `translate(-50%, -50%) scale(${scale})`,
-    width: "min(80%, 480px)",
+    width: "84%",
     textAlign: "center",
     lineHeight: 1.45,
     letterSpacing: "0.01em",
-    fontSize: "clamp(11px, 3vw, 17px)",
+    fontSize: "3.5cqw",
     whiteSpace: "pre-wrap",
     ...CAPTION_PRESET_STYLES[preset],
   };
@@ -1308,7 +1308,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
         <div
           ref={videoStageRef}
           className={isTheaterMode ? "relative select-none" : "relative rounded-xl overflow-hidden border border-[#00E676]/30 bg-black select-none"}
-          style={isTheaterMode ? { maxWidth: "100vw", maxHeight: "100vh" } : undefined}
+          style={{ containerType: "inline-size", ...(isTheaterMode ? { maxWidth: "100vw", maxHeight: "100vh" } : {}) }}
         >
           <video
             ref={videoRef}
