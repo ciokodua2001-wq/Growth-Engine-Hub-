@@ -201,15 +201,21 @@ describe("segmentTextToPhrases and transcriptToCaptionEntries phrase flow", () =
     expect(entries[entries.length - 1]!.text).toBe("Step naturally today.");
   });
 
-  it("shifts captions earlier by the global caption lead (reading ahead, never late)", () => {
-    // Default 0.4s lead: [1.0, 3.0] becomes [0.6, 2.6].
+  it("shifts captions earlier by the global caption lead (never late)", () => {
+    // Default 0.1s lead: [1.0, 3.0] becomes [0.9, 2.9].
     const phrases = segmentTextToPhrases("Hello world this is a test sentence.", 1.0, 3.0);
-    expect(phrases[0]!.startSec).toBeCloseTo(0.6, 2);
-    expect(phrases[phrases.length - 1]!.endSec).toBeCloseTo(2.6, 2);
+    expect(phrases[0]!.startSec).toBeCloseTo(0.9, 2);
+    expect(phrases[phrases.length - 1]!.endSec).toBeCloseTo(2.9, 2);
+  });
+
+  it("allows the caption lead to be overridden for fine-tuning", () => {
+    // leadSec = 0 gives exact alignment (no early shift).
+    const exact = segmentTextToPhrases("Hello world this is a test sentence.", 1.0, 3.0, 32, 0);
+    expect(exact[0]!.startSec).toBeCloseTo(1.0, 2);
   });
 
   it("clamps the caption lead so the first phrase never starts before the video", () => {
-    // 0.1 - 0.4 = -0.3, clamped to the 0.05 floor.
+    // 0.1 - 0.1 = 0.0, clamped to the 0.05 floor.
     const phrases = segmentTextToPhrases("Hello world.", 0.1, 2.0);
     expect(phrases[0]!.startSec).toBeCloseTo(0.05, 2);
     expect(phrases[0]!.startSec).toBeGreaterThanOrEqual(0);

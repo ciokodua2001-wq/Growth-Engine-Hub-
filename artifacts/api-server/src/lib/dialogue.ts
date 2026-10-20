@@ -136,14 +136,18 @@ export interface TimedPhrase {
  */
 /**
  * Global caption lead (seconds). Captions are shifted EARLIER by this amount so
- * the text appears at the start of the spoken phrase (reading ahead) rather than
- * lagging the audio. Transcript timestamps are estimated (Gemini transcription
- * provides no reliable word timestamps), so this small fixed lead compensates for
- * that systematic drift and can be tuned in exactly one place. It is applied
+ * the text anticipates the spoken phrase. This is the single calibration knob for
+ * audio/caption sync - tune CAPION_LEAD_SEC (server) without regenerating any
+ * transcript. Default 0.1s (100ms early); use 0 for exact alignment. Applied
  * identically in the browser preview and the FFmpeg export so the two never drift
- * apart. KEEP IN SYNC with the copy in the other package.
+ * apart. KEEP IN SYNC with the frontend (VITE_CAPION_LEAD_SEC).
  */
-const CAPION_LEAD_SEC = 0.4;
+function parseCaptionLead(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === "") return 0.1;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0.1;
+}
+const CAPION_LEAD_SEC = parseCaptionLead(process.env.CAPION_LEAD_SEC);
 const MIN_CAPTION_START_SEC = 0.05;
 
 export function segmentTextToPhrases(
