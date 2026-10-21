@@ -11,12 +11,14 @@ import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import {
   Loader2, Target, Plus, X, RefreshCw, Link2, Unlink,
   CheckCircle2, AlertCircle, Clock, Wand2, ChevronRight, ChevronLeft,
+  Send, History,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { TrialGate } from "@/components/ui/trial-gate";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { isTrialPlan, meetsMinPlanClient, isUpgradeError } from "@/lib/plan-access";
+import { PublishGoogleAdsModal, AuditHistoryModal, GoogleAdsCampaignActions, type GoogleCampaign } from "./google-ads-actions";
 
 const statusColors: Record<string, string> = {
   draft:     "bg-slate-500/15 text-slate-400 border-slate-500/20",
@@ -104,6 +106,7 @@ function GoogleAdsPanel({ projectId }: { projectId: number }) {
     onError: (err) => toast({ title: "Error", description: String(err), variant: "destructive" }),
   });
 
+  const [showPublish, setShowPublish] = useState(false);
   const [customerIdInput, setCustomerIdInput] = useState("");
   const setCustomerIdMutation = useMutation({
     mutationFn: async (cid: string) => {
@@ -211,6 +214,12 @@ function GoogleAdsPanel({ projectId }: { projectId: number }) {
         {/* Row 3: action buttons */}
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setShowPublish(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#4285F4] hover:bg-[#4285F4]/90 text-white text-xs font-bold transition-colors"
+          >
+            <Send className="h-3.5 w-3.5" /> Publish New Campaign
+          </button>
+          <button
             onClick={() => syncMutation.mutate()}
             disabled={syncMutation.isPending || !status.devTokenConfigured}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#00E676]/10 hover:bg-[#00E676]/20 border border-[#00E676]/20 text-[#00E676] text-xs font-bold transition-colors disabled:opacity-40"
@@ -226,6 +235,16 @@ function GoogleAdsPanel({ projectId }: { projectId: number }) {
             <Unlink className="h-3.5 w-3.5" /> Disconnect
           </button>
         </div>
+        {showPublish && (
+          <PublishGoogleAdsModal
+            projectId={projectId}
+            onClose={() => setShowPublish(false)}
+            onPublished={() => {
+              void queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) });
+              statusQuery.refetch();
+            }}
+          />
+        )}
         {!status.account.customerId && (
           <div className="mt-3 pt-3 border-t border-[#00E676]/10">
             <p className="text-xs text-yellow-400/80 mb-2">
@@ -740,6 +759,7 @@ export default function ProjectCampaigns() {
   const projectId = parseInt(params.projectId, 10);
   const [showModal, setShowModal] = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
   const queryClient = useQueryClient();
   const { data: campaigns, isLoading } = useListCampaigns(projectId, { query: { queryKey: getListCampaignsQueryKey(projectId), enabled: !!projectId } });
   const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
@@ -770,6 +790,12 @@ export default function ProjectCampaigns() {
           <p className="text-muted-foreground mt-1">AI-managed campaigns with autonomous optimization</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
+          <button
+            onClick={() => setShowActivity(true)}
+            className="flex items-center gap-2 bg-secondary hover:bg-secondary/70 border border-border text-foreground font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
+          >
+            <History className="h-4 w-4" /> Activity
+          </button>
           <button
             onClick={() => setShowBuilder(true)}
             className="flex items-center gap-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/20 font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
@@ -855,6 +881,14 @@ export default function ProjectCampaigns() {
                     </div>
                   </div>
                 )}
+
+                {(campaign as { source?: string }).source === "google_ads" && (
+                  <GoogleAdsCampaignActions
+                    projectId={projectId}
+                    campaign={campaign as GoogleCampaign}
+                    onChanged={() => void queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) })}
+                  />
+                )}
               </motion.div>
             ))}
           </AnimatePresence>
@@ -871,6 +905,7 @@ export default function ProjectCampaigns() {
       )}
 
       {showModal && <NewCampaignModal projectId={projectId} onClose={() => setShowModal(false)} />}
+      {showActivity && <AuditHistoryModal projectId={projectId} onClose={() => setShowActivity(false)} />}
       <AnimatePresence>
         {showBuilder && (
           canUseBuilder ? (
