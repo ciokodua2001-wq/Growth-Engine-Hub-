@@ -1,10 +1,11 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { GoogleAdsApi } from "google-ads-api";
 import { db } from "@workspace/db";
-import { connectedAdAccountsTable, campaignsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
-import { requireProjectOwnershipParam } from "../lib/authz.js";
+import { connectedAdAccountsTable, campaignsTable, adPlatformActionsTable } from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
+import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { appOrigin, oauthRedirectUri } from "../lib/appOrigin.js";
+import { dollarsToMicros, resourceId, createCampaignBudget, createCampaign, createAdGroup, createResponsiveSearchAd, updateCampaignStatus, updateCampaignBudgetAmount, queryCampaignBudgetResourceName } from "../lib/googleAdsMutations.js";
 
 const router: IRouter = Router();
 router.param("id", requireProjectOwnershipParam());
@@ -351,6 +352,212 @@ router.delete("/projects/:id/google-ads/disconnect", async (req, res): Promise<v
       eq(campaignsTable.source, "google_ads"),
     ));
   res.json({ ok: true });
+});
+
+
+// ── Mutation layer (Phase 1: create / pause / resume / budget + audit) ────────
+
+async function getGoogleAdsAccount(projectId: number) {
+  const [account] = await db.select().from(connectedAdAccountsTable)
+    .where(and(
+      eq(connectedAdAccountsTable.projectId, projectId),
+      eq(connectedAdAccountsTable.provider, "google_ads"),
+    ));
+  return account ?? null;
+}
+
+async function logAdAction(input: {
+  projectId: number;
+  customerId: string | null;
+  campaignId?: string | null;
+  actionType: string;
+  beforeState?: unknown;
+  afterState?: unknown;
+  status?: "success" | "failed";
+  errorMessage?: string | null;
+}): Promise<void> {
+  await db.insert(adPlatformActionsTable).values({
+    projectId: input.projectId,
+    platform: "google_ads",
+    customerId: input.customerId,
+    campaignId: input.campaignId ?? null,
+    actionType: input.actionType,
+    beforeState: input.beforeState != null ? JSON.stringify(input.beforeState) : null,
+    afterState: input.afterState != null ? JSON.stringify(input.afterState) : null,
+    status: input.status ?? "success",
+    errorMessage: input.errorMessage ?? null,
+  });
+}
+
+// Create a full search campaign: budget -> campaign -> ad group -> responsive search ad.
+router.post("/projects/:id/google-ads/campaigns", requireActiveSubscription, async (req, res): Promise<void> => {
+  const projectId = req.project!.id;
+  const body = req.body as {
+    name?: unknown; budgetAmount?: unknown; finalUrl?: unknown;
+    headline?: unknown; description?: unknown; status?: unknown;
+  };
+
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const budgetAmount = Number(body.budgetAmount);
+  const finalUrl = typeof body.finalUrl === "string" ? body.finalUrl.trim() : "";
+  const headline = typeof body.headline === "string" ? body.headline.trim() : "";
+  const description = typeof body.description === "string" ? body.description.trim() : "";
+  const status = body.status === "ENABLED" || body.status === "PAUSED" ? body.status : "PAUSED";
+
+  if (!name) { res.status(400).json({ error: "name is required" }); return; }
+  if (!Number.isFinite(budgetAmount) || budgetAmount <= 0) { res.status(400).json({ error: "budgetAmount must be a positive USD number" }); return; }
+  if (!finalUrl) { res.status(400).json({ error: "finalUrl is required" }); return; }
+  if (!headline) { res.status(400).json({ error: "headline is required" }); return; }
+  if (!description) { res.status(400).json({ error: "description is required" }); return; }
+
+  const account = await getGoogleAdsAccount(projectId);
+  if (!account) { res.status(404).json({ error: "Google Ads account not connected" }); return; }
+  if (!devToken()) { res.status(400).json({ error: "GOOGLE_ADS_DEVELOPER_TOKEN not configured" }); return; }
+  if (!account.refreshToken) { res.status(400).json({ error: "No refresh token - please reconnect your Google Ads account." }); return; }
+  if (!account.customerId) { res.status(400).json({ error: "No customer ID - run sync or set it manually first." }); return; }
+
+  try {
+    const customer = makeClient().Customer({ customer_id: account.customerId, refresh_token: account.refreshToken });
+
+    const budgetResourceName = await createCampaignBudget(customer, `${name} Budget`, dollarsToMicros(budgetAmount));
+    const budgetId = resourceId(budgetResourceName);
+
+    const campaignResourceName = await createCampaign(customer, { name, budgetResourceName, status });
+    const campaignId = resourceId(campaignResourceName);
+
+    const adGroupResourceName = await createAdGroup(customer, { name: `${name} Ad Group`, campaignResourceName, cpcBidMicros: 100_000 });
+    const adGroupId = resourceId(adGroupResourceName);
+
+    const adResourceName = await createResponsiveSearchAd(customer, { adGroupResourceName, headline, description, finalUrl });
+
+    await db.insert(campaignsTable).values({
+      projectId,
+      name,
+      platform: "Google Search",
+      status: status === "ENABLED" ? "active" : "paused",
+      budget: String(budgetAmount),
+      source: "google_ads",
+      externalId: campaignId ?? undefined,
+    });
+
+    await logAdAction({
+      projectId,
+      customerId: account.customerId,
+      campaignId,
+      actionType: "CAMPAIGN_CREATED",
+      afterState: { budgetResourceName, budgetId, campaignResourceName, campaignId, adGroupResourceName, adGroupId, adResourceName, status, budgetAmount },
+    });
+
+    res.json({
+      campaignId, budgetId, adGroupId, adResourceName,
+      message: `Created Google Ads campaign \"${name}\" (${status === "ENABLED" ? "enabled" : "paused"}).`,
+    });
+  } catch (err) {
+    await logAdAction({
+      projectId,
+      customerId: account.customerId,
+      actionType: "CAMPAIGN_CREATED",
+      status: "failed",
+      errorMessage: err instanceof Error ? err.message : "Campaign creation failed",
+    });
+    req.log.error({ err }, "Google Ads campaign create error");
+    res.status(500).json({ error: err instanceof Error ? err.message : "Campaign creation failed" });
+  }
+});
+
+// Pause or resume an existing campaign.
+router.post("/projects/:id/google-ads/campaigns/:campaignId/status", requireActiveSubscription, async (req, res): Promise<void> => {
+  const projectId = req.project!.id;
+  const campaignId = String(req.params.campaignId ?? "");
+  const { status } = req.body as { status?: unknown };
+  if (status !== "ENABLED" && status !== "PAUSED") { res.status(400).json({ error: "status must be ENABLED or PAUSED" }); return; }
+
+  const account = await getGoogleAdsAccount(projectId);
+  if (!account?.refreshToken || !account.customerId) { res.status(400).json({ error: "Google Ads account not connected" }); return; }
+
+  try {
+    const customer = makeClient().Customer({ customer_id: account.customerId, refresh_token: account.refreshToken });
+    await updateCampaignStatus(customer, account.customerId, campaignId, status);
+
+    await db.update(campaignsTable)
+      .set({ status: status === "ENABLED" ? "active" : "paused" })
+      .where(and(eq(campaignsTable.projectId, projectId), eq(campaignsTable.source, "google_ads"), eq(campaignsTable.externalId, campaignId)));
+
+    await logAdAction({
+      projectId,
+      customerId: account.customerId,
+      campaignId,
+      actionType: status === "ENABLED" ? "CAMPAIGN_RESUMED" : "CAMPAIGN_PAUSED",
+      beforeState: { status: status === "ENABLED" ? "PAUSED" : "ENABLED" },
+      afterState: { status },
+    });
+
+    res.json({ ok: true, campaignId, status });
+  } catch (err) {
+    await logAdAction({
+      projectId, customerId: account.customerId, campaignId,
+      actionType: "CAMPAIGN_STATUS_UPDATED",
+      status: "failed",
+      errorMessage: err instanceof Error ? err.message : "Status update failed",
+    });
+    req.log.error({ err }, "Google Ads campaign status update error");
+    res.status(500).json({ error: err instanceof Error ? err.message : "Status update failed" });
+  }
+});
+
+// Change a campaign's daily budget.
+router.patch("/projects/:id/google-ads/campaigns/:campaignId/budget", requireActiveSubscription, async (req, res): Promise<void> => {
+  const projectId = req.project!.id;
+  const campaignId = String(req.params.campaignId ?? "");
+  const { budgetAmount } = req.body as { budgetAmount?: unknown };
+  const amount = Number(budgetAmount);
+  if (!Number.isFinite(amount) || amount <= 0) { res.status(400).json({ error: "budgetAmount must be a positive USD number" }); return; }
+
+  const account = await getGoogleAdsAccount(projectId);
+  if (!account?.refreshToken || !account.customerId) { res.status(400).json({ error: "Google Ads account not connected" }); return; }
+
+  try {
+    const customer = makeClient().Customer({ customer_id: account.customerId, refresh_token: account.refreshToken });
+    const budgetResourceName = await queryCampaignBudgetResourceName(customer, campaignId);
+    if (!budgetResourceName) { res.status(404).json({ error: "Campaign budget not found for this campaign" }); return; }
+
+    const newMicros = dollarsToMicros(amount);
+    await updateCampaignBudgetAmount(customer, budgetResourceName, newMicros);
+
+    await db.update(campaignsTable)
+      .set({ budget: String(amount) })
+      .where(and(eq(campaignsTable.projectId, projectId), eq(campaignsTable.source, "google_ads"), eq(campaignsTable.externalId, campaignId)));
+
+    await logAdAction({
+      projectId,
+      customerId: account.customerId,
+      campaignId,
+      actionType: "BUDGET_UPDATED",
+      beforeState: { budgetResourceName },
+      afterState: { budgetResourceName, amountMicros: newMicros, budgetAmount: amount },
+    });
+
+    res.json({ ok: true, campaignId, budgetAmount: amount });
+  } catch (err) {
+    await logAdAction({
+      projectId, customerId: account.customerId, campaignId,
+      actionType: "BUDGET_UPDATED",
+      status: "failed",
+      errorMessage: err instanceof Error ? err.message : "Budget update failed",
+    });
+    req.log.error({ err }, "Google Ads campaign budget update error");
+    res.status(500).json({ error: err instanceof Error ? err.message : "Budget update failed" });
+  }
+});
+
+// Immutable audit trail of every platform mutation.
+router.get("/projects/:id/google-ads/actions", async (req, res): Promise<void> => {
+  const projectId = req.project!.id;
+  const actions = await db.select().from(adPlatformActionsTable)
+    .where(and(eq(adPlatformActionsTable.projectId, projectId), eq(adPlatformActionsTable.platform, "google_ads")))
+    .orderBy(desc(adPlatformActionsTable.createdAt))
+    .limit(200);
+  res.json({ actions });
 });
 
 export default router;
