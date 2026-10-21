@@ -42,6 +42,7 @@ import {
   queryCampaignBudgetResourceName,
   dollarsToMicros,
 } from "./googleAdsMutations.js";
+import { syncGoogleMetrics, syncMetaMetrics } from "./adMetricsSync.js";
 
 export type AutonomousAction =
   | "NOOP"
@@ -373,6 +374,29 @@ export async function runAutonomousCycle(): Promise<void> {
   const mode = process.env.AUTONOMOUS_OPTIMIZER_MODE ?? "observe";
   const applyEnabled = mode === "act";
   const guardrails = readGuardrails();
+
+  // Sync fresh metrics for every connected provider of autonomous projects,
+  // so decisions reflect current performance (best-effort, non-fatal).
+  const accounts = await db
+    .select({
+      projectId: connectedAdAccountsTable.projectId,
+      provider: connectedAdAccountsTable.provider,
+    })
+    .from(connectedAdAccountsTable)
+    .innerJoin(projectsTable, eq(connectedAdAccountsTable.projectId, projectsTable.id))
+    .where(eq(projectsTable.autonomousMode, true));
+
+  for (const a of accounts) {
+    try {
+      if (a.provider === "google_ads") await syncGoogleMetrics(a.projectId);
+      else if (a.provider === "meta") await syncMetaMetrics(a.projectId);
+    } catch (err) {
+      logger.warn(
+        { err, projectId: a.projectId, provider: a.provider },
+        "Autonomous optimizer: metrics sync failed (skipping)",
+      );
+    }
+  }
 
   const rows = await db
     .select({

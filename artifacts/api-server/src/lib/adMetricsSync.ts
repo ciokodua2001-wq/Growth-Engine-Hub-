@@ -1,0 +1,285 @@
+/**
+ * Reusable ad-platform metrics sync.
+ *
+ * Extracts the "read performance into the campaigns table" logic that used to
+ * live inline in the google-ads and meta-ads routes, so the autonomous
+ * optimizer can call the SAME code each cycle (and the routes stay thin).
+ *
+ * Both functions upsert campaigns (by projectId + source + externalId) and
+ * stamp connected_ad_accounts.last_sync_at. They throw a descriptive Error on
+ * failure; callers decide how to surface it (HTTP response vs. log-and-skip).
+ */
+
+import { and, eq } from "drizzle-orm";
+import { GoogleAdsApi } from "google-ads-api";
+import { db, connectedAdAccountsTable, campaignsTable } from "@workspace/db";
+
+const META_GRAPH = "https://graph.facebook.com/v20.0";
+
+// ── Google Ads ─────────────────────────────────────────────────────────────────
+
+function googleAdsClient(): GoogleAdsApi {
+  return new GoogleAdsApi({
+    client_id: process.env.GOOGLE_ADS_CLIENT_ID ?? "",
+    client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET ?? "",
+    developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "",
+  });
+}
+
+async function listAccessibleCustomers(refreshToken: string): Promise<string[]> {
+  const result = await googleAdsClient().listAccessibleCustomers(refreshToken);
+  return (result.resource_names ?? []).map((n: string) => n.replace("customers/", ""));
+}
+
+/** Sync Google Ads campaign metrics for a project. Returns number synced. */
+export async function syncGoogleMetrics(projectId: number): Promise<number> {
+  const [account] = await db
+    .select()
+    .from(connectedAdAccountsTable)
+    .where(
+      and(
+        eq(connectedAdAccountsTable.projectId, projectId),
+        eq(connectedAdAccountsTable.provider, "google_ads"),
+      ),
+    );
+
+  if (!account) throw new Error("Google Ads account not connected");
+  if (!process.env.GOOGLE_ADS_DEVELOPER_TOKEN) {
+    throw new Error("GOOGLE_ADS_DEVELOPER_TOKEN not configured");
+  }
+  if (!account.refreshToken) {
+    throw new Error("No refresh token — please reconnect your Google Ads account.");
+  }
+
+  // Auto-discover customer ID if missing.
+  if (!account.customerId) {
+    const customers = await listAccessibleCustomers(account.refreshToken);
+    if (customers.length === 0) {
+      throw new Error("No accessible Google Ads accounts found. Enter your Customer ID manually.");
+    }
+    account.customerId = customers[0]!;
+    await db
+      .update(connectedAdAccountsTable)
+      .set({ customerId: account.customerId })
+      .where(eq(connectedAdAccountsTable.id, account.id));
+  }
+
+  const customer = googleAdsClient().Customer({
+    customer_id: account.customerId,
+    refresh_token: account.refreshToken,
+  });
+
+  const results = await customer.query(`
+    SELECT
+      campaign.id,
+      campaign.name,
+      campaign.status,
+      campaign.advertising_channel_type,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.conversions,
+      metrics.cost_micros,
+      metrics.ctr,
+      metrics.average_cpc
+    FROM campaign
+    WHERE segments.date DURING LAST_30_DAYS
+      AND campaign.status != REMOVED
+    ORDER BY metrics.impressions DESC
+    LIMIT 50
+  `);
+
+  const statusMap: Record<string, string> = {
+    ENABLED: "active",
+    PAUSED: "paused",
+    REMOVED: "completed",
+  };
+
+  let synced = 0;
+  for (const row of results) {
+    const c = row.campaign;
+    const m = row.metrics;
+
+    const costMicros = Number(m?.cost_micros ?? 0);
+    const clicks = Number(m?.clicks ?? 0);
+    const impressions = Number(m?.impressions ?? 0);
+    const conversions = Number(m?.conversions ?? 0);
+    const spent = costMicros / 1_000_000;
+    const ctr = Number(m?.ctr ?? 0) * 100;
+    const cpc = Number(m?.average_cpc ?? 0) / 1_000_000;
+    const roas = spent > 0 ? (conversions * 50) / spent : null;
+
+    const channelType = String(c?.advertising_channel_type ?? "");
+    const platform =
+      channelType === "SEARCH" ? "Google Search" :
+      channelType === "DISPLAY" ? "Google Display" :
+      channelType === "VIDEO" ? "YouTube" :
+      "Google";
+
+    const externalId = String(c?.id ?? "");
+    const campaignData = {
+      projectId,
+      source: "google_ads",
+      externalId,
+      name: String(c?.name ?? "Unknown Campaign"),
+      platform,
+      status: statusMap[String(c?.status ?? "")] ?? "draft",
+      spent: spent.toFixed(2),
+      impressions: Math.round(impressions),
+      clicks: Math.round(clicks),
+      conversions: Math.round(conversions),
+      ctr: ctr.toFixed(4),
+      cpc: cpc.toFixed(2),
+      roas: roas ? roas.toFixed(2) : null,
+    };
+
+    const [existing] = await db
+      .select({ id: campaignsTable.id })
+      .from(campaignsTable)
+      .where(
+        and(
+          eq(campaignsTable.projectId, projectId),
+          eq(campaignsTable.source, "google_ads"),
+          eq(campaignsTable.externalId, externalId),
+        ),
+      );
+
+    if (existing) {
+      await db.update(campaignsTable).set(campaignData).where(eq(campaignsTable.id, existing.id));
+    } else {
+      await db.insert(campaignsTable).values(campaignData);
+    }
+    synced++;
+  }
+
+  await db
+    .update(connectedAdAccountsTable)
+    .set({ lastSyncAt: new Date() })
+    .where(eq(connectedAdAccountsTable.id, account.id));
+
+  return synced;
+}
+
+// ── Meta Ads ───────────────────────────────────────────────────────────────────
+
+/** Sync Meta Ads campaign metrics for a project. Returns number synced. */
+export async function syncMetaMetrics(projectId: number): Promise<number> {
+  const [account] = await db
+    .select()
+    .from(connectedAdAccountsTable)
+    .where(
+      and(
+        eq(connectedAdAccountsTable.projectId, projectId),
+        eq(connectedAdAccountsTable.provider, "meta"),
+      ),
+    );
+
+  if (!account) throw new Error("Meta account not connected");
+  if (!account.customerId) throw new Error("No Meta ad account found. Re-connect your account.");
+
+  const token = account.accessToken;
+
+  // Campaign-level insights for the last 30 days.
+  const insightsUrl = new URL(`${META_GRAPH}/${account.customerId}/insights`);
+  insightsUrl.searchParams.set("level", "campaign");
+  insightsUrl.searchParams.set("fields", "campaign_id,campaign_name,impressions,clicks,spend,ctr,cpc,actions");
+  insightsUrl.searchParams.set("date_preset", "last_30_days");
+  insightsUrl.searchParams.set("limit", "50");
+  insightsUrl.searchParams.set("access_token", token);
+
+  const insightsRes = await fetch(insightsUrl.toString(), { signal: AbortSignal.timeout(20_000) });
+  if (!insightsRes.ok) throw new Error(`Insights fetch failed: ${await insightsRes.text()}`);
+  const insightsData = (await insightsRes.json()) as {
+    data?: Array<{
+      campaign_id: string;
+      campaign_name: string;
+      impressions: string;
+      clicks: string;
+      spend: string;
+      ctr: string;
+      cpc: string;
+      actions?: Array<{ action_type: string; value: string }>;
+    }>;
+  };
+
+  // Campaign statuses (insights only covers active campaigns).
+  const campaignsUrl = new URL(`${META_GRAPH}/${account.customerId}/campaigns`);
+  campaignsUrl.searchParams.set("fields", "id,name,status,objective");
+  campaignsUrl.searchParams.set("limit", "50");
+  campaignsUrl.searchParams.set("access_token", token);
+
+  const campaignsRes = await fetch(campaignsUrl.toString(), { signal: AbortSignal.timeout(20_000) });
+  const campaignsData = (await campaignsRes.json()) as {
+    data?: Array<{ id: string; name: string; status: string; objective?: string }>;
+  };
+
+  const statusMap: Record<string, string> = {
+    ACTIVE: "active",
+    PAUSED: "paused",
+    ARCHIVED: "completed",
+    DELETED: "completed",
+  };
+
+  const campaignStatuses: Record<string, string> = {};
+  for (const c of campaignsData.data ?? []) {
+    campaignStatuses[c.id] = statusMap[c.status] ?? "draft";
+  }
+
+  const insights = insightsData.data ?? [];
+  let synced = 0;
+
+  for (const insight of insights) {
+    const spend = parseFloat(insight.spend ?? "0");
+    const clicks = parseInt(insight.clicks ?? "0", 10);
+    const impressions = parseInt(insight.impressions ?? "0", 10);
+    const ctr = parseFloat(insight.ctr ?? "0");
+    const cpc = parseFloat(insight.cpc ?? "0");
+
+    const purchases = insight.actions?.find(
+      (a) => a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase",
+    );
+    const conversions = purchases ? parseFloat(purchases.value) : 0;
+    const roas = spend > 0 && conversions > 0 ? (conversions * 50) / spend : null;
+
+    const externalId = insight.campaign_id;
+    const campaignData = {
+      projectId,
+      source: "meta",
+      externalId,
+      name: insight.campaign_name,
+      platform: "Meta",
+      status: campaignStatuses[externalId] ?? "active",
+      spent: spend.toFixed(2),
+      impressions,
+      clicks,
+      conversions: Math.floor(conversions),
+      ctr: ctr.toFixed(4),
+      cpc: cpc.toFixed(2),
+      roas: roas ? roas.toFixed(2) : null,
+    };
+
+    const [existing] = await db
+      .select({ id: campaignsTable.id })
+      .from(campaignsTable)
+      .where(
+        and(
+          eq(campaignsTable.projectId, projectId),
+          eq(campaignsTable.source, "meta"),
+          eq(campaignsTable.externalId, externalId),
+        ),
+      );
+
+    if (existing) {
+      await db.update(campaignsTable).set(campaignData).where(eq(campaignsTable.id, existing.id));
+    } else {
+      await db.insert(campaignsTable).values(campaignData);
+    }
+    synced++;
+  }
+
+  await db
+    .update(connectedAdAccountsTable)
+    .set({ lastSyncAt: new Date() })
+    .where(eq(connectedAdAccountsTable.id, account.id));
+
+  return synced;
+}

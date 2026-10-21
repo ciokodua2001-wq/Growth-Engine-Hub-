@@ -6,6 +6,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { appOrigin, oauthRedirectUri } from "../lib/appOrigin.js";
 import { dollarsToMicros, resourceId, createCampaignBudget, createCampaign, createAdGroup, createResponsiveSearchAd, updateCampaignStatus, updateCampaignBudgetAmount, queryCampaignBudgetResourceName } from "../lib/googleAdsMutations.js";
+import { syncGoogleMetrics } from "../lib/adMetricsSync.js";
 
 const router: IRouter = Router();
 router.param("id", requireProjectOwnershipParam());
@@ -39,35 +40,6 @@ async function listAccessibleCustomersViaSDK(refreshToken: string): Promise<stri
   const client = makeClient();
   const result = await client.listAccessibleCustomers(refreshToken);
   return (result.resource_names ?? []).map((n: string) => n.replace("customers/", ""));
-}
-
-async function fetchCampaignsViaSDK(refreshToken: string, customerId: string) {
-  const client = makeClient();
-  const customer = client.Customer({
-    customer_id: customerId,
-    refresh_token: refreshToken,
-  });
-
-  const results = await customer.query(`
-    SELECT
-      campaign.id,
-      campaign.name,
-      campaign.status,
-      campaign.advertising_channel_type,
-      metrics.impressions,
-      metrics.clicks,
-      metrics.conversions,
-      metrics.cost_micros,
-      metrics.ctr,
-      metrics.average_cpc
-    FROM campaign
-    WHERE segments.date DURING LAST_30_DAYS
-      AND campaign.status != 'REMOVED'
-    ORDER BY metrics.impressions DESC
-    LIMIT 50
-  `);
-
-  return results;
 }
 
 // ── Status ─────────────────────────────────────────────────────────────────────
@@ -242,97 +214,17 @@ router.get("/auth/google-ads/callback", async (req: Request, res: Response): Pro
 
 router.post("/projects/:id/google-ads/sync", async (req, res): Promise<void> => {
   const projectId = req.project!.id;
-
-  const [account] = await db.select().from(connectedAdAccountsTable)
-    .where(and(
-      eq(connectedAdAccountsTable.projectId, projectId),
-      eq(connectedAdAccountsTable.provider, "google_ads"),
-    ));
-
-  if (!account) { res.status(404).json({ error: "Google Ads account not connected" }); return; }
-  if (!devToken()) { res.status(400).json({ error: "GOOGLE_ADS_DEVELOPER_TOKEN not configured" }); return; }
-  if (!account.refreshToken) { res.status(400).json({ error: "No refresh token — please reconnect your Google Ads account." }); return; }
-
   try {
-    // Auto-discover customer ID if missing
-    if (!account.customerId) {
-      const customers = await listAccessibleCustomersViaSDK(account.refreshToken);
-      if (customers.length === 0) {
-        res.status(400).json({ error: "No accessible Google Ads accounts found. Enter your Customer ID manually." });
-        return;
-      }
-      account.customerId = customers[0]!;
-      await db.update(connectedAdAccountsTable)
-        .set({ customerId: account.customerId })
-        .where(eq(connectedAdAccountsTable.id, account.id));
-    }
-
-    const results = await fetchCampaignsViaSDK(account.refreshToken, account.customerId);
-
-    const statusMap: Record<string, string> = {
-      ENABLED: "active", PAUSED: "paused", REMOVED: "completed",
-    };
-
-    let synced = 0;
-    for (const row of results) {
-      const c = row.campaign;
-      const m = row.metrics;
-
-      const costMicros  = Number(m?.cost_micros   ?? 0);
-      const clicks      = Number(m?.clicks         ?? 0);
-      const impressions = Number(m?.impressions     ?? 0);
-      const conversions = Number(m?.conversions     ?? 0);
-      const spent       = costMicros / 1_000_000;
-      const ctr         = Number(m?.ctr            ?? 0) * 100;
-      const cpc         = Number(m?.average_cpc    ?? 0) / 1_000_000;
-      const roas        = spent > 0 ? (conversions * 50) / spent : null;
-
-      const channelType = String(c?.advertising_channel_type ?? "");
-      const platform = channelType === "SEARCH"  ? "Google Search"
-                     : channelType === "DISPLAY" ? "Google Display"
-                     : channelType === "VIDEO"   ? "YouTube"
-                     : "Google";
-
-      const campaignData = {
-        projectId,
-        source: "google_ads",
-        externalId: String(c?.id ?? ""),
-        name: String(c?.name ?? "Unknown Campaign"),
-        platform,
-        status: statusMap[String(c?.status ?? "")] ?? "draft",
-        spent: spent.toFixed(2),
-        impressions: Math.round(impressions),
-        clicks: Math.round(clicks),
-        conversions: Math.round(conversions),
-        ctr: ctr.toFixed(4),
-        cpc: cpc.toFixed(2),
-        roas: roas ? roas.toFixed(2) : null,
-      };
-
-      const [existing] = await db.select({ id: campaignsTable.id })
-        .from(campaignsTable)
-        .where(and(
-          eq(campaignsTable.projectId, projectId),
-          eq(campaignsTable.source, "google_ads"),
-          eq(campaignsTable.externalId, campaignData.externalId),
-        ));
-
-      if (existing) {
-        await db.update(campaignsTable).set(campaignData).where(eq(campaignsTable.id, existing.id));
-      } else {
-        await db.insert(campaignsTable).values(campaignData);
-      }
-      synced++;
-    }
-
-    await db.update(connectedAdAccountsTable)
-      .set({ lastSyncAt: new Date() })
-      .where(eq(connectedAdAccountsTable.id, account.id));
-
+    const synced = await syncGoogleMetrics(projectId);
     res.json({ synced, message: `Synced ${synced} campaign${synced !== 1 ? "s" : ""} from Google Ads` });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : "Sync failed";
+    const status =
+      msg.includes("not connected") ? 404 :
+      msg.includes("DEVELOPER_TOKEN") || msg.includes("refresh token") || msg.includes("accessible") ? 400 :
+      500;
     req.log.error({ err }, "Google Ads sync error");
-    res.status(500).json({ error: err instanceof Error ? err.message : "Sync failed" });
+    res.status(status).json({ error: msg });
   }
 });
 
