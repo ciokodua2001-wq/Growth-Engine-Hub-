@@ -443,14 +443,11 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
           <div className="p-2 rounded-lg bg-[#1877F2]/10 shrink-0"><MetaIcon /></div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm">Meta Ads</p>
-            <p className="text-xs text-muted-foreground">Connect your account to publish live campaigns or run dry-run validation tests</p>
+            <p className="text-xs text-muted-foreground">Validate and publish Facebook & Instagram campaigns</p>
           </div>
-          <span className="flex items-center gap-1.5 text-xs text-yellow-400 font-medium shrink-0">
-            <Clock className="h-3.5 w-3.5" /> Setup pending
-          </span>
         </div>
         <p className="text-xs text-muted-foreground mb-3">
-          Add <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">META_APP_ID</code> and <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">META_APP_SECRET</code> to the server <code className="bg-secondary px-1 py-0.5 rounded">.env</code>, register the OAuth redirect URI, then restart the API. You can still run a dry-run validation below.
+          Live publishing is being finalized. You can still run a dry-run to validate your campaign structure, character limits, and budget.
         </p>
         <button
           onClick={() => setShowPublish(true)}
