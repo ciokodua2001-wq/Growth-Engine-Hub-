@@ -122,8 +122,12 @@ export async function createMetaLinkAd(
     body: params.toString(),
     signal: AbortSignal.timeout(20_000),
   });
-  const data = await r.json() as { id?: string; error?: { message: string } };
-  if (!r.ok || !data.id) throw new Error(data.error?.message ?? "Meta did not return an ad id");
+  const data = await r.json() as { id?: string; error?: { message: string; error_user_msg?: string; error_user_title?: string; error_subcode?: number } };
+  if (!r.ok || !data.id) {
+    console.error("Meta createMetaLinkAd error payload:", JSON.stringify(data));
+    const msg = data.error?.error_user_msg || data.error?.error_user_title || data.error?.message || "Meta did not return an ad id";
+    throw new Error(msg);
+  }
   return data.id;
 }
 
