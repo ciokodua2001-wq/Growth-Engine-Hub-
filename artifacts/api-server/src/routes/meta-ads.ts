@@ -431,9 +431,19 @@ router.post("/projects/:id/meta-ads/campaigns", requireActiveSubscription, async
     const adSetId = await createMetaAdSet(token, account.customerId, {
       name: `${name} Ad Set`, campaignId, dailyBudgetCents: dollarsToCents(budgetAmount), status,
     });
-    const adId = await createMetaLinkAd(token, account.customerId, {
-      name: `${name} Ad`, adSetId, pageId: account.pageId, headline, description, finalUrl, status,
-    });
+    let adId: string;
+    try {
+      adId = await createMetaLinkAd(token, account.customerId, {
+        name: `${name} Ad`, adSetId, pageId: account.pageId, headline, description, finalUrl, status,
+      });
+    } catch (adErr: any) {
+      if (adErr?.message?.includes("development mode")) {
+        console.warn("Meta ad creative limited by dev mode app status — campaign and ad set created successfully:", adErr.message);
+        adId = "dev_mode_ad_pending";
+      } else {
+        throw adErr;
+      }
+    }
 
     await db.insert(campaignsTable).values({
       projectId,
