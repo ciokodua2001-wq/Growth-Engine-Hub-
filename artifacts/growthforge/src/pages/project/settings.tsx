@@ -1,4 +1,4 @@
-import { useParams } from "wouter";
+import { useParams, Link } from "wouter";
 import {
   useGetProject,
   useUpdateProject,
@@ -274,6 +274,11 @@ export default function ProjectSettings() {
               <Zap className="h-3.5 w-3.5" /> Autonomous mode is active — AI will run daily marketing tasks automatically
             </div>
           )}
+          <div className="mt-3">
+            <Link href={`/projects/${projectId}/campaigns`} className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors">
+              <Bot className="h-3 w-3" /> View autonomous activity
+            </Link>
+          </div>
           <div className="flex justify-end mt-5">
             <button
               onClick={handleSave}

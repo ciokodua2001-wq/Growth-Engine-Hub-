@@ -3,7 +3,7 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import PDFDocument from "pdfkit";
 import { PassThrough } from "stream";
-import { campaignsTable, assetsTable, reportsTable, agentMessagesTable, activityTable, competitorsTable, socialPostsTable, emailCampaignsTable, adCreativesTable, videosTable, projectsTable, contentTable, connectedAdAccountsTable } from "@workspace/db";
+import { campaignsTable, assetsTable, reportsTable, agentMessagesTable, activityTable, competitorsTable, socialPostsTable, emailCampaignsTable, adCreativesTable, videosTable, projectsTable, contentTable, connectedAdAccountsTable, adPlatformActionsTable } from "@workspace/db";
 import { consumeQuota, meetsMinPlan, type PlanFeature } from "../lib/planLimits.js";
 import { TRIAL_MAX_VIDEO_BATCH } from "../lib/trialLimits.js";
 import { generateJson, generateJsonFast } from "../lib/aiJson.js";
@@ -53,6 +53,19 @@ router.get("/projects/:id/campaigns", async (req, res): Promise<void> => {
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
   })));
+});
+
+// Autonomous optimizer decisions (recommendations + applied actions, cross-platform).
+router.get("/projects/:id/autonomous/decisions", async (req, res): Promise<void> => {
+  const projectId = req.project!.id;
+  const decisions = await db.select().from(adPlatformActionsTable)
+    .where(and(
+      eq(adPlatformActionsTable.projectId, projectId),
+      sql`${adPlatformActionsTable.actionType} LIKE ${"AUTONOMOUS_%"}`
+    ))
+    .orderBy(desc(adPlatformActionsTable.createdAt))
+    .limit(100);
+  res.json({ decisions: decisions.map(d => ({ ...d, createdAt: d.createdAt.toISOString() })) });
 });
 
 router.post("/projects/:id/campaigns", requireActiveSubscription, async (req, res): Promise<void> => {

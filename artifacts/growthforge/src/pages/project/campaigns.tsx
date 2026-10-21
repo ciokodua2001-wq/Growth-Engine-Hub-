@@ -1,4 +1,4 @@
-import { useParams, useSearch } from "wouter";
+import { useParams, useSearch, Link } from "wouter";
 import {
   useListCampaigns,
   useCreateCampaign,
@@ -11,7 +11,7 @@ import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import {
   Loader2, Target, Plus, X, RefreshCw, Link2, Unlink,
   CheckCircle2, AlertCircle, Clock, Wand2, ChevronRight, ChevronLeft,
-  Send, History,
+  Send, History, Bot,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
@@ -837,6 +837,103 @@ function AICampaignBuilderModal({ projectId, onClose, onBuilt }: { projectId: nu
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 
+interface AutonomousDecision {
+  id: number;
+  platform: string;
+  campaignId: string | null;
+  actionType: string;
+  beforeState: string | null;
+  afterState: string | null;
+  status: string;
+  createdAt: string;
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  INCREASE_BUDGET: "Budget up",
+  DECREASE_BUDGET: "Budget down",
+  PAUSE: "Pause",
+  NOOP: "No action",
+};
+
+const ACTION_COLORS: Record<string, string> = {
+  INCREASE_BUDGET: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  DECREASE_BUDGET: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  PAUSE: "bg-red-500/10 text-red-400 border-red-500/20",
+  NOOP: "bg-slate-500/10 text-slate-400 border-slate-500/20",
+};
+
+function parseDecision(d: AutonomousDecision) {
+  const isRecommendation = d.actionType === "AUTONOMOUS_EVALUATION";
+  let action = d.actionType.replace("AUTONOMOUS_", "");
+  let reason = "";
+  let budget: string | number | null = null;
+  try {
+    const after = JSON.parse(d.afterState ?? "{}");
+    if (after.action) action = after.action;
+    if (after.reason) reason = after.reason;
+    if (after.budget != null) budget = after.budget;
+  } catch { /* malformed JSON — keep defaults */ }
+  return { action, reason, budget, isRecommendation };
+}
+
+function AutonomousDecisionsPanel({ projectId }: { projectId: number }) {
+  const { data, isLoading } = useQuery<{ decisions: AutonomousDecision[] }>({
+    queryKey: ["autonomous-decisions", projectId],
+    queryFn: async () => {
+      const r = await fetch(`/api/projects/${projectId}/autonomous/decisions`, { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load autonomous decisions");
+      return r.json();
+    },
+    refetchOnWindowFocus: false,
+  });
+
+  const decisions = data?.decisions ?? [];
+
+  return (
+    <div className="p-5 rounded-xl bg-card border border-border mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-bold flex items-center gap-2">
+          <Bot className="h-4 w-4 text-primary" /> Autonomous Optimizer
+        </h2>
+        <Link href={`/projects/${projectId}/settings`} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+          Configure
+        </Link>
+      </div>
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+      ) : decisions.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No autonomous decisions yet. Enable Autonomous Mode in Settings and mark a connected campaign for optimization to see recommendations here.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {decisions.slice(0, 8).map((d) => {
+            const { action, reason, budget, isRecommendation } = parseDecision(d);
+            const label = (isRecommendation ? "Rec: " : "") + (ACTION_LABELS[action] ?? action);
+            const color = ACTION_COLORS[action] ?? "bg-slate-500/10 text-slate-400 border-slate-500/20";
+            return (
+              <li key={d.id} className="flex items-start justify-between gap-3 text-sm border border-border rounded-lg px-3 py-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${color}`}>{label}</span>
+                    <span className="text-[10px] uppercase text-muted-foreground">{d.platform}</span>
+                    {d.status === "failed" && <span className="text-[10px] font-bold text-red-400">failed</span>}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 truncate">{reason || d.actionType}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  {budget != null && <div className="text-sm font-bold">${Number(budget).toFixed(2)}</div>}
+                  <div className="text-[10px] text-muted-foreground">{new Date(d.createdAt).toLocaleString()}</div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function ProjectCampaigns() {
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
@@ -893,6 +990,8 @@ export default function ProjectCampaigns() {
           </button>
         </div>
       </div>
+
+      <AutonomousDecisionsPanel projectId={projectId} />
 
       <GoogleAdsPanel projectId={projectId} />
       <MetaAdsPanel projectId={projectId} />
