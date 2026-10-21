@@ -75,6 +75,7 @@ export async function syncGoogleMetrics(projectId: number): Promise<number> {
       campaign.name,
       campaign.status,
       campaign.advertising_channel_type,
+      campaign_budget.amount_micros,
       metrics.impressions,
       metrics.clicks,
       metrics.conversions,
@@ -116,7 +117,9 @@ export async function syncGoogleMetrics(projectId: number): Promise<number> {
       "Google";
 
     const externalId = String(c?.id ?? "");
-    const campaignData = {
+    const budgetMicros = Number(row.campaign_budget?.amount_micros ?? 0);
+    const budgetAmount = budgetMicros > 0 ? budgetMicros / 1_000_000 : null;
+    const base = {
       projectId,
       source: "google_ads",
       externalId,
@@ -131,6 +134,7 @@ export async function syncGoogleMetrics(projectId: number): Promise<number> {
       cpc: cpc.toFixed(2),
       roas: roas ? roas.toFixed(2) : null,
     };
+    const campaignData = budgetAmount != null ? { ...base, budget: budgetAmount.toFixed(2) } : base;
 
     const [existing] = await db
       .select({ id: campaignsTable.id })
@@ -224,6 +228,24 @@ export async function syncMetaMetrics(projectId: number): Promise<number> {
     campaignStatuses[c.id] = statusMap[c.status] ?? "draft";
   }
 
+  // Campaign budgets live on ad sets; aggregate daily_budget (cents) per campaign.
+  const adsetsUrl = new URL(`${META_GRAPH}/${account.customerId}/adsets`);
+  adsetsUrl.searchParams.set("fields", "campaign_id,daily_budget,status");
+  adsetsUrl.searchParams.set("limit", "500");
+  adsetsUrl.searchParams.set("access_token", token);
+  const adsetsRes = await fetch(adsetsUrl.toString(), { signal: AbortSignal.timeout(20_000) });
+  const adsetsData = (await adsetsRes.json()) as {
+    data?: Array<{ campaign_id: string; daily_budget?: string; status?: string }>;
+  };
+  const budgetCentsByCampaign: Record<string, number> = {};
+  for (const a of adsetsData.data ?? []) {
+    if (a.status === "DELETED") continue;
+    const cents = parseFloat(a.daily_budget ?? "0");
+    if (Number.isFinite(cents) && cents > 0) {
+      budgetCentsByCampaign[a.campaign_id] = (budgetCentsByCampaign[a.campaign_id] ?? 0) + cents;
+    }
+  }
+
   const insights = insightsData.data ?? [];
   let synced = 0;
 
@@ -241,7 +263,9 @@ export async function syncMetaMetrics(projectId: number): Promise<number> {
     const roas = spend > 0 && conversions > 0 ? (conversions * 50) / spend : null;
 
     const externalId = insight.campaign_id;
-    const campaignData = {
+    const budgetCents = budgetCentsByCampaign[externalId] ?? 0;
+    const budgetAmount = budgetCents > 0 ? budgetCents / 100 : null;
+    const base = {
       projectId,
       source: "meta",
       externalId,
@@ -256,6 +280,7 @@ export async function syncMetaMetrics(projectId: number): Promise<number> {
       cpc: cpc.toFixed(2),
       roas: roas ? roas.toFixed(2) : null,
     };
+    const campaignData = budgetAmount != null ? { ...base, budget: budgetAmount.toFixed(2) } : base;
 
     const [existing] = await db
       .select({ id: campaignsTable.id })
