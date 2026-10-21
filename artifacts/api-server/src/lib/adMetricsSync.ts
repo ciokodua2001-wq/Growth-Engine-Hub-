@@ -5,9 +5,12 @@
  * live inline in the google-ads and meta-ads routes, so the autonomous
  * optimizer can call the SAME code each cycle (and the routes stay thin).
  *
- * Both functions upsert campaigns (by projectId + source + externalId) and
- * stamp connected_ad_accounts.last_sync_at. They throw a descriptive Error on
- * failure; callers decide how to surface it (HTTP response vs. log-and-skip).
+ * Both functions now import the FULL campaign inventory (active + paused +
+ * completed) so the optimizer has visibility into the complete campaign
+ * universe, while preserving recent (30-day) performance metrics only for
+ * campaigns that have actually been spending. Both upsert by
+ * (projectId + source + externalId) and stamp last_sync_at. They throw a
+ * descriptive Error on failure; callers decide how to surface it.
  */
 
 import { and, eq } from "drizzle-orm";
@@ -31,7 +34,7 @@ async function listAccessibleCustomers(refreshToken: string): Promise<string[]> 
   return (result.resource_names ?? []).map((n: string) => n.replace("customers/", ""));
 }
 
-/** Sync Google Ads campaign metrics for a project. Returns number synced. */
+/** Sync Google Ads campaign inventory + metrics for a project. Returns number synced. */
 export async function syncGoogleMetrics(projectId: number): Promise<number> {
   const [account] = await db
     .select()
@@ -69,13 +72,24 @@ export async function syncGoogleMetrics(projectId: number): Promise<number> {
     refresh_token: account.refreshToken,
   });
 
-  const results = await customer.query(`
+  // Full inventory: every non-removed campaign with status + daily budget.
+  const inventory = await customer.query(`
     SELECT
       campaign.id,
       campaign.name,
       campaign.status,
       campaign.advertising_channel_type,
-      campaign_budget.amount_micros,
+      campaign_budget.amount_micros
+    FROM campaign
+    WHERE campaign.status != REMOVED
+    ORDER BY campaign.id
+    LIMIT 500
+  `);
+
+  // Recent (30-day) performance for campaigns that have been spending.
+  const metricsRows = await customer.query(`
+    SELECT
+      campaign.id,
       metrics.impressions,
       metrics.clicks,
       metrics.conversions,
@@ -86,8 +100,13 @@ export async function syncGoogleMetrics(projectId: number): Promise<number> {
     WHERE segments.date DURING LAST_30_DAYS
       AND campaign.status != REMOVED
     ORDER BY metrics.impressions DESC
-    LIMIT 50
+    LIMIT 200
   `);
+
+  const metricsById: Record<string, any> = {};
+  for (const r of metricsRows) {
+    metricsById[String(r.campaign?.id ?? "")] = r.metrics;
+  }
 
   const statusMap: Record<string, string> = {
     ENABLED: "active",
@@ -96,9 +115,10 @@ export async function syncGoogleMetrics(projectId: number): Promise<number> {
   };
 
   let synced = 0;
-  for (const row of results) {
+  for (const row of inventory) {
     const c = row.campaign;
-    const m = row.metrics;
+    const externalId = String(c?.id ?? "");
+    const m = metricsById[externalId];
 
     const costMicros = Number(m?.cost_micros ?? 0);
     const clicks = Number(m?.clicks ?? 0);
@@ -116,7 +136,6 @@ export async function syncGoogleMetrics(projectId: number): Promise<number> {
       channelType === "VIDEO" ? "YouTube" :
       "Google";
 
-    const externalId = String(c?.id ?? "");
     const budgetMicros = Number(row.campaign_budget?.amount_micros ?? 0);
     const budgetAmount = budgetMicros > 0 ? budgetMicros / 1_000_000 : null;
     const base = {
@@ -165,7 +184,18 @@ export async function syncGoogleMetrics(projectId: number): Promise<number> {
 
 // ── Meta Ads ───────────────────────────────────────────────────────────────────
 
-/** Sync Meta Ads campaign metrics for a project. Returns number synced. */
+interface MetaInsight {
+  campaign_id: string;
+  campaign_name: string;
+  impressions: string;
+  clicks: string;
+  spend: string;
+  ctr: string;
+  cpc: string;
+  actions?: Array<{ action_type: string; value: string }>;
+}
+
+/** Sync Meta Ads campaign inventory + metrics for a project. Returns number synced. */
 export async function syncMetaMetrics(projectId: number): Promise<number> {
   const [account] = await db
     .select()
@@ -182,33 +212,22 @@ export async function syncMetaMetrics(projectId: number): Promise<number> {
 
   const token = account.accessToken;
 
-  // Campaign-level insights for the last 30 days.
+  // Campaign-level insights for the last 30 days (spending campaigns only).
   const insightsUrl = new URL(`${META_GRAPH}/${account.customerId}/insights`);
   insightsUrl.searchParams.set("level", "campaign");
   insightsUrl.searchParams.set("fields", "campaign_id,campaign_name,impressions,clicks,spend,ctr,cpc,actions");
   insightsUrl.searchParams.set("date_preset", "last_30d");
-  insightsUrl.searchParams.set("limit", "50");
+  insightsUrl.searchParams.set("limit", "500");
   insightsUrl.searchParams.set("access_token", token);
 
   const insightsRes = await fetch(insightsUrl.toString(), { signal: AbortSignal.timeout(20_000) });
   if (!insightsRes.ok) throw new Error(`Insights fetch failed: ${await insightsRes.text()}`);
-  const insightsData = (await insightsRes.json()) as {
-    data?: Array<{
-      campaign_id: string;
-      campaign_name: string;
-      impressions: string;
-      clicks: string;
-      spend: string;
-      ctr: string;
-      cpc: string;
-      actions?: Array<{ action_type: string; value: string }>;
-    }>;
-  };
+  const insightsData = (await insightsRes.json()) as { data?: MetaInsight[] };
 
-  // Campaign statuses (insights only covers active campaigns).
+  // Full campaign inventory (active + paused + archived + deleted).
   const campaignsUrl = new URL(`${META_GRAPH}/${account.customerId}/campaigns`);
   campaignsUrl.searchParams.set("fields", "id,name,status,objective");
-  campaignsUrl.searchParams.set("limit", "50");
+  campaignsUrl.searchParams.set("limit", "500");
   campaignsUrl.searchParams.set("access_token", token);
 
   const campaignsRes = await fetch(campaignsUrl.toString(), { signal: AbortSignal.timeout(20_000) });
@@ -246,30 +265,36 @@ export async function syncMetaMetrics(projectId: number): Promise<number> {
     }
   }
 
-  const insights = insightsData.data ?? [];
+  const insightsById: Record<string, MetaInsight> = {};
+  for (const ins of insightsData.data ?? []) {
+    insightsById[ins.campaign_id] = ins;
+  }
+
   let synced = 0;
+  for (const c of campaignsData.data ?? []) {
+    const externalId = c.id;
+    const insight = insightsById[externalId];
 
-  for (const insight of insights) {
-    const spend = parseFloat(insight.spend ?? "0");
-    const clicks = parseInt(insight.clicks ?? "0", 10);
-    const impressions = parseInt(insight.impressions ?? "0", 10);
-    const ctr = parseFloat(insight.ctr ?? "0");
-    const cpc = parseFloat(insight.cpc ?? "0");
+    const spend = insight ? parseFloat(insight.spend ?? "0") : 0;
+    const clicks = insight ? parseInt(insight.clicks ?? "0", 10) : 0;
+    const impressions = insight ? parseInt(insight.impressions ?? "0", 10) : 0;
+    const ctr = insight ? parseFloat(insight.ctr ?? "0") : 0;
+    const cpc = insight ? parseFloat(insight.cpc ?? "0") : 0;
 
-    const purchases = insight.actions?.find(
+    const purchases = insight?.actions?.find(
       (a) => a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase",
     );
     const conversions = purchases ? parseFloat(purchases.value) : 0;
     const roas = spend > 0 && conversions > 0 ? (conversions * 50) / spend : null;
 
-    const externalId = insight.campaign_id;
     const budgetCents = budgetCentsByCampaign[externalId] ?? 0;
     const budgetAmount = budgetCents > 0 ? budgetCents / 100 : null;
+
     const base = {
       projectId,
       source: "meta",
       externalId,
-      name: insight.campaign_name,
+      name: c.name,
       platform: "Meta",
       status: campaignStatuses[externalId] ?? "active",
       spent: spend.toFixed(2),
