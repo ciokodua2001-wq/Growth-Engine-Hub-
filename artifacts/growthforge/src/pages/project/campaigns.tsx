@@ -2,6 +2,7 @@ import { useParams, useSearch, Link } from "wouter";
 import {
   useListCampaigns,
   useCreateCampaign,
+  useUpdateCampaign,
   useGetProject,
   getListCampaignsQueryKey,
   getGetProjectQueryKey,
@@ -941,6 +942,15 @@ export default function ProjectCampaigns() {
   const [showBuilder, setShowBuilder] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const queryClient = useQueryClient();
+  const updateCampaign = useUpdateCampaign();
+  const toggleAutonomous = (campaignId: number, value: boolean) => {
+    updateCampaign.mutate(
+      { id: projectId, campaignId, data: { autonomousOptimization: value } },
+      {
+        onSuccess: () => void queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) }),
+      },
+    );
+  };
   const { data: campaigns, isLoading } = useListCampaigns(projectId, { query: { queryKey: getListCampaignsQueryKey(projectId), enabled: !!projectId } });
   const { data: project } = useGetProject(projectId, { query: { queryKey: getGetProjectQueryKey(projectId), enabled: !!projectId } });
   const { data: currentUser } = useCurrentUser();
@@ -1063,6 +1073,27 @@ export default function ProjectCampaigns() {
                     </div>
                   </div>
                 )}
+
+                {(campaign as { source?: string }).source === "google_ads" || (campaign as { source?: string }).source === "meta" ? (
+                  <div className="mt-4 pt-4 border-t border-border flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium flex items-center gap-1.5">
+                        <Bot className="h-3.5 w-3.5 text-primary" /> Autonomous optimization
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {campaign.autonomousOptimization ? "AI adjusts budget/status within guardrails" : "Off — you control all changes"}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => toggleAutonomous(campaign.id, !campaign.autonomousOptimization)}
+                      disabled={updateCampaign.isPending}
+                      className={`relative h-6 w-11 rounded-full transition-colors shrink-0 ${campaign.autonomousOptimization ? "bg-primary" : "bg-secondary border border-border"}`}
+                      aria-label="Toggle autonomous optimization"
+                    >
+                      <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all ${campaign.autonomousOptimization ? "left-6" : "left-1"}`} />
+                    </button>
+                  </div>
+                ) : null}
 
                 {(campaign as { source?: string }).source === "google_ads" && (
                   <GoogleAdsCampaignActions
