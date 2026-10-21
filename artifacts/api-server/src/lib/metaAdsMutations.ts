@@ -27,6 +27,7 @@ export async function createMetaCampaign(
     status: opts.status ?? "PAUSED",
     buying_type: "AUCTION",
     special_ad_categories: JSON.stringify([]),
+    is_adset_budget_sharing_enabled: "false",
     access_token: accessToken,
   });
   const r = await fetch(`${META_GRAPH}/${adAccountId}/campaigns`, {
@@ -35,8 +36,12 @@ export async function createMetaCampaign(
     body: params.toString(),
     signal: AbortSignal.timeout(20_000),
   });
-  const data = await r.json() as { id?: string; error?: { message: string } };
-  if (!r.ok || !data.id) throw new Error(data.error?.message ?? "Meta did not return a campaign id");
+  const data = await r.json() as { id?: string; error?: { message: string; error_user_title?: string; error_user_msg?: string; error_subcode?: number } };
+  if (!r.ok || !data.id) {
+    console.error("Meta createMetaCampaign error payload:", JSON.stringify(data));
+    const msg = data.error?.error_user_msg || data.error?.message || "Meta did not return a campaign id";
+    throw new Error(msg);
+  }
   return data.id;
 }
 
