@@ -42,8 +42,30 @@ describe("computeBudgetStep", () => {
 });
 
 describe("evaluateCampaign", () => {
-  it("NOOP when campaign is not active", () => {
-    const d = evaluateCampaign(snap({ status: "paused" }));
+  it("NOOP when paused with no historical performance", () => {
+    const d = evaluateCampaign(snap({ status: "paused", spent: 0, conversions: 0 }));
+    expect(d.action).toBe("NOOP");
+    expect(d.reason).toBe("paused campaign has no historical performance to justify resume");
+  });
+
+  it("RESUME recommendation when paused with historical conversions", () => {
+    const d = evaluateCampaign(snap({ status: "paused", spent: 120, conversions: 8 }));
+    expect(d.action).toBe("RESUME");
+    expect(d.afterStatus).toBe("active");
+  });
+
+  it("RESUME recommendation when paused and historically profitable", () => {
+    const d = evaluateCampaign(snap({ status: "paused", spent: 100, conversions: 0, roas: 2.5 }));
+    expect(d.action).toBe("RESUME");
+  });
+
+  it("NOOP when paused and historically unprofitable", () => {
+    const d = evaluateCampaign(snap({ status: "paused", spent: 100, conversions: 0, roas: 0.5 }));
+    expect(d.action).toBe("NOOP");
+  });
+
+  it("NOOP when completed/archived (not paused, not active)", () => {
+    const d = evaluateCampaign(snap({ status: "completed", spent: 100, conversions: 5 }));
     expect(d.action).toBe("NOOP");
     expect(d.reason).toBe("campaign is not active");
   });

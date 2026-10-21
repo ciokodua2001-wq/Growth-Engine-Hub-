@@ -853,6 +853,7 @@ const ACTION_LABELS: Record<string, string> = {
   INCREASE_BUDGET: "Budget up",
   DECREASE_BUDGET: "Budget down",
   PAUSE: "Pause",
+  RESUME: "Resume",
   NOOP: "No action",
 };
 
@@ -860,6 +861,7 @@ const ACTION_COLORS: Record<string, string> = {
   INCREASE_BUDGET: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   DECREASE_BUDGET: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   PAUSE: "bg-red-500/10 text-red-400 border-red-500/20",
+  RESUME: "bg-sky-500/10 text-sky-400 border-sky-500/20",
   NOOP: "bg-slate-500/10 text-slate-400 border-slate-500/20",
 };
 
@@ -868,13 +870,15 @@ function parseDecision(d: AutonomousDecision) {
   let action = d.actionType.replace("AUTONOMOUS_", "");
   let reason = "";
   let budget: string | number | null = null;
+  let requiresAuthorization = false;
   try {
     const after = JSON.parse(d.afterState ?? "{}");
     if (after.action) action = after.action;
     if (after.reason) reason = after.reason;
     if (after.budget != null) budget = after.budget;
+    if (after.requiresAuthorization === true) requiresAuthorization = true;
   } catch { /* malformed JSON — keep defaults */ }
-  return { action, reason, budget, isRecommendation };
+  return { action, reason, budget, isRecommendation, requiresAuthorization };
 }
 
 function AutonomousDecisionsPanel({ projectId }: { projectId: number }) {
@@ -909,7 +913,7 @@ function AutonomousDecisionsPanel({ projectId }: { projectId: number }) {
       ) : (
         <ul className="space-y-2">
           {decisions.slice(0, 8).map((d) => {
-            const { action, reason, budget, isRecommendation } = parseDecision(d);
+            const { action, reason, budget, isRecommendation, requiresAuthorization } = parseDecision(d);
             const label = (isRecommendation ? "Rec: " : "") + (ACTION_LABELS[action] ?? action);
             const color = ACTION_COLORS[action] ?? "bg-slate-500/10 text-slate-400 border-slate-500/20";
             return (
@@ -919,6 +923,7 @@ function AutonomousDecisionsPanel({ projectId }: { projectId: number }) {
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${color}`}>{label}</span>
                     <span className="text-[10px] uppercase text-muted-foreground">{d.platform}</span>
                     {d.status === "failed" && <span className="text-[10px] font-bold text-red-400">failed</span>}
+                    {requiresAuthorization && <span className="text-[10px] font-bold text-sky-400">manual approval</span>}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1 truncate">{reason || d.actionType}</p>
                 </div>

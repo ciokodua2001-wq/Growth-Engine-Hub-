@@ -87,7 +87,7 @@ export async function syncGoogleMetrics(projectId: number): Promise<number> {
   `);
 
   // Recent (30-day) performance for campaigns that have been spending.
-  const metricsRows = await customer.query(`
+  const recentRows = await customer.query(`
     SELECT
       campaign.id,
       metrics.impressions,
@@ -103,8 +103,29 @@ export async function syncGoogleMetrics(projectId: number): Promise<number> {
     LIMIT 200
   `);
 
+  // Historical (365-day) performance as a fallback for paused/idle campaigns.
+  const historicalRows = await customer.query(`
+    SELECT
+      campaign.id,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.conversions,
+      metrics.cost_micros,
+      metrics.ctr,
+      metrics.average_cpc
+    FROM campaign
+    WHERE segments.date DURING LAST_365_DAYS
+      AND campaign.status != REMOVED
+    ORDER BY metrics.impressions DESC
+    LIMIT 500
+  `);
+
+  // Recent metrics preferred; fall back to historical for campaigns without 30-day data.
   const metricsById: Record<string, any> = {};
-  for (const r of metricsRows) {
+  for (const r of historicalRows) {
+    metricsById[String(r.campaign?.id ?? "")] = r.metrics;
+  }
+  for (const r of recentRows) {
     metricsById[String(r.campaign?.id ?? "")] = r.metrics;
   }
 
@@ -212,17 +233,29 @@ export async function syncMetaMetrics(projectId: number): Promise<number> {
 
   const token = account.accessToken;
 
-  // Campaign-level insights for the last 30 days (spending campaigns only).
-  const insightsUrl = new URL(`${META_GRAPH}/${account.customerId}/insights`);
-  insightsUrl.searchParams.set("level", "campaign");
-  insightsUrl.searchParams.set("fields", "campaign_id,campaign_name,impressions,clicks,spend,ctr,cpc,actions");
-  insightsUrl.searchParams.set("date_preset", "last_30d");
-  insightsUrl.searchParams.set("limit", "500");
-  insightsUrl.searchParams.set("access_token", token);
+  // Recent 30-day insights (spending campaigns only).
+  const recentInsightsUrl = new URL(`${META_GRAPH}/${account.customerId}/insights`);
+  recentInsightsUrl.searchParams.set("level", "campaign");
+  recentInsightsUrl.searchParams.set("fields", "campaign_id,campaign_name,impressions,clicks,spend,ctr,cpc,actions");
+  recentInsightsUrl.searchParams.set("date_preset", "last_30d");
+  recentInsightsUrl.searchParams.set("limit", "500");
+  recentInsightsUrl.searchParams.set("access_token", token);
 
-  const insightsRes = await fetch(insightsUrl.toString(), { signal: AbortSignal.timeout(20_000) });
-  if (!insightsRes.ok) throw new Error(`Insights fetch failed: ${await insightsRes.text()}`);
-  const insightsData = (await insightsRes.json()) as { data?: MetaInsight[] };
+  const recentInsightsRes = await fetch(recentInsightsUrl.toString(), { signal: AbortSignal.timeout(20_000) });
+  if (!recentInsightsRes.ok) throw new Error(`Insights fetch failed: ${await recentInsightsRes.text()}`);
+  const recentInsightsData = (await recentInsightsRes.json()) as { data?: MetaInsight[] };
+
+  // All-time (maximum) insights — historical performance incl. paused campaigns.
+  const lifetimeInsightsUrl = new URL(`${META_GRAPH}/${account.customerId}/insights`);
+  lifetimeInsightsUrl.searchParams.set("level", "campaign");
+  lifetimeInsightsUrl.searchParams.set("fields", "campaign_id,campaign_name,impressions,clicks,spend,ctr,cpc,actions");
+  lifetimeInsightsUrl.searchParams.set("date_preset", "maximum");
+  lifetimeInsightsUrl.searchParams.set("limit", "500");
+  lifetimeInsightsUrl.searchParams.set("access_token", token);
+
+  const lifetimeInsightsRes = await fetch(lifetimeInsightsUrl.toString(), { signal: AbortSignal.timeout(20_000) });
+  if (!lifetimeInsightsRes.ok) throw new Error(`Lifetime insights fetch failed: ${await lifetimeInsightsRes.text()}`);
+  const lifetimeInsightsData = (await lifetimeInsightsRes.json()) as { data?: MetaInsight[] };
 
   // Full campaign inventory (active + paused + archived + deleted).
   const campaignsUrl = new URL(`${META_GRAPH}/${account.customerId}/campaigns`);
@@ -265,8 +298,12 @@ export async function syncMetaMetrics(projectId: number): Promise<number> {
     }
   }
 
+  // Recent metrics preferred; fall back to lifetime for paused/idle campaigns.
   const insightsById: Record<string, MetaInsight> = {};
-  for (const ins of insightsData.data ?? []) {
+  for (const ins of lifetimeInsightsData.data ?? []) {
+    insightsById[ins.campaign_id] = ins;
+  }
+  for (const ins of recentInsightsData.data ?? []) {
     insightsById[ins.campaign_id] = ins;
   }
 

@@ -12,6 +12,9 @@
  *    recommendations; "act" applies real status/budget mutations.
  *  - Guardrails: hard min/max daily budget, a max per-cycle budget step,
  *    spend-based pause thresholds, and a per-campaign cooldown.
+ *  - Resume is recommendation-only: a paused campaign with historical
+ *    performance yields a RESUME recommendation that is NEVER auto-applied
+ *    (explicit customer authorization is required to actually resume).
  *  - Eligibility: the project must have autonomousMode=true AND the campaign
  *    must have autonomousOptimization=true.
  *
@@ -48,7 +51,8 @@ export type AutonomousAction =
   | "NOOP"
   | "INCREASE_BUDGET"
   | "DECREASE_BUDGET"
-  | "PAUSE";
+  | "PAUSE"
+  | "RESUME";
 
 export interface Guardrails {
   /** Hard floor for any daily budget (USD). */
@@ -132,13 +136,15 @@ export function computeBudgetStep(
  * Deterministic decision engine (pure — no I/O).
  *
  * Rules, evaluated in priority order:
- *  1. Non-active campaign => NOOP (no auto-resume in this slice).
- *  2. Missing budget => NOOP.
- *  3. Zero conversions + spent >= pauseSpendThreshold => PAUSE.
- *  4. Zero conversions + spent >= decreaseSpendThreshold => DECREASE_BUDGET.
- *  5. Has conversions + roas >= roasTarget => INCREASE_BUDGET.
- *  6. roas < roasFloor => DECREASE_BUDGET.
- *  7. Otherwise => NOOP.
+ *  1. Paused + historical performance => RESUME (recommendation-only, never
+ *     auto-applied).
+ *  2. Non-active (completed/archived/draft) => NOOP.
+ *  3. Missing budget => NOOP.
+ *  4. Zero conversions + spent >= pauseSpendThreshold => PAUSE.
+ *  5. Zero conversions + spent >= decreaseSpendThreshold => DECREASE_BUDGET.
+ *  6. Has conversions + roas >= roasTarget => INCREASE_BUDGET.
+ *  7. roas < roasFloor => DECREASE_BUDGET.
+ *  8. Otherwise => NOOP.
  */
 export function evaluateCampaign(
   snapshot: CampaignSnapshot,
@@ -149,6 +155,33 @@ export function evaluateCampaign(
   const conversions = snapshot.conversions ?? 0;
   const roas = snapshot.roas;
   const active = snapshot.status === "active";
+
+  if (snapshot.status === "paused") {
+    const historicalConversions = snapshot.conversions ?? 0;
+    const historicalSpent = snapshot.spent ?? 0;
+    const historicalRoas = snapshot.roas;
+    const hasHistoricalPerformance =
+      historicalConversions > 0 ||
+      (historicalSpent > 0 && historicalRoas != null && historicalRoas >= g.roasTarget);
+    if (hasHistoricalPerformance) {
+      return {
+        action: "RESUME",
+        reason: `paused campaign previously generated ${historicalConversions} conversions (spent $${historicalSpent.toFixed(2)}) — recommend resume for manual authorization`,
+        beforeBudget: budget,
+        afterBudget: budget,
+        beforeStatus: "paused",
+        afterStatus: "active",
+      };
+    }
+    return {
+      action: "NOOP",
+      reason: "paused campaign has no historical performance to justify resume",
+      beforeBudget: budget,
+      afterBudget: budget,
+      beforeStatus: snapshot.status,
+      afterStatus: snapshot.status,
+    };
+  }
 
   if (!active) {
     return {
@@ -469,8 +502,9 @@ export async function runAutonomousCycle(): Promise<void> {
       mode,
     };
 
-    // Observe mode: record a recommendation and move on.
-    if (!applyEnabled) {
+    // Observe mode (and RESUME, which is recommendation-only): record and move on.
+    const isResume = decision.action === "RESUME";
+    if (!applyEnabled || isResume) {
       await recordAutonomousAction({
         projectId: row.projectId,
         platform,
@@ -479,7 +513,7 @@ export async function runAutonomousCycle(): Promise<void> {
         action: decision.action,
         mode,
         before,
-        after,
+        after: isResume ? { ...after, requiresAuthorization: true } : after,
         status: "success",
       });
       continue;
