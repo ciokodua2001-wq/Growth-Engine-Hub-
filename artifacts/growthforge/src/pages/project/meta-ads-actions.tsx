@@ -34,7 +34,7 @@ export function PublishMetaAdsModal({ projectId, isConnected, onClose, onPublish
 
   const submitMutation = useMutation({
     mutationFn: async (validateOnly: boolean) => {
-      const r = await fetch(`/api/projects/${projectId}/meta/campaigns`, {
+      const r = await fetch(`/api/projects/${projectId}/meta-ads/campaigns`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -136,7 +136,7 @@ export function MetaAuditHistoryModal({ projectId, onClose }: { projectId: numbe
   const actionsQuery = useQuery({
     queryKey: ["meta-actions", projectId],
     queryFn: async () => {
-      const r = await fetch(`/api/projects/${projectId}/meta/actions`, { credentials: "include" });
+      const r = await fetch(`/api/projects/${projectId}/meta-ads/actions`, { credentials: "include" });
       if (!r.ok) throw new Error("Failed to load activity");
       return (await r.json()) as { actions: AdPlatformAction[] };
     },
@@ -209,7 +209,7 @@ export function MetaAdsCampaignActions({ projectId, campaign, onChanged }: {
 
   const statusMutation = useMutation({
     mutationFn: async (status: "ACTIVE" | "PAUSED") => {
-      const r = await fetch(`/api/projects/${projectId}/meta/campaigns/${externalId}/status`, {
+      const r = await fetch(`/api/projects/${projectId}/meta-ads/campaigns/${externalId}/status`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -226,7 +226,7 @@ export function MetaAdsCampaignActions({ projectId, campaign, onChanged }: {
   const [budgetInput, setBudgetInput] = useState("");
   const budgetMutation = useMutation({
     mutationFn: async (amount: number) => {
-      const r = await fetch(`/api/projects/${projectId}/meta/campaigns/${externalId}/budget`, {
+      const r = await fetch(`/api/projects/${projectId}/meta-ads/campaigns/${externalId}/budget`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

@@ -359,7 +359,7 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
   const statusQuery = useQuery<MetaStatus>({
     queryKey: ["meta-status", projectId],
     queryFn: async () => {
-      const r = await fetch(`/api/projects/${projectId}/meta/status`, { credentials: "include" });
+      const r = await fetch(`/api/projects/${projectId}/meta-ads/status`, { credentials: "include" });
       if (!r.ok) throw new Error("Failed to load status");
       return r.json();
     },
@@ -379,7 +379,7 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
 
   const syncMutation = useMutation({
     mutationFn: async () => {
-      const r = await fetch(`/api/projects/${projectId}/meta/sync`, { method: "POST", credentials: "include" });
+      const r = await fetch(`/api/projects/${projectId}/meta-ads/sync`, { method: "POST", credentials: "include" });
       if (!r.ok) { const d = await r.json() as { error: string }; throw new Error(d.error); }
       return r.json() as Promise<{ synced: number; message: string }>;
     },
@@ -393,7 +393,7 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
 
   const disconnectMutation = useMutation({
     mutationFn: async () => {
-      const r = await fetch(`/api/projects/${projectId}/meta/disconnect`, { method: "DELETE", credentials: "include" });
+      const r = await fetch(`/api/projects/${projectId}/meta-ads/disconnect`, { method: "DELETE", credentials: "include" });
       if (!r.ok) throw new Error("Disconnect failed");
     },
     onSuccess: () => {
@@ -405,7 +405,7 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
 
   const connectMutation = useMutation({
     mutationFn: async () => {
-      const r = await fetch(`/api/projects/${projectId}/meta/auth-url`, { credentials: "include" });
+      const r = await fetch(`/api/projects/${projectId}/meta-ads/auth-url`, { credentials: "include" });
       if (!r.ok) throw new Error("Could not get auth URL");
       const { url } = await r.json() as { url: string };
       window.location.href = url;

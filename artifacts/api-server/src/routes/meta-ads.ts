@@ -36,7 +36,7 @@ async function exchangeForLongLived(shortToken: string): Promise<{ access_token:
 
 // ── Status ─────────────────────────────────────────────────────────────────────
 
-router.get("/projects/:id/meta/status", async (req, res): Promise<void> => {
+router.get("/projects/:id/meta-ads/status", async (req, res): Promise<void> => {
   const projectId = req.project!.id;
 
   const [account] = await db.select({
@@ -67,7 +67,7 @@ router.get("/projects/:id/meta/status", async (req, res): Promise<void> => {
 
 // ── Auth URL ───────────────────────────────────────────────────────────────────
 
-router.get("/projects/:id/meta/auth-url", async (req, res): Promise<void> => {
+router.get("/projects/:id/meta-ads/auth-url", async (req, res): Promise<void> => {
   if (!appId()) { res.status(400).json({ error: "META_APP_ID not configured" }); return; }
   const state = Buffer.from(JSON.stringify({ projectId: req.project!.id })).toString("base64url");
   const params = new URLSearchParams({
@@ -199,7 +199,7 @@ router.get("/auth/meta-ads/callback", async (req: Request, res: Response): Promi
 
 // ── Sync campaigns ─────────────────────────────────────────────────────────────
 
-router.post("/projects/:id/meta/sync", async (req, res): Promise<void> => {
+router.post("/projects/:id/meta-ads/sync", async (req, res): Promise<void> => {
   const projectId = req.project!.id;
 
   const [account] = await db.select().from(connectedAdAccountsTable)
@@ -323,7 +323,7 @@ router.post("/projects/:id/meta/sync", async (req, res): Promise<void> => {
 
 // ── Disconnect ─────────────────────────────────────────────────────────────────
 
-router.delete("/projects/:id/meta/disconnect", async (req, res): Promise<void> => {
+router.delete("/projects/:id/meta-ads/disconnect", async (req, res): Promise<void> => {
   const projectId = req.project!.id;
   await db.delete(connectedAdAccountsTable)
     .where(and(
@@ -375,7 +375,7 @@ async function logMetaAdAction(input: {
 }
 
 // Create a full traffic campaign: campaign -> ad set -> link ad (via facebook page).
-router.post("/projects/:id/meta/campaigns", requireActiveSubscription, async (req, res): Promise<void> => {
+router.post("/projects/:id/meta-ads/campaigns", requireActiveSubscription, async (req, res): Promise<void> => {
   const projectId = req.project!.id;
   const body = req.body as {
     name?: unknown; budgetAmount?: unknown; finalUrl?: unknown;
@@ -463,7 +463,7 @@ router.post("/projects/:id/meta/campaigns", requireActiveSubscription, async (re
 });
 
 // Pause / resume a Meta campaign.
-router.post("/projects/:id/meta/campaigns/:campaignId/status", requireActiveSubscription, async (req, res): Promise<void> => {
+router.post("/projects/:id/meta-ads/campaigns/:campaignId/status", requireActiveSubscription, async (req, res): Promise<void> => {
   const projectId = req.project!.id;
   const campaignId = String(req.params.campaignId ?? "");
   const { status } = req.body as { status?: unknown };
@@ -499,7 +499,7 @@ router.post("/projects/:id/meta/campaigns/:campaignId/status", requireActiveSubs
 });
 
 // Change a Meta campaign's daily budget (updates the campaign's first ad set).
-router.patch("/projects/:id/meta/campaigns/:campaignId/budget", requireActiveSubscription, async (req, res): Promise<void> => {
+router.patch("/projects/:id/meta-ads/campaigns/:campaignId/budget", requireActiveSubscription, async (req, res): Promise<void> => {
   const projectId = req.project!.id;
   const campaignId = String(req.params.campaignId ?? "");
   const { budgetAmount } = req.body as { budgetAmount?: unknown };
@@ -540,7 +540,7 @@ router.patch("/projects/:id/meta/campaigns/:campaignId/budget", requireActiveSub
 });
 
 // Immutable audit trail of every Meta mutation.
-router.get("/projects/:id/meta/actions", async (req, res): Promise<void> => {
+router.get("/projects/:id/meta-ads/actions", async (req, res): Promise<void> => {
   const projectId = req.project!.id;
   const actions = await db.select().from(adPlatformActionsTable)
     .where(and(eq(adPlatformActionsTable.projectId, projectId), eq(adPlatformActionsTable.platform, "meta")))
