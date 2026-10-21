@@ -212,7 +212,7 @@ describe("GET /api/projects/:id/social-posts/:postId/stats — Instagram", () =>
 
   beforeEach(() => {
     app = buildApp();
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mockDbInsert.mockReturnValue(insertChain());
 
     const prev = process.env.TOKEN_ENCRYPTION_KEY;
@@ -382,7 +382,7 @@ describe("GET /api/projects/:id/social-posts/:postId/stats — Facebook", () => 
 
   beforeEach(() => {
     app = buildApp();
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mockDbInsert.mockReturnValue(insertChain());
 
     const prev = process.env.TOKEN_ENCRYPTION_KEY;
@@ -551,7 +551,7 @@ describe("GET /api/projects/:id/social-posts/:postId/stats — edge cases", () =
 
   beforeEach(() => {
     app = buildApp();
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mockDbInsert.mockReturnValue(insertChain());
 
     const prev = process.env.TOKEN_ENCRYPTION_KEY;
@@ -650,7 +650,7 @@ describe("Instagram publish → stats: full flow integration", () => {
 
   beforeEach(() => {
     app = buildApp();
-    vi.clearAllMocks();
+    vi.resetAllMocks();
 
     const prev = process.env.TOKEN_ENCRYPTION_KEY;
     process.env.TOKEN_ENCRYPTION_KEY = TEST_KEY;
@@ -717,6 +717,7 @@ describe("Instagram publish → stats: full flow integration", () => {
     mockDbSelect
       .mockReturnValueOnce(selectChain([draftPost]))      // publish: get post
       .mockReturnValueOnce(selectChain([conn]))            // publish: get conn
+      .mockReturnValueOnce(selectChain([publishedPost]))  // publish: final post
       .mockReturnValueOnce(selectChain([publishedPost]))  // stats:   get post
       .mockReturnValueOnce(selectChain([conn]));           // stats:   get conn
 

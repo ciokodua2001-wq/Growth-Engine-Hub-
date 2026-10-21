@@ -205,7 +205,7 @@ describe("POST /api/projects/:id/social-posts/:postId/publish", () => {
 
   beforeEach(() => {
     app = buildApp();
-    vi.clearAllMocks();
+    vi.resetAllMocks();
 
     // Save and set encryption key
     const prev = process.env.TOKEN_ENCRYPTION_KEY;
@@ -238,10 +238,11 @@ describe("POST /api/projects/:id/social-posts/:postId/publish", () => {
       };
 
       // DB call sequence for the publish route with an encrypted token:
-      // 1. select post  2. select conn
+      // 1. select post  2. select conn  3. select final post
       mockDbSelect
         .mockReturnValueOnce(selectChain([BASE_POST]))
-        .mockReturnValueOnce(selectChain([mockConn]));
+        .mockReturnValueOnce(selectChain([mockConn]))
+        .mockReturnValueOnce(selectChain([BASE_PUBLISHED_POST]));
 
       // 3. update post → publishing (lock)  4. update post → published
       mockDbUpdate
@@ -326,16 +327,18 @@ describe("POST /api/projects/:id/social-posts/:postId/publish", () => {
         instagramAccountId: null,
       };
 
+      const publishedPost = { ...BASE_PUBLISHED_POST, externalPostId: "fb_post_456" };
+
       // DB call sequence for the plaintext-migration path:
-      // 1. select post  2. select conn
+      // 1. select post  2. select conn  3. select final post
       mockDbSelect
         .mockReturnValueOnce(selectChain([BASE_POST]))
-        .mockReturnValueOnce(selectChain([mockConn]));
+        .mockReturnValueOnce(selectChain([mockConn]))
+        .mockReturnValueOnce(selectChain([publishedPost]));
 
       // 3. update → publishing (lock)
       // 4. update metaConnectionsTable → re-encrypt token (no returning)
       // 5. update → published
-      const publishedPost = { ...BASE_PUBLISHED_POST, externalPostId: "fb_post_456" };
       mockDbUpdate
         .mockReturnValueOnce(updateChain([{ ...BASE_POST, status: "publishing" }]))
         .mockReturnValueOnce(updateChain([])) // token migration (no returning, just awaited)
@@ -383,7 +386,8 @@ describe("POST /api/projects/:id/social-posts/:postId/publish", () => {
 
       mockDbSelect
         .mockReturnValueOnce(selectChain([BASE_POST]))
-        .mockReturnValueOnce(selectChain([mockConn]));
+        .mockReturnValueOnce(selectChain([mockConn]))
+        .mockReturnValueOnce(selectChain([BASE_PUBLISHED_POST]));
 
       // Re-encryption update fails
       const failingUpdateChain = {
@@ -432,7 +436,8 @@ describe("POST /api/projects/:id/social-posts/:postId/publish", () => {
 
       mockDbSelect
         .mockReturnValueOnce(selectChain([BASE_POST]))
-        .mockReturnValueOnce(selectChain([mockConn]));
+        .mockReturnValueOnce(selectChain([mockConn]))
+        .mockReturnValueOnce(selectChain([BASE_PUBLISHED_POST]));
 
       // Spy on .set() so we can assert what data was passed on lock vs. success
       const lockSetFn = vi.fn((_data: unknown) => ({
@@ -536,7 +541,8 @@ describe("POST /api/projects/:id/social-posts/:postId/publish", () => {
 
       mockDbSelect
         .mockReturnValueOnce(selectChain([BASE_POST]))
-        .mockReturnValueOnce(selectChain([mockConn]));
+        .mockReturnValueOnce(selectChain([mockConn]))
+        .mockReturnValueOnce(selectChain([{ ...BASE_PUBLISHED_POST, externalPostId: "ig_post_999" }]));
 
       mockDbUpdate
         .mockReturnValueOnce(updateChain([{ ...BASE_POST, status: "publishing" }]))
@@ -581,7 +587,8 @@ describe("POST /api/projects/:id/social-posts/:postId/publish", () => {
 
       mockDbSelect
         .mockReturnValueOnce(selectChain([BASE_POST]))
-        .mockReturnValueOnce(selectChain([mockConn]));
+        .mockReturnValueOnce(selectChain([mockConn]))
+        .mockReturnValueOnce(selectChain([{ ...BASE_PUBLISHED_POST, externalPostId: "ig_post_888" }]));
 
       mockDbUpdate
         .mockReturnValueOnce(updateChain([{ ...BASE_POST, status: "publishing" }]))
