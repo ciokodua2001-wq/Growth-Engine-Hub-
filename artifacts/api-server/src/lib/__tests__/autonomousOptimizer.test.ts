@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   evaluateCampaign,
   computeBudgetStep,
+  isCooldownActive,
   DEFAULT_GUARDRAILS,
   type CampaignSnapshot,
 } from "../autonomousOptimizer.js";
@@ -84,5 +85,26 @@ describe("evaluateCampaign", () => {
   it("pause takes priority over decrease when both thresholds crossed", () => {
     const d = evaluateCampaign(snap({ spent: 80, conversions: 0, budget: 100 }));
     expect(d.action).toBe("PAUSE");
+  });
+});
+
+
+describe("isCooldownActive", () => {
+  const now = new Date("2026-10-21T12:00:00Z");
+
+  it("returns false when no prior application", () => {
+    expect(isCooldownActive(null, 360, now)).toBe(false);
+  });
+
+  it("returns false when cooldown is disabled", () => {
+    expect(isCooldownActive(new Date("2026-10-21T11:59:00Z"), 0, now)).toBe(false);
+  });
+
+  it("returns true when within the cooldown window", () => {
+    expect(isCooldownActive(new Date("2026-10-21T11:00:00Z"), 360, now)).toBe(true);
+  });
+
+  it("returns false once the cooldown window has elapsed", () => {
+    expect(isCooldownActive(new Date("2026-10-21T06:00:00Z"), 360, now)).toBe(false);
   });
 });

@@ -9,25 +9,39 @@
  * Safety model (deliberately conservative — these are real ad accounts):
  *  - Global kill switch: AUTONOMOUS_OPTIMIZER_ENABLED !== "true" => no-op.
  *  - Mode: AUTONOMOUS_OPTIMIZER_MODE = "observe" (default) records only
- *    recommendations; "act" applies real mutations (wired in a later slice).
+ *    recommendations; "act" applies real status/budget mutations.
  *  - Guardrails: hard min/max daily budget, a max per-cycle budget step,
  *    spend-based pause thresholds, and a per-campaign cooldown.
  *  - Eligibility: the project must have autonomousMode=true AND the campaign
  *    must have autonomousOptimization=true.
  *
- * This module keeps the pure decision logic (evaluateCampaign) free of I/O so
- * it can be unit-tested in isolation.
+ * The pure decision logic (evaluateCampaign, computeBudgetStep, isCooldownActive)
+ * is free of I/O so it can be unit-tested in isolation.
  */
 
 import cron from "node-cron";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, desc } from "drizzle-orm";
+import { GoogleAdsApi } from "google-ads-api";
 import {
   db,
   campaignsTable,
   projectsTable,
+  connectedAdAccountsTable,
   adPlatformActionsTable,
 } from "@workspace/db";
 import { logger } from "./logger.js";
+import {
+  updateMetaCampaignStatus,
+  updateMetaAdSetBudget,
+  queryMetaAdSetId,
+  dollarsToCents,
+} from "./metaAdsMutations.js";
+import {
+  updateCampaignStatus,
+  updateCampaignBudgetAmount,
+  queryCampaignBudgetResourceName,
+  dollarsToMicros,
+} from "./googleAdsMutations.js";
 
 export type AutonomousAction =
   | "NOOP"
@@ -226,15 +240,138 @@ export function readGuardrails(): Guardrails {
   };
 }
 
+// ── Apply layer (act mode) ─────────────────────────────────────────────────────
+
+const APPLIED_AUTONOMOUS_ACTIONS = [
+  "AUTONOMOUS_INCREASE_BUDGET",
+  "AUTONOMOUS_DECREASE_BUDGET",
+  "AUTONOMOUS_PAUSE",
+] as const;
+
+/** Pure cooldown check (unit-testable). */
+export function isCooldownActive(
+  lastAppliedAt: Date | null,
+  cooldownMinutes: number,
+  now: Date = new Date(),
+): boolean {
+  if (cooldownMinutes <= 0) return false;
+  if (!lastAppliedAt) return false;
+  return now.getTime() - lastAppliedAt.getTime() < cooldownMinutes * 60_000;
+}
+
+function makeGoogleCustomer(refreshToken: string, customerId: string) {
+  const client = new GoogleAdsApi({
+    client_id: process.env.GOOGLE_ADS_CLIENT_ID ?? "",
+    client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET ?? "",
+    developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "",
+  });
+  return client.Customer({ customer_id: customerId, refresh_token: refreshToken });
+}
+
+async function resolveAccount(projectId: number, provider: "google_ads" | "meta") {
+  const [account] = await db
+    .select()
+    .from(connectedAdAccountsTable)
+    .where(
+      and(
+        eq(connectedAdAccountsTable.projectId, projectId),
+        eq(connectedAdAccountsTable.provider, provider),
+      ),
+    );
+  return account ?? null;
+}
+
+async function lastAppliedAt(projectId: number, campaignId: string): Promise<Date | null> {
+  const rows = await db
+    .select({ createdAt: adPlatformActionsTable.createdAt })
+    .from(adPlatformActionsTable)
+    .where(
+      and(
+        eq(adPlatformActionsTable.projectId, projectId),
+        eq(adPlatformActionsTable.campaignId, campaignId),
+        eq(adPlatformActionsTable.status, "success"),
+        inArray(adPlatformActionsTable.actionType, [...APPLIED_AUTONOMOUS_ACTIONS]),
+      ),
+    )
+    .orderBy(desc(adPlatformActionsTable.createdAt))
+    .limit(1);
+  return rows[0]?.createdAt ?? null;
+}
+
+async function applyMetaDecision(
+  accessToken: string,
+  campaignId: string,
+  decision: AutonomousDecision,
+): Promise<void> {
+  if (decision.action === "PAUSE") {
+    await updateMetaCampaignStatus(accessToken, campaignId, "PAUSED");
+    return;
+  }
+  if (decision.action === "INCREASE_BUDGET" || decision.action === "DECREASE_BUDGET") {
+    const after = decision.afterBudget;
+    if (after == null || after <= 0) throw new Error("Budget decision has no valid target");
+    const adSetId = await queryMetaAdSetId(accessToken, campaignId);
+    if (!adSetId) throw new Error("Meta ad set not found for campaign — cannot update budget");
+    await updateMetaAdSetBudget(accessToken, adSetId, dollarsToCents(after));
+  }
+}
+
+async function applyGoogleDecision(
+  refreshToken: string,
+  customerId: string,
+  campaignId: string,
+  decision: AutonomousDecision,
+): Promise<void> {
+  const customer = makeGoogleCustomer(refreshToken, customerId);
+  if (decision.action === "PAUSE") {
+    await updateCampaignStatus(customer, customerId, campaignId, "PAUSED");
+    return;
+  }
+  if (decision.action === "INCREASE_BUDGET" || decision.action === "DECREASE_BUDGET") {
+    const after = decision.afterBudget;
+    if (after == null || after <= 0) throw new Error("Budget decision has no valid target");
+    const budgetResourceName = await queryCampaignBudgetResourceName(customer, campaignId);
+    if (!budgetResourceName) throw new Error("Google Ads campaign budget not found");
+    await updateCampaignBudgetAmount(customer, budgetResourceName, dollarsToMicros(after));
+  }
+}
+
+async function recordAutonomousAction(input: {
+  projectId: number;
+  platform: string;
+  customerId: string | null;
+  campaignId: string;
+  action: AutonomousAction;
+  mode: string;
+  before: unknown;
+  after: unknown;
+  status: "success" | "failed";
+  errorMessage?: string | null;
+}): Promise<void> {
+  const actionType =
+    input.mode === "act" ? `AUTONOMOUS_${input.action}` : "AUTONOMOUS_EVALUATION";
+  await db.insert(adPlatformActionsTable).values({
+    projectId: input.projectId,
+    platform: input.platform,
+    customerId: input.customerId,
+    campaignId: input.campaignId,
+    actionType,
+    beforeState: JSON.stringify(input.before),
+    afterState: JSON.stringify(input.after),
+    status: input.status,
+    errorMessage: input.errorMessage ?? null,
+  });
+}
+
 /**
  * One autonomous cycle. Observe mode records recommendations to the audit log;
- * act mode (a later slice) applies real mutations through the existing
- * Google/Meta mutation helpers, within guardrails + cooldown.
+ * act mode applies real status/budget mutations within guardrails + cooldown.
  */
 export async function runAutonomousCycle(): Promise<void> {
   if (process.env.AUTONOMOUS_OPTIMIZER_ENABLED !== "true") return;
 
   const mode = process.env.AUTONOMOUS_OPTIMIZER_MODE ?? "observe";
+  const applyEnabled = mode === "act";
   const guardrails = readGuardrails();
 
   const rows = await db
@@ -265,6 +402,9 @@ export async function runAutonomousCycle(): Promise<void> {
 
   let evaluated = 0;
   let flagged = 0;
+  let applied = 0;
+  let failed = 0;
+  let cooldownSkipped = 0;
 
   for (const row of rows) {
     const snapshot: CampaignSnapshot = {
@@ -285,42 +425,128 @@ export async function runAutonomousCycle(): Promise<void> {
 
     const decision = evaluateCampaign(snapshot, guardrails);
     evaluated++;
-
     if (decision.action === "NOOP") continue;
-
-    // Observe mode records a recommendation. Act mode (later slice) applies it.
-    const actionType =
-      mode === "act"
-        ? `AUTONOMOUS_${decision.action}`
-        : "AUTONOMOUS_EVALUATION";
-
-    await db.insert(adPlatformActionsTable).values({
-      projectId: row.projectId,
-      platform: row.source, // "google_ads" | "meta"
-      customerId: null,
-      campaignId: row.externalId ?? String(row.id),
-      actionType,
-      beforeState: JSON.stringify({
-        status: decision.beforeStatus,
-        budget: decision.beforeBudget,
-        spent: snapshot.spent,
-        conversions: snapshot.conversions,
-        roas: snapshot.roas,
-      }),
-      afterState: JSON.stringify({
-        action: decision.action,
-        reason: decision.reason,
-        status: decision.afterStatus,
-        budget: decision.afterBudget,
-        mode,
-      }),
-      status: "success",
-    });
     flagged++;
+
+    const platform = row.source; // "google_ads" | "meta"
+    const campaignId = row.externalId ?? String(row.id);
+    const before = {
+      status: decision.beforeStatus,
+      budget: decision.beforeBudget,
+      spent: snapshot.spent,
+      conversions: snapshot.conversions,
+      roas: snapshot.roas,
+    };
+    const after = {
+      action: decision.action,
+      reason: decision.reason,
+      status: decision.afterStatus,
+      budget: decision.afterBudget,
+      mode,
+    };
+
+    // Observe mode: record a recommendation and move on.
+    if (!applyEnabled) {
+      await recordAutonomousAction({
+        projectId: row.projectId,
+        platform,
+        customerId: null,
+        campaignId,
+        action: decision.action,
+        mode,
+        before,
+        after,
+        status: "success",
+      });
+      continue;
+    }
+
+    // Act mode: apply the mutation, with hard safety checks.
+    if (!row.externalId) {
+      logger.warn(
+        { projectId: row.projectId, internalId: row.id },
+        "Autonomous optimizer: campaign has no external id — cannot apply",
+      );
+      continue;
+    }
+
+    const provider: "google_ads" | "meta" =
+      row.source === "google_ads" ? "google_ads" : "meta";
+    const account = await resolveAccount(row.projectId, provider);
+    if (!account) {
+      logger.warn(
+        { projectId: row.projectId, provider },
+        "Autonomous optimizer: no connected account — cannot apply",
+      );
+      continue;
+    }
+    if (provider === "google_ads" && (!account.refreshToken || !account.customerId)) {
+      logger.warn(
+        { projectId: row.projectId },
+        "Autonomous optimizer: Google account missing refreshToken/customerId",
+      );
+      continue;
+    }
+
+    const lastAt = await lastAppliedAt(row.projectId, row.externalId);
+    if (isCooldownActive(lastAt, guardrails.cooldownMinutes)) {
+      cooldownSkipped++;
+      continue;
+    }
+
+    try {
+      if (provider === "google_ads") {
+        await applyGoogleDecision(account.refreshToken!, account.customerId!, row.externalId, decision);
+      } else {
+        await applyMetaDecision(account.accessToken, row.externalId, decision);
+      }
+
+      // Reflect the change locally (status always; budget only when it changed).
+      await db
+        .update(campaignsTable)
+        .set({
+          status: decision.afterStatus,
+          ...(decision.afterBudget != null && decision.afterBudget !== decision.beforeBudget
+            ? { budget: String(decision.afterBudget) }
+            : {}),
+        })
+        .where(eq(campaignsTable.id, row.id));
+
+      await recordAutonomousAction({
+        projectId: row.projectId,
+        platform,
+        customerId: account.customerId ?? null,
+        campaignId: row.externalId,
+        action: decision.action,
+        mode,
+        before,
+        after,
+        status: "success",
+      });
+      applied++;
+    } catch (err) {
+      failed++;
+      await recordAutonomousAction({
+        projectId: row.projectId,
+        platform,
+        customerId: account.customerId ?? null,
+        campaignId: row.externalId,
+        action: decision.action,
+        mode,
+        before,
+        after,
+        status: "failed",
+        errorMessage: err instanceof Error ? err.message : "Apply failed",
+      });
+      logger.error(
+        { err, projectId: row.projectId, campaignId: row.externalId },
+        "Autonomous optimizer: apply failed",
+      );
+    }
   }
 
   logger.info(
-    { evaluated, flagged, mode },
+    { evaluated, flagged, applied, failed, cooldownSkipped, mode },
     "Autonomous optimizer: cycle complete",
   );
 }
