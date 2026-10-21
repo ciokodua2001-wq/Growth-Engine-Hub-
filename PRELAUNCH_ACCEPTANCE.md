@@ -49,7 +49,7 @@ Kling/Wan are decommissioned; **do not reactivate**. The `KLING_API_KEY` absence
 
 ## 4. Commercial & production readiness (WS4) - to audit
 
-- Stripe test checkout/subscriptions/webhooks — ✅ **audited (test mode)**: `STRIPE_SECRET_KEY` = `sk_test_*`, `STRIPE_WEBHOOK_SECRET` set; `/api/stripe/webhook` raw-body + signature verified; `findOrCreateManagedWebhook` + `syncBackfill` at startup; handlers cover `checkout.session.completed` (payment_status==paid), `customer.subscription.created/updated/deleted`; `requireActiveSubscription` blocks cancelled users (403 read-only). 4 test products live via `/api/stripe/products` (Starter $39, Get-Going $99, Growth $249, Agency $599). ⚠️ No test checkout completed yet (no user has `stripe_customer_id`) — payment loop wired but not end-to-end exercised
+- Stripe test checkout/subscriptions/webhooks — ✅ **audited (test mode)**: `STRIPE_SECRET_KEY` = `sk_test_*`, `STRIPE_WEBHOOK_SECRET` **empty in .env (needs setting before prod — see §9)**; `/api/stripe/webhook` raw-body + signature verified; `findOrCreateManagedWebhook` + `syncBackfill` at startup; handlers cover `checkout.session.completed` (payment_status==paid), `customer.subscription.created/updated/deleted`; `requireActiveSubscription` blocks cancelled users (403 read-only). 4 test products live via `/api/stripe/products` (Starter $39, Get-Going $99, Growth $249, Agency $599). ⚠️ No test checkout completed yet (no user has `stripe_customer_id`) — payment loop wired but not end-to-end exercised
 - Plan inheritance + project limits
 - Better Auth + email flows — ✅ **verified active**: server `betterAuth.ts` (Drizzle adapter → PostgreSQL) + frontend `authClient` (`better-auth/react`). No live Supabase dependency: zero `@supabase/supabase-js` imports, no `SUPABASE_URL` usage, no `@supabase` in any package.json. Legacy `supabaseAuth.ts` is a renamed compat layer that now calls Better Auth. **Fixed** `forgot-password.tsx` `forgetPassword` → `requestPasswordReset` (Better Auth 1.7.10 API), typecheck now clean
 - Production media storage — ⚠️ **dev/prod divergence (pre-launch gap)**: DEV ✅ on Wasabi (`OBJECT_STORAGE_*` set, bucket `growthforge-media`, endpoint `s3.ca-central-1.wasabisys.com`). PROD ❌ still on the OLD architecture — `/home/ubuntu/prod/app` is an Aug-4 codebase (no `betterAuth.ts`, old `objectStorage.ts`) with `SUPABASE_*` env vars and no `OBJECT_STORAGE_ENDPOINT/REGION/ACCESS_KEY`. Prod serves \"Coming Soon\" only, so this is not live-breaking, but prod must be re-provisioned from the current code + given its own Wasabi bucket/creds before launch
@@ -570,3 +570,67 @@ Previously, `buildTranscriptTimings` and `transcriptToCaptionEntries` mapped eac
 
 Commit: `87cce08`.
 
+
+
+---
+
+## 9. Multi-user / security / concurrency / stress acceptance (2026-10-21)
+
+> Commits referenced: `d9036a2` (autonomous resume) and `0db8a3a` (test-harness repair). No production changes. Optimizer remains `observe`.
+
+### Baseline (measured)
+- Git HEAD `0db8a3a`; 7 migration files (`0000_baseline`..`0005_numerous_fenris` + `meta/`), `__drizzle_migrations` tracking table empty (push-based schema).
+- Host: 2× Intel Xeon 8259CL @2.5GHz, 7.6 GiB RAM (6.2 available), 154 GB disk (7% used), load 0.00 at rest.
+- DB: PostgreSQL 16.15, `max_connections=100`, baseline 6 connections; API pg `Pool` default `max=10`.
+- DEV API: systemd `growthforge-dev-api` active, ~460 MB RSS, `healthz` 200.
+- Production isolated: `growthforge-prod-api` dormant-active, `/home/ubuntu/prod/app` untouched (2026-10-18), Coming Soon intact.
+- Background jobs: **no stuck/orphaned jobs** — `videos` 20×`complete`, `commercial_assemblies` 41 complete / 3 cancelled / 2 failed, `kling_scene_jobs` 41 `succeed` / 1 `failed`.
+
+### Test suite: 292/292 passing (was 285/7)
+The 7 previously-reported Meta publish/stats failures were **stale test-harness mocks**, not product defects:
+- The publish route legitimately re-fetches the final post (a 3rd `db.select`) after the Graph API call; success-path tests only mocked 2 selects → `undefined.from()` → 500.
+- `vi.clearAllMocks()` does not clear `mockReturnValueOnce` queues → cross-test pollution.
+- Fix (`0db8a3a`): add missing final-post select mock to 6 success paths + stats integration test; `beforeEach` → `vi.resetAllMocks()`; move `publishedPost` declaration before use. **Product code unchanged.**
+
+### Cross-tenant security (launch gate) — PASS
+- 20 ownership/authz tests passing (7 HTTP+real-DB cross-user + 13 ownership-scoping): content, social posts, campaigns, videos, competitors, SEO blog-posts all 404 on cross-project IDs.
+- `supabaseAuthMiddleware` global before all `/api`; per-router `router.param("id", requireProjectOwnershipParam())`.
+- **0 confirmed cross-tenant exposures.**
+
+### Concurrency / performance (staged ramp, 8s each, mixed healthz/sitemap/compare)
+| Concurrency | Throughput | p50 | p95 | p99 | max | 5xx | net errors | DB conn peak |
+|---|---|---|---|---|---|---|---|---|
+| 5 | 1316/s | 3.5ms | 5.7ms | 8.3ms | 162ms | 0 | 0 | 11 |
+| 10 | 1225/s | 7.6ms | 11.0ms | 15.5ms | 268ms | 0 | 0 | 12 |
+| 25 | 1113/s | 19.8ms | 28.6ms | 46.2ms | 786ms | 0 | 0 | 17 |
+| 50 | 947/s | 40.5ms | 69.8ms | 163.5ms | 1438ms | 0 | 0 | 13 |
+| 100 | 837/s | 77.2ms | 116.7ms | 2360.7ms | 3032ms | 0 | 0 | 15 |
+
+- **Zero 5xx and zero network errors at every level.** Degrades gracefully (single Node process on 2 CPUs).
+- **Measured sustainable concurrency ≈ 50** (p99 ≤ 164ms). First bottleneck = CPU (single-process Node + in-host generator); p99 knee at 100 concurrent. pg `max=10` pool was **not** the bottleneck (peak 17 conns, ~1/3 requests DB-bound).
+- **Limitations:** load generator on same host (numbers conservative); public endpoints only (healthz + DB-backed 404s), not authenticated routes (covered by 292 unit tests). No cross-user contamination.
+
+### Recovery / interruption — PASS
+- API restart clean: `healthz` 200 + optimizer re-start confirmed.
+- No orphaned/stuck background jobs.
+- `stuckPublishRecovery.test.ts` (11 tests) passes; publish route has atomic draft→publishing lock + 3-attempt DB persist + idempotent `externalPostId` completion.
+
+### Billing / entitlements — PARTIAL (config gaps)
+- Stripe **test-mode only** (`sk_test_*`). No live keys.
+- `STRIPE_WEBHOOK_SECRET` is **empty in `.env`** → webhook signature verification not active in DEV (must be set for prod).
+- `STRIPE_PUBLISHABLE_KEY` not in `.env`; price IDs frontend-driven (`plans.tsx` `priceMap`).
+- Webhook endpoint `/api/stripe/webhook` exists (raw body + signature-header presence check); `stripeClient.ts` wires `stripeWebhookSecret`.
+- No end-to-end Stripe checkout exercised this run (needs test credentials + product IDs).
+
+### Autonomous campaign Observe-mode regression — PASS
+- 8 imported Meta campaigns all remain `paused`; **0 act-mode** `AUTONOMOUS_*` actions (`CAMPAIGN_CREATED`×10, `CAMPAIGN_VALIDATED_DRY_RUN`×9, `AUTONOMOUS_EVALUATION`×1).
+- `AUTONOMOUS_OPTIMIZER_MODE=observe`; RESUME recommendation-only (`requiresAuthorization=true`, apply layer skips it).
+
+### Commercial Studio regression — PASS (not redesigned)
+- No stuck video jobs; assembly/video statuses all terminal.
+- `dialogue`, `localization`, `objectStorageS3`, `metaApiSchemas`, `stuckPublishRecovery` all green (part of 292). Locked 0.25s caption lead untouched.
+
+### Remaining blockers (unchanged external)
+- Google Ads: not connected / developer-token + consent-screen approval pending.
+- Meta Ads act mode: long-lived/system-user token + App Review / Business Verification / Live mode pending.
+- Production config: re-provision `/home/ubuntu/prod/app` from current code + own Wasabi bucket; set `STRIPE_WEBHOOK_SECRET`, `STRIPE_PUBLISHABLE_KEY`, product price IDs; reconcile prod DB migration track.
