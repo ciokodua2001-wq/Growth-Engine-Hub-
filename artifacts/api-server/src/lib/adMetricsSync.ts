@@ -186,7 +186,7 @@ export async function syncMetaMetrics(projectId: number): Promise<number> {
   const insightsUrl = new URL(`${META_GRAPH}/${account.customerId}/insights`);
   insightsUrl.searchParams.set("level", "campaign");
   insightsUrl.searchParams.set("fields", "campaign_id,campaign_name,impressions,clicks,spend,ctr,cpc,actions");
-  insightsUrl.searchParams.set("date_preset", "last_30_days");
+  insightsUrl.searchParams.set("date_preset", "last_30d");
   insightsUrl.searchParams.set("limit", "50");
   insightsUrl.searchParams.set("access_token", token);
 
