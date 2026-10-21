@@ -12,7 +12,7 @@ router.param("id", requireProjectOwnershipParam());
 const META_GRAPH = "https://graph.facebook.com/v20.0";
 const META_AUTH  = "https://www.facebook.com/v20.0/dialog/oauth";
 const META_TOKEN = `${META_GRAPH}/oauth/access_token`;
-const SCOPE      = "ads_read,ads_management,pages_manage_ads,pages_read_engagement,pages_show_list,business_management";
+const SCOPE      = "ads_read,ads_management,pages_read_engagement,pages_show_list,business_management";
 const CALLBACK_PATH = "/api/auth/meta-ads/callback";
 
 function appId()     { return process.env["META_APP_ID"]     ?? ""; }
