@@ -399,31 +399,38 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
     .set({ renderStatus: "processing", renderStartedAt: new Date(), renderError: null })
     .where(eq(videosTable.id, videoId));
 
-  // Fire-and-forget assembly pipeline
-  getAssembler()
-    .assemble(videoId, assemblyIds, formatsNeedingRender, options)
-    .catch(err => {
-      const msg = err instanceof Error ? err.message : String(err);
-      logger.error({ err, videoId }, "[assemble] Pipeline unhandled error");
-      void db
-        .update(commercialAssembliesTable)
-        .set({
-          status: "failed",
-          errorMessage: msg.slice(0, 1000),
-          completedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(commercialAssembliesTable.videoId, videoId),
-            inArray(commercialAssembliesTable.status, ["pending", "processing"]),
-          ),
-        );
-      void db
-        .update(videosTable)
-        .set({ renderStatus: "failed", renderError: msg.slice(0, 500) })
-        .where(eq(videosTable.id, videoId));
-    });
+  // Assembly pipeline. When the dedicated FFmpeg worker is enabled (default),
+  // leave the new rows "pending" for the worker to atomically claim + assemble,
+  // so CPU-heavy encodes never run inside the API process. The legacy in-process
+  // path remains as a rollback escape hatch (FFMPEG_WORKER_MODE="false").
+  if (process.env.FFMPEG_WORKER_MODE !== "false") {
+    logger.info({ videoId, assemblyIds, formatsNeedingRender }, "[assemble] Queued for FFmpeg worker");
+  } else {
+    getAssembler()
+      .assemble(videoId, assemblyIds, formatsNeedingRender, options)
+      .catch(err => {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error({ err, videoId }, "[assemble] Pipeline unhandled error");
+        void db
+          .update(commercialAssembliesTable)
+          .set({
+            status: "failed",
+            errorMessage: msg.slice(0, 1000),
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(commercialAssembliesTable.videoId, videoId),
+              inArray(commercialAssembliesTable.status, ["pending", "processing"]),
+            ),
+          );
+        void db
+          .update(videosTable)
+          .set({ renderStatus: "failed", renderError: msg.slice(0, 500) })
+          .where(eq(videosTable.id, videoId));
+      });
+  }
 
   // Include any cached assemblies in the response alongside the newly queued ones
   const allAssemblies = [

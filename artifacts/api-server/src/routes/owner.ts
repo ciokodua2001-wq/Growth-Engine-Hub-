@@ -1,5 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { getAuth } from "../lib/supabaseAuth.js";
+import fs from "node:fs";
+import { getApiMetricsSnapshot } from "../lib/apiMetrics.js";
 import { db } from "@workspace/db";
 import {
   usersTable,
@@ -9,6 +11,8 @@ import {
   ownerSegmentsTable,
   ownerSuppressionListTable,
   ownerCampaignsTable,
+  commercialAssembliesTable,
+  pool,
 } from "@workspace/db";
 import {
   eq, count, sql, sum, and, gte, lt, isNotNull, ilike, or,
@@ -905,6 +909,71 @@ h1{font-size:22px;color:#111;}p{color:#6b7280;line-height:1.6;}</style>
 </div></body></html>`);
   } catch (err) {
     res.status(500).send("<h2>Something went wrong. Please try again later.</h2>");
+  }
+});
+
+
+
+/* Operational / capacity metrics */
+
+router.get("/owner/metrics", requireOwner, async (req, res): Promise<void> => {
+  try {
+    const api = getApiMetricsSnapshot();
+
+    let load1 = 0, load5 = 0, load15 = 0, memTotalMb = 0, memAvailMb = 0;
+    try {
+      const load = fs.readFileSync("/proc/loadavg", "utf8").trim().split(/\s+/).map(Number);
+      load1 = load[0] ?? 0; load5 = load[1] ?? 0; load15 = load[2] ?? 0;
+      const mem = fs.readFileSync("/proc/meminfo", "utf8");
+      memTotalMb = Math.round(Number(/MemTotal:\s+(\d+)/.exec(mem)?.[1] ?? 0) / 1024);
+      memAvailMb = Math.round(Number(/MemAvailable:\s+(\d+)/.exec(mem)?.[1] ?? 0) / 1024);
+    } catch { /* ignore /proc errors */ }
+
+    let dbConnections: number | null = null;
+    try {
+      const r = await pool.query("SELECT count(*)::int AS n FROM pg_stat_activity");
+      dbConnections = r.rows?.[0]?.n ?? null;
+    } catch { /* ignore */ }
+
+    const queue = await db
+      .select({
+        status: commercialAssembliesTable.status,
+        n: sql<number>`count(*)::int`,
+        oldest: sql<Date | null>`min(created_at)`,
+      })
+      .from(commercialAssembliesTable)
+      .where(inArray(commercialAssembliesTable.status, ["pending", "processing", "failed"]))
+      .groupBy(commercialAssembliesTable.status);
+
+    const queueMap: Record<string, { n: number; oldestAgeSec: number | null }> = {};
+    for (const r of queue) {
+      queueMap[r.status] = {
+        n: r.n,
+        oldestAgeSec: r.oldest ? Math.round((Date.now() - new Date(r.oldest).getTime()) / 1000) : null,
+      };
+    }
+
+    let stuckAssemblies: number | null = null;
+    try {
+      const r = await pool.query("SELECT count(*)::int AS n FROM commercial_assemblies WHERE status = 'processing' AND claimed_at IS NOT NULL AND claimed_at < now() - interval '30 minutes'");
+      stuckAssemblies = r.rows?.[0]?.n ?? null;
+    } catch { /* ignore */ }
+
+    res.json({
+      latency: api.latency,
+      errors: api.errors,
+      throughput: api.throughput,
+      cpu: { load1, load5, load15 },
+      memory: { totalMb: memTotalMb, availableMb: memAvailMb },
+      db: { connections: dbConnections },
+      assemblyQueue: queueMap,
+      stuckAssemblies,
+      worker: { mode: process.env.FFMPEG_WORKER_MODE === "false" ? "in-process" : "dedicated-worker" },
+      ts: new Date().toISOString(),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Error fetching metrics");
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

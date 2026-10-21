@@ -5,6 +5,7 @@ import { supabaseAuthMiddleware } from "./lib/supabaseAuth.js";
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/betterAuth.js";
 import router from "./routes/index.js";
+import { recordRequest } from "./lib/apiMetrics.js";
 import resendWebhookHandler from "./routes/resendWebhook.js";
 import { logger } from "./lib/logger.js";
 import { WebhookHandlers } from "./webhookHandlers.js";
@@ -119,6 +120,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(supabaseAuthMiddleware);
 
 // 4. API routes
+app.use((req, res, next) => {
+  const __start = Date.now();
+  res.on("finish", () => recordRequest(Date.now() - __start, res.statusCode));
+  next();
+});
+
 app.use("/api", router);
 
 // 5. Better Auth handler - /api/auth/* (sign-up, sign-in, sign-out, session,

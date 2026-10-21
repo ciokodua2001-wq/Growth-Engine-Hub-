@@ -24,6 +24,12 @@ export const commercialAssembliesTable = pgTable("commercial_assemblies", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+
+  // ── FFmpeg worker isolation: atomic claiming + retry tracking ──────────────
+  claimedBy: text("claimed_by"),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  retryCount: integer("retry_count").notNull().default(0),
+  lastRetryAt: timestamp("last_retry_at", { withTimezone: true }),
 });
 
 export type CommercialAssembly = typeof commercialAssembliesTable.$inferSelect;
