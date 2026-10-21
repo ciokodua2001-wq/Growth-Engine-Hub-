@@ -395,7 +395,9 @@ router.post("/projects/:id/google-ads/campaigns", requireActiveSubscription, asy
   const body = req.body as {
     name?: unknown; budgetAmount?: unknown; finalUrl?: unknown;
     headline?: unknown; description?: unknown; status?: unknown;
+    validateOnly?: unknown;
   };
+  const validateOnly = Boolean(body.validateOnly);
 
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const budgetAmount = Number(body.budgetAmount);
@@ -411,24 +413,63 @@ router.post("/projects/:id/google-ads/campaigns", requireActiveSubscription, asy
   if (!description) { res.status(400).json({ error: "description is required" }); return; }
 
   const account = await getGoogleAdsAccount(projectId);
-  if (!account) { res.status(404).json({ error: "Google Ads account not connected" }); return; }
-  if (!devToken()) { res.status(400).json({ error: "GOOGLE_ADS_DEVELOPER_TOKEN not configured" }); return; }
-  if (!account.refreshToken) { res.status(400).json({ error: "No refresh token - please reconnect your Google Ads account." }); return; }
-  if (!account.customerId) { res.status(400).json({ error: "No customer ID - run sync or set it manually first." }); return; }
+
+  if (validateOnly) {
+    // If not connected yet, run local dry-run validation
+    if (!account || !account.refreshToken || !account.customerId || !devToken()) {
+      if (headline.length > 30) { res.status(400).json({ error: "Headline exceeds Google Ads 30 character limit" }); return; }
+      if (description.length > 90) { res.status(400).json({ error: "Description exceeds Google Ads 90 character limit" }); return; }
+      if (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")) { res.status(400).json({ error: "Final URL must begin with http:// or https://" }); return; }
+
+      await logAdAction({
+        projectId,
+        customerId: account?.customerId ?? "unconnected",
+        actionType: "CAMPAIGN_VALIDATED_DRY_RUN",
+        afterState: { name, budgetAmount, finalUrl, headline, description, mode: "local_dry_run" },
+      });
+
+      res.json({
+        validated: true,
+        dryRun: true,
+        message: `Local dry-run validation passed for "${name}". Connect Google Ads to test live API dry-run.`,
+      });
+      return;
+    }
+  } else {
+    if (!account) { res.status(404).json({ error: "Google Ads account not connected" }); return; }
+    if (!devToken()) { res.status(400).json({ error: "GOOGLE_ADS_DEVELOPER_TOKEN not configured" }); return; }
+    if (!account.refreshToken) { res.status(400).json({ error: "No refresh token - please reconnect your Google Ads account." }); return; }
+    if (!account.customerId) { res.status(400).json({ error: "No customer ID - run sync or set it manually first." }); return; }
+  }
 
   try {
     const customer = makeClient().Customer({ customer_id: account.customerId, refresh_token: account.refreshToken });
 
-    const budgetResourceName = await createCampaignBudget(customer, `${name} Budget`, dollarsToMicros(budgetAmount));
+    const budgetResourceName = await createCampaignBudget(customer, `${name} Budget`, dollarsToMicros(budgetAmount), { validateOnly });
     const budgetId = resourceId(budgetResourceName);
 
-    const campaignResourceName = await createCampaign(customer, { name, budgetResourceName, status });
+    const campaignResourceName = await createCampaign(customer, { name, budgetResourceName, status, validateOnly });
     const campaignId = resourceId(campaignResourceName);
 
-    const adGroupResourceName = await createAdGroup(customer, { name: `${name} Ad Group`, campaignResourceName, cpcBidMicros: 100_000 });
+    const adGroupResourceName = await createAdGroup(customer, { name: `${name} Ad Group`, campaignResourceName, cpcBidMicros: 100_000, validateOnly });
     const adGroupId = resourceId(adGroupResourceName);
 
-    const adResourceName = await createResponsiveSearchAd(customer, { adGroupResourceName, headline, description, finalUrl });
+    const adResourceName = await createResponsiveSearchAd(customer, { adGroupResourceName, headline, description, finalUrl, validateOnly });
+
+    if (validateOnly) {
+      await logAdAction({
+        projectId,
+        customerId: account!.customerId,
+        actionType: "CAMPAIGN_VALIDATED_DRY_RUN",
+        afterState: { budgetResourceName, campaignResourceName, adGroupResourceName, adResourceName, status, budgetAmount },
+      });
+      res.json({
+        validated: true,
+        dryRun: true,
+        message: `Google Ads API validate_only dry-run passed for "${name}". Payload verified by Google. $0 spent.`,
+      });
+      return;
+    }
 
     await db.insert(campaignsTable).values({
       projectId,

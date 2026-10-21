@@ -35,6 +35,7 @@ export async function createCampaignBudget(
   customer: AdsCustomer,
   name: string,
   amountMicros: number,
+  options?: { validateOnly?: boolean },
 ): Promise<string> {
   const resp = await customer.campaignBudgets.create([
     {
@@ -43,7 +44,8 @@ export async function createCampaignBudget(
       delivery_method: "STANDARD",
       explicitly_shared: false,
     },
-  ]);
+  ], options?.validateOnly ? { validate_only: true } : undefined);
+  if (options?.validateOnly) return "customers/dry-run/campaignBudgets/000";
   const resourceName = resp?.results?.[0]?.resource_name as string | undefined;
   if (!resourceName) throw new Error("Google Ads did not return a campaign budget resource name");
   return resourceName;
@@ -51,7 +53,7 @@ export async function createCampaignBudget(
 
 export async function createCampaign(
   customer: AdsCustomer,
-  opts: { name: string; budgetResourceName: string; status: "ENABLED" | "PAUSED" },
+  opts: { name: string; budgetResourceName: string; status: "ENABLED" | "PAUSED"; validateOnly?: boolean },
 ): Promise<string> {
   const resp = await customer.campaigns.create([
     {
@@ -64,7 +66,8 @@ export async function createCampaign(
       start_date: todayIsoDate(),
       end_date: "2037-12-30", // Google Ads sentinel for "no end date"
     },
-  ]);
+  ], opts.validateOnly ? { validate_only: true } : undefined);
+  if (opts.validateOnly) return "customers/dry-run/campaigns/000";
   const resourceName = resp?.results?.[0]?.resource_name as string | undefined;
   if (!resourceName) throw new Error("Google Ads did not return a campaign resource name");
   return resourceName;
@@ -72,7 +75,7 @@ export async function createCampaign(
 
 export async function createAdGroup(
   customer: AdsCustomer,
-  opts: { name: string; campaignResourceName: string; cpcBidMicros: number },
+  opts: { name: string; campaignResourceName: string; cpcBidMicros: number; validateOnly?: boolean },
 ): Promise<string> {
   const resp = await customer.adGroups.create([
     {
@@ -82,7 +85,8 @@ export async function createAdGroup(
       type: "SEARCH_STANDARD",
       cpc_bid_micros: opts.cpcBidMicros,
     },
-  ]);
+  ], opts.validateOnly ? { validate_only: true } : undefined);
+  if (opts.validateOnly) return "customers/dry-run/adGroups/000";
   const resourceName = resp?.results?.[0]?.resource_name as string | undefined;
   if (!resourceName) throw new Error("Google Ads did not return an ad group resource name");
   return resourceName;
@@ -94,7 +98,7 @@ export async function createAdGroup(
  */
 export async function createResponsiveSearchAd(
   customer: AdsCustomer,
-  opts: { adGroupResourceName: string; headline: string; description: string; finalUrl: string },
+  opts: { adGroupResourceName: string; headline: string; description: string; finalUrl: string; validateOnly?: boolean },
 ): Promise<string> {
   const headlines = [opts.headline, opts.headline, opts.headline];
   const descriptions = [opts.description, opts.description || opts.headline];
@@ -112,7 +116,8 @@ export async function createResponsiveSearchAd(
         },
       },
     },
-  ]);
+  ], opts.validateOnly ? { validate_only: true } : undefined);
+  if (opts.validateOnly) return "customers/dry-run/adGroupAds/000";
   const resourceName = resp?.results?.[0]?.resource_name as string | undefined;
   if (!resourceName) throw new Error("Google Ads did not return an ad resource name");
   return resourceName;

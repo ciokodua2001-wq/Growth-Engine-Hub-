@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, X, Send, Pause, Play, History, DollarSign, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, X, Send, Pause, Play, History, DollarSign, CheckCircle2, AlertCircle, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Campaign } from "@workspace/api-client-react";
 
-/** A campaign with the Google Ads external id (returned by the API but absent from the generated type). */
 export type GoogleCampaign = Campaign & { source?: string; externalId?: string | null };
 
 interface AdPlatformAction {
@@ -18,10 +17,11 @@ interface AdPlatformAction {
   createdAt: string;
 }
 
-// ── Publish to Google Ads ──────────────────────────────────────────────────────
+// ── Publish / Validate Modal ──────────────────────────────────────────────────
 
-export function PublishGoogleAdsModal({ projectId, onClose, onPublished }: {
+export function PublishGoogleAdsModal({ projectId, isConnected, onClose, onPublished }: {
   projectId: number;
+  isConnected: boolean;
   onClose: () => void;
   onPublished: () => void;
 }) {
@@ -32,8 +32,8 @@ export function PublishGoogleAdsModal({ projectId, onClose, onPublished }: {
   const [headline, setHeadline] = useState("");
   const [description, setDescription] = useState("");
 
-  const publishMutation = useMutation({
-    mutationFn: async () => {
+  const submitMutation = useMutation({
+    mutationFn: async (validateOnly: boolean) => {
       const r = await fetch(`/api/projects/${projectId}/google-ads/campaigns`, {
         method: "POST",
         credentials: "include",
@@ -44,19 +44,30 @@ export function PublishGoogleAdsModal({ projectId, onClose, onPublished }: {
           finalUrl,
           headline,
           description,
-          status: "PAUSED", // locked policy: create paused, resume when ready
+          status: "PAUSED",
+          validateOnly,
         }),
       });
-      const d = await r.json() as { error?: string; message?: string };
-      if (!r.ok) throw new Error(d.error ?? "Publish failed");
+      const d = await r.json() as { error?: string; message?: string; dryRun?: boolean };
+      if (!r.ok) throw new Error(d.error ?? "Action failed");
       return d;
     },
-    onSuccess: (d) => {
-      toast({ title: "Campaign created", description: d.message ?? `Created "${name}" (paused).` });
-      onPublished();
-      onClose();
+    onSuccess: (d, validateOnly) => {
+      if (validateOnly) {
+        toast({
+          title: "Dry-Run Validation Passed!",
+          description: d.message ?? "Payload structure, character limits, and budget passed validation.",
+        });
+      } else {
+        toast({
+          title: "Campaign Created",
+          description: d.message ?? `Created "${name}" (paused).`,
+        });
+        onPublished();
+        onClose();
+      }
     },
-    onError: (err) => toast({ title: "Publish failed", description: String(err), variant: "destructive" }),
+    onError: (err) => toast({ title: "Validation failed", description: String(err), variant: "destructive" }),
   });
 
   const canSubmit = name.trim() && Number(budget) > 0 && finalUrl.trim() && headline.trim() && description.trim();
@@ -65,44 +76,62 @@ export function PublishGoogleAdsModal({ projectId, onClose, onPublished }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-lg p-6 rounded-2xl bg-card border border-border" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
-          <h3 className="font-bold text-lg">Publish to Google Ads</h3>
+          <h3 className="font-bold text-lg">Google Ads Campaign Publisher</h3>
           <button onClick={onClose} className="text-muted-foreground hover:text-white transition-colors"><X className="h-5 w-5" /></button>
         </div>
-        <p className="text-xs text-muted-foreground mb-4">
-          Creates a Search campaign (budget → campaign → ad group → responsive search ad). It starts <strong className="text-yellow-400">paused</strong> - resume it from the campaign card when ready.
-        </p>
+
+        {!isConnected ? (
+          <div className="mb-4 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-xs text-yellow-300 flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <div>
+              <strong>Account not connected yet.</strong> You can run <strong>Validate (Dry Run)</strong> to test your campaign payload structure, character limits, and budget rules before connecting Google Ads.
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground mb-4">
+            Creates a Search campaign (budget → campaign → ad group → responsive search ad). Live creation defaults to <strong className="text-yellow-400">paused</strong> until you hit Resume.
+          </p>
+        )}
 
         <div className="space-y-3">
           <Field label="Campaign name">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Summer Sale - Search"
-              className={inputCls} />
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Summer Sale - Search" className={inputCls} />
           </Field>
           <Field label="Daily budget (USD)">
-            <input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="10.00" inputMode="decimal"
-              className={inputCls} />
+            <input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="10.00" inputMode="decimal" className={inputCls} />
           </Field>
           <Field label="Landing page URL">
-            <input value={finalUrl} onChange={(e) => setFinalUrl(e.target.value)} placeholder="https://example.com"
-              className={inputCls} />
+            <input value={finalUrl} onChange={(e) => setFinalUrl(e.target.value)} placeholder="https://example.com" className={inputCls} />
           </Field>
-          <Field label="Headline">
-            <input value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="30 characters max"
-              maxLength={30} className={inputCls} />
+          <Field label={`Headline (${headline.length}/30)`}>
+            <input value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="30 characters max" maxLength={30} className={inputCls} />
           </Field>
-          <Field label="Description">
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="90 characters max"
-              maxLength={90} rows={2} className={inputCls} />
+          <Field label={`Description (${description.length}/90)`}>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="90 characters max" maxLength={90} rows={2} className={inputCls} />
           </Field>
         </div>
 
-        <button
-          onClick={() => publishMutation.mutate()}
-          disabled={publishMutation.isPending || !canSubmit}
-          className="mt-5 w-full flex items-center justify-center gap-2 bg-[#4285F4] hover:bg-[#4285F4]/90 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-colors"
-        >
-          {publishMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Publish (paused)
-        </button>
+        <div className="mt-5 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => submitMutation.mutate(true)}
+            disabled={submitMutation.isPending || !canSubmit}
+            className="flex-1 flex items-center justify-center gap-2 bg-secondary hover:bg-secondary/80 border border-border text-foreground font-bold py-3 rounded-xl transition-colors disabled:opacity-40 text-sm"
+          >
+            {submitMutation.isPending && submitMutation.variables === true ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4 text-emerald-400" />}
+            Validate (Dry Run)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => submitMutation.mutate(false)}
+            disabled={submitMutation.isPending || !canSubmit || !isConnected}
+            className="flex-1 flex items-center justify-center gap-2 bg-[#4285F4] hover:bg-[#4285F4]/90 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-colors text-sm"
+          >
+            {submitMutation.isPending && submitMutation.variables === false ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Publish Live
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -124,7 +153,10 @@ export function AuditHistoryModal({ projectId, onClose }: { projectId: number; o
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-2xl p-6 rounded-2xl bg-card border border-border max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-lg">Google Ads Activity</h3>
+          <div className="flex items-center gap-2">
+            <History className="h-5 w-5 text-primary" />
+            <h3 className="font-bold text-lg">Google Ads Audit Log</h3>
+          </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-white transition-colors"><X className="h-5 w-5" /></button>
         </div>
 
@@ -133,7 +165,7 @@ export function AuditHistoryModal({ projectId, onClose }: { projectId: number; o
         ) : actionsQuery.isError ? (
           <p className="text-sm text-red-400">Could not load activity history.</p>
         ) : (actionsQuery.data?.actions?.length ?? 0) === 0 ? (
-          <p className="text-sm text-muted-foreground py-10 text-center">No Google Ads actions yet. Publish or modify a campaign to see its audit trail here.</p>
+          <p className="text-sm text-muted-foreground py-10 text-center">No Google Ads actions yet. Use Validate (Dry Run) or Publish to test campaign actions.</p>
         ) : (
           <div className="overflow-y-auto -mr-2 pr-2">
             <table className="w-full text-sm">

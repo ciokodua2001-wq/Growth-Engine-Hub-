@@ -238,6 +238,7 @@ function GoogleAdsPanel({ projectId }: { projectId: number }) {
         {showPublish && (
           <PublishGoogleAdsModal
             projectId={projectId}
+            isConnected={true}
             onClose={() => setShowPublish(false)}
             onPublished={() => {
               void queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) });
@@ -284,18 +285,38 @@ function GoogleAdsPanel({ projectId }: { projectId: number }) {
           <GoogleAdsIcon />
         </div>
         <div className="min-w-0">
-          <p className="font-semibold text-sm">Connect Google Ads</p>
-          <p className="text-xs text-muted-foreground">Import real campaigns, spend, clicks & conversions automatically</p>
+          <p className="font-semibold text-sm">Google Ads</p>
+          <p className="text-xs text-muted-foreground">Connect your account to publish live campaigns or run dry-run validation tests</p>
         </div>
       </div>
-      <button
-        onClick={() => connectMutation.mutate()}
-        disabled={connectMutation.isPending}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#4285F4] hover:bg-[#4285F4]/90 text-white text-sm font-bold transition-colors disabled:opacity-50"
-      >
-        {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-        Connect Google Ads
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => connectMutation.mutate()}
+          disabled={connectMutation.isPending}
+          className="flex-1 min-w-[200px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#4285F4] hover:bg-[#4285F4]/90 text-white text-sm font-bold transition-colors disabled:opacity-50"
+        >
+          {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+          Connect Google Ads
+        </button>
+        <button
+          onClick={() => setShowPublish(true)}
+          className="flex-1 min-w-[200px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 border border-border text-foreground text-sm font-bold transition-colors"
+        >
+          <Send className="h-4 w-4 text-[#4285F4]" />
+          Publish / Dry-Run Test
+        </button>
+      </div>
+      {showPublish && (
+        <PublishGoogleAdsModal
+          projectId={projectId}
+          isConnected={false}
+          onClose={() => setShowPublish(false)}
+          onPublished={() => {
+            void queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) });
+            statusQuery.refetch();
+          }}
+        />
+      )}
     </div>
   );
 }
