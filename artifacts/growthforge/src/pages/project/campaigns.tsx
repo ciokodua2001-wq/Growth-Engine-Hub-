@@ -442,16 +442,34 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
         <div className="flex items-center gap-2.5 mb-2">
           <div className="p-2 rounded-lg bg-[#1877F2]/10 shrink-0"><MetaIcon /></div>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm">Connect Meta Ads</p>
-            <p className="text-xs text-muted-foreground">Import Facebook & Instagram campaign data</p>
+            <p className="font-semibold text-sm">Meta Ads</p>
+            <p className="text-xs text-muted-foreground">Connect your account to publish live campaigns or run dry-run validation tests</p>
           </div>
           <span className="flex items-center gap-1.5 text-xs text-yellow-400 font-medium shrink-0">
             <Clock className="h-3.5 w-3.5" /> Setup pending
           </span>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Add <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">META_APP_ID</code> and <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">META_APP_SECRET</code> to the server <code className="bg-secondary px-1 py-0.5 rounded">.env</code>, register the OAuth redirect URI, then restart the API.
+        <p className="text-xs text-muted-foreground mb-3">
+          Add <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">META_APP_ID</code> and <code className="bg-secondary px-1 py-0.5 rounded text-[#00E676]">META_APP_SECRET</code> to the server <code className="bg-secondary px-1 py-0.5 rounded">.env</code>, register the OAuth redirect URI, then restart the API. You can still run a dry-run validation below.
         </p>
+        <button
+          onClick={() => setShowPublish(true)}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 border border-border text-foreground text-sm font-bold transition-colors"
+        >
+          <Send className="h-4 w-4 text-[#1877F2]" />
+          Publish / Dry-Run Test
+        </button>
+        {showPublish && (
+          <PublishMetaAdsModal
+            projectId={projectId}
+            isConnected={false}
+            onClose={() => setShowPublish(false)}
+            onPublished={() => {
+              void queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) });
+              statusQuery.refetch();
+            }}
+          />
+        )}
       </div>
     );
   }
