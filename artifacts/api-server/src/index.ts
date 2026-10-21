@@ -6,6 +6,7 @@ import { startArchivalJob } from "./lib/archivalJob.js";
 import { startStuckPublishRecovery } from "./lib/stuckPublishRecovery.js";
 import { startScheduledPublisher } from "./lib/scheduledPublisher.js";
 import { startRenderMonitor } from "./lib/renderMonitor.js";
+import { startAutonomousOptimizer } from "./lib/autonomousOptimizer.js";
 import { checkEncryptionKey, isEncryptedFormat, decryptToken } from "./lib/tokenCrypto.js";
 import { db } from "@workspace/db";
 import { metaConnectionsTable, commercialAssembliesTable } from "@workspace/db";
@@ -400,6 +401,7 @@ app.listen(port, (err) => {
   startStuckPublishRecovery();
   startScheduledPublisher();
   startRenderMonitor();
+  startAutonomousOptimizer();
   void runMetaTokenHealthCheck();
   void ensureSupportTicketsTable();
   void ensureSupportKnowledgeBaseTable();
