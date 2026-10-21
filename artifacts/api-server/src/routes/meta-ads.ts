@@ -112,7 +112,11 @@ router.get("/auth/meta-ads/callback", async (req: Request, res: Response): Promi
 
     // Exchange for long-lived token (~60 days)
     const longToken = await exchangeForLongLived(shortToken.access_token);
-    const expiresAt = new Date(Date.now() + longToken.expires_in * 1000);
+    // fb_exchange_token normally returns expires_in (seconds), but in Development
+    // mode Meta can omit it. Default to the standard 60-day long-lived lifetime
+    // so new Date() never receives NaN ("Invalid time value").
+    const expiresInSeconds = Number(longToken.expires_in) || 60 * 24 * 60 * 60;
+    const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
 
     // Get user info + first ad account
     let accountEmail: string | null = null;
