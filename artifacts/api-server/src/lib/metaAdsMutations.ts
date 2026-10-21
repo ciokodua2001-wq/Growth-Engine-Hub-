@@ -26,6 +26,7 @@ export async function createMetaCampaign(
     objective: opts.objective ?? "OUTCOME_TRAFFIC",
     status: opts.status ?? "PAUSED",
     buying_type: "AUCTION",
+    special_ad_categories: JSON.stringify([]),
     access_token: accessToken,
   });
   const r = await fetch(`${META_GRAPH}/${adAccountId}/campaigns`, {
