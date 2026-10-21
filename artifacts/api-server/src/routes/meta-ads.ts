@@ -1,9 +1,10 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
-import { connectedAdAccountsTable, campaignsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
-import { requireProjectOwnershipParam } from "../lib/authz.js";
+import { connectedAdAccountsTable, campaignsTable, adPlatformActionsTable } from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
+import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { appOrigin, oauthRedirectUri } from "../lib/appOrigin.js";
+import { dollarsToCents, createMetaCampaign, createMetaAdSet, createMetaLinkAd, updateMetaCampaignStatus, updateMetaAdSetBudget, queryMetaAdSetId } from "../lib/metaAdsMutations.js";
 
 const router: IRouter = Router();
 router.param("id", requireProjectOwnershipParam());
@@ -11,7 +12,7 @@ router.param("id", requireProjectOwnershipParam());
 const META_GRAPH = "https://graph.facebook.com/v20.0";
 const META_AUTH  = "https://www.facebook.com/v20.0/dialog/oauth";
 const META_TOKEN = `${META_GRAPH}/oauth/access_token`;
-const SCOPE      = "ads_read,business_management";
+const SCOPE      = "ads_read,ads_management,pages_manage_ads,pages_read_engagement,pages_show_list,business_management";
 const CALLBACK_PATH = "/api/auth/meta-ads/callback";
 
 function appId()     { return process.env["META_APP_ID"]     ?? ""; }
@@ -140,6 +141,21 @@ router.get("/auth/meta-ads/callback", async (req: Request, res: Response): Promi
       }
     } catch { /* non-fatal */ }
 
+    // Fetch the first Facebook page + page token for link-ad creation
+    let pageId: string | null = null;
+    let pageAccessToken: string | null = null;
+    try {
+      const pagesRes = await fetch(
+        `${META_GRAPH}/me/accounts?fields=id,name,access_token&limit=1&access_token=${longToken.access_token}`,
+        { signal: AbortSignal.timeout(10_000) }
+      );
+      const pagesData = await pagesRes.json() as { data?: Array<{ id: string; name: string; access_token: string }> };
+      if (pagesData.data && pagesData.data.length > 0) {
+        pageId = pagesData.data[0]!.id;
+        pageAccessToken = pagesData.data[0]!.access_token ?? null;
+      }
+    } catch { /* non-fatal */ }
+
     // Upsert connection
     const existing = await db.select({ id: connectedAdAccountsTable.id })
       .from(connectedAdAccountsTable)
@@ -155,6 +171,8 @@ router.get("/auth/meta-ads/callback", async (req: Request, res: Response): Promi
         customerId:   customerId  ?? undefined,
         accountName:  accountName ?? undefined,
         accountEmail: accountEmail ?? undefined,
+        pageId:       pageId ?? undefined,
+        pageAccessToken: pageAccessToken ?? undefined,
         updatedAt: new Date(),
       }).where(eq(connectedAdAccountsTable.id, existing[0]!.id));
     } else {
@@ -167,6 +185,8 @@ router.get("/auth/meta-ads/callback", async (req: Request, res: Response): Promi
         customerId,
         accountName,
         accountEmail,
+        pageId,
+        pageAccessToken,
       });
     }
 
@@ -317,6 +337,216 @@ router.delete("/projects/:id/meta/disconnect", async (req, res): Promise<void> =
       eq(campaignsTable.source, "meta"),
     ));
   res.json({ ok: true });
+});
+
+
+// ── Mutation layer (create / pause / resume / budget + audit) ──────────────────
+
+async function getMetaAccount(projectId: number) {
+  const [account] = await db.select().from(connectedAdAccountsTable)
+    .where(and(
+      eq(connectedAdAccountsTable.projectId, projectId),
+      eq(connectedAdAccountsTable.provider, "meta"),
+    ));
+  return account ?? null;
+}
+
+async function logMetaAdAction(input: {
+  projectId: number;
+  customerId: string | null;
+  campaignId?: string | null;
+  actionType: string;
+  beforeState?: unknown;
+  afterState?: unknown;
+  status?: "success" | "failed";
+  errorMessage?: string | null;
+}): Promise<void> {
+  await db.insert(adPlatformActionsTable).values({
+    projectId: input.projectId,
+    platform: "meta",
+    customerId: input.customerId,
+    campaignId: input.campaignId ?? null,
+    actionType: input.actionType,
+    beforeState: input.beforeState != null ? JSON.stringify(input.beforeState) : null,
+    afterState: input.afterState != null ? JSON.stringify(input.afterState) : null,
+    status: input.status ?? "success",
+    errorMessage: input.errorMessage ?? null,
+  });
+}
+
+// Create a full traffic campaign: campaign -> ad set -> link ad (via facebook page).
+router.post("/projects/:id/meta/campaigns", requireActiveSubscription, async (req, res): Promise<void> => {
+  const projectId = req.project!.id;
+  const body = req.body as {
+    name?: unknown; budgetAmount?: unknown; finalUrl?: unknown;
+    headline?: unknown; description?: unknown; status?: unknown; validateOnly?: unknown;
+  };
+
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const budgetAmount = Number(body.budgetAmount);
+  const finalUrl = typeof body.finalUrl === "string" ? body.finalUrl.trim() : "";
+  const headline = typeof body.headline === "string" ? body.headline.trim() : "";
+  const description = typeof body.description === "string" ? body.description.trim() : "";
+  const status = body.status === "ACTIVE" || body.status === "PAUSED" ? body.status : "PAUSED";
+  const validateOnly = Boolean(body.validateOnly);
+
+  if (!name) { res.status(400).json({ error: "name is required" }); return; }
+  if (!Number.isFinite(budgetAmount) || budgetAmount <= 0) { res.status(400).json({ error: "budgetAmount must be a positive USD number" }); return; }
+  if (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")) { res.status(400).json({ error: "finalUrl must begin with http:// or https://" }); return; }
+  if (!headline) { res.status(400).json({ error: "headline is required" }); return; }
+  if (headline.length > 25) { res.status(400).json({ error: "headline exceeds Meta 25 character limit" }); return; }
+  if (!description) { res.status(400).json({ error: "description (primary text) is required" }); return; }
+  if (description.length > 125) { res.status(400).json({ error: "description exceeds Meta 125 character limit" }); return; }
+
+  const account = await getMetaAccount(projectId);
+
+  if (validateOnly) {
+    if (account && !account.pageId) {
+      await logMetaAdAction({
+        projectId, customerId: account.customerId, actionType: "CAMPAIGN_VALIDATED_DRY_RUN",
+        afterState: { name, budgetAmount, finalUrl, headline, description, mode: "local_dry_run", warning: "No Facebook page connected yet" },
+      });
+      res.json({ validated: true, dryRun: true, message: `Local dry-run validation passed for "${name}" (note: no Facebook page connected yet - connect one to publish live link ads).` });
+      return;
+    }
+    await logMetaAdAction({
+      projectId, customerId: account?.customerId ?? "unconnected", actionType: "CAMPAIGN_VALIDATED_DRY_RUN",
+      afterState: { name, budgetAmount, finalUrl, headline, description, mode: "local_dry_run" },
+    });
+    res.json({ validated: true, dryRun: true, message: `Local dry-run validation passed for "${name}". Connect Meta Ads to run a live test.` });
+    return;
+  }
+
+  if (!account) { res.status(404).json({ error: "Meta account not connected" }); return; }
+  if (!account.customerId) { res.status(400).json({ error: "No Meta ad account found. Re-connect your account." }); return; }
+  if (!account.pageId) { res.status(400).json({ error: "No Facebook page found. Re-connect to grant page permissions." }); return; }
+
+  try {
+    const token = account.accessToken;
+    const campaignId = await createMetaCampaign(token, account.customerId, { name, status });
+    const adSetId = await createMetaAdSet(token, account.customerId, {
+      name: `${name} Ad Set`, campaignId, dailyBudgetCents: dollarsToCents(budgetAmount), status,
+    });
+    const adId = await createMetaLinkAd(token, account.customerId, {
+      name: `${name} Ad`, adSetId, pageId: account.pageId, headline, description, finalUrl, status,
+    });
+
+    await db.insert(campaignsTable).values({
+      projectId,
+      name,
+      platform: "Meta",
+      status: status === "ACTIVE" ? "active" : "paused",
+      budget: String(budgetAmount),
+      source: "meta",
+      externalId: campaignId,
+    });
+
+    await logMetaAdAction({
+      projectId, customerId: account.customerId, campaignId,
+      actionType: "CAMPAIGN_CREATED",
+      afterState: { campaignId, adSetId, adId, status, budgetAmount, pageId: account.pageId },
+    });
+
+    res.json({
+      campaignId, adSetId, adId,
+      message: `Created Meta campaign "${name}" (${status === "ACTIVE" ? "active" : "paused"}).`,
+    });
+  } catch (err) {
+    await logMetaAdAction({
+      projectId, customerId: account.customerId,
+      actionType: "CAMPAIGN_CREATED", status: "failed",
+      errorMessage: err instanceof Error ? err.message : "Campaign creation failed",
+    });
+    req.log.error({ err }, "Meta campaign create error");
+    res.status(500).json({ error: err instanceof Error ? err.message : "Campaign creation failed" });
+  }
+});
+
+// Pause / resume a Meta campaign.
+router.post("/projects/:id/meta/campaigns/:campaignId/status", requireActiveSubscription, async (req, res): Promise<void> => {
+  const projectId = req.project!.id;
+  const campaignId = String(req.params.campaignId ?? "");
+  const { status } = req.body as { status?: unknown };
+  if (status !== "ACTIVE" && status !== "PAUSED") { res.status(400).json({ error: "status must be ACTIVE or PAUSED" }); return; }
+
+  const account = await getMetaAccount(projectId);
+  if (!account?.accessToken || !account.customerId) { res.status(400).json({ error: "Meta account not connected" }); return; }
+
+  try {
+    await updateMetaCampaignStatus(account.accessToken, campaignId, status);
+
+    await db.update(campaignsTable)
+      .set({ status: status === "ACTIVE" ? "active" : "paused" })
+      .where(and(eq(campaignsTable.projectId, projectId), eq(campaignsTable.source, "meta"), eq(campaignsTable.externalId, campaignId)));
+
+    await logMetaAdAction({
+      projectId, customerId: account.customerId, campaignId,
+      actionType: status === "ACTIVE" ? "CAMPAIGN_RESUMED" : "CAMPAIGN_PAUSED",
+      beforeState: { status: status === "ACTIVE" ? "PAUSED" : "ACTIVE" },
+      afterState: { status },
+    });
+
+    res.json({ ok: true, campaignId, status });
+  } catch (err) {
+    await logMetaAdAction({
+      projectId, customerId: account.customerId, campaignId,
+      actionType: "CAMPAIGN_STATUS_UPDATED", status: "failed",
+      errorMessage: err instanceof Error ? err.message : "Status update failed",
+    });
+    req.log.error({ err }, "Meta campaign status update error");
+    res.status(500).json({ error: err instanceof Error ? err.message : "Status update failed" });
+  }
+});
+
+// Change a Meta campaign's daily budget (updates the campaign's first ad set).
+router.patch("/projects/:id/meta/campaigns/:campaignId/budget", requireActiveSubscription, async (req, res): Promise<void> => {
+  const projectId = req.project!.id;
+  const campaignId = String(req.params.campaignId ?? "");
+  const { budgetAmount } = req.body as { budgetAmount?: unknown };
+  const amount = Number(budgetAmount);
+  if (!Number.isFinite(amount) || amount <= 0) { res.status(400).json({ error: "budgetAmount must be a positive USD number" }); return; }
+
+  const account = await getMetaAccount(projectId);
+  if (!account?.accessToken || !account.customerId) { res.status(400).json({ error: "Meta account not connected" }); return; }
+
+  try {
+    const adSetId = await queryMetaAdSetId(account.accessToken, campaignId);
+    if (!adSetId) { res.status(404).json({ error: "No ad set found for this campaign" }); return; }
+
+    const newCents = dollarsToCents(amount);
+    await updateMetaAdSetBudget(account.accessToken, adSetId, newCents);
+
+    await db.update(campaignsTable)
+      .set({ budget: String(amount) })
+      .where(and(eq(campaignsTable.projectId, projectId), eq(campaignsTable.source, "meta"), eq(campaignsTable.externalId, campaignId)));
+
+    await logMetaAdAction({
+      projectId, customerId: account.customerId, campaignId,
+      actionType: "BUDGET_UPDATED",
+      beforeState: { adSetId },
+      afterState: { adSetId, dailyBudgetCents: newCents, budgetAmount: amount },
+    });
+
+    res.json({ ok: true, campaignId, budgetAmount: amount });
+  } catch (err) {
+    await logMetaAdAction({
+      projectId, customerId: account.customerId, campaignId,
+      actionType: "BUDGET_UPDATED", status: "failed",
+      errorMessage: err instanceof Error ? err.message : "Budget update failed",
+    });
+    req.log.error({ err }, "Meta campaign budget update error");
+    res.status(500).json({ error: err instanceof Error ? err.message : "Budget update failed" });
+  }
+});
+
+// Immutable audit trail of every Meta mutation.
+router.get("/projects/:id/meta/actions", async (req, res): Promise<void> => {
+  const projectId = req.project!.id;
+  const actions = await db.select().from(adPlatformActionsTable)
+    .where(and(eq(adPlatformActionsTable.projectId, projectId), eq(adPlatformActionsTable.platform, "meta")))
+    .orderBy(desc(adPlatformActionsTable.createdAt))
+    .limit(200);
+  res.json({ actions });
 });
 
 export default router;

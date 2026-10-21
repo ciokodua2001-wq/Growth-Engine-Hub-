@@ -11,6 +11,8 @@ export const connectedAdAccountsTable = pgTable("connected_ad_accounts", {
   customerId: text("customer_id"),              // e.g. "1234567890"
   accountName: text("account_name"),
   accountEmail: text("account_email"),
+  pageId: text("page_id"),                        // Meta: facebook page id for link ads
+  pageAccessToken: text("page_access_token"),     // Meta: page access token
   lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

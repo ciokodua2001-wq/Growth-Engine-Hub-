@@ -19,6 +19,7 @@ import { TrialGate } from "@/components/ui/trial-gate";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { isTrialPlan, meetsMinPlanClient, isUpgradeError } from "@/lib/plan-access";
 import { PublishGoogleAdsModal, AuditHistoryModal, GoogleAdsCampaignActions, type GoogleCampaign } from "./google-ads-actions";
+import { PublishMetaAdsModal, MetaAuditHistoryModal, MetaAdsCampaignActions, type MetaCampaign } from "./meta-ads-actions";
 
 const statusColors: Record<string, string> = {
   draft:     "bg-slate-500/15 text-slate-400 border-slate-500/20",
@@ -352,6 +353,8 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const search = useSearch();
+  const [showPublish, setShowPublish] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
 
   const statusQuery = useQuery<MetaStatus>({
     queryKey: ["meta-status", projectId],
@@ -477,7 +480,19 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
           Last sync: {lastSync}
         </p>
         {/* Row 3: action buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowPublish(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1877F2] hover:bg-[#1877F2]/90 text-white text-xs font-bold transition-colors"
+          >
+            <Send className="h-3.5 w-3.5" /> Publish New Campaign
+          </button>
+          <button
+            onClick={() => setShowActivity(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/70 border border-border text-foreground text-xs font-bold transition-colors"
+          >
+            <History className="h-3.5 w-3.5" /> Activity
+          </button>
           <button
             onClick={() => syncMutation.mutate()}
             disabled={syncMutation.isPending}
@@ -494,6 +509,18 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
             <Unlink className="h-3.5 w-3.5" /> Disconnect
           </button>
         </div>
+        {showPublish && (
+          <PublishMetaAdsModal
+            projectId={projectId}
+            isConnected={true}
+            onClose={() => setShowPublish(false)}
+            onPublished={() => {
+              void queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) });
+              statusQuery.refetch();
+            }}
+          />
+        )}
+        {showActivity && <MetaAuditHistoryModal projectId={projectId} onClose={() => setShowActivity(false)} />}
         {status.tokenExpiresSoon && (
           <p className="mt-3 text-xs text-yellow-400/80">
             Your Meta access token is expiring soon. Click Disconnect then reconnect to refresh it.
@@ -508,18 +535,38 @@ function MetaAdsPanel({ projectId }: { projectId: number }) {
       <div className="flex items-center gap-2.5 mb-3">
         <div className="p-2 rounded-lg bg-[#1877F2]/10 shrink-0"><MetaIcon /></div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm">Connect Meta Ads</p>
-          <p className="text-xs text-muted-foreground">Import Facebook & Instagram campaigns, spend & conversions</p>
+          <p className="font-semibold text-sm">Meta Ads</p>
+          <p className="text-xs text-muted-foreground">Connect your account to publish live campaigns or run dry-run validation tests</p>
         </div>
       </div>
-      <button
-        onClick={() => connectMutation.mutate()}
-        disabled={connectMutation.isPending}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#1877F2]/90 text-white text-sm font-bold transition-colors disabled:opacity-50"
-      >
-        {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-        Connect Meta Ads
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => connectMutation.mutate()}
+          disabled={connectMutation.isPending}
+          className="flex-1 min-w-[200px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#1877F2]/90 text-white text-sm font-bold transition-colors disabled:opacity-50"
+        >
+          {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+          Connect Meta Ads
+        </button>
+        <button
+          onClick={() => setShowPublish(true)}
+          className="flex-1 min-w-[200px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 border border-border text-foreground text-sm font-bold transition-colors"
+        >
+          <Send className="h-4 w-4 text-[#1877F2]" />
+          Publish / Dry-Run Test
+        </button>
+      </div>
+      {showPublish && (
+        <PublishMetaAdsModal
+          projectId={projectId}
+          isConnected={false}
+          onClose={() => setShowPublish(false)}
+          onPublished={() => {
+            void queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) });
+            statusQuery.refetch();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -907,6 +954,13 @@ export default function ProjectCampaigns() {
                   <GoogleAdsCampaignActions
                     projectId={projectId}
                     campaign={campaign as GoogleCampaign}
+                    onChanged={() => void queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) })}
+                  />
+                )}
+                {(campaign as { source?: string }).source === "meta" && (
+                  <MetaAdsCampaignActions
+                    projectId={projectId}
+                    campaign={campaign as MetaCampaign}
                     onChanged={() => void queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey(projectId) })}
                   />
                 )}
