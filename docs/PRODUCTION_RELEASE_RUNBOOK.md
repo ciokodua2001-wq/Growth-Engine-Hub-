@@ -78,4 +78,17 @@ No `DROP`, `TRUNCATE`, or destructive `ALTER`. `stripe.*` self-heals at startup.
 - Live Stripe key (test mode until real launch).
 - Google OAuth end-to-end test.
 
+## 7. Pre-cutover acceptance gate (ALL must pass before Caddy cutover)
+
+Run these **before** flipping `usegrowthforge.com` off Coming Soon. If any fails, **keep Coming Soon and abort**.
+
+1. `GET /api/version` → `d924839`, `env: production`.
+2. `GET /api/healthz` → `{"status":"ok"}`.
+3. Authenticated smoke: `/api/auth/me` (200), `/api/projects` (200).
+4. Production media storage: PutObject + GetObject + ListBucket on `growthforge-prod-media` (and confirm no access to dev/backup buckets).
+5. One inline assembly (`FFMPEG_WORKER_MODE=false`) completes with a real `video_url` (existing assets, no paid AI).
+6. Backups green (`check-backups.sh`).
+
+Only proceed to Caddy cutover if 1–6 all pass; otherwise restore prior dist + restart + keep Coming Soon.
+
 *No production deployment, schema change, restart, or routing change has been performed. This runbook is documentation only.*
