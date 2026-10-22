@@ -9,6 +9,7 @@ for line in open(".env"):
     line = line.strip()
     if line.startswith("DATABASE_URL="):
         db = line.split("=", 1)[1].strip().strip(chr(34)).strip(chr(39))
+        db = db.replace("&uselibpqcompat=true", "").replace("?uselibpqcompat=true", "")
     elif line.startswith("BETTER_AUTH_SECRET="):
         secret = line.split("=", 1)[1].strip().strip(chr(34)).strip(chr(39))
 

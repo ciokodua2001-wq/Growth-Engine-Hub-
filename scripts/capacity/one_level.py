@@ -6,6 +6,7 @@ for line in open(".env"):
     line=line.strip()
     if line.startswith("DATABASE_URL="):
         db=line.split("=",1)[1].strip().strip(chr(34)).strip(chr(39))
+        db=db.replace("&uselibpqcompat=true","").replace("?uselibpqcompat=true","")
 def q(sql):
     return subprocess.run(["psql",db,"-t","-A","-c",sql],capture_output=True,text=True).stdout.strip()
 def loadavg(): return float(open("/proc/loadavg").read().split()[0])
