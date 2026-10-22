@@ -1,4 +1,4 @@
-import urllib.request, urllib.error, time, threading, random, json, sys, socket
+import urllib.request, urllib.error, time, threading, random, json, sys, socket, os
 
 CONC = int(sys.argv[1])
 DUR = float(sys.argv[2])
@@ -40,7 +40,7 @@ def worker(i):
     cookie = u["cookie"]; pid = u["project_id"]
     while time.time() < stop:
         path, needs = pick()
-        url = "http://127.0.0.1:4001" + (path.format(pid=pid) if needs else path)
+        url = os.environ.get("API_BASE", "http://127.0.0.1:4001") + (path.format(pid=pid) if needs else path)
         t0 = time.time()
         st = -1
         try:

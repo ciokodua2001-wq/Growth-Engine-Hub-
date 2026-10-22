@@ -1,0 +1,16 @@
+[Unit]
+Description=GrowthForge API server (dev, worker 2 — benchmark)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/dev/app/artifacts/api-server
+EnvironmentFile=/home/ubuntu/dev/app/.env
+Environment=APP_ENV=development
+ExecStart=/usr/bin/env PORT=4003 /usr/bin/node --enable-source-maps dist/index.mjs
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
