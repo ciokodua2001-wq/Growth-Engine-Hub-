@@ -19,7 +19,7 @@ def apirss():
     except Exception: return 0.0
 
 lb0=loadavg(); mb0=memavail(); cb0=dbconn(); rss0=apirss()
-p=subprocess.Popen(["python3","/tmp/authload.py",str(c),str(dur)],stdout=subprocess.PIPE,text=True)
+p=subprocess.Popen(["nice","-n","19","python3","/tmp/authload.py",str(c),str(dur)],stdout=subprocess.PIPE,text=True)
 peak={"load":lb0,"dbconn":cb0,"slowq":0,"rss":rss0}
 n=samples=dur//20
 for _ in range(max(1,samples)):
