@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
 import { cp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { execSync } from "node:child_process";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
@@ -136,6 +137,7 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   // runMigrations silently skips them - leaving an empty "stripe" schema and a
   // "relation stripe.accounts does not exist" error on the first syncBackfill.
   await copyStripeSyncMigrations(distDir);
+  await writeBuildInfo(distDir);
 }
 
 async function copyStripeSyncMigrations(distDir) {
@@ -166,6 +168,19 @@ async function rewriteBundledPinoWorkerPaths(distDir) {
       await writeFile(filePath, rewritten);
     }
   }
+}
+
+
+async function writeBuildInfo(distDir) {
+  const repoRoot = path.resolve(artifactDir, "..", "..");
+  let commit = "unknown";
+  try {
+    commit = execSync("git rev-parse HEAD", { cwd: repoRoot, encoding: "utf8" }).trim();
+  } catch {
+    // not a git checkout (e.g. prod artifact deploy) — leave unknown
+  }
+  const info = { commit, buildTime: new Date().toISOString(), version: "0.0.0" };
+  await writeFile(path.join(distDir, "build-info.json"), JSON.stringify(info, null, 2) + "\n");
 }
 
 buildAll().catch((err) => {

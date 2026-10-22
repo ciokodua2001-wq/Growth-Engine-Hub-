@@ -18,6 +18,7 @@ const DEV_ACCESS_ALLOWLIST = new Set([
   "/auth/provision",
   "/auth/me",
   "/healthz",
+  "/version",
   "/support/tickets",
   "/stripe/products",
   "/auth/google-ads/callback",
