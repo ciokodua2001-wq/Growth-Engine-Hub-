@@ -26,61 +26,79 @@ DEV is verified running this commit via `GET /api/version` → `{"commit":"d9248
 
 ## 3. Required migrations
 
-**No manual migration.** The app performs idempotent `CREATE TABLE IF NOT EXISTS` at startup. Prod currently has **86 tables** vs DEV's **91** — the 5 missing tables (seo/support/owner_* auto-created tables) are created automatically on first start after deploy. Verify prod reaches 91 tables post-start.
+**Forward-only reconciliation migration required** (`deploy/reconcile-prod-schema.sql`, commit `a98b921`). Verified on a throwaway prod copy: column drift = 0 after these two ALTERs:
+
+- `ALTER TABLE competitors ADD COLUMN superseded_at timestamptz;`
+- `ALTER TABLE personas ADD COLUMN superseded_at timestamptz;`
+
+Notes:
+- The 3 `_phase3_backup_*` tables present in dev but not prod are **ad-hoc dev backups, not schema** — do not create them in prod.
+- `stripe.*` self-heals via `stripe-replit-sync runMigrations()` at startup (no action).
+- Drizzle migrations live in `lib/db/migrations/` (`0000_baseline` … `0005_numerous_fenris`); reconcile any additional drift via `pnpm --filter db push` against prod after the ALTERs.
 
 ---
 
-## 4. Required environment variables (prod `.env` gaps)
+## 4. Required environment variables (prod `.env`)
 
 | Var | Status | Action |
 |---|---|---|
-| `STRIPE_SECRET_KEY` | **`stub-not-configured`** | Supply a real test/live key before billing |
-| `STRIPE_WEBHOOK_SECRET` | set | Re-generate to match the real key's webhook |
-| `META_ACCESS_TOKEN` | **MISSING** | Supply for Meta Ads live calls (app id/secret are set) |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | **MISSING** | Supply for Google OAuth sign-in (Google Ads client keys are set) |
-| `GOOGLE_CLOUD_PROJECT_ID` / `GOOGLE_APPLICATION_CREDENTIALS_JSON_STRING` | **MISSING** | Optional (Vertex AI); `GOOGLE_GENAI_API_KEY` (Gemini) is set |
+| `STRIPE_SECRET_KEY` | `stub-not-configured` | **Owner attaching in ~2 days**; use TEST mode for the controlled beta, live key only at real launch |
+| `STRIPE_WEBHOOK_SECRET` | set (managed) | `stripe-replit-sync` supplies its own signing secret; confirm webhook `https://usegrowthforge.com/api/stripe/webhook` |
+| `META_ACCESS_TOKEN` | **in project toolbox** (not missing) | Inject at release |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | **in project toolbox + dev `.env`** (verified set) | Inject at release; OAuth app must have the authorized prod redirect URI |
+| `GOOGLE_CLOUD_PROJECT_ID` / `GOOGLE_APPLICATION_CREDENTIALS_JSON_STRING` | optional | Vertex AI only; `GOOGLE_GENAI_API_KEY` (Gemini) is already set |
 
-All DB/TLS/auth/storage keys are already present (`DATABASE_URL` → managed prod DB, `BETTER_AUTH_*`, `SUPABASE_*`, `TOKEN_ENCRYPTION_KEY`, object-storage bucket).
+All DB/TLS/auth/storage keys already present (`DATABASE_URL` → managed prod DB, `BETTER_AUTH_*`, `SUPABASE_*`, `TOKEN_ENCRYPTION_KEY`, `OBJECT_STORAGE_*`). Generate a **new prod-only `BETTER_AUTH_SECRET`** (never reuse dev).
 
 ---
 
 ## 5. Service restart sequence (prod, NOT executed)
 
-1. Build prod from `d924839` (`bash scripts/deploy/build.sh` in the prod slot) or copy the verified DEV artifacts + confirm checksums.
-2. `sudo systemctl restart growthforge-prod-api` (never before step 1 completes).
-3. Create + start `growthforge-prod-ffmpeg-worker` (mirror the dev worker unit, `APP_ENV=production`, prod `.env`).
-4. Confirm `GET http://127.0.0.1:4002/api/version` = `d924839`, `/api/healthz` = ok.
+1. Apply `deploy/reconcile-prod-schema.sql` to prod (2 ALTERs).
+2. Build prod from `d924839` (or copy the verified DEV artifacts + confirm checksums).
+3. Inject prod `.env` secrets (toolbox Meta/Google keys, Stripe test key when attached, new `BETTER_AUTH_SECRET`).
+4. `sudo systemctl restart growthforge-prod-api`.
+5. Create + start `growthforge-prod-ffmpeg-worker` (mirror dev worker unit, `APP_ENV=production`, prod `.env`).
+6. Confirm `GET http://127.0.0.1:4002/api/version` = `d924839`, `/api/healthz` = ok.
 
 ---
 
 ## 6. Verification steps
 
-- `GET /api/version` returns `d924839` and `env: production`.
-- `GET /api/healthz` returns `{"status":"ok"}`.
+- `GET /api/version` → `d924839`, `env: production`.
+- `GET /api/healthz` → `{"status":"ok"}`.
 - Authenticated smoke tests on 4002: `/api/auth/me`, `/api/projects`, `/api/projects/:id/videos`, `/api/projects/:id/videos/:vid/assemblies`.
-- Prod DB reaches 91 tables; row counts unchanged.
+- Column drift = 0 after reconcile; row counts unchanged.
 - Backup still green (`check-backups.sh`).
 
 ---
 
 ## 7. Rollback procedure
 
-1. Keep the current prod `dist` (Oct-17 build) as `.rollback`.
-2. If the new build fails verification: restore the prior `dist` dir, `systemctl restart growthforge-prod-api`, keep Caddy on `coming-soon`.
-3. If Caddy cutover fails: revert `usegrowthforge.com` to `root * /home/ubuntu/coming-soon`.
+1. Keep the current prod `dist` as `.rollback`.
+2. New build fails verification → restore prior `dist`, restart `growthforge-prod-api`, keep Caddy on `coming-soon`.
+3. Caddy cutover fails → revert `usegrowthforge.com` to `root * /home/ubuntu/coming-soon`.
 
 ---
 
 ## 8. Explicit launch blockers
 
-1. **Stripe not configured** (`stub-not-configured`) — live/test billing cannot run.
+1. **Stripe not yet attached** — owner providing in ~2 days (test mode for beta).
 2. **No production FFmpeg worker** — only `dev-worker-1` exists.
 3. **Prod app code is stale** (built Oct-17 ≈ `db2516b`) — must be rebuilt from `d924839`.
-4. **Production domain serves Coming Soon** — requires Caddy cutover (`usegrowthforge.com` → app).
-5. **Meta access token missing** — Meta Ads live calls will fail.
-6. **Google OAuth sign-in keys missing** — Google login not fully wired.
-7. **Autonomous advertising ACT mode** — NOT enabled; integrations must not be claimed commercially ready until the above are resolved.
+4. **Production domain serves Coming Soon** — requires Caddy cutover.
+5. **Autonomous advertising ACT mode** — NOT enabled; must not be claimed ready until Stripe + integrations are live.
+
+(Meta/Google keys are **not** blockers — they are in the project toolbox and inject at release.)
 
 ---
 
-*No production deployment, schema change, service restart, Stripe activation, paid AI, advertising spend, or infrastructure purchase was performed. DEV-only changes: fingerprint endpoint + deploy to DEV.*
+## 9. Notes / corrections from owner
+
+- `META_ACCESS_TOKEN`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` are in the **project toolbox** (not missing). `GOOGLE_CLIENT_ID`/`SECRET` verified present in dev `.env`.
+- Stripe key attach expected in ~2 days.
+- A second prod slot exists: `/home/ubuntu/prod/app-new` is a **detached git checkout at `389fe73`** (behind `main`) with the authoritative `PRODUCTION_PROMOTION_PLAN.md` + `PRELAUNCH_ACCEPTANCE.md`. The active prod (`/home/ubuntu/prod/app`) is a non-git artifact dir. Release should reconcile which slot is canonical before cutover.
+
+---
+
+*No production deployment, schema change, service restart, Stripe activation, paid AI, advertising spend, or infrastructure purchase was performed. DEV-only: fingerprint endpoint + deploy to DEV.*
