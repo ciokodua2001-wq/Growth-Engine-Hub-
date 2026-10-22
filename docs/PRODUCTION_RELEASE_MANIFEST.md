@@ -47,8 +47,9 @@ Notes:
 | `META_ACCESS_TOKEN` | **in project toolbox** (not missing) | Inject at release |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | **in project toolbox + dev `.env`** (verified set) | Inject at release; OAuth app must have the authorized prod redirect URI |
 | `GOOGLE_CLOUD_PROJECT_ID` / `GOOGLE_APPLICATION_CREDENTIALS_JSON_STRING` | optional | Vertex AI only; `GOOGLE_GENAI_API_KEY` (Gemini) is already set |
+| `OBJECT_STORAGE_ENDPOINT` / `OBJECT_STORAGE_REGION` / `OBJECT_STORAGE_ACCESS_KEY_ID` / `OBJECT_STORAGE_SECRET_ACCESS_KEY` | **MISSING in prod `.env`** | Inject from toolbox/dev (required for assembly media upload to Wasabi) |
 
-All DB/TLS/auth/storage keys already present (`DATABASE_URL` → managed prod DB, `BETTER_AUTH_*`, `SUPABASE_*`, `TOKEN_ENCRYPTION_KEY`, `OBJECT_STORAGE_*`). Generate a **new prod-only `BETTER_AUTH_SECRET`** (never reuse dev).
+All DB/TLS/auth/storage keys already present (`DATABASE_URL` → managed prod DB, `BETTER_AUTH_*`, `SUPABASE_*`, `TOKEN_ENCRYPTION_KEY`). Generate a **new prod-only `BETTER_AUTH_SECRET`** (never reuse dev).
 
 ---
 
