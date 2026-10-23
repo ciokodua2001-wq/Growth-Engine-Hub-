@@ -662,3 +662,19 @@ No services were changed or restarted. Findings:
 - **No mutation performed:** no products/prices/permissions/webhooks/keys/customers created or modified; no billing; no deploy/restart/routing.
 - **Production deployment + live billing: NOT YET AUTHORIZED.**
 - **Incremental cost:** $0.00.
+
+---
+
+## Stage A - Stripe permission recheck (2026-10-23, non-mutating)
+
+- **Account read:** STILL `403 more_permissions_required` — not yet granted (the sole remaining permission gap).
+- **Write permissions CONFIRMED GRANTED (empty-body POST → HTTP 400 = passed auth + hit validation, no object created):**
+  - `checkout_sessions` (write) ✓
+  - `billing_portal` (write) ✓
+  - `webhook_endpoints` (write) ✓
+  - `customers` (write) — not probed non-mutatingly (an empty create *would* create a customer if granted) → confirm in Dashboard.
+- **Implication:** the production webhook can now be created directly via `POST /v1/webhook_endpoints` (write granted)
+  without `account` read. `account` read remains required only for `syncBackfill` → `stripe.products.metadata`
+  (plan-sync correctness; defaults to `"starter"` if that table is empty).
+- **Production deployment + live billing: NOT YET AUTHORIZED.**
+- **Incremental cost:** $0.00.
