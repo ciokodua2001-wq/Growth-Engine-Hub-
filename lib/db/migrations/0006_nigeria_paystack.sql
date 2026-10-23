@@ -1,6 +1,8 @@
 ALTER TABLE "users" ADD COLUMN "paystack_customer_code" text;--> statement-breakpoint
 ALTER TABLE "users" ADD COLUMN "paystack_subscription_code" text;--> statement-breakpoint
 ALTER TABLE "users" ADD COLUMN "paystack_plan_interval" text;--> statement-breakpoint
+ALTER TABLE "users" ADD COLUMN "billing_provider" text;--> statement-breakpoint
+ALTER TABLE "users" ADD COLUMN "subscription_activated_at" timestamp with time zone;--> statement-breakpoint
 CREATE TABLE "paystack_events" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"event_id" text NOT NULL,

@@ -111,7 +111,7 @@ app.post(
 // 2a2. Paystack webhook - raw body (HMAC-SHA512 signature) BEFORE express.json().
 app.post(
   "/api/paystack/webhook",
-  express.raw({ type: "application/json" }),
+  express.raw({ type: () => true }),
   async (req, res) => {
     const sig = req.headers["x-paystack-signature"];
     const signature = Array.isArray(sig) ? sig[0] : sig;

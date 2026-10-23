@@ -21,6 +21,12 @@ export const usersTable = pgTable("users", {
   paystackPlanInterval: text("paystack_plan_interval"),
   plan: text("plan").notNull().default("trial"),
   subscriptionStatus: text("subscription_status").notNull().default("trial"),
+  // Which provider currently owns the subscription entitlements. NULL = unclaimed
+  // (legacy: the first successful activation event claims it). Values: "stripe" | "paystack".
+  billingProvider: text("billing_provider"),
+  // Set on successful activation; used to ignore stale events from an older
+  // subscription of the same provider that arrive after a newer one.
+  subscriptionActivatedAt: timestamp("subscription_activated_at", { withTimezone: true }),
   trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   onboardingComplete: boolean("onboarding_complete").notNull().default(false),

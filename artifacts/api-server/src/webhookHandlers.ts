@@ -1,7 +1,7 @@
 import { getStripeSync } from "./stripeClient.js";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, or, isNull, lte } from "drizzle-orm";
 import { logger } from "./lib/logger.js";
 import { creditPurchasedSeconds, resetMonthlySecondsForUser } from "./lib/videoWallet.js";
 
@@ -15,18 +15,36 @@ async function updateUserFromSubscriptionEvent(event: StripeEvent): Promise<void
     id: string;
     customer: string | { id: string };
     status: string;
+    created?: number; // subscription creation (Unix seconds)
     items?: { data: Array<{ price: { product: string } }> };
   };
 
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
-  if (!customerId) return;
+  if (!customerId || !sub.id) return;
+
+  // Subscription activation timestamp (from the subscription's own `created`).
+  const activatedAt = typeof sub.created === "number" ? new Date(sub.created * 1000) : new Date();
+
+  // Provider-ownership guard: NULL (legacy/unclaimed) or "stripe" → event may apply.
+  // Paystack-owned subscriptions (billing_provider='paystack') are never touched here.
+  const stripeOwned = or(isNull(usersTable.billingProvider), eq(usersTable.billingProvider, "stripe"));
 
   if (event.type === "customer.subscription.deleted") {
-    await db
+    // Cancel ONLY the current Stripe-owned subscription (provider + subscription id match).
+    const res = await db
       .update(usersTable)
-      .set({ subscriptionStatus: "cancelled", cancelledAt: new Date() })
-      .where(eq(usersTable.stripeCustomerId, customerId));
-    logger.info({ customerId }, "Stripe: subscription deleted — user marked cancelled");
+      .set({ subscriptionStatus: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
+      .where(and(
+        eq(usersTable.stripeCustomerId, customerId),
+        stripeOwned,
+        eq(usersTable.stripeSubscriptionId, sub.id),
+      ))
+      .returning({ id: usersTable.id });
+    if (res.length === 0) {
+      logger.info({ customerId, subscriptionId: sub.id }, "Stripe: deletion skipped (ownership/stale guard)");
+      return;
+    }
+    logger.info({ customerId }, "Stripe: subscription deleted - user marked cancelled");
     return;
   }
 
@@ -43,30 +61,40 @@ async function updateUserFromSubscriptionEvent(event: StripeEvent): Promise<void
   const plan     = metadata?.plan ?? "starter";
 
   const isActive = ["active", "trialing"].includes(sub.status);
-  await db
+
+  // Atomic conditional update: only apply when the provider is Stripe-or-unclaimed
+  // AND this subscription is first (NULL) or newer/equal than the stored activation.
+  const res = await db
     .update(usersTable)
     .set({
       plan,
-      subscriptionStatus:   isActive ? "active" : sub.status,
+      subscriptionStatus: isActive ? "active" : sub.status,
       stripeSubscriptionId: sub.id,
+      billingProvider: "stripe",
+      subscriptionActivatedAt: activatedAt,
+      updatedAt: new Date(),
     })
-    .where(eq(usersTable.stripeCustomerId, customerId));
+    .where(and(
+      eq(usersTable.stripeCustomerId, customerId),
+      stripeOwned,
+      or(isNull(usersTable.subscriptionActivatedAt), lte(usersTable.subscriptionActivatedAt, activatedAt)),
+    ))
+    .returning({ id: usersTable.id });
+
+  if (res.length === 0) {
+    logger.info({ customerId, subscriptionId: sub.id }, "Stripe: subscription update skipped (ownership/stale guard)");
+    return;
+  }
 
   logger.info({ customerId, plan, stripeStatus: sub.status }, "Stripe: user plan synced from subscription event");
 
   // Reset monthly video seconds on subscription renewal/upgrade
   if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.created") {
     try {
-      const [user] = await db
-        .select({ id: usersTable.id })
-        .from(usersTable)
-        .where(eq(usersTable.stripeCustomerId, customerId));
-      if (user?.id) {
-        await resetMonthlySecondsForUser(user.id, plan);
-        logger.info({ userId: user.id, plan }, "Monthly video seconds reset on subscription event");
-      }
+      await resetMonthlySecondsForUser(res[0].id, plan);
+      logger.info({ userId: res[0].id, plan }, "Monthly video seconds reset on subscription event");
     } catch (err) {
-      logger.warn({ err, customerId }, "Failed to reset video wallet on subscription event — non-fatal");
+      logger.warn({ err, customerId }, "Failed to reset video wallet on subscription event - non-fatal");
     }
   }
 }
@@ -97,7 +125,7 @@ async function handleCheckoutCompleted(event: StripeEvent): Promise<void> {
   }
 
   if (session.payment_status !== "paid") {
-    logger.warn({ sessionId: session.id, paymentStatus: session.payment_status }, "checkout.session.completed but payment_status != paid — skipping");
+    logger.warn({ sessionId: session.id, paymentStatus: session.payment_status }, "checkout.session.completed but payment_status != paid - skipping");
     return;
   }
 
