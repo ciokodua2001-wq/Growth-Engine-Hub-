@@ -678,3 +678,15 @@ No services were changed or restarted. Findings:
   (plan-sync correctness; defaults to `"starter"` if that table is empty).
 - **Production deployment + live billing: NOT YET AUTHORIZED.**
 - **Incremental cost:** $0.00.
+
+---
+
+## Stage A - Stripe permission recheck #2 (2026-10-23, non-mutating)
+
+- **Account read:** STILL `403 more_permissions_required` — NOT yet granted (owner reported "reviewed", but the grant is not applied to the live key).
+- **Customers write:** CONFIRMED GRANTED — non-mutating probe (`POST /v1/customers` with a malformed email → `400 email_invalid`, no customer created; live customer count unchanged at 1).
+- **Write permissions now ALL confirmed granted:** `customers` ✓ · `checkout_sessions` ✓ · `billing_portal` ✓ · `webhook_endpoints` ✓.
+- **Product metadata / plan mapping CONFIRMED:** all 4 live products carry `metadata.plan` = `starter`, `get-going`, `growth`, `agency` (and `metadata.type` is unset, so none are mistaken for video credits) — matches the frontend slug mapping and the `updateUserFromSubscriptionEvent` plan lookup.
+- **Remaining blocker:** `account` read only — it gates `stripe-replit-sync`'s `syncBackfill` → `stripe.products.metadata` (plan-sync correctness; defaults to `"starter"` if that table is empty).
+- **Production deployment + live billing: NOT YET AUTHORIZED.**
+- **Incremental cost:** $0.00.
