@@ -9,6 +9,7 @@ import { recordRequest } from "./lib/apiMetrics.js";
 import resendWebhookHandler from "./routes/resendWebhook.js";
 import { logger } from "./lib/logger.js";
 import { WebhookHandlers } from "./webhookHandlers.js";
+import { processPaystackWebhook } from "./lib/paystackWebhook.js";
 import { db } from "@workspace/db";
 import { seoSitemapTable, seoComparisonPagesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
@@ -103,6 +104,23 @@ app.post(
     } catch (err: unknown) {
       logger.error({ err }, "Stripe webhook processing failed");
       res.status(400).json({ error: "Webhook processing error" });
+    }
+  },
+);
+
+// 2a2. Paystack webhook - raw body (HMAC-SHA512 signature) BEFORE express.json().
+app.post(
+  "/api/paystack/webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const sig = req.headers["x-paystack-signature"];
+    const signature = Array.isArray(sig) ? sig[0] : sig;
+    try {
+      await processPaystackWebhook(req.body as Buffer, signature);
+      res.status(200).send("OK");
+    } catch (err) {
+      logger.error({ err }, "Paystack webhook processing failed");
+      res.status(400).send("Webhook error");
     }
   },
 );

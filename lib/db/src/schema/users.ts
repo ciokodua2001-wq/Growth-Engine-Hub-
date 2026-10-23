@@ -6,7 +6,7 @@ export const usersTable = pgTable("users", {
   role: text("role").notNull().default("user"),
   isOwner: boolean("is_owner").notNull().default(false),
   // Gates access to the dev.usegrowthforge.com environment (separate from
-  // `role`/`isOwner`, which govern the admin console) — an admin must
+  // `role`/`isOwner`, which govern the admin console) - an admin must
   // explicitly approve each user before they can sign into dev, per
   // "Only approved users can access the development environment."
   canAccessDev: boolean("can_access_dev").notNull().default(false),
@@ -14,6 +14,11 @@ export const usersTable = pgTable("users", {
   isTestAccount: boolean("is_test_account").notNull().default(false),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
+  // Nigeria / Paystack billing (parallel to Stripe - never overwrite the
+  // stripe_* columns; a user is billed by whichever provider has a non-null id).
+  paystackCustomerCode: text("paystack_customer_code"),
+  paystackSubscriptionCode: text("paystack_subscription_code"),
+  paystackPlanInterval: text("paystack_plan_interval"),
   plan: text("plan").notNull().default("trial"),
   subscriptionStatus: text("subscription_status").notNull().default("trial"),
   trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),

@@ -20,6 +20,7 @@ export * from "./avatars";
 export * from "./klingSceneJobs";
 export * from "./commercialAssemblies";
 export * from "./videoWallet";
+export * from "./paystack";
 export * from "./ownerMarketing";
 export * from "./objectStorage";
 export * from "./businessSources";
