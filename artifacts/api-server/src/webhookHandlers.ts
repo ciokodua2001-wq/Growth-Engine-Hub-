@@ -10,7 +10,7 @@ type StripeEvent = {
   data: { object: Record<string, unknown> };
 };
 
-async function updateUserFromSubscriptionEvent(event: StripeEvent): Promise<void> {
+export async function updateUserFromSubscriptionEvent(event: StripeEvent): Promise<void> {
   const sub = event.data.object as {
     id: string;
     customer: string | { id: string };
