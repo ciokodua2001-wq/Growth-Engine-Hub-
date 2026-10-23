@@ -587,3 +587,32 @@ No services were changed or restarted. Findings:
   NOT treated as proof of usable permission (per owner guidance).
 - **Deployment:** NOT deployed (needs new dev API restart approval). No schema migration.
 - **Incremental cost:** $0.00.
+
+---
+
+## Stage A - Production Wasabi media storage: bucket-scoped policy + prod config (2026-10-22)
+
+- **Status:** `READY FOR PRODUCTION` (credentials + config applied; prod app **NOT** restarted — code freeze held).
+- **Bucket:** `growthforge-prod-media` (ca-central-1, `s3.ca-central-1.wasabisys.com`), account `100000528988`.
+  Sub-user `growthforge-prod-media-writer` (`arn:aws:iam::100000528988:user/growthforge-prod-media-writer`).
+- **Least-privilege policy:** `growthforge-prod-media-least-privilege`
+  (`arn:aws:iam::100000528988:policy/growthforge-prod-media-least-privilege`) created + attached to the sub-user.
+  Grants ONLY `s3:ListBucket` on `arn:aws:s3:::growthforge-prod-media` and `s3:GetObject`/`s3:PutObject`/`s3:DeleteObject`
+  on `arn:aws:s3:::growthforge-prod-media/*`. No IAM, no `ListAllMyBuckets`, no `CreateBucket`/`DeleteBucket`.
+- **`WasabiFullAccess` detached** from `growthforge-prod-media-writer` (verified removed; bucket-scoped policy is now
+  the sub-user's sole grant).
+- **Permission verification (AWS CLI, 11 checks):**
+  - Allowed (in `growthforge-prod-media`): list, put (58-byte object), get (byte-identical), presigned GET (HTTP 200), delete.
+  - Denied: list + put on `growthforge-media` (dev) → `AccessDenied`; `ListBuckets` (`s3 ls`) → `AccessDenied`;
+    `CreateBucket` (`s3 mb`) → `AccessDenied`; IAM `list-users` → errored (zero IAM actions). `quantivarian-vod` returned a
+    region error (`eu-central-1` vs `ca-central-1`), confirming cross-region inaccessibility.
+- **Credential storage (secure):** `.env.prod.wasabi` (local, gitignored, chmod 600). Key/secret absent from git history
+  (`git log -S`) and from the working tree outside that file (`grep -rlF`).
+- **Prod `.env` (applied atomically):** backed up to `/home/ubuntu/prod/app/.env.bak.20261023_032218` (chmod 600), then
+  the 7 storage vars applied via temp-file + `os.replace` (atomic): `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_REGION`,
+  `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY`, `DEFAULT_OBJECT_STORAGE_BUCKET_ID=growthforge-prod-media`,
+  `PUBLIC_OBJECT_SEARCH_PATHS=growthforge-prod-media/prod/public`, `PRIVATE_OBJECT_DIR=growthforge-prod-media/prod/private`.
+  Stale Supabase `growthforge` bucket/path values removed. Non-storage settings diff-verified UNCHANGED (27→31 vars).
+- **Cutover:** NOT performed — prod API not restarted, remains on existing storage until the approved launch cutover.
+  Off-server backups remain on the SEPARATE `BACKUP_S3_*` credential (not yet provisioned).
+- **Incremental cost:** $0.00 (Wasabi pay-as-you-use; no new compute).
