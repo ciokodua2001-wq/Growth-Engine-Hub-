@@ -616,3 +616,26 @@ No services were changed or restarted. Findings:
 - **Cutover:** NOT performed — prod API not restarted, remains on existing storage until the approved launch cutover.
   Off-server backups remain on the SEPARATE `BACKUP_S3_*` credential (not yet provisioned).
 - **Incremental cost:** $0.00 (Wasabi pay-as-you-use; no new compute).
+
+---
+
+## Stage A - Stripe live key correction (2026-10-23)
+
+- **Correction from owner:** the Stripe **LIVE** API key has ALREADY been provided and is stored in the project
+  toolbox (root `.env`, scope `root (.env)`) — it is not "attaching in ~2 days".
+- **Key type (read-only check; value never printed):** `rk_live_` — a Stripe **restricted** live key (107 chars).
+  This is NOT a `sk_live_` secret key and NOT a test key.
+- **Environment:** the production app consumes `STRIPE_SECRET_KEY` from `/home/ubuntu/prod/app/.env` (currently a
+  `stub-not-configured` placeholder, len 19). DEV uses a `sk_test_` key. The live key is injected at release.
+- **Status:**
+  - Stripe live key: **PROVIDED** — stored in project toolbox.
+  - Stripe production configuration: **PENDING VERIFICATION** (prod `.env` not yet injected; live webhook +
+    products/prices + restricted-key permissions unverified).
+  - Stripe live billing activation: **NOT YET AUTHORIZED**.
+- **Mode:** REAL payments (live) — the provided key is live, not test. Additional live-mode requirements: grant the
+  `rk_live_` key `customers`/`checkout.sessions`/`billing_portal` write + `products`/`prices` read + webhook/event
+  read; register the live webhook `https://usegrowthforge.com/api/stripe/webhook`; configure live product/price IDs;
+  set a live `STRIPE_PUBLISHABLE_KEY` for frontend checkout; verify `stripe-replit-sync` compatibility with a
+  restricted key.
+- **No action taken:** key not injected, billing not activated, no restart, no domain change (code freeze held).
+- **Incremental cost:** $0.00.

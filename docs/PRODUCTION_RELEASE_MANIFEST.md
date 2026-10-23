@@ -1,13 +1,13 @@
-# GrowthForge — Production Release Manifest
+# GrowthForge - Production Release Manifest
 
 Date: 2026-10-22 (UTC) · Prepared by automated release-control task
-Status: **PREPARED — production deployment NOT executed**
+Status: **PREPARED - production deployment NOT executed**
 
 ---
 
 ## 1. Git commit to release
 
-**`d924839`** (`d924839fb45077cacdb986fa8a1d70352055cd73`) — "Add build-time commit fingerprint and /version endpoint", on top of `0c8d16b`.
+**`d924839`** (`d924839fb45077cacdb986fa8a1d70352055cd73`) - "Add build-time commit fingerprint and /version endpoint", on top of `0c8d16b`.
 
 DEV is verified running this commit via `GET /api/version` → `{"commit":"d924839fb45077cacdb986fa8a1d70352055cd73",...}`.
 
@@ -32,9 +32,9 @@ DEV is verified running this commit via `GET /api/version` → `{"commit":"d9248
 - `ALTER TABLE personas ADD COLUMN superseded_at timestamptz;`
 
 Notes:
-- The 3 `_phase3_backup_*` tables present in dev but not prod are **ad-hoc dev backups, not schema** — do not create them in prod.
+- The 3 `_phase3_backup_*` tables present in dev but not prod are **ad-hoc dev backups, not schema** - do not create them in prod.
 - `stripe.*` self-heals via `stripe-replit-sync runMigrations()` at startup (no action).
-- Drizzle migrations live in `lib/db/migrations/` (`0000_baseline` … `0005_numerous_fenris`); reconcile any additional drift via `pnpm --filter db push` against prod after the ALTERs.
+- Drizzle migrations live in `lib/db/migrations/` (`0000_baseline` ... `0005_numerous_fenris`); reconcile any additional drift via `pnpm --filter db push` against prod after the ALTERs.
 
 ---
 
@@ -42,7 +42,7 @@ Notes:
 
 | Var | Status | Action |
 |---|---|---|
-| `STRIPE_SECRET_KEY` | `stub-not-configured` | **Owner attaching in ~2 days**; use TEST mode for the controlled beta, live key only at real launch |
+| `STRIPE_SECRET_KEY` | **LIVE key PROVIDED** - in project toolbox (`rk_live_` restricted key) | Inject at release; live billing activation NOT yet authorized |
 | `STRIPE_WEBHOOK_SECRET` | set (managed) | `stripe-replit-sync` supplies its own signing secret; confirm webhook `https://usegrowthforge.com/api/stripe/webhook` |
 | `META_ACCESS_TOKEN` | **in project toolbox** (not missing) | Inject at release |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | **in project toolbox + dev `.env`** (verified set) | Inject at release; OAuth app must have the authorized prod redirect URI |
@@ -57,7 +57,7 @@ All DB/TLS/auth/storage keys already present (`DATABASE_URL` → managed prod DB
 
 1. Apply `deploy/reconcile-prod-schema.sql` to prod (2 ALTERs).
 2. Build prod from `d924839` (or copy the verified DEV artifacts + confirm checksums).
-3. Inject prod `.env` secrets (toolbox Meta/Google keys, Stripe test key when attached, new `BETTER_AUTH_SECRET`).
+3. Inject prod `.env` secrets (toolbox Meta/Google keys, Stripe **live** key from toolbox, new `BETTER_AUTH_SECRET`).
 4. `sudo systemctl restart growthforge-prod-api`.
 5. Create + start `growthforge-prod-ffmpeg-worker` (mirror dev worker unit, `APP_ENV=production`, prod `.env`).
 6. Confirm `GET http://127.0.0.1:4002/api/version` = `d924839`, `/api/healthz` = ok.
@@ -84,20 +84,20 @@ All DB/TLS/auth/storage keys already present (`DATABASE_URL` → managed prod DB
 
 ## 8. Explicit launch blockers
 
-1. **Stripe not yet attached** — owner providing in ~2 days (test mode for beta).
-2. **No production FFmpeg worker** — only `dev-worker-1` exists.
-3. **Prod app code is stale** (built Oct-17 ≈ `db2516b`) — must be rebuilt from `d924839`.
-4. **Production domain serves Coming Soon** — requires Caddy cutover.
-5. **Autonomous advertising ACT mode** — NOT enabled; must not be claimed ready until Stripe + integrations are live.
+1. **Stripe live key PROVIDED but not yet injected** - `rk_live_` restricted key in the project toolbox; prod `.env` still `stub-not-configured`; live billing activation NOT yet authorized.
+2. **No production FFmpeg worker** - only `dev-worker-1` exists.
+3. **Prod app code is stale** (built Oct-17 ≈ `db2516b`) - must be rebuilt from `d924839`.
+4. **Production domain serves Coming Soon** - requires Caddy cutover.
+5. **Autonomous advertising ACT mode** - NOT enabled; must not be claimed ready until Stripe + integrations are live.
 
-(Meta/Google keys are **not** blockers — they are in the project toolbox and inject at release.)
+(Meta/Google keys are **not** blockers - they are in the project toolbox and inject at release.)
 
 ---
 
 ## 9. Notes / corrections from owner
 
 - `META_ACCESS_TOKEN`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` are in the **project toolbox** (not missing). `GOOGLE_CLIENT_ID`/`SECRET` verified present in dev `.env`.
-- Stripe key attach expected in ~2 days.
+- Stripe **LIVE** key already provided by owner (in project toolbox; `rk_live_` restricted key). Prod config is PENDING VERIFICATION; live billing NOT yet authorized.
 - A second prod slot exists: `/home/ubuntu/prod/app-new` is a **detached git checkout at `389fe73`** (behind `main`) with the authoritative `PRODUCTION_PROMOTION_PLAN.md` + `PRELAUNCH_ACCEPTANCE.md`. The active prod (`/home/ubuntu/prod/app`) is a non-git artifact dir. Release should reconcile which slot is canonical before cutover.
 
 ---

@@ -1,8 +1,8 @@
-# GrowthForge — Production Release & Rollback Runbook (Code Freeze)
+# GrowthForge - Production Release & Rollback Runbook (Code Freeze)
 
-Status: **PREPARED — do not execute without owner authorization**
+Status: **PREPARED - do not execute without owner authorization**
 Release candidate: **`d924839`** (fingerprint-verified, deployed + smoke-tested on DEV)
-Assembly mode: **`FFMPEG_WORKER_MODE=false`** (inline — no new prod worker)
+Assembly mode: **`FFMPEG_WORKER_MODE=false`** (inline - no new prod worker)
 
 ---
 
@@ -17,7 +17,7 @@ Assembly mode: **`FFMPEG_WORKER_MODE=false`** (inline — no new prod worker)
 
 ---
 
-## 1. Pre-flight (already verified — re-confirm before cutover)
+## 1. Pre-flight (already verified - re-confirm before cutover)
 
 - [x] DEV + prod backups succeed (`check-backups.sh` green).
 - [x] DEV + prod restore drills verified (decrypt + restore + row counts).
@@ -32,7 +32,7 @@ Assembly mode: **`FFMPEG_WORKER_MODE=false`** (inline — no new prod worker)
 |---|---|
 | `FFMPEG_WORKER_MODE=false` | inline assembly (no worker) |
 | `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_REGION`, `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY` | **assembly media upload to Wasabi** (currently MISSING in prod) |
-| `STRIPE_SECRET_KEY` (test mode), `STRIPE_WEBHOOK_SECRET` | billing (owner attaches ~2 days) |
+| `STRIPE_SECRET_KEY` (LIVE, in toolbox), `STRIPE_WEBHOOK_SECRET` | billing (live key provided; activation not yet authorized) |
 | `META_ACCESS_TOKEN`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Meta/Google integrations (toolbox) |
 | `BETTER_AUTH_SECRET` (new prod-only) | auth |
 
@@ -68,14 +68,14 @@ No `DROP`, `TRUNCATE`, or destructive `ALTER`. `stripe.*` self-heals at startup.
 
 1. Keep the current prod `dist` (Oct-17) as `.rollback` before step 2.
 2. On failure: restore prior `dist`, `systemctl restart growthforge-prod-api`, leave `coming-soon` in Caddy.
-3. The 2 `ADD COLUMN` migrations are additive — rollback is optional; if needed, `DROP COLUMN` is non-destructive to data (only the new columns).
+3. The 2 `ADD COLUMN` migrations are additive - rollback is optional; if needed, `DROP COLUMN` is non-destructive to data (only the new columns).
 
 ---
 
 ## 6. Deferred (post-launch, not now)
 
 - Dedicated `growthforge-prod-ffmpeg-worker` + `claimed_by`/`claimed_at` migration (only if encode concurrency grows).
-- Live Stripe key (test mode until real launch).
+- Live Stripe key (provided in toolbox; activation not yet authorized).
 - Google OAuth end-to-end test.
 
 ## 7. Pre-cutover acceptance gate (ALL must pass before Caddy cutover)
@@ -89,6 +89,6 @@ Run these **before** flipping `usegrowthforge.com` off Coming Soon. If any fails
 5. One inline assembly (`FFMPEG_WORKER_MODE=false`) completes with a real `video_url` (existing assets, no paid AI).
 6. Backups green (`check-backups.sh`).
 
-Only proceed to Caddy cutover if 1–6 all pass; otherwise restore prior dist + restart + keep Coming Soon.
+Only proceed to Caddy cutover if 1-6 all pass; otherwise restore prior dist + restart + keep Coming Soon.
 
 *No production deployment, schema change, restart, or routing change has been performed. This runbook is documentation only.*
