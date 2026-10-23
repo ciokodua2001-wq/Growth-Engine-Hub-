@@ -703,3 +703,17 @@ No services were changed or restarted. Findings:
   2. At launch (after runbook approval): inject the live key into prod `.env`, restart, and perform the Caddy cutover.
 - **Production deployment + live billing: NOT YET AUTHORIZED.**
 - **Incremental cost:** $0.00.
+
+---
+
+## Stage A - Production Stripe webhook created (2026-10-23)
+
+- **Webhook ID:** `we_1UTb2jGfF1AjsQ4B48XOHYaP`
+- **URL:** `https://usegrowthforge.com/api/stripe/webhook` (status: enabled)
+- **Subscribed events (minimum):** `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`.
+- **Signing secret:** captured at creation and set as prod `STRIPE_WEBHOOK_SECRET` (atomic `os.replace`; prod `.env` backed up to `.env.bak.20261023_053000`). Match is by construction (same create-response value). No secret exposed in logs/Git/reports.
+- **Replit webhook untouched:** `we_1U0UyGGfF1AjsQ4B6dscH0n6` (Replit dev URL) left intact — not DEV's (DEV is test-mode `sk_test_` + `dev.usegrowthforge.com`).
+- **No duplicate:** prod `REPLIT_DOMAINS` is NOT set, so `stripe-replit-sync`'s `findOrCreateManagedWebhook` is skipped at startup (no auto-managed duplicate).
+- **Delivery verification:** PENDING until the prod API is reachable through the public route (after Caddy cutover). No synthetic/real events sent.
+- **Production deployment + live billing: NOT YET AUTHORIZED.**
+- **Incremental cost:** $0.00.

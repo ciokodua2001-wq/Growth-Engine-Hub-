@@ -32,7 +32,8 @@ Assembly mode: **`FFMPEG_WORKER_MODE=false`** (inline - no new prod worker)
 |---|---|
 | `FFMPEG_WORKER_MODE=false` | inline assembly (no worker) |
 | `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_REGION`, `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY` | **assembly media upload to Wasabi** (currently MISSING in prod) |
-| `STRIPE_SECRET_KEY` (LIVE, in toolbox), `STRIPE_WEBHOOK_SECRET` | billing (live key provided; activation not yet authorized) |
+| `STRIPE_SECRET_KEY` (LIVE, in toolbox) | billing - inject at launch; activation not yet authorized |
+| `STRIPE_WEBHOOK_SECRET` | **already set** - prod webhook `we_1UTb2jGfF1AjsQ4B48XOHYaP` (created 2026-10-23) |
 | `META_ACCESS_TOKEN`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Meta/Google integrations (toolbox) |
 | `BETTER_AUTH_SECRET` (new prod-only) | auth |
 
@@ -75,7 +76,7 @@ No `DROP`, `TRUNCATE`, or destructive `ALTER`. `stripe.*` self-heals at startup.
 ## 6. Deferred (post-launch, not now)
 
 - Dedicated `growthforge-prod-ffmpeg-worker` + `claimed_by`/`claimed_at` migration (only if encode concurrency grows).
-- Live Stripe key (provided in toolbox; activation not yet authorized).
+- Inject the live Stripe key into prod `.env` (provided in toolbox; activation not yet authorized).
 - Google OAuth end-to-end test.
 
 ## 7. Pre-cutover acceptance gate (ALL must pass before Caddy cutover)
