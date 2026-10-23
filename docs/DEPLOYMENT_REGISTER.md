@@ -690,3 +690,16 @@ No services were changed or restarted. Findings:
 - **Remaining blocker:** `account` read only — it gates `stripe-replit-sync`'s `syncBackfill` → `stripe.products.metadata` (plan-sync correctness; defaults to `"starter"` if that table is empty).
 - **Production deployment + live billing: NOT YET AUTHORIZED.**
 - **Incremental cost:** $0.00.
+
+---
+
+## Stage A - Stripe permission blocker RESOLVED (2026-10-23)
+
+- **Account read:** GRANTED (HTTP 200). The `rk_live_` restricted key now has `account` read — the permission blocker is **resolved**.
+- **All required permissions now verified granted:** `account` (read) ✓ · `customers` (write) ✓ · `checkout_sessions` (write) ✓ · `billing_portal` (write) ✓ · `webhook_endpoints` (write) ✓ · `products`/`prices`/`subscriptions`/`checkout_sessions` (read) ✓.
+- **Managed-sync plan mapping VERIFIED:** `stripe-replit-sync`'s account lookup (`accounts.retrieve`) now succeeds, so `syncBackfill` can populate `stripe.products`. All 4 live products carry `metadata.plan` = `starter`/`get-going`/`growth`/`agency` (confirmed), which `updateUserFromSubscriptionEvent` reads for plan assignment.
+- **Remaining launch requirements (owner-gated):**
+  1. Create the production webhook at `https://usegrowthforge.com/api/stripe/webhook` (4 minimum events) and set prod `STRIPE_WEBHOOK_SECRET` to its `whsec_`.
+  2. At launch (after runbook approval): inject the live key into prod `.env`, restart, and perform the Caddy cutover.
+- **Production deployment + live billing: NOT YET AUTHORIZED.**
+- **Incremental cost:** $0.00.
