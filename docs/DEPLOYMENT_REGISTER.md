@@ -639,3 +639,26 @@ No services were changed or restarted. Findings:
   restricted key.
 - **No action taken:** key not injected, billing not activated, no restart, no domain change (code freeze held).
 - **Incremental cost:** $0.00.
+
+---
+
+## Stage A - Stripe live-readiness audit (2026-10-23, read-only) + prod webhook prep
+
+| # | Item | Status | Notes / owner action |
+|---|---|---|---|
+| 1 | Restricted-key permissions | **PARTIAL / PENDING** | READ granted: products, prices, customers, subscriptions, checkout_sessions, payment_intents, invoices, webhook_endpoints, balance. `account` read **DENIED (403)** — not yet granted. WRITE (customers, checkout_sessions, billing_portal, webhook_endpoints) = owner-confirm in Dashboard (not inferable from GET). |
+| 2 | Live Products/Prices | **PASS** | Starter $39, Get-Going $99, Growth $249, Agency $599 — all monthly; `metadata.plan` matches frontend slugs. (No `default_price`; no `video_seconds` product — both non-blocking; code falls back.) |
+| 3 | Publishable key | **N/A (missing, unused)** | No `pk_` key in toolbox. Frontend uses Hosted Checkout (no Stripe.js). Docs listing it as required are inaccurate. |
+| 4 | Live webhook endpoint | **BLOCKED** | Single endpoint points to a Replit dev URL (`*.worf.replit.dev`), not `usegrowthforge.com`. NOT used by DEV (DEV = `sk_test_` + `dev.usegrowthforge.com`). Prod endpoint must be created. |
+| 5 | Signing secret | **PENDING** | `STRIPE_WEBHOOK_SECRET` is authoritative (`processWebhook` uses it first; managed secret is a fallback only when empty). Prod holds `whsec_` (len 24) — must equal the live endpoint's signing secret. |
+| 6 | stripe-replit-sync deps | **PENDING** | `findOrCreateManagedWebhook` needs `account` read + `webhook_endpoints` write; `syncBackfill` needs broad reads (non-fatal). Plan-sync reads `stripe.products.metadata` from local DB → defaults to `"starter"` if backfill can't run. |
+| 7 | Billing coverage | **CODE PASS / runtime PENDING** | checkout (subscription + credits), `checkout.session.completed`, `customer.subscription.created/updated/deleted`, billing portal all implemented; runtime blocked on #1/#4/#5. |
+
+### Prepared production webhook (NOT executed — requires explicit approval)
+- **URL:** `https://usegrowthforge.com/api/stripe/webhook`
+- **Minimum events:** `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`.
+- **Metadata:** `managed_by: stripe-sync` (only if using the managed `findOrCreateManagedWebhook` path; otherwise leave unmanaged to avoid double-delivery).
+
+- **No mutation performed:** no products/prices/permissions/webhooks/keys/customers created or modified; no billing; no deploy/restart/routing.
+- **Production deployment + live billing: NOT YET AUTHORIZED.**
+- **Incremental cost:** $0.00.
