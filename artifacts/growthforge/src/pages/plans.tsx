@@ -288,12 +288,18 @@ function PlanCard({
   index,
   priceId,
   loading,
+  region,
+  billingInterval,
+  nigeriaPrice,
   onCheckout,
 }: {
   plan: Plan;
   index: number;
   priceId?: string;
   loading: boolean;
+  region: "global" | "nigeria";
+  billingInterval: "monthly" | "annual";
+  nigeriaPrice?: { monthlyNgn: number; annualNgn: number };
   onCheckout: (priceId: string, planName: string) => void;
 }) {
   const isHighlighted = !!plan.highlight;
@@ -328,10 +334,25 @@ function PlanCard({
           <h3 className="text-xl font-bold text-white mb-0.5">{plan.name}</h3>
           <p className="text-white/40 text-xs mb-4">{plan.description}</p>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-4xl font-bold text-white">${plan.price}</span>
-            <span className="text-white/35 text-sm">/mo</span>
+            {region === "nigeria" ? (
+              <>
+                <span className="text-4xl font-bold text-white">
+                  ₦{(billingInterval === "annual" ? (nigeriaPrice?.annualNgn ?? 0) : (nigeriaPrice?.monthlyNgn ?? 0)).toLocaleString()}
+                </span>
+                <span className="text-white/35 text-sm">/{billingInterval === "annual" ? "year" : "mo"}</span>
+              </>
+            ) : (
+              <>
+                <span className="text-4xl font-bold text-white">${plan.price}</span>
+                <span className="text-white/35 text-sm">/mo</span>
+              </>
+            )}
           </div>
-          <p className="text-white/25 text-[11px] mt-0.5">Billed monthly · Cancel anytime</p>
+          <p className="text-white/25 text-[11px] mt-0.5">
+            {region === "nigeria" && billingInterval === "annual"
+              ? `Billed annually · Save 15% (₦${(nigeriaPrice?.annualNgn ?? 0).toLocaleString()} upfront)`
+              : "Billed monthly · Cancel anytime"}
+          </p>
         </div>
 
         <div className="grid grid-cols-3 gap-2">
@@ -391,8 +412,8 @@ function PlanCard({
 
         <div className="flex flex-col gap-2 pt-1">
           <button
-            onClick={() => priceId && onCheckout(priceId, plan.name)}
-            disabled={loading || !priceId}
+            onClick={() => onCheckout(plan.slug, plan.name)}
+            disabled={loading || (region === "nigeria" ? !nigeriaPrice : !priceId)}
             className="w-full py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             style={
               isHighlighted
@@ -410,7 +431,7 @@ function PlanCard({
             )}
           </button>
           {!priceId && (
-            <p className="text-center text-[10px] text-white/20">Loading pricing…</p>
+            <p className="text-center text-[10px] text-white/20">Loading pricing...</p>
           )}
         </div>
       </div>
@@ -427,6 +448,9 @@ export default function PlansPage() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [userPlan, setUserPlan] = useState<string | null>(null);
+  const [region, setRegion] = useState<"global" | "nigeria">("global");
+  const [billingInterval, setBillingInterval] = useState<"monthly" | "annual">("monthly");
+  const [nigeriaPrices, setNigeriaPrices] = useState<Record<string, { monthlyNgn: number; annualNgn: number }>>({});
 
   const checkoutStatus = new URLSearchParams(search).get("checkout");
 
@@ -452,6 +476,22 @@ export default function PlansPage() {
       .catch(() => {});
   }, []);
 
+  // Detect regional storefront from hostname + load Nigeria (NGN) pricing
+  useEffect(() => {
+    const host = window.location.hostname.toLowerCase();
+    if (host === "ng.usegrowthforge.com" || host.startsWith("ng.")) {
+      setRegion("nigeria");
+      fetch("/api/paystack/pricing")
+        .then((r) => r.json())
+        .then((data: { plans?: Array<{ slug: string; monthlyNgn: number; annualNgn: number }> }) => {
+          const map: Record<string, { monthlyNgn: number; annualNgn: number }> = {};
+          for (const p of data.plans ?? []) map[p.slug] = { monthlyNgn: p.monthlyNgn, annualNgn: p.annualNgn };
+          setNigeriaPrices(map);
+        })
+        .catch(() => {});
+    }
+  }, []);
+
   // Load current user subscription
   useEffect(() => {
     if (!isLoaded || !user) return;
@@ -473,19 +513,27 @@ export default function PlansPage() {
     setLocation("/onboarding");
   }
 
-  async function handleCheckout(priceId: string, planName: string) {
+  async function handleCheckout(planSlug: string, planName: string) {
     setCheckoutLoading(planName);
     try {
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId }),
-      });
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (data.url) {
-        window.location.href = data.url;
+      if (region === "nigeria") {
+        const res = await fetch("/api/paystack/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan: planSlug, interval: billingInterval }),
+        });
+        const data = (await res.json()) as { authorizationUrl?: string; error?: string };
+        if (data.authorizationUrl) window.location.href = data.authorizationUrl;
+        else alert(data.error ?? "Failed to start checkout. Please try again.");
       } else {
-        alert(data.error ?? "Failed to start checkout. Please try again.");
+        const res = await fetch("/api/stripe/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ priceId: priceMap[planSlug] }),
+        });
+        const data = (await res.json()) as { url?: string; error?: string };
+        if (data.url) window.location.href = data.url;
+        else alert(data.error ?? "Failed to start checkout. Please try again.");
       }
     } catch {
       alert("Network error. Please try again.");
@@ -564,7 +612,7 @@ export default function PlansPage() {
               <div>
                 <p className="text-[#00E676] font-semibold text-sm">Subscription activated!</p>
                 <p className="text-white/50 text-xs mt-0.5">
-                  Welcome to GrowthForge. Your plan is now active —{" "}
+                  Welcome to GrowthForge. Your plan is now active -{" "}
                   <Link href="/dashboard" className="underline hover:text-white">
                     go to your dashboard
                   </Link>
@@ -581,7 +629,7 @@ export default function PlansPage() {
               className="w-full max-w-[1600px] w-[min(95vw,1600px)] mb-6 flex items-center gap-3 px-5 py-4 rounded-2xl border border-white/10 bg-white/5"
             >
               <X className="w-5 h-5 text-white/40 shrink-0" />
-              <p className="text-white/50 text-sm">Checkout cancelled — you can try again anytime.</p>
+              <p className="text-white/50 text-sm">Checkout cancelled - you can try again anytime.</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -649,6 +697,24 @@ export default function PlansPage() {
           </div>
         </motion.div>
 
+        {region === "nigeria" && (
+          <div className="w-full max-w-[1600px] w-[min(95vw,1600px)] flex items-center justify-center gap-2 mb-6">
+            <span className="text-xs text-white/40 mr-1">Billing</span>
+            <button
+              onClick={() => setBillingInterval("monthly")}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${billingInterval === "monthly" ? "bg-[#00E676] text-black" : "bg-white/5 text-white/50 border border-white/10"}`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBillingInterval("annual")}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${billingInterval === "annual" ? "bg-[#00E676] text-black" : "bg-white/5 text-white/50 border border-white/10"}`}
+            >
+              Annual <span className="opacity-70">(-15%)</span>
+            </button>
+          </div>
+        )}
+
         {/* Plan cards */}
         <div className="w-full max-w-[1600px] w-[min(95vw,1600px)] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {PLANS.map((plan, index) => (
@@ -657,6 +723,9 @@ export default function PlansPage() {
               plan={plan}
               index={index}
               priceId={priceMap[plan.slug]}
+              region={region}
+              billingInterval={billingInterval}
+              nigeriaPrice={nigeriaPrices[plan.slug]}
               loading={checkoutLoading === plan.name}
               onCheckout={handleCheckout}
             />
@@ -670,7 +739,7 @@ export default function PlansPage() {
           transition={{ delay: 0.5 }}
           className="text-white/25 text-xs mt-10 text-center"
         >
-          All plans billed monthly. Cancel anytime from your billing portal. By subscribing you agree to our{" "}
+          {region === "nigeria" ? "Billed monthly or annually · Save 15% on annual plans. Cancel anytime." : "All plans billed monthly. Cancel anytime from your billing portal."} By subscribing you agree to our{" "}
           <Link href="/terms" className="underline hover:text-white/50">
             Terms of Service
           </Link>{" "}
