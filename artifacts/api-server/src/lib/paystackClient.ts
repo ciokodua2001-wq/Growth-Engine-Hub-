@@ -8,8 +8,10 @@ import crypto from "node:crypto";
 const BASE_URL = process.env.PAYSTACK_BASE_URL ?? "https://api.paystack.co";
 
 function secretKey(): string {
-  const key = process.env.PAYSTACK_SECRET_KEY;
-  if (!key) throw new Error("PAYSTACK_SECRET_KEY is not set");
+  // Test key (sk_test_...). The TEST public key is not used server-side
+  // (we use Paystack's hosted redirect flow, not inline JS).
+  const key = process.env.PAYSTACK_SECRET_KEY ?? process.env.PAYSTACK_TEST_SECRET_KEY;
+  if (!key) throw new Error("PAYSTACK_SECRET_KEY (or PAYSTACK_TEST_SECRET_KEY) is not set");
   return key;
 }
 
