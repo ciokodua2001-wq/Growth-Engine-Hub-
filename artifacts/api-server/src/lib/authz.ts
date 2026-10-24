@@ -75,14 +75,28 @@ export async function requireActiveSubscription(req: Request, res: Response, nex
   const userId = getAuth(req)?.userId;
   if (!userId) { next(); return; }
 
-  const [user] = await db.select({ subscriptionStatus: usersTable.subscriptionStatus, isOwner: usersTable.isOwner })
+  const [user] = await db
+    .select({
+      subscriptionStatus: usersTable.subscriptionStatus,
+      isOwner: usersTable.isOwner,
+      paystackRenewalDisabled: usersTable.paystackRenewalDisabled,
+      paystackAccessEndsAt: usersTable.paystackAccessEndsAt,
+    })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
 
   // Platform owner has unlimited access — bypass all subscription checks
   if (user?.isOwner) { next(); return; }
 
-  if (user?.subscriptionStatus === "cancelled") {
+  // A non-renewing Paystack subscription keeps entitlement until the verified end of
+  // its paid period; enforce that boundary lazily here so access still expires even if
+  // no scheduled job has run yet and Paystack never sends a follow-up webhook.
+  const accessExpired =
+    user?.paystackRenewalDisabled === true &&
+    user?.paystackAccessEndsAt != null &&
+    user.paystackAccessEndsAt.getTime() <= Date.now();
+
+  if (user?.subscriptionStatus === "cancelled" || accessExpired) {
     res.status(403).json({
       error: "subscription_cancelled",
       message: "Your subscription has been cancelled. Your existing content remains available in read-only mode for 90 days. To generate new content, please reactivate your subscription.",

@@ -19,6 +19,13 @@ export const usersTable = pgTable("users", {
   paystackCustomerCode: text("paystack_customer_code"),
   paystackSubscriptionCode: text("paystack_subscription_code"),
   paystackPlanInterval: text("paystack_plan_interval"),
+  // Non-renewing (cancelled-at-period-end) Paystack state. When a customer asks to
+  // cancel a paid subscription, Paystack marks it "non-renewing": access continues
+  // until the already-paid period ends. These fields record that intent separately
+  // from `subscription_status` so we don't revoke prepaid access prematurely.
+  // Stripe leaves both null/false (its cancellation is immediate).
+  paystackAccessEndsAt: timestamp("paystack_access_ends_at", { withTimezone: true }),
+  paystackRenewalDisabled: boolean("paystack_renewal_disabled").notNull().default(false),
   plan: text("plan").notNull().default("trial"),
   subscriptionStatus: text("subscription_status").notNull().default("trial"),
   // Which provider currently owns the subscription entitlements. NULL = unclaimed

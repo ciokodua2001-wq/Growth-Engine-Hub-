@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { and, eq, isNull, lt, isNotNull } from "drizzle-orm";
+import { and, eq, isNull, lt } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { usersTable, projectsTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
@@ -16,8 +16,10 @@ export async function runArchival(): Promise<{ archivedProjects: number; usersPr
     .where(
       and(
         eq(usersTable.subscriptionStatus, "cancelled"),
-        isNotNull(usersTable.cancelledAt),
-        lt(usersTable.cancelledAt, cutoff),
+        // Non-renewing Paystack users keep access until paystack_access_ends_at
+        // (the paid-period end), which is later than the cancellation request time.
+        // Stripe rows have a null access_ends_at and fall back to cancelled_at.
+        lt(sql`COALESCE(${usersTable.paystackAccessEndsAt}, ${usersTable.cancelledAt})`, cutoff),
       ),
     );
 

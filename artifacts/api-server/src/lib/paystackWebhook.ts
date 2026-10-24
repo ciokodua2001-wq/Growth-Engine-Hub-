@@ -63,8 +63,12 @@ export async function processPaystackWebhook(rawBody: Buffer, signature: string 
       await handleSubscriptionCreate(tx, data);
       return { duplicate: false, activated: null };
     }
-    if (eventType === "subscription.disable" || eventType === "subscription.not_renew") {
+    if (eventType === "subscription.disable") {
       await handleSubscriptionDisable(tx, data);
+      return { duplicate: false, activated: null };
+    }
+    if (eventType === "subscription.not_renew") {
+      await handleSubscriptionNotRenew(tx, data);
       return { duplicate: false, activated: null };
     }
     if (eventType === "invoice.payment_failed") {
@@ -134,6 +138,11 @@ async function handleChargeSuccess(tx: Tx, data: Record<string, unknown>): Promi
       paystackPlanInterval: mapped.interval,
       billingProvider: "paystack",
       subscriptionActivatedAt: activatedAt,
+      // A successful charge (new/renewed activation) supersedes any earlier
+      // non-renewing (cancellation) request.
+      paystackRenewalDisabled: false,
+      paystackAccessEndsAt: null,
+      cancelledAt: null,
       updatedAt: new Date(),
     })
     .where(and(
@@ -182,14 +191,17 @@ async function handleSubscriptionDisable(tx: Tx, data: Record<string, unknown>):
   const customerCode = asString(data.customer, "customer_code") ?? asString(data.customer, "id");
   if (!subscriptionCode && !customerCode) return;
 
-  // Cancel ONLY the current Paystack-owned subscription. Clearing the subscription
-  // code lets a later re-subscribe (new plan) activate on its first charge.
+  // Full disable (immediate cancellation). Cancel ONLY the current Paystack-owned
+  // subscription. Clearing the subscription code lets a later re-subscribe (new
+  // plan) activate on its first charge.
   const res = await tx
     .update(usersTable)
     .set({
       subscriptionStatus: "cancelled",
       cancelledAt: new Date(),
       paystackSubscriptionCode: null,
+      paystackRenewalDisabled: false,
+      paystackAccessEndsAt: null,
       updatedAt: new Date(),
     })
     .where(and(
@@ -205,6 +217,50 @@ async function handleSubscriptionDisable(tx: Tx, data: Record<string, unknown>):
     return;
   }
   logger.info({ userId: res[0].id }, "Paystack subscription cancelled");
+}
+
+async function handleSubscriptionNotRenew(tx: Tx, data: Record<string, unknown>): Promise<void> {
+  const subscriptionCode = asString(data, "subscription_code") ?? asString(data, "id");
+  const customerCode = asString(data.customer, "customer_code") ?? asString(data.customer, "id");
+  if (!subscriptionCode && !customerCode) return;
+
+  // "Cancel Subscription" in Paystack marks the subscription non-renewing, NOT
+  // cancelled: the customer keeps access for the rest of the already-paid period.
+  // The end of that paid period is Paystack's `next_payment_date` (the next billing
+  // date, which a non-renewing subscription will never reach). It arrives in the
+  // HMAC-signed webhook payload - authenticated Paystack data - and we validate it
+  // is a real future timestamp before trusting it as the access-expiry boundary.
+  const nextPaymentDate = parseDate(asString(data, "next_payment_date"));
+  const accessEndsAt =
+    nextPaymentDate && nextPaymentDate.getTime() > Date.now() ? nextPaymentDate : null;
+
+  // If we can't confirm a future paid-through date, keep access but flag the account
+  // non-renewing (no premature revocation). If the period has already ended, cancel.
+  const res = await tx
+    .update(usersTable)
+    .set({
+      subscriptionStatus: accessEndsAt ? "active" : "cancelled",
+      cancelledAt: new Date(),
+      paystackRenewalDisabled: true,
+      paystackAccessEndsAt: accessEndsAt,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(usersTable.billingProvider, "paystack"),
+      subscriptionCode
+        ? eq(usersTable.paystackSubscriptionCode, subscriptionCode)
+        : eq(usersTable.paystackCustomerCode, customerCode ?? ""),
+    ))
+    .returning({ id: usersTable.id });
+
+  if (res.length === 0) {
+    logger.info({ subscriptionCode, customerCode }, "Paystack non-renew skipped (ownership/stale guard)");
+    return;
+  }
+  logger.info(
+    { userId: res[0].id, accessEndsAt },
+    "Paystack subscription marked non-renewing (access retained until period end)",
+  );
 }
 
 async function handlePaymentFailed(tx: Tx, data: Record<string, unknown>): Promise<void> {

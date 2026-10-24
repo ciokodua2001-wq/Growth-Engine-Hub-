@@ -3,6 +3,7 @@ import { logger } from "./lib/logger.js";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync } from "./stripeClient.js";
 import { startArchivalJob } from "./lib/archivalJob.js";
+import { startSubscriptionExpirationJob } from "./lib/subscriptionExpirationJob.js";
 import { startStuckPublishRecovery } from "./lib/stuckPublishRecovery.js";
 import { startScheduledPublisher } from "./lib/scheduledPublisher.js";
 import { startRenderMonitor } from "./lib/renderMonitor.js";
@@ -398,6 +399,7 @@ app.listen(port, (err) => {
   }
   logger.info({ port }, "Server listening");
   startArchivalJob();
+  startSubscriptionExpirationJob();
   startStuckPublishRecovery();
   startScheduledPublisher();
   startRenderMonitor();
