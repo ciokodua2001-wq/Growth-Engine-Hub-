@@ -59,6 +59,10 @@ export async function processPaystackWebhook(rawBody: Buffer, signature: string 
       const activated = await handleChargeSuccess(tx, data);
       return { duplicate: false, activated };
     }
+    if (eventType === "subscription.create") {
+      await handleSubscriptionCreate(tx, data);
+      return { duplicate: false, activated: null };
+    }
     if (eventType === "subscription.disable" || eventType === "subscription.not_renew") {
       await handleSubscriptionDisable(tx, data);
       return { duplicate: false, activated: null };
@@ -89,7 +93,6 @@ export async function processPaystackWebhook(rawBody: Buffer, signature: string 
 async function handleChargeSuccess(tx: Tx, data: Record<string, unknown>): Promise<{ userId: string; plan: string } | null> {
   const planCode = asString(data.plan, "plan_code") ?? asString(data.plan, "id");
   const customerCode = asString(data.customer, "customer_code") ?? asString(data.customer, "id");
-  const subscriptionCode = asString(data.subscription, "subscription_code") ?? asString(data.subscription, "id");
   const currency = asString(data, "currency");
   const amountKobo = asNumber(data, "amount");
   const metadata = (data.metadata ?? {}) as Record<string, unknown>;
@@ -110,8 +113,8 @@ async function handleChargeSuccess(tx: Tx, data: Record<string, unknown>): Promi
     logger.warn({ planCode, amountKobo, expectedKobo }, "Paystack charge ignored - amount mismatch");
     return null;
   }
-  if (!userId || !customerCode || !subscriptionCode) {
-    logger.warn({ planCode, customerCode, subscriptionCode }, "Paystack charge ignored - missing userId/customer/subscription");
+  if (!userId || !customerCode) {
+    logger.warn({ planCode, customerCode }, "Paystack charge ignored - missing userId/customer");
     return null;
   }
 
@@ -128,7 +131,6 @@ async function handleChargeSuccess(tx: Tx, data: Record<string, unknown>): Promi
       plan: mapped.plan.slug,
       subscriptionStatus: "active",
       paystackCustomerCode: customerCode,
-      paystackSubscriptionCode: subscriptionCode,
       paystackPlanInterval: mapped.interval,
       billingProvider: "paystack",
       subscriptionActivatedAt: activatedAt,
@@ -149,6 +151,30 @@ async function handleChargeSuccess(tx: Tx, data: Record<string, unknown>): Promi
 
   logger.info({ userId, plan: mapped.plan.slug, interval: mapped.interval }, "Paystack subscription activated");
   return { userId, plan: mapped.plan.slug };
+}
+
+async function handleSubscriptionCreate(tx: Tx, data: Record<string, unknown>): Promise<void> {
+  // The recurring subscription code lives in a SEPARATE subscription.create event
+  // (not inside charge.success). It is at data.subscription_code (top-level) and is
+  // associated to the already-activated user via the provider customer code.
+  const subscriptionCode = asString(data, "subscription_code");
+  const customerCode = asString(data.customer, "customer_code") ?? asString(data.customer, "id");
+  if (!subscriptionCode || !customerCode) return;
+
+  const res = await tx
+    .update(usersTable)
+    .set({ paystackSubscriptionCode: subscriptionCode, updatedAt: new Date() })
+    .where(and(
+      eq(usersTable.billingProvider, "paystack"),
+      eq(usersTable.paystackCustomerCode, customerCode),
+    ))
+    .returning({ id: usersTable.id });
+
+  if (res.length === 0) {
+    logger.info({ subscriptionCode, customerCode }, "Paystack subscription.create skipped (no matching user)");
+    return;
+  }
+  logger.info({ userId: res[0].id, subscriptionCode }, "Paystack subscription code recorded");
 }
 
 async function handleSubscriptionDisable(tx: Tx, data: Record<string, unknown>): Promise<void> {
