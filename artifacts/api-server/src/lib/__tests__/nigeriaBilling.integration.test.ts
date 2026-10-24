@@ -77,12 +77,22 @@ function chargeSuccess(opts: {
     id: opts.eventId,
     customer: { customer_code: opts.customerCode, email: "t@example.com" },
     plan: { plan_code: opts.planCode },
-    subscription: { subscription_code: opts.subscriptionCode },
     amount: opts.amountKobo,
     currency: "NGN",
     paidAt: opts.paidAt,
     createdAt: opts.paidAt,
     metadata: { userId: opts.userId },
+  });
+}
+
+// Real Paystack sends the subscription_code in a SEPARATE subscription.create event.
+function subscriptionCreate(opts: { eventId: string; customerCode: string; subscriptionCode: string }): Buffer {
+  return paystackEvent("subscription.create", {
+    id: opts.eventId,
+    customer: { customer_code: opts.customerCode, email: "t@example.com" },
+    plan: { plan_code: "PLN_kgo8fbwb51lbx3w" },
+    subscription_code: opts.subscriptionCode,
+    status: "active",
   });
 }
 
@@ -128,11 +138,14 @@ describe("Paystack subscription ownership", () => {
       planCode: "pln_starter_monthly", amountKobo: STARTER_MONTHLY_KOBO, paidAt: T2,
     });
     await processPaystackWebhook(body, sign(body));
+    const subBody = subscriptionCreate({ eventId: "evt_first_sub", customerCode: "CUST_1", subscriptionCode: "sub_1" });
+    await processPaystackWebhook(subBody, sign(subBody));
 
     const u = await getUser("u1");
     expect(u.plan).toBe("starter");
     expect(u.subscriptionStatus).toBe("active");
     expect(u.billingProvider).toBe("paystack");
+    expect(u.paystackCustomerCode).toBe("CUST_1");
     expect(u.paystackSubscriptionCode).toBe("sub_1");
   });
 

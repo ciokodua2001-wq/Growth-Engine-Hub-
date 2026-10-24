@@ -145,7 +145,7 @@ async function handleChargeSuccess(tx: Tx, data: Record<string, unknown>): Promi
     .returning({ id: usersTable.id });
 
   if (updated.length === 0) {
-    logger.info({ userId, planCode, subscriptionCode }, "Paystack charge skipped (ownership/stale guard)");
+    logger.info({ userId, planCode, customerCode }, "Paystack charge skipped (ownership/stale guard)");
     return null;
   }
 
