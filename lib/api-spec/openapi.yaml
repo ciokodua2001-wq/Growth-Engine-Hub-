@@ -2581,23 +2581,23 @@ components:
         period:
           type: string
         impressions:
-          type: integer
+          type: ["integer", "null"]
         clicks:
-          type: integer
+          type: ["integer", "null"]
         conversions:
-          type: integer
+          type: ["integer", "null"]
         spend:
-          type: number
+          type: ["number", "null"]
         revenue:
-          type: number
+          type: ["number", "null"]
         roas:
-          type: number
+          type: ["number", "null"]
         ctr:
-          type: number
+          type: ["number", "null"]
         cpc:
-          type: number
+          type: ["number", "null"]
         cpa:
-          type: number
+          type: ["number", "null"]
 
     # ── Assets ───────────────────────────────────────────────────────────────
     Asset:
@@ -2633,19 +2633,19 @@ components:
         period:
           type: string
         adSpend:
-          type: number
+          type: ["number", "null"]
         roas:
-          type: number
+          type: ["number", "null"]
         impressions:
-          type: integer
+          type: ["integer", "null"]
         clicks:
-          type: integer
+          type: ["integer", "null"]
         conversions:
-          type: integer
+          type: ["integer", "null"]
         activeCampaigns:
           type: integer
         revenue:
-          type: number
+          type: ["number", "null"]
         socialReach:
           type: integer
         socialEngagement:
@@ -2657,7 +2657,7 @@ components:
         sentCampaigns:
           type: integer
         emailOpenRate:
-          type: number
+          type: ["number", "null"]
         contentPieces:
           type: integer
         videosCreated:
@@ -2673,9 +2673,9 @@ components:
           items:
             $ref: "#/components/schemas/ChartDataPoint"
         websiteTraffic:
-          type: integer
+          type: ["integer", "null"]
         leads:
-          type: integer
+          type: ["integer", "null"]
 
     ChartDataPoint:
       type: object
