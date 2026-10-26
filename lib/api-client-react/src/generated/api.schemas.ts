@@ -653,15 +653,15 @@ export interface Campaign {
 export interface CampaignPerformance {
   campaignId: number;
   period: string;
-  impressions?: number;
-  clicks?: number;
-  conversions?: number;
-  spend?: number;
-  revenue?: number;
-  roas?: number;
-  ctr?: number;
-  cpc?: number;
-  cpa?: number;
+  impressions?: number | null;
+  clicks?: number | null;
+  conversions?: number | null;
+  spend?: number | null;
+  revenue?: number | null;
+  roas?: number | null;
+  ctr?: number | null;
+  cpc?: number | null;
+  cpa?: number | null;
 }
 
 export interface Asset {

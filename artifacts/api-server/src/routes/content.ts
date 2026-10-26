@@ -363,7 +363,7 @@ router.get("/projects/:id/emails", async (req, res): Promise<void> => {
   const params = ListEmailsParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const emails = await db.select().from(emailCampaignsTable).where(eq(emailCampaignsTable.projectId, params.data.id)).orderBy(desc(emailCampaignsTable.createdAt));
-  res.json(emails.map(e => ({ ...e, openRate: e.openRate ? Number(e.openRate) : null, clickRate: e.clickRate ? Number(e.clickRate) : null, sentAt: e.sentAt?.toISOString() ?? null, createdAt: e.createdAt.toISOString() })));
+  res.json(emails.map(e => ({ ...e, openRate: null, clickRate: null, sentAt: e.sentAt?.toISOString() ?? null, createdAt: e.createdAt.toISOString() })));
 });
 
 router.post("/projects/:id/emails", requireActiveSubscription, async (req, res): Promise<void> => {
@@ -400,8 +400,6 @@ router.post("/projects/:id/emails", requireActiveSubscription, async (req, res):
     projectId,
     type,
     status: "draft",
-    openRate: String((Math.random() * 20 + 20).toFixed(1)),
-    clickRate: String((Math.random() * 8 + 3).toFixed(1)),
     ...emailResult,
   }).returning();
 
@@ -422,7 +420,7 @@ router.post("/projects/:id/emails", requireActiveSubscription, async (req, res):
     description: `Generated ${type} email campaign`,
   });
 
-  res.json({ ...email!, openRate: email!.openRate ? Number(email!.openRate) : null, clickRate: email!.clickRate ? Number(email!.clickRate) : null, createdAt: email!.createdAt.toISOString() });
+  res.json({ ...email!, openRate: null, clickRate: null, createdAt: email!.createdAt.toISOString() });
 });
 
 router.get("/projects/:id/emails/send-config", async (req, res): Promise<void> => {
@@ -527,8 +525,8 @@ router.post("/projects/:id/emails/:emailId/send", requireActiveSubscription, asy
 
   res.json({
     ...updated!,
-    openRate: updated!.openRate ? Number(updated!.openRate) : null,
-    clickRate: updated!.clickRate ? Number(updated!.clickRate) : null,
+    openRate: null,
+    clickRate: null,
     sentAt: updated!.sentAt?.toISOString() ?? null,
     createdAt: updated!.createdAt.toISOString(),
     sentCount,

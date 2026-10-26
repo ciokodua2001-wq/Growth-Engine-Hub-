@@ -2581,23 +2581,23 @@ components:
         period:
           type: string
         impressions:
-          type: integer
+          type: ["integer", "null"]
         clicks:
-          type: integer
+          type: ["integer", "null"]
         conversions:
-          type: integer
+          type: ["integer", "null"]
         spend:
-          type: number
+          type: ["number", "null"]
         revenue:
-          type: number
+          type: ["number", "null"]
         roas:
-          type: number
+          type: ["number", "null"]
         ctr:
-          type: number
+          type: ["number", "null"]
         cpc:
-          type: number
+          type: ["number", "null"]
         cpa:
-          type: number
+          type: ["number", "null"]
 
     # ── Assets ───────────────────────────────────────────────────────────────
     Asset:

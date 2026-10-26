@@ -1571,15 +1571,15 @@ export const GetCampaignPerformanceParams = zod.object({
 export const GetCampaignPerformanceResponse = zod.object({
   "campaignId": zod.number(),
   "period": zod.string(),
-  "impressions": zod.number().optional(),
-  "clicks": zod.number().optional(),
-  "conversions": zod.number().optional(),
-  "spend": zod.number().optional(),
-  "revenue": zod.number().optional(),
-  "roas": zod.number().optional(),
-  "ctr": zod.number().optional(),
-  "cpc": zod.number().optional(),
-  "cpa": zod.number().optional()
+  "impressions": zod.number().nullable().optional(),
+  "clicks": zod.number().nullable().optional(),
+  "conversions": zod.number().nullable().optional(),
+  "spend": zod.number().nullable().optional(),
+  "revenue": zod.number().nullable().optional(),
+  "roas": zod.number().nullable().optional(),
+  "ctr": zod.number().nullable().optional(),
+  "cpc": zod.number().nullable().optional(),
+  "cpa": zod.number().nullable().optional()
 })
 
 

@@ -47,9 +47,14 @@ router.get("/projects/:id/campaigns", async (req, res): Promise<void> => {
     ...c,
     budget: c.budget ? Number(c.budget) : null,
     spent: c.spent ? Number(c.spent) : null,
-    roas: c.roas ? Number(c.roas) : null,
-    ctr: c.ctr ? Number(c.ctr) : null,
-    cpc: c.cpc ? Number(c.cpc) : null,
+    // Manual campaign rows historically contained generated demo numbers. Only
+    // surface performance values synced from an ad provider.
+    impressions: c.source === "manual" ? null : c.impressions,
+    clicks: c.source === "manual" ? null : c.clicks,
+    conversions: c.source === "manual" ? null : c.conversions,
+    roas: c.source === "manual" || !c.roas ? null : Number(c.roas),
+    ctr: c.source === "manual" || !c.ctr ? null : Number(c.ctr),
+    cpc: c.source === "manual" || !c.cpc ? null : Number(c.cpc),
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
   })));
@@ -83,12 +88,6 @@ router.post("/projects/:id/campaigns", requireActiveSubscription, async (req, re
     status: "draft",
     budget: parsed.data.budget ? String(parsed.data.budget) : null,
     spent: "0",
-    impressions: Math.floor(Math.random() * 50000 + 10000),
-    clicks: Math.floor(Math.random() * 2000 + 500),
-    conversions: Math.floor(Math.random() * 100 + 20),
-    roas: String((Math.random() * 5 + 2).toFixed(2)),
-    ctr: String((Math.random() * 3 + 1).toFixed(4)),
-    cpc: String((Math.random() * 2 + 0.5).toFixed(2)),
   }).returning();
 
   await db.insert(activityTable).values({
@@ -101,9 +100,12 @@ router.post("/projects/:id/campaigns", requireActiveSubscription, async (req, re
     ...campaign,
     budget: campaign.budget ? Number(campaign.budget) : null,
     spent: campaign.spent ? Number(campaign.spent) : null,
-    roas: campaign.roas ? Number(campaign.roas) : null,
-    ctr: campaign.ctr ? Number(campaign.ctr) : null,
-    cpc: campaign.cpc ? Number(campaign.cpc) : null,
+    impressions: campaign.source === "manual" ? null : campaign.impressions,
+    clicks: campaign.source === "manual" ? null : campaign.clicks,
+    conversions: campaign.source === "manual" ? null : campaign.conversions,
+    roas: campaign.source === "manual" || !campaign.roas ? null : Number(campaign.roas),
+    ctr: campaign.source === "manual" || !campaign.ctr ? null : Number(campaign.ctr),
+    cpc: campaign.source === "manual" || !campaign.cpc ? null : Number(campaign.cpc),
     createdAt: campaign.createdAt.toISOString(),
     updatedAt: campaign.updatedAt.toISOString(),
   });
@@ -118,9 +120,12 @@ router.get("/projects/:id/campaigns/:campaignId", async (req, res): Promise<void
     ...campaign,
     budget: campaign.budget ? Number(campaign.budget) : null,
     spent: campaign.spent ? Number(campaign.spent) : null,
-    roas: campaign.roas ? Number(campaign.roas) : null,
-    ctr: campaign.ctr ? Number(campaign.ctr) : null,
-    cpc: campaign.cpc ? Number(campaign.cpc) : null,
+    impressions: campaign.source === "manual" ? null : campaign.impressions,
+    clicks: campaign.source === "manual" ? null : campaign.clicks,
+    conversions: campaign.source === "manual" ? null : campaign.conversions,
+    roas: campaign.source === "manual" || !campaign.roas ? null : Number(campaign.roas),
+    ctr: campaign.source === "manual" || !campaign.ctr ? null : Number(campaign.ctr),
+    cpc: campaign.source === "manual" || !campaign.cpc ? null : Number(campaign.cpc),
     createdAt: campaign.createdAt.toISOString(),
     updatedAt: campaign.updatedAt.toISOString(),
   });
@@ -139,9 +144,12 @@ router.patch("/projects/:id/campaigns/:campaignId", async (req, res): Promise<vo
     ...campaign,
     budget: campaign.budget ? Number(campaign.budget) : null,
     spent: campaign.spent ? Number(campaign.spent) : null,
-    roas: campaign.roas ? Number(campaign.roas) : null,
-    ctr: campaign.ctr ? Number(campaign.ctr) : null,
-    cpc: campaign.cpc ? Number(campaign.cpc) : null,
+    impressions: campaign.source === "manual" ? null : campaign.impressions,
+    clicks: campaign.source === "manual" ? null : campaign.clicks,
+    conversions: campaign.source === "manual" ? null : campaign.conversions,
+    roas: campaign.source === "manual" || !campaign.roas ? null : Number(campaign.roas),
+    ctr: campaign.source === "manual" || !campaign.ctr ? null : Number(campaign.ctr),
+    cpc: campaign.source === "manual" || !campaign.cpc ? null : Number(campaign.cpc),
     createdAt: campaign.createdAt.toISOString(),
     updatedAt: campaign.updatedAt.toISOString(),
   });
@@ -152,23 +160,24 @@ router.get("/projects/:id/campaigns/:campaignId/performance", async (req, res): 
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const [campaign] = await db.select().from(campaignsTable).where(and(eq(campaignsTable.id, params.data.campaignId), eq(campaignsTable.projectId, params.data.id)));
 
-  const impressions = campaign?.impressions ?? 25000;
-  const clicks = campaign?.clicks ?? 1200;
-  const conversions = campaign?.conversions ?? 48;
-  const budget = campaign?.budget ? Number(campaign.budget) : 2000;
+  if (!campaign) { res.status(404).json({ error: "Campaign not found" }); return; }
 
+  const providerSynced = campaign.source !== "manual";
+  const spend = providerSynced && campaign.spent != null ? Number(campaign.spent) : null;
+  const roas = providerSynced && campaign.roas != null ? Number(campaign.roas) : null;
+  const conversions = providerSynced ? campaign.conversions : null;
   res.json({
     campaignId: params.data.campaignId,
     period: "last_30_days",
-    impressions,
-    clicks,
+    impressions: providerSynced ? campaign.impressions : null,
+    clicks: providerSynced ? campaign.clicks : null,
     conversions,
-    spend: budget * 0.65,
-    revenue: budget * 0.65 * 3.8,
-    roas: 3.8,
-    ctr: Number((clicks / impressions * 100).toFixed(2)),
-    cpc: Number((budget * 0.65 / clicks).toFixed(2)),
-    cpa: Number((budget * 0.65 / conversions).toFixed(2)),
+    spend,
+    revenue: spend != null && roas != null ? spend * roas : null,
+    roas,
+    ctr: providerSynced && campaign.ctr != null ? Number(campaign.ctr) : null,
+    cpc: providerSynced && campaign.cpc != null ? Number(campaign.cpc) : null,
+    cpa: spend != null && conversions != null && conversions > 0 ? spend / conversions : null,
   });
 });
 
@@ -193,11 +202,11 @@ router.get("/projects/:id/analytics", async (req, res): Promise<void> => {
     const [campaignAgg, socialAgg, emailAgg, contentCount, videoCount, adCount, connectedAccounts, dailyActivity] =
       await Promise.all([
         db.select({
-          totalSpent:      sql<string>`COALESCE(SUM(${campaignsTable.spent}::numeric), 0)`,
-          avgRoas:         sql<string>`COALESCE(AVG(NULLIF(${campaignsTable.roas}::numeric, 0)), 0)`,
-          totalImpressions:sql<string>`COALESCE(SUM(${campaignsTable.impressions}), 0)`,
-          totalClicks:     sql<string>`COALESCE(SUM(${campaignsTable.clicks}), 0)`,
-          totalConversions:sql<string>`COALESCE(SUM(${campaignsTable.conversions}), 0)`,
+          totalSpent:      sql<string>`COALESCE(SUM(CASE WHEN ${campaignsTable.source} <> 'manual' THEN ${campaignsTable.spent}::numeric ELSE 0 END), 0)`,
+          avgRoas:         sql<string>`AVG(CASE WHEN ${campaignsTable.source} <> 'manual' THEN NULLIF(${campaignsTable.roas}::numeric, 0) ELSE NULL END)`,
+          totalImpressions:sql<string>`COALESCE(SUM(CASE WHEN ${campaignsTable.source} <> 'manual' THEN ${campaignsTable.impressions} ELSE 0 END), 0)`,
+          totalClicks:     sql<string>`COALESCE(SUM(CASE WHEN ${campaignsTable.source} <> 'manual' THEN ${campaignsTable.clicks} ELSE 0 END), 0)`,
+          totalConversions:sql<string>`COALESCE(SUM(CASE WHEN ${campaignsTable.source} <> 'manual' THEN ${campaignsTable.conversions} ELSE 0 END), 0)`,
           activeCampaigns: sql<string>`COUNT(CASE WHEN ${campaignsTable.status} = 'active' THEN 1 END)`,
         }).from(campaignsTable).where(eq(campaignsTable.projectId, projectId)),
 
@@ -211,7 +220,6 @@ router.get("/projects/:id/analytics", async (req, res): Promise<void> => {
         db.select({
           sentCampaigns:  sql<string>`COUNT(CASE WHEN ${emailCampaignsTable.status} = 'sent' THEN 1 END)`,
           totalRecipients:sql<string>`COALESCE(SUM(CASE WHEN ${emailCampaignsTable.status} = 'sent' THEN ${emailCampaignsTable.recipientCount} ELSE 0 END), 0)`,
-          avgOpenRate:    sql<string>`COALESCE(AVG(CASE WHEN ${emailCampaignsTable.openRate} IS NOT NULL THEN CAST(${emailCampaignsTable.openRate} AS FLOAT) ELSE NULL END), 0)`,
         }).from(emailCampaignsTable).where(eq(emailCampaignsTable.projectId, projectId)),
 
         db.select({ count: sql<string>`COUNT(*)` }).from(contentTable).where(eq(contentTable.projectId, projectId)),
@@ -245,8 +253,8 @@ router.get("/projects/:id/analytics", async (req, res): Promise<void> => {
     const email  = emailAgg[0]     ?? {};
 
     const adSpend = parseFloat(String(camp.totalSpent ?? "0"));
-    const roas    = Math.round(parseFloat(String(camp.avgRoas    ?? "0")) * 100) / 100;
-    const revenue = Math.round(adSpend * (roas || 0));
+    const roas    = camp.avgRoas == null ? null : Math.round(parseFloat(String(camp.avgRoas)) * 100) / 100;
+    const revenue = roas == null ? null : Math.round(adSpend * roas);
 
     // Build a 30-day zero-filled chart from real daily activity
     const activityByDay = new Map<string, number>();
@@ -283,7 +291,8 @@ router.get("/projects/:id/analytics", async (req, res): Promise<void> => {
       // Email
       emailRecipients:  Number(email.totalRecipients   ?? 0),
       sentCampaigns:    Number(email.sentCampaigns     ?? 0),
-      emailOpenRate:    Math.round(parseFloat(String(email.avgOpenRate ?? "0")) * 100) / 100,
+      // No Resend engagement-event ingestion exists yet; legacy values may be synthetic.
+      emailOpenRate:    null,
       // Content
       contentPieces:    Number(contentCount[0]?.count  ?? 0),
       videosCreated:    Number(videoCount[0]?.count    ?? 0),
@@ -452,20 +461,12 @@ router.post("/projects/:id/reports", requireActiveSubscription, async (req, res)
   const quota = await consumeQuota(projectId, "campaign_reports", 1);
   if (!quota.allowed) { res.status(403).json({ error: quota.message }); return; }
 
-  // kpiTrends stay algorithmically generated — there's no real ad platform/analytics
-  // integration wired up, so these numbers can't be "real". The summary and
-  // recommendations, however, are grounded in the project's actual business context
-  // so they read as specific advice for this business rather than generic boilerplate.
-  const kpiTrends = [
-    { metric: "Website Traffic", value: 12847, change: 34, trend: "up" as const },
-    { metric: "Leads Generated", value: 342, change: 28, trend: "up" as const },
-    { metric: "ROAS", value: 3.8, change: 35, trend: "up" as const },
-    { metric: "Content Engagement", value: 8.4, change: 45, trend: "up" as const },
-  ];
+  // Reports must not invent campaign KPIs; populate only from verified sources.
+  const kpiTrends: Array<{ metric: string; value: number | null; change: number | null; trend: "up" | "down" | "stable" | "unavailable" }> = [];
 
   const ctx = await getGroundingContext(projectId);
-  let summary = `${type.charAt(0).toUpperCase() + type.slice(1)} performance summary: Website traffic up 34%, leads generated up 28%, ROAS improved from 2.8x to 3.8x. Content engagement increased 45% month-over-month.`;
-  let recommendations = "1. Increase video production\n2. Scale winning ad campaigns\n3. Launch retargeting campaigns\n4. Expand your best-performing channel";
+  let summary = `${type.charAt(0).toUpperCase() + type.slice(1)} performance report for the ${period} period. No verified provider performance metrics are available to report yet.`;
+  let recommendations = "Connect and sync an advertising or analytics provider to populate this report with measured performance data.";
 
   if (ctx) {
     try {
@@ -476,9 +477,9 @@ router.post("/projects/:id/reports", requireActiveSubscription, async (req, res)
           "generic marketing platitudes. Respond with ONLY a single JSON object, no prose.",
         prompt: `${renderGroundingBlock(ctx)}
 
-This is a ${type} performance report for the ${period} period. Assume the underlying metrics show healthy
-growth (traffic, leads, and ROAS trending up, content engagement rising) — you are not being given exact
-numbers, so speak in terms of what to prioritize next given who this business serves and how it's positioned.
+This is a ${type} performance report for the ${period} period. No verified performance metrics were supplied.
+Do not claim growth, changes, engagement, revenue, or campaign results. Provide a concise note that verified data
+is unavailable and recommendations for what data source to connect, tailored to this business.
 Return JSON:
 {
   "summary": "2-4 sentence narrative summary of performance, grounded in this business's context",
@@ -625,8 +626,6 @@ async function performAgentAction(
         projectId,
         type,
         status: "draft",
-        openRate: String((Math.random() * 20 + 20).toFixed(1)),
-        clickRate: String((Math.random() * 8 + 3).toFixed(1)),
         ...result,
       }).returning();
       await db.insert(activityTable).values({ projectId, type: "email", description: `Forge generated a ${type} email campaign` });
