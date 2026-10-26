@@ -653,15 +653,15 @@ export interface Campaign {
 export interface CampaignPerformance {
   campaignId: number;
   period: string;
-  impressions?: number;
-  clicks?: number;
-  conversions?: number;
-  spend?: number;
-  revenue?: number;
-  roas?: number;
-  ctr?: number;
-  cpc?: number;
-  cpa?: number;
+  impressions?: number | null;
+  clicks?: number | null;
+  conversions?: number | null;
+  spend?: number | null;
+  revenue?: number | null;
+  roas?: number | null;
+  ctr?: number | null;
+  cpc?: number | null;
+  cpa?: number | null;
 }
 
 export interface Asset {
@@ -689,26 +689,26 @@ export interface ChartDataPoint {
 export interface ProjectAnalytics {
   projectId: number;
   period: string;
-  adSpend?: number;
-  roas?: number;
-  impressions?: number;
-  clicks?: number;
-  conversions?: number;
+  adSpend?: number | null;
+  roas?: number | null;
+  impressions?: number | null;
+  clicks?: number | null;
+  conversions?: number | null;
   activeCampaigns?: number;
-  revenue?: number;
+  revenue?: number | null;
   socialReach?: number;
   socialEngagement?: number;
   publishedPosts?: number;
   emailRecipients?: number;
   sentCampaigns?: number;
-  emailOpenRate?: number;
+  emailOpenRate?: number | null;
   contentPieces?: number;
   videosCreated?: number;
   adsGenerated?: number;
   connectedPlatforms?: string[];
   chartData?: ChartDataPoint[];
-  websiteTraffic?: number;
-  leads?: number;
+  websiteTraffic?: number | null;
+  leads?: number | null;
 }
 
 export interface ReportInput {
