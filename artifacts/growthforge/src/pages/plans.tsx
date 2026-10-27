@@ -349,9 +349,18 @@ function PlanCard({
             )}
           </div>
           <p className="text-white/25 text-[11px] mt-0.5">
-            {region === "nigeria" && billingInterval === "annual"
-              ? `Billed annually · Save 15% (₦${(nigeriaPrice?.annualNgn ?? 0).toLocaleString()} upfront)`
-              : "Billed monthly · Cancel anytime"}
+            {region === "nigeria" && billingInterval === "annual" ? (
+              <>
+                <span className="inline-flex items-center px-1.5 py-0.5 mr-1.5 rounded bg-[#00E676]/15 text-[#00E676] font-semibold">
+                  Save 15%
+                </span>
+                <span>
+                  ₦{((nigeriaPrice?.annualNgn ?? 0) / 12).toLocaleString()}/mo equivalent · billed ₦{(nigeriaPrice?.annualNgn ?? 0).toLocaleString()}/yr
+                </span>
+              </>
+            ) : (
+              "Billed monthly · Cancel anytime"
+            )}
           </p>
         </div>
 
@@ -430,7 +439,7 @@ function PlanCard({
               </>
             )}
           </button>
-          {!priceId && (
+          {region === "global" && !priceId && (
             <p className="text-center text-[10px] text-white/20">Loading pricing...</p>
           )}
         </div>
@@ -710,7 +719,7 @@ export default function PlansPage() {
               onClick={() => setBillingInterval("annual")}
               className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${billingInterval === "annual" ? "bg-[#00E676] text-black" : "bg-white/5 text-white/50 border border-white/10"}`}
             >
-              Annual <span className="opacity-70">(-15%)</span>
+              Annual <span className="opacity-70">· Save 15%</span>
             </button>
           </div>
         )}
