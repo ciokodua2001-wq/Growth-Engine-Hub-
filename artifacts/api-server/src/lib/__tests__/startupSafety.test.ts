@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import { getListenHost, runStartupDatabaseTasks } from "../startupSafety.js";
+import { getListenHost, runStartupDatabaseTasks, verifyDatabaseBeforeListen } from "../startupSafety.js";
 
 describe("API listener host configuration", () => {
   it("preserves the existing default when HOST is unset or blank", () => {
@@ -28,6 +28,26 @@ describe("API listener host configuration", () => {
         server.close((error) => (error ? reject(error) : resolve())),
       );
     }
+  });
+});
+
+describe("Nigeria database identity startup gate", () => {
+  it("verifies connected identity before allowing listen", async () => {
+    const events: string[] = [];
+    await verifyDatabaseBeforeListen(
+      async () => { events.push("verified"); },
+      () => { events.push("listening"); },
+    );
+    expect(events).toEqual(["verified", "listening"]);
+  });
+
+  it("never listens when identity verification fails", async () => {
+    const listen = vi.fn();
+    await expect(verifyDatabaseBeforeListen(
+      async () => { throw new Error("wrong database identity"); },
+      listen,
+    )).rejects.toThrow("wrong database identity");
+    expect(listen).not.toHaveBeenCalled();
   });
 });
 

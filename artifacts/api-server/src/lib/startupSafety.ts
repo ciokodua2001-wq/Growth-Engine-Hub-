@@ -16,6 +16,15 @@ export function getListenHost(env: NodeJS.ProcessEnv): string | undefined {
   return host || undefined;
 }
 
+/** Verify the connected DB before allowing the API listener and startup hooks. */
+export async function verifyDatabaseBeforeListen(
+  verifyIdentity: () => Promise<void>,
+  listen: () => void,
+): Promise<void> {
+  await verifyIdentity();
+  listen();
+}
+
 /**
  * Global retains its established startup behavior. Nigeria startup fails
  * closed: no implicit DDL/drop helpers and no Stripe migration, webhook

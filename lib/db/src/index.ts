@@ -1,6 +1,9 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "./schema";
+import { assertDatabaseTarget } from "./targetGuard";
+
+assertDatabaseTarget(process.env);
 
 const { Pool } = pg;
 
@@ -17,3 +20,9 @@ export const pool = new Pool({
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";
+export {
+  assertDatabaseTarget,
+  assertConnectedDatabaseIdentity,
+  NIGERIA_STAGING_DATABASE_NAME,
+  type ConnectedDatabaseIdentity,
+} from "./targetGuard";

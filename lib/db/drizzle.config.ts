@@ -1,5 +1,8 @@
 import { defineConfig } from "drizzle-kit";
 import path from "path";
+import { assertDatabaseTarget } from "./src/targetGuard";
+
+assertDatabaseTarget(process.env);
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL, ensure the database is provisioned");

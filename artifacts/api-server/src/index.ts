@@ -1,6 +1,6 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
-import { getListenHost, runStartupDatabaseTasks } from "./lib/startupSafety.js";
+import { getListenHost, runStartupDatabaseTasks, verifyDatabaseBeforeListen } from "./lib/startupSafety.js";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync } from "./stripeClient.js";
 import { startArchivalJob } from "./lib/archivalJob.js";
@@ -10,7 +10,7 @@ import { startScheduledPublisher } from "./lib/scheduledPublisher.js";
 import { startRenderMonitor } from "./lib/renderMonitor.js";
 import { startAutonomousOptimizer } from "./lib/autonomousOptimizer.js";
 import { checkEncryptionKey, isEncryptedFormat, decryptToken } from "./lib/tokenCrypto.js";
-import { db } from "@workspace/db";
+import { assertConnectedDatabaseIdentity, db } from "@workspace/db";
 import { metaConnectionsTable, commercialAssembliesTable } from "@workspace/db";
 import { eq, inArray, sql } from "drizzle-orm";
 
@@ -427,9 +427,28 @@ const onListen = (err?: Error) => {
   void recoverStuckAssemblies();
 };
 
-if (listenHost) {
-  app.listen(port, listenHost, onListen);
+function listen(): void {
+  if (listenHost) {
+    app.listen(port, listenHost, onListen);
+  } else {
+    // Preserve Node's existing default bind behavior when HOST is unset.
+    app.listen(port, onListen);
+  }
+}
+
+if (process.env.APP_REGION?.trim().toLowerCase() === "nigeria") {
+  void verifyDatabaseBeforeListen(
+    async () => {
+      const result = await db.execute(sql`SELECT current_database() AS database, current_user AS role`);
+      const identity = result.rows[0] as { database: string; role: string } | undefined;
+      if (!identity) throw new Error("Nigeria startup blocked: database identity query returned no row");
+      assertConnectedDatabaseIdentity(process.env, identity);
+    },
+    listen,
+  ).catch((err) => {
+    logger.error({ err }, "Nigeria startup blocked: database identity verification failed");
+    process.exit(1);
+  });
 } else {
-  // Preserve Node's existing default bind behavior when HOST is unset.
-  app.listen(port, onListen);
+  listen();
 }

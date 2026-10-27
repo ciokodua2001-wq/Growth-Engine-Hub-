@@ -60,8 +60,8 @@ router.post("/paystack/checkout", async (req, res) => {
     return;
   }
 
-  const planCode = getPlanCode(slug, interval as BillingInterval);
-  const amountNgn = getPlanAmountNgn(slug, interval as BillingInterval);
+  const planCode = getPlanCode(plan.slug, interval as BillingInterval);
+  const amountNgn = getPlanAmountNgn(plan.slug, interval as BillingInterval);
   if (!planCode || !amountNgn) {
     res.status(400).json({ error: "Invalid plan configuration" });
     return;
@@ -84,7 +84,7 @@ router.post("/paystack/checkout", async (req, res) => {
       callbackUrl,
       metadata: {
         userId,
-        plan: slug,
+        plan: plan.slug,
         interval,
         currency: "NGN",
         amountNgn: String(amountNgn),
