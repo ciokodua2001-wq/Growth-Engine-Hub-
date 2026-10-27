@@ -1,5 +1,6 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
+import { getListenHost, runStartupDatabaseTasks } from "./lib/startupSafety.js";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync } from "./stripeClient.js";
 import { startArchivalJob } from "./lib/archivalJob.js";
@@ -76,6 +77,7 @@ if (!rawPort) throw new Error("PORT environment variable is required but was not
 
 const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) throw new Error(`Invalid PORT value: "${rawPort}"`);
+const listenHost = getListenHost(process.env);
 
 async function ensureSeoComparisonPagesTable(): Promise<void> {
   try {
@@ -392,7 +394,7 @@ async function recoverStuckAssemblies(): Promise<void> {
   }
 }
 
-app.listen(port, (err) => {
+const onListen = (err?: Error) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
     process.exit(1);
@@ -405,12 +407,29 @@ app.listen(port, (err) => {
   startRenderMonitor();
   startAutonomousOptimizer();
   void runMetaTokenHealthCheck();
-  void ensureSupportTicketsTable();
-  void ensureSupportKnowledgeBaseTable();
-  void ensureOwnerMarketingTables();
-  void ensureSeoSitemapTable();
-  void ensureSeoComparisonPagesTable();
-  void dropLegacyZTutorTables();
-  void initStripe();
+  const startupTasks = runStartupDatabaseTasks(process.env, {
+    schemaChanges: [
+      ensureSupportTicketsTable,
+      ensureSupportKnowledgeBaseTable,
+      ensureOwnerMarketingTables,
+      ensureSeoSitemapTable,
+      ensureSeoComparisonPagesTable,
+      dropLegacyZTutorTables,
+    ],
+    stripeInitialization: initStripe,
+  });
+  if (!startupTasks.schemaChangesStarted) {
+    logger.info("Nigeria DEV: automatic startup schema changes skipped");
+  }
+  if (!startupTasks.stripeInitializationStarted) {
+    logger.info("Nigeria DEV: automatic Stripe startup sync skipped");
+  }
   void recoverStuckAssemblies();
-});
+};
+
+if (listenHost) {
+  app.listen(port, listenHost, onListen);
+} else {
+  // Preserve Node's existing default bind behavior when HOST is unset.
+  app.listen(port, onListen);
+}
