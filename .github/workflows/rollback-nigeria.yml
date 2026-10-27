@@ -1,0 +1,30 @@
+name: Rollback Nigeria DEV
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Commit SHA to roll back to (leave empty to roll back one commit)
+        required: false
+        default: ""
+
+jobs:
+  rollback:
+    name: Rollback Nigeria DEV
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.NIGERIA_SSH_KEY }}
+
+      - name: Rebuild previous commit and restart
+        env:
+          HOST: ${{ secrets.NIGERIA_SSH_HOST }}
+          PORT: ${{ secrets.NIGERIA_SSH_PORT }}
+          USER: ${{ secrets.NIGERIA_SSH_USER }}
+        run: |
+          TARGET='${{ github.event.inputs.target_sha }}'
+          if [ -z "$TARGET" ]; then TARGET='HEAD~1'; fi
+          ssh -o StrictHostKeyChecking=accept-new -p "${PORT}" "${USER}@${HOST}" \
+            "cd /home/ubuntu/nigeria/app && git checkout '$TARGET' && bash scripts/deploy/build.sh && sudo systemctl restart growthforge-nigeria-api.service && curl -fsS -o /dev/null http://127.0.0.1:4101/api/healthz && echo ROLLBACK_OK"

@@ -1,0 +1,55 @@
+name: Deploy Nigeria DEV
+
+on:
+  push:
+    branches:
+      - feature/nigeria-paystack
+  workflow_dispatch:
+
+# Single-flight: never run two Nigeria deploys at once, and never cancel one mid-deploy.
+concurrency:
+  group: nigeria-dev-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Typecheck + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck (libs + artifacts + scripts)
+        run: pnpm run typecheck
+      - name: API server tests
+        run: pnpm --filter @workspace/api-server run test
+
+  deploy:
+    name: Deploy to Lightsail (Nigeria DEV only)
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Load deploy key (private key from GitHub Actions secret, never from the repo)
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.NIGERIA_SSH_KEY }}
+
+      - name: Run Nigeria deploy script on the box
+        env:
+          HOST: ${{ secrets.NIGERIA_SSH_HOST }}
+          PORT: ${{ secrets.NIGERIA_SSH_PORT }}
+          USER: ${{ secrets.NIGERIA_SSH_USER }}
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new -p "${PORT}" "${USER}@${HOST}" \
+            'bash /home/ubuntu/nigeria/app/scripts/deploy/nigeria-deploy.sh'
