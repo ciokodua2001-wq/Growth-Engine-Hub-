@@ -85,19 +85,29 @@ describe("Nigeria NGN pricing", () => {
 });
 
 describe("region resolution (exact hostname only)", () => {
-  it("maps only ng.usegrowthforge.com to Nigeria", () => {
+  it("maps only the explicitly approved Nigeria hosts to Nigeria", () => {
     expect(resolveRegion("ng.usegrowthforge.com")).toBe("nigeria");
+    expect(resolveRegion("ng.dev.usegrowthforge.com")).toBe("nigeria");
     expect(resolveRegion("NG.usegrowthforge.com:443")).toBe("nigeria");
-    // forged / broad hosts must NOT map to Nigeria
+
+    // Case normalization and explicit ports are supported for both exact hosts.
+    expect(resolveRegion("NG.DEV.USEGROWTHFORGE.COM")).toBe("nigeria");
+    expect(resolveRegion("NG.DEV.USEGROWTHFORGE.COM:8443")).toBe("nigeria");
+
+    // Forged, broad, and near-match hosts must NOT map to Nigeria.
     expect(resolveRegion("ng.anything.example")).toBe("global");
     expect(resolveRegion("ng.evil.com")).toBe("global");
     expect(resolveRegion("ng.usegrowthforge.com.evil.com")).toBe("global");
+    expect(resolveRegion("ng.dev.usegrowthforge.com.evil.com")).toBe("global");
+    expect(resolveRegion("xng.dev.usegrowthforge.com")).toBe("global");
   });
 
-  it("maps apex and other subdomains to global", () => {
+  it("preserves Global mappings and defaults to Global", () => {
     expect(resolveRegion("usegrowthforge.com")).toBe("global");
     expect(resolveRegion("dev.usegrowthforge.com")).toBe("global");
+    expect(resolveRegion("DEV.USEGROWTHFORGE.COM:443")).toBe("global");
     expect(resolveRegion(undefined)).toBe("global");
+    expect(resolveRegion(null)).toBe("global");
   });
 });
 

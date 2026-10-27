@@ -4,12 +4,14 @@ export type Region = "global" | "nigeria";
 
 /**
  * Resolve the regional storefront from a validated hostname.
- * ONLY the exact approved host `ng.usegrowthforge.com` maps to Nigeria.
- * (Previously matched any `ng.*` host - too broad.)
+ * Only the explicitly approved Nigeria hosts map to Nigeria; do not use
+ * broad subdomain or suffix matching here.
  */
 export function resolveRegion(hostname: string | undefined | null): Region {
   const host = (hostname ?? "").trim().toLowerCase().split(":")[0];
-  return host === "ng.usegrowthforge.com" ? "nigeria" : "global";
+  return host === "ng.usegrowthforge.com" || host === "ng.dev.usegrowthforge.com"
+    ? "nigeria"
+    : "global";
 }
 
 /**
