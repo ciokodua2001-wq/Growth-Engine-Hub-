@@ -1,9 +1,6 @@
 name: Deploy Nigeria DEV
 
 on:
-  push:
-    branches:
-      - feature/nigeria-paystack
   workflow_dispatch:
 
 # Single-flight: never run two Nigeria deploys at once, never cancel one mid-deploy.
