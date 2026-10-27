@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       target_sha:
-        description: Commit SHA to roll back to (leave empty to roll back one commit)
+        description: Commit SHA to roll back to (empty = previous commit)
         required: false
         default: ""
 
@@ -14,9 +14,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Gate - refuse to roll back unless the pipeline is configured
+        if: vars.NIGERIA_CI_ENABLED != 'true' || secrets.NIGERIA_SSH_KEY == '' || secrets.NIGERIA_SSH_KNOWN_HOSTS == ''
+        run: |
+          echo "::error::Nigeria CI is not configured."
+          exit 1
+
       - uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ secrets.NIGERIA_SSH_KEY }}
+
+      - name: Pin the Lightsail host key
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.NIGERIA_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Rebuild previous commit and restart
         env:
@@ -26,5 +38,5 @@ jobs:
         run: |
           TARGET='${{ github.event.inputs.target_sha }}'
           if [ -z "$TARGET" ]; then TARGET='HEAD~1'; fi
-          ssh -o StrictHostKeyChecking=accept-new -p "${PORT}" "${USER}@${HOST}" \
-            "cd /home/ubuntu/nigeria/app && git checkout '$TARGET' && bash scripts/deploy/build.sh && sudo systemctl restart growthforge-nigeria-api.service && curl -fsS -o /dev/null http://127.0.0.1:4101/api/healthz && echo ROLLBACK_OK"
+          ssh -o StrictHostKeyChecking=yes -p "${PORT}" "${USER}@${HOST}" \
+            "cd /home/ubuntu/nigeria/app && git checkout feature/nigeria-paystack && git reset --hard '$TARGET' && bash scripts/deploy/build.sh && sudo systemctl restart growthforge-nigeria-api.service && curl -fsS -o /dev/null http://127.0.0.1:4101/api/healthz && echo ROLLBACK_OK"

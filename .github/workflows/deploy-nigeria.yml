@@ -6,7 +6,7 @@ on:
       - feature/nigeria-paystack
   workflow_dispatch:
 
-# Single-flight: never run two Nigeria deploys at once, and never cancel one mid-deploy.
+# Single-flight: never run two Nigeria deploys at once, never cancel one mid-deploy.
 concurrency:
   group: nigeria-dev-deploy
   cancel-in-progress: false
@@ -29,9 +29,9 @@ jobs:
           cache: pnpm
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
-      - name: Typecheck (libs + artifacts + scripts)
+      - name: Typecheck
         run: pnpm run typecheck
-      - name: API server tests
+      - name: API tests
         run: pnpm --filter @workspace/api-server run test
 
   deploy:
@@ -40,10 +40,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Load deploy key (private key from GitHub Actions secret, never from the repo)
+      - name: Gate - refuse to deploy unless the pipeline is fully configured
+        if: vars.NIGERIA_CI_ENABLED != 'true' || secrets.NIGERIA_SSH_KEY == '' || secrets.NIGERIA_SSH_KNOWN_HOSTS == '' || secrets.NIGERIA_SSH_HOST == '' || secrets.NIGERIA_SSH_USER == ''
+        run: |
+          echo "::error::Nigeria CI is not configured. Set NIGERIA_CI_ENABLED=true (repo variable) and the NIGERIA_SSH_* secrets, then re-run."
+          exit 1
+
+      - name: Load runner deploy key (private key from GitHub secret; never committed)
         uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ secrets.NIGERIA_SSH_KEY }}
+
+      - name: Pin the Lightsail host key (trusted known_hosts only)
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.NIGERIA_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Run Nigeria deploy script on the box
         env:
@@ -51,5 +63,5 @@ jobs:
           PORT: ${{ secrets.NIGERIA_SSH_PORT }}
           USER: ${{ secrets.NIGERIA_SSH_USER }}
         run: |
-          ssh -o StrictHostKeyChecking=accept-new -p "${PORT}" "${USER}@${HOST}" \
+          ssh -o StrictHostKeyChecking=yes -p "${PORT}" "${USER}@${HOST}" \
             'bash /home/ubuntu/nigeria/app/scripts/deploy/nigeria-deploy.sh'
