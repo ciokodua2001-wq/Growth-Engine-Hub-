@@ -228,6 +228,13 @@ const FAQ = [
   { q: "Can I cancel or change plans later?", a: "Yes. You can upgrade, downgrade, or cancel at any time from your account settings. Cancellations take effect at the end of the current billing period and you keep access until then. See our Refund Policy for eligibility details." },
 ];
 
+const NIGERIA_ANNUAL_UPFRONT: Record<string, number> = {
+  Starter: 408000,
+  "Get-Going": 1020000,
+  Growth: 2550000,
+  Agency: 6120000,
+};
+
 const FOOTER_LINKS = {
   Product: [
     { label: "Features", href: "#features" },
@@ -456,15 +463,21 @@ export default function LandingPage() {
   const [activeTab, setActiveTab] = useState("Analysis");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [billingInterval, setBillingInterval] = useState<"monthly" | "annual">("monthly");
   const { user, isLoaded, signOut } = useAuth();
   const [, setLocation] = useLocation();
 
   const region = getClientRegion();
   const pricingCards = useMemo(() => PRICING.map((plan) => ({
     ...plan,
-    displayPrice: region === "nigeria" ? plan.nigeriaPrice.toLocaleString("en-NG") : String(plan.price),
+    displayPrice: region === "nigeria"
+      ? (billingInterval === "annual"
+          ? Math.round((NIGERIA_ANNUAL_UPFRONT[plan.name] ?? plan.nigeriaPrice * 12 * 0.85) / 12).toLocaleString("en-NG")
+          : plan.nigeriaPrice.toLocaleString("en-NG"))
+      : String(plan.price),
     currencySymbol: region === "nigeria" ? "₦" : "$",
-  })), [region]);
+    annualUpfront: region === "nigeria" ? (NIGERIA_ANNUAL_UPFRONT[plan.name] ?? Math.round(plan.nigeriaPrice * 12 * 0.85)) : null,
+  })), [region, billingInterval]);
 
   const isAuthed = isLoaded && !!user;
   const { isAdmin } = useCurrentUser();
@@ -1120,6 +1133,30 @@ export default function LandingPage() {
               <span className="text-[#00E676] text-sm font-semibold">{region === "nigeria" ? "All plans include a 7-day free trial · Nigeria paid activation pending" : "All plans include a 7-day free trial - no credit card required"}</span>
             </div>
           </FadeIn>
+          {region === "nigeria" && (
+            <FadeIn className="mb-8">
+              <div className="mx-auto max-w-3xl rounded-2xl border border-[#00E676]/20 bg-[#00E676]/[0.06] px-4 py-4 sm:px-5 sm:py-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-white">Monthly / Annual billing</p>
+                    <p className="text-xs text-white/55">Save 15% on annual plans. Prices update instantly across all four cards.</p>
+                  </div>
+                  <div className="inline-flex w-full sm:w-auto items-center gap-2 rounded-2xl border border-white/10 bg-[#040B14]/70 p-1.5">
+                    <button
+                      onClick={() => setBillingInterval("monthly")}
+                      aria-pressed={billingInterval === "monthly"}
+                      className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${billingInterval === "monthly" ? "bg-[#00E676] text-black" : "bg-transparent text-white/60"}`}
+                    >Monthly</button>
+                    <button
+                      onClick={() => setBillingInterval("annual")}
+                      aria-pressed={billingInterval === "annual"}
+                      className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${billingInterval === "annual" ? "bg-[#00E676] text-black" : "bg-transparent text-white/60"}`}
+                    >Annual <span className="opacity-75">· Save 15%</span></button>
+                  </div>
+                </div>
+              </div>
+            </FadeIn>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
             {pricingCards.map((plan, i) => (
               <FadeIn key={plan.name} delay={i * 0.08}>
@@ -1153,7 +1190,10 @@ export default function LandingPage() {
                         <span className="text-3xl font-black text-white">{plan.currencySymbol}{plan.displayPrice}</span>
                         <span className="text-white/40 text-sm">/mo</span>
                       </div>
-                      <div className="text-white/25 text-[11px] mt-0.5">{region === "nigeria" ? "Monthly or annual billing · Save 15% annually" : "Billed monthly · Cancel anytime"}</div>
+                      <div className="text-white/25 text-[11px] mt-0.5">{region === "nigeria" ? (billingInterval === "annual" ? "Annual billing selected · discounted monthly equivalent" : "Monthly billing selected · annual saves 15%") : "Billed monthly · Cancel anytime"}</div>
+                      {region === "nigeria" && billingInterval === "annual" && plan.annualUpfront && (
+                        <div className="text-[#00E676] text-xs font-semibold mt-1">Annual upfront: ₦{plan.annualUpfront.toLocaleString("en-NG")}</div>
+                      )}
                     </div>
 
                     {/* Hero stats */}
@@ -1209,7 +1249,7 @@ export default function LandingPage() {
                       >
                         <ArrowRight className="w-3.5 h-3.5" /> {region === "nigeria" ? "Start 7-Day Trial" : "Start Free Trial"}
                       </Link>
-                      <p className="text-center text-[10px] text-white/20">{region === "nigeria" ? "7-day free trial · Nigeria paid access pending" : "7-day free trial · No credit card required"}</p>
+                      <p className="text-center text-[10px] text-white/20">{region === "nigeria" ? `7-day free trial · ${billingInterval === "annual" ? "annual billing selected" : "monthly billing selected"} · Nigeria paid access pending` : "7-day free trial · No credit card required"}</p>
                     </div>
                   </div>
                 </div>
