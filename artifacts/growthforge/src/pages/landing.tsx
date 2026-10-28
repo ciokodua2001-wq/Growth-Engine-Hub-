@@ -50,7 +50,7 @@ const BUILDS_FROM_URL = [
   {
     icon: Video,
     title: "Video Generation",
-    desc: "Generate and render marketing videos ready to post — no editing experience required.",
+    desc: "Generate and render marketing videos ready to post - no editing experience required.",
     features: ["Video Concepts", "Hooks", "Storyboards", "Rendered Videos"],
     color: "#00E676",
   },
@@ -83,7 +83,7 @@ const WORKFLOW_PIPELINE = [
 const BENEFIT_CARDS = [
   { icon: Brain, title: "Business Intelligence", desc: "AI scans your website, extracts your ICP, positioning, and growth opportunities in seconds." },
   { icon: Users2, title: "Competitor Intelligence", desc: "Discover competitors, map gaps, and see exactly how to win your market." },
-  { icon: Sparkles, title: "AI Content Creation", desc: "Generate unlimited content, campaigns, videos, and ads — all tailored to your brand." },
+  { icon: Sparkles, title: "AI Content Creation", desc: "Generate unlimited content, campaigns, videos, and ads - all tailored to your brand." },
   { icon: Cpu, title: "AI Marketing Automation", desc: "Autonomous campaigns that optimize 24/7 without manual intervention." },
 ];
 
@@ -142,7 +142,7 @@ const TRUST_POINTS = [
   { icon: Clock, title: "Save Dozens of Hours", desc: "What takes a marketing team weeks, GrowthForge delivers in minutes." },
   { icon: TrendingUp, title: "Scale Faster", desc: "Go from idea to full marketing department in one session." },
   { icon: Target, title: "Reduce Agency Costs", desc: "Replace $10K+/month agency retainers with one AI platform." },
-  { icon: Layers, title: "All-In-One Platform", desc: "Strategy, content, video, social, email, ads — connected and unified." },
+  { icon: Layers, title: "All-In-One Platform", desc: "Strategy, content, video, social, email, ads - connected and unified." },
   { icon: Shield, title: "Built for Business", desc: "Designed for founders, marketers, and agencies who need real results." },
 ];
 
@@ -150,16 +150,16 @@ const FEATURES = [
   { icon: Brain, title: "Business Intelligence", desc: "AI scans your website and extracts your business model, ICP, pain points, opportunities, and competitive landscape in seconds." },
   { icon: Users2, title: "Competitor Intelligence", desc: "Discover and analyze your top competitors. Identify market gaps, messaging weaknesses, and your exact winning positioning." },
   { icon: FileText, title: "Content Engine", desc: "Generate blog posts, whitepapers, case studies, and SEO content tailored to your brand voice and ICP." },
-  { icon: Video, title: "Video Studio", desc: "Create professional marketing videos — promos, product demos, TikTok shorts — with scripts and storyboards." },
+  { icon: Video, title: "Video Studio", desc: "Create professional marketing videos - promos, product demos, TikTok shorts - with scripts and storyboards." },
   { icon: Share2, title: "Social Media Hub", desc: "30 days of platform-optimized social posts across LinkedIn, Instagram, TikTok, and X." },
-  { icon: Mail, title: "Email Campaigns", desc: "Welcome sequences, sales flows, nurture campaigns, and reactivation emails — personalized to your funnel." },
+  { icon: Mail, title: "Email Campaigns", desc: "Welcome sequences, sales flows, nurture campaigns, and reactivation emails - personalized to your funnel." },
   { icon: Target, title: "Campaign Manager", desc: "AI-managed ad campaigns across Google, Meta, and LinkedIn. Autonomous optimization 24/7." },
   { icon: Bot, title: "Forge AI Agent", desc: "Chat with your AI marketing agent. Say 'Generate a TikTok campaign' and watch it happen." },
   { icon: BarChart2, title: "Analytics & Reports", desc: "Real-time performance dashboards with AI-generated insights and recommendations." },
 ];
 
 const TESTIMONIALS = [
-  { name: "Sarah K.", role: "Founder, B2B SaaS", quote: "I canceled my $9,500/month marketing agency in week 1. GrowthForge does everything they did — and ships 10× faster.", stars: 5 },
+  { name: "Sarah K.", role: "Founder, B2B SaaS", quote: "I canceled my $9,500/month marketing agency in week 1. GrowthForge does everything they did - and ships 10× faster.", stars: 5 },
   { name: "Marcus R.", role: "Agency Owner", quote: "I now serve 4× more clients without hiring anyone. The competitor intelligence alone changed how I position every client.", stars: 5 },
   { name: "Priya M.", role: "VP Marketing", quote: "We went from 2 blog posts a month to 30. Our organic traffic strategy is now completely AI-driven. Unprecedented.", stars: 5 },
 ];
@@ -216,14 +216,14 @@ const PRICING = [
 ];
 
 const FAQ = [
-  { q: "What is GrowthForge?", a: "GrowthForge is an AI Growth Operating System built by Strapli Technologies. You paste your business website URL and it builds your entire marketing department in minutes — competitive intelligence, brand strategy, social and email content, video campaigns, ad creatives, and an AI agent that can execute tasks on demand. It replaces tools and headcount that would otherwise cost $150K+ per year." },
-  { q: "How does GrowthForge work?", a: "Three steps: (1) Paste your website URL. (2) GrowthForge's AI reads your site, discovers your top competitors, identifies market gaps, and builds a complete marketing strategy tailored to your brand. (3) Use the strategy to generate content, videos, campaigns, and more — all in one place. No setup, no learning curve." },
-  { q: "Do I need marketing experience?", a: "No. GrowthForge is built for founders, operators, and lean teams who want results without needing to hire a marketing director. The platform handles strategy, positioning, and execution — you just review and publish." },
-  { q: "What plans are available?", a: "GrowthForge offers four paid tiers: Starter ($39/mo, 1 project, 5 Promotional Videos/mo with 80s included), Get-Going ($99/mo, 3 projects, 13 Promotional Videos/mo with 200s included), Growth ($249/mo, 6 projects, 35 Promotional Videos/mo with 560s included), and Agency ($599/mo, 20 projects, 70 Promotional Videos/mo with 1,120s included). All plans include AI video generation at 1080p HD. Start with a free 7-day trial — no credit card required." },
-  { q: "Can I analyze competitors?", a: "Yes. GrowthForge automatically discovers your top competitors, analyzes their positioning, identifies weaknesses in their messaging, and generates a full competitive report — including exactly how to position your brand to win against each one." },
-  { q: "Can I generate written content?", a: "Yes. GrowthForge generates social media posts, email campaigns, ad copy, and ad creatives — all grounded in your actual business analysis and brand voice. Content is produced in batches so you always have a pipeline ready to publish." },
-  { q: "How does video generation work?", a: "GrowthForge renders complete AI Promotional Videos — scene-by-scene with voiceover, brand visuals, and captions — all at 1080p HD. Video generation is a paid-plan feature (5–70 Promotional Videos per month depending on your tier, with included render seconds). The free trial does not include video blueprints or rendering." },
-  { q: "What is Forge AI and what can it do?", a: "Forge AI is GrowthForge's built-in AI agent — it's not a generic chatbot. It knows your business, your competitors, your strategy, and your content history. You can ask it to generate new social posts, draft an email campaign, produce video concepts, or surface competitor insights. It executes tasks using the same AI pipelines as the platform's core tools, so everything it produces is grounded in your real business data." },
+  { q: "What is GrowthForge?", a: "GrowthForge is an AI Growth Operating System built by Strapli Technologies. You paste your business website URL and it builds your entire marketing department in minutes - competitive intelligence, brand strategy, social and email content, video campaigns, ad creatives, and an AI agent that can execute tasks on demand. It replaces tools and headcount that would otherwise cost $150K+ per year." },
+  { q: "How does GrowthForge work?", a: "Three steps: (1) Paste your website URL. (2) GrowthForge's AI reads your site, discovers your top competitors, identifies market gaps, and builds a complete marketing strategy tailored to your brand. (3) Use the strategy to generate content, videos, campaigns, and more - all in one place. No setup, no learning curve." },
+  { q: "Do I need marketing experience?", a: "No. GrowthForge is built for founders, operators, and lean teams who want results without needing to hire a marketing director. The platform handles strategy, positioning, and execution - you just review and publish." },
+  { q: "What plans are available?", a: "GrowthForge offers four paid tiers: Starter ($39/mo, 1 project, 5 Promotional Videos/mo with 80s included), Get-Going ($99/mo, 3 projects, 13 Promotional Videos/mo with 200s included), Growth ($249/mo, 6 projects, 35 Promotional Videos/mo with 560s included), and Agency ($599/mo, 20 projects, 70 Promotional Videos/mo with 1,120s included). All plans include AI video generation at 1080p HD. Start with a free 7-day trial - no credit card required." },
+  { q: "Can I analyze competitors?", a: "Yes. GrowthForge automatically discovers your top competitors, analyzes their positioning, identifies weaknesses in their messaging, and generates a full competitive report - including exactly how to position your brand to win against each one." },
+  { q: "Can I generate written content?", a: "Yes. GrowthForge generates social media posts, email campaigns, ad copy, and ad creatives - all grounded in your actual business analysis and brand voice. Content is produced in batches so you always have a pipeline ready to publish." },
+  { q: "How does video generation work?", a: "GrowthForge renders complete AI Promotional Videos - scene-by-scene with voiceover, brand visuals, and captions - all at 1080p HD. Video generation is a paid-plan feature (5-70 Promotional Videos per month depending on your tier, with included render seconds). The free trial does not include video blueprints or rendering." },
+  { q: "What is Forge AI and what can it do?", a: "Forge AI is GrowthForge's built-in AI agent - it's not a generic chatbot. It knows your business, your competitors, your strategy, and your content history. You can ask it to generate new social posts, draft an email campaign, produce video concepts, or surface competitor insights. It executes tasks using the same AI pipelines as the platform's core tools, so everything it produces is grounded in your real business data." },
   { q: "What happens during the free trial?", a: "The 7-day free trial includes 1 project, 1 website analysis, 1 competitor report, 1 marketing strategy, 2 customer personas, 5 social posts, 1 email campaign, and 10 Forge AI chats. There are no video blueprints or video rendering on trial. No credit card is required to start." },
   { q: "Can I cancel or change plans later?", a: "Yes. You can upgrade, downgrade, or cancel at any time from your account settings. Cancellations take effect at the end of the current billing period and you keep access until then. See our Refund Policy for eligibility details." },
 ];
@@ -335,7 +335,7 @@ function DashboardMockup({ active }: { active: string }) {
         </div>
         <div className="rounded-xl bg-[#00E676]/8 border border-[#00E676]/20 p-3">
           <div className="text-xs font-semibold text-[#00E676] mb-1">AI Recommendation</div>
-          <div className="text-xs text-white/60">Focus on content marketing targeting "AI marketing tools" — 4.2K monthly searches, low competition.</div>
+          <div className="text-xs text-white/60">Focus on content marketing targeting "AI marketing tools" - 4.2K monthly searches, low competition.</div>
         </div>
       </div>
     ),
@@ -406,11 +406,11 @@ function DashboardMockup({ active }: { active: string }) {
         <div className="text-sm font-bold text-white mb-1">Forge AI Agent</div>
         <div className="flex flex-col gap-2 flex-1">
           <div className="flex justify-end"><div className="bg-[#00E676]/15 border border-[#00E676]/20 rounded-2xl rounded-tr-sm px-4 py-2.5 text-xs text-white max-w-[80%]">Analyze my competitors and find market gaps</div></div>
-          <div className="flex justify-start"><div className="bg-white/5 border border-white/8 rounded-2xl rounded-tl-sm px-4 py-2.5 text-xs text-white/80 max-w-[85%]">Analyzing 5 competitors… Found 3 major market gaps. Your biggest opportunity: none of your competitors offer AI-native campaign automation. I recommend positioning GrowthForge as the first autonomous marketing OS. Want me to build a campaign around this angle?</div></div>
+          <div className="flex justify-start"><div className="bg-white/5 border border-white/8 rounded-2xl rounded-tl-sm px-4 py-2.5 text-xs text-white/80 max-w-[85%]">Analyzing 5 competitors... Found 3 major market gaps. Your biggest opportunity: none of your competitors offer AI-native campaign automation. I recommend positioning GrowthForge as the first autonomous marketing OS. Want me to build a campaign around this angle?</div></div>
           <div className="flex justify-end"><div className="bg-[#00E676]/15 border border-[#00E676]/20 rounded-2xl rounded-tr-sm px-4 py-2.5 text-xs text-white max-w-[80%]">Yes, create a TikTok campaign for this</div></div>
           <div className="flex justify-start items-center gap-2">
             <div className="w-5 h-5 rounded-full bg-[#00E676]/20 flex items-center justify-center shrink-0"><Zap className="w-2.5 h-2.5 text-[#00E676]" /></div>
-            <div className="text-xs text-white/40 italic">Forge is generating your TikTok campaign…</div>
+            <div className="text-xs text-white/40 italic">Forge is generating your TikTok campaign...</div>
           </div>
         </div>
       </div>
@@ -485,7 +485,7 @@ export default function LandingPage() {
       {/* ── Nav ── */}
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/8 px-4 sm:px-6 lg:px-8" style={{ background: "rgba(4,11,20,0.85)", backdropFilter: "blur(16px)" }}>
         <div className={`${W} h-16 flex items-center justify-between`}>
-          {/* Logo — routes to /admin for admins, /dashboard when signed in, / when not */}
+          {/* Logo - routes to /admin for admins, /dashboard when signed in, / when not */}
           <Link href={isAdmin ? "/admin" : isAuthed ? "/dashboard" : "/"} className="flex items-center gap-2">
             <Logo size={56} />
             <span className="font-bold text-lg tracking-tight text-white">GrowthForge</span>
@@ -652,7 +652,7 @@ export default function LandingPage() {
             <motion.p initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.2 }}
               className="text-lg md:text-xl text-white/50 max-w-xl mx-auto lg:mx-0 mb-8 leading-relaxed">
               {region === "nigeria"
-                ? "GrowthForge Nigeria helps Nigerian businesses turn their website, Instagram, Facebook, TikTok, and WhatsApp presence into a practical growth system for leads, repeat customers, and stronger local visibility."
+                ? "GrowthForge Nigeria helps Nigerian businesses turn their website, Instagram, Facebook, and TikTok presence into a practical growth system for leads, repeat customers, and stronger local visibility."
                 : "GrowthForge is the AI Growth Operating System that analyzes your business, discovers competitors, creates marketing assets, generates video campaigns, and helps businesses scale faster."}
             </motion.p>
             <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.3 }}
@@ -677,7 +677,7 @@ export default function LandingPage() {
               className="flex flex-wrap items-center justify-center lg:justify-start gap-x-5 gap-y-2 text-sm text-white/40">
               <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> {region === "nigeria" ? "Built for Nigerian businesses" : "No credit card required"}</span>
               <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> 7-day free trial</span>
-              <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> {region === "nigeria" ? "Instagram, Facebook, TikTok & WhatsApp-first" : "Cancel anytime"}</span>
+              <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> {region === "nigeria" ? "Instagram, Facebook & TikTok-focused" : "Cancel anytime"}</span>
             </motion.div>
           </div>
           <motion.div initial={{ opacity: 0, y: 32, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }} className="relative">
@@ -779,7 +779,7 @@ export default function LandingPage() {
           <FadeIn className="text-center mb-16">
             <SectionLabel>The Pipeline</SectionLabel>
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">From One URL to a Full Marketing Engine</h2>
-            <p className="text-white/50 text-lg max-w-xl mx-auto">Every output is generated automatically — in minutes, not months.</p>
+            <p className="text-white/50 text-lg max-w-xl mx-auto">Every output is generated automatically - in minutes, not months.</p>
           </FadeIn>
           <FadeIn>
             {/* Desktop: horizontal flow */}
@@ -955,7 +955,7 @@ export default function LandingPage() {
               <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">Meet Forge</h2>
               <p className="text-xl font-semibold text-[#00E676] mb-4">Your AI Growth Partner</p>
               <p className="text-white/50 text-lg leading-relaxed mb-8">
-                Forge is your always-on AI marketing agent. Ask it anything, and it executes — from competitive analysis to full campaign builds in seconds.
+                Forge is your always-on AI marketing agent. Ask it anything, and it executes - from competitive analysis to full campaign builds in seconds.
               </p>
               <div className="flex flex-col gap-2">
                 {FORGE_PROMPTS.map((prompt) => (
@@ -984,7 +984,7 @@ export default function LandingPage() {
               <SectionLabel>Intelligence</SectionLabel>
               <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">AI-Powered Business Intelligence</h2>
               <p className="text-white/50 text-lg leading-relaxed mb-8">
-                GrowthForge reads your entire website and extracts deep business intelligence — so every recommendation is specific to your business, not generic advice.
+                GrowthForge reads your entire website and extracts deep business intelligence - so every recommendation is specific to your business, not generic advice.
               </p>
               <div className="grid grid-cols-2 gap-3">
                 {BI_CAPABILITIES.map((cap) => (
@@ -1034,7 +1034,7 @@ export default function LandingPage() {
               <SectionLabel>Video Studio</SectionLabel>
               <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">Create Marketing Videos Faster</h2>
               <p className="text-white/50 text-lg leading-relaxed mb-4">
-                GrowthForge generates and renders marketing videos ready to post. Scripts, storyboards, and full production — no editing experience required.
+                GrowthForge generates and renders marketing videos ready to post. Scripts, storyboards, and full production - no editing experience required.
               </p>
               <div className="grid grid-cols-2 gap-3 mb-6">
                 {VIDEO_FEATURES.map((f) => (
@@ -1117,7 +1117,7 @@ export default function LandingPage() {
           <FadeIn className="flex justify-center mb-10">
             <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-[#00E676]/30 bg-[#00E676]/10">
               <Check className="w-4 h-4 text-[#00E676] shrink-0" />
-              <span className="text-[#00E676] text-sm font-semibold">All plans include a 7-day free trial — no credit card required</span>
+              <span className="text-[#00E676] text-sm font-semibold">All plans include a 7-day free trial - no credit card required</span>
             </div>
           </FadeIn>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
@@ -1220,7 +1220,7 @@ export default function LandingPage() {
             <p className="text-white/30 text-sm">
               Want to use GrowthForge now?{" "}
               <Link href="/sign-up" className="hover:underline font-semibold" style={{ color: "#00E676" }}>Start your free 7-day trial</Link>
-              {" "}— no credit card required.
+              {" "}- no credit card required.
             </p>
           </FadeIn>
         </div>
