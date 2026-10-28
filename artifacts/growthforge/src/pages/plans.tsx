@@ -337,9 +337,9 @@ function PlanCard({
             {region === "nigeria" ? (
               <>
                 <span className="text-4xl font-bold text-white">
-                  ₦{(billingInterval === "annual" ? (nigeriaPrice?.annualNgn ?? 0) : (nigeriaPrice?.monthlyNgn ?? 0)).toLocaleString()}
+                  ₦{(billingInterval === "annual" ? Math.round((nigeriaPrice?.annualNgn ?? 0) / 12) : (nigeriaPrice?.monthlyNgn ?? 0)).toLocaleString()}
                 </span>
-                <span className="text-white/35 text-sm">/{billingInterval === "annual" ? "year" : "mo"}</span>
+                <span className="text-white/35 text-sm">/mo</span>
               </>
             ) : (
               <>
@@ -355,13 +355,16 @@ function PlanCard({
                   Save 15%
                 </span>
                 <span>
-                  ₦{((nigeriaPrice?.annualNgn ?? 0) / 12).toLocaleString()}/mo equivalent · billed ₦{(nigeriaPrice?.annualNgn ?? 0).toLocaleString()}/yr
+                  ₦{Math.round((nigeriaPrice?.annualNgn ?? 0) / 12).toLocaleString()}/mo equivalent
                 </span>
               </>
             ) : (
               region === "nigeria" ? "Monthly NGN pricing · Paid activation pending" : "Billed monthly · Cancel anytime"
             )}
           </p>
+          {region === "nigeria" && billingInterval === "annual" && nigeriaPrice && (
+            <p className="text-[#00E676] text-xs font-semibold mt-1">Annual upfront: ₦{nigeriaPrice.annualNgn.toLocaleString()}</p>
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-2">
@@ -707,20 +710,37 @@ export default function PlansPage() {
         </motion.div>
 
         {region === "nigeria" && (
-          <div className="w-full max-w-[1600px] w-[min(95vw,1600px)] flex items-center justify-center gap-2 mb-6">
-            <span className="text-xs text-white/40 mr-1">Billing</span>
-            <button
-              onClick={() => setBillingInterval("monthly")}
-              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${billingInterval === "monthly" ? "bg-[#00E676] text-black" : "bg-white/5 text-white/50 border border-white/10"}`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setBillingInterval("annual")}
-              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${billingInterval === "annual" ? "bg-[#00E676] text-black" : "bg-white/5 text-white/50 border border-white/10"}`}
-            >
-              Annual <span className="opacity-70">· Save 15%</span>
-            </button>
+          <div className="w-full max-w-[1600px] w-[min(95vw,1600px)] mb-6 rounded-2xl border border-[#00E676]/20 bg-[#00E676]/[0.06] px-4 py-4 sm:px-5 sm:py-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-bold text-white">Monthly / Annual billing</p>
+                <p className="text-xs text-white/55">Save 15% on annual NGN pricing. Paid activation is still pending.</p>
+              </div>
+              <div className="inline-flex w-full sm:w-auto items-center gap-2 rounded-2xl border border-white/10 bg-[#040B14]/70 p-1.5">
+                <button
+                  onClick={() => setBillingInterval("monthly")}
+                  aria-pressed={billingInterval === "monthly"}
+                  className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${billingInterval === "monthly" ? "bg-[#00E676] text-black" : "bg-transparent text-white/60"}`}
+                >
+                  Monthly
+                </button>
+                <button
+                  onClick={() => setBillingInterval("annual")}
+                  aria-pressed={billingInterval === "annual"}
+                  className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${billingInterval === "annual" ? "bg-[#00E676] text-black" : "bg-transparent text-white/60"}`}
+                >
+                  Annual <span className="opacity-75">· Save 15%</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {region === "nigeria" && (
+          <div className="w-full max-w-[1600px] w-[min(95vw,1600px)] mb-5 px-1">
+            <p className="text-xs text-white/40 text-center sm:text-left">
+              Showing <span className="text-white/75 font-semibold">{billingInterval === "annual" ? "annual billing as discounted monthly equivalents" : "monthly billing"}</span> across all plans.
+            </p>
           </div>
         )}
 
