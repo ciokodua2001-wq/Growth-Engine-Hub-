@@ -1,5 +1,6 @@
 import { Lock, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getClientRegion } from "@/lib/region";
 
 interface TrialGateProps {
   featureName: string;
@@ -9,6 +10,7 @@ interface TrialGateProps {
 
 /** Full-page (or in-modal) upgrade prompt — same CTA used by SEO Strategy for trial-locked features. */
 export function TrialGate({ featureName, description, className }: TrialGateProps) {
+  const region = getClientRegion();
   return (
     <div className={cn("rounded-2xl border border-white/10 p-8 text-center space-y-4 bg-white/5", className)}>
       <div
@@ -26,7 +28,7 @@ export function TrialGate({ featureName, description, className }: TrialGateProp
         className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-black hover:scale-[1.02] transition-transform"
         style={{ background: "#00E676" }}
       >
-        <Zap className="w-4 h-4" /> Upgrade to Unlock
+        <Zap className="w-4 h-4" /> {region === "nigeria" ? "View Plans to Unlock" : "Upgrade to Unlock"}
       </a>
     </div>
   );

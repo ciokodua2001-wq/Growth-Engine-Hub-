@@ -150,7 +150,7 @@ const DEFAULT_KNOWLEDGE_BASE = `# GrowthForge Knowledge Base
 GrowthForge is an AI-powered marketing operating system for founders and lean teams. It replaces expensive marketing agencies by generating strategy, content, and ads from a single platform. You paste your website URL and GrowthForge analyzes your business, competitors, and market position — then generates ready-to-publish social posts, emails, blog posts, ads, and promotional videos.
 
 ## Plans & Pricing
-All plans are billed monthly. Every plan includes a **7-day free trial** — no credit card required.
+Every plan includes a **7-day free trial**. Paid activation availability depends on the customer's market and current rollout status.
 
 | Plan | Price | Projects | Videos/mo |
 |---|---|---|---|
@@ -252,18 +252,18 @@ The Meta connection may have expired. Go to the Social tab and look for a "sessi
 Video rendering takes 2–5 minutes. If it has been more than 10 minutes, refresh the page. If it still shows as processing after 15+ minutes, contact support — the team can manually clear stuck renders.
 
 ### "Upgrade required" / can't access a feature on trial
-Email campaigns, video rendering, ads, and SEO blog posts require a paid plan. Go to /plans to upgrade. All your trial data and projects are preserved when you upgrade.
+Email campaigns, video rendering, ads, and SEO blog posts require paid access. Go to /plans to view available plans. Trial data and projects are preserved when a paid plan is activated.
 
 ### Reached trial limit for social posts or analysis
-The 7-day trial includes limited quotas. Upgrade to any paid plan on /plans to remove limits.
+The 7-day trial includes limited quotas. Go to /plans to view available plans or join the paid access waitlist.
 
 ### Can't find where to cancel
-To cancel, email support@usegrowthforge.com. The team processes cancellations within 24 hours.
+If you need help with a plan change or billing question, email support@usegrowthforge.com. A team member will review it manually.
 
 ## Account & Billing
-- All plans are billed monthly and renew automatically.
-- To change plans: go to /plans and select a new plan.
-- To cancel: email support@usegrowthforge.com.
+- Available plans are shown on /plans. Activation and billing availability may vary by market.
+- To change plans: go to /plans and review the current options for your region.
+- To request billing help: email support@usegrowthforge.com.
 - Refund requests require human review — these are escalated to the team and cannot be processed automatically.
 - Billing disputes or charge questions beyond plan explanations must be handled by the team.
 `;

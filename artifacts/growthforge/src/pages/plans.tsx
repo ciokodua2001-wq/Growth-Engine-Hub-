@@ -646,12 +646,12 @@ export default function PlansPage() {
         {/* Page heading */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#00E676]/30 bg-[#00E676]/10 text-[#00E676] text-xs font-semibold mb-4">
-            <Zap className="w-3 h-3" /> {region === "nigeria" ? "7-day free trial · Billing in NGN after trial" : "7-day free trial · No credit card required"}
+            <Zap className="w-3 h-3" /> {region === "nigeria" ? "7-day free trial · NGN plans shown · Paid activation pending" : "7-day free trial · No credit card required"}
           </div>
           <h1 className="text-4xl font-bold text-white mb-3">
             Start growing with <span className="text-[#00E676]">AI</span>
           </h1>
-          <p className="text-white/50 text-lg">{region === "nigeria" ? "Try free for 7 days, then choose a monthly or annual NGN plan to continue." : "Try free for 7 days, then upgrade to keep going."}</p>
+          <p className="text-white/50 text-lg">{region === "nigeria" ? "Try free for 7 days, then review the available monthly or annual NGN plans for paid activation." : "Try free for 7 days, then upgrade to keep going."}</p>
         </motion.div>
 
         {/* Free Trial Hero Card */}
@@ -682,7 +682,7 @@ export default function PlansPage() {
                 </span>
               </div>
               <p className="text-white/50 text-sm mb-3">
-                {region === "nigeria" ? "Explore the full platform with trial limits, then continue on a monthly or annual NGN plan." : "No credit card required. Explore the full platform with trial limits."}
+                {region === "nigeria" ? "Explore the full platform with trial limits, then review the available monthly or annual NGN plans for paid activation." : "No credit card required. Explore the full platform with trial limits."}
               </p>
               <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-1">
                 {TRIAL_FEATURES.map((f) => (

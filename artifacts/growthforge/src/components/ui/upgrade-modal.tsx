@@ -68,8 +68,8 @@ export function UpgradeModal({ open, onClose, feature, limit, limitLabel }: Upgr
               </h2>
               <p className="text-white/50 text-sm mb-5">
                 {limit && limitLabel
-                  ? `Your free trial includes ${limit} ${limitLabel}. Upgrade to a paid plan to unlock more.`
-                  : "Your free trial has reached its limit. Upgrade to keep generating content."}
+                  ? (region === "nigeria" ? `Your free trial includes ${limit} ${limitLabel}. View Nigeria plans or join the paid access waitlist to unlock more.` : `Your free trial includes ${limit} ${limitLabel}. Upgrade to a paid plan to unlock more.`)
+                  : (region === "nigeria" ? "Your free trial has reached its limit. View Nigeria plans or join the paid access waitlist to keep going." : "Your free trial has reached its limit. Upgrade to keep generating content.")}
               </p>
 
               <ul className="flex flex-col gap-2 mb-6">
@@ -92,7 +92,7 @@ export function UpgradeModal({ open, onClose, feature, limit, limitLabel }: Upgr
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-[#00E676]">Starter · Get-Going · Growth · Agency</p>
-                  <p className="text-[10px] text-white/30 mt-0.5">{region === "nigeria" ? "Monthly or annual plans · 15% off annual" : "Cancel anytime"}</p>
+                  <p className="text-[10px] text-white/30 mt-0.5">{region === "nigeria" ? "Monthly or annual NGN plans · 15% off annual · Paid activation pending" : "Cancel anytime"}</p>
                 </div>
               </div>
 
@@ -101,7 +101,7 @@ export function UpgradeModal({ open, onClose, feature, limit, limitLabel }: Upgr
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#00E676] text-black font-bold text-sm hover:bg-[#14F195] transition-all shadow-lg shadow-[#00E676]/20"
               >
                 <CreditCard className="w-4 h-4" />
-                View Plans & Upgrade <ArrowRight className="w-4 h-4" />
+                {region === "nigeria" ? "View Nigeria Plans" : "View Plans & Upgrade"} <ArrowRight className="w-4 h-4" />
               </button>
 
               <button

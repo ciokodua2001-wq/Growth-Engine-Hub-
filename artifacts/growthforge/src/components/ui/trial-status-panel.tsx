@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { Zap, Check, ArrowRight } from "lucide-react";
 import { useTrialUsage } from "@/hooks/use-trial-usage";
+import { getClientRegion } from "@/lib/region";
 
 interface TrialStatusPanelProps {
   projectId: number;
@@ -32,6 +33,7 @@ const CHECKLIST = [
 
 export function TrialStatusPanel({ projectId, trialEndsAt, subscriptionStatus, collapsed }: TrialStatusPanelProps) {
   const { usage } = useTrialUsage(projectId);
+  const region = getClientRegion();
 
   if (subscriptionStatus !== "trial") return null;
 
@@ -131,7 +133,7 @@ export function TrialStatusPanel({ projectId, trialEndsAt, subscriptionStatus, c
             href="/plans"
             className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg bg-[#00E676] text-black text-[11px] font-bold hover:bg-[#14F195] transition-colors"
           >
-            <ArrowRight className="w-3 h-3" /> Upgrade Now
+            <ArrowRight className="w-3 h-3" /> {region === "nigeria" ? "View Plans" : "Upgrade Now"}
           </Link>
         </div>
       </div>

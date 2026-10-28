@@ -12,6 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Settings, Globe, Zap, Bot, Save, FileText, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
+import { getClientRegion } from "@/lib/region";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
 const ACCENT_PRESETS = [
@@ -34,6 +35,7 @@ export default function ProjectSettings() {
   const [brandingCompanyName, setBrandingCompanyName] = useState("");
   const [brandingAccentColor, setBrandingAccentColor] = useState("#00E676");
 
+  const region = getClientRegion();
   const { data: currentUserData } = useCurrentUser();
   const isOwner = currentUserData?.isOwner ?? false;
   const canWhiteLabel = isOwner || project?.plan === "growth" || project?.plan === "agency";
@@ -118,7 +120,7 @@ export default function ProjectSettings() {
         <h1 className="text-3xl font-black tracking-tight flex items-center gap-2">
           <Settings className="h-7 w-7 text-muted-foreground" /> Project Settings
         </h1>
-        <p className="text-muted-foreground mt-1">Manage your project configuration and AI preferences</p>
+        <p className="text-muted-foreground mt-1">{region === "nigeria" ? "Manage your project details, sources, and workspace preferences for your Nigerian market setup." : "Manage your project configuration and AI preferences"}</p>
       </div>
 
       <div className="space-y-6">
@@ -298,7 +300,7 @@ export default function ProjectSettings() {
           {sourcesLoading ? (
             <div className="text-sm text-muted-foreground">Loading…</div>
           ) : sources.length === 0 ? (
-            <div className="text-sm text-muted-foreground mb-4">No sources yet.</div>
+            <div className="text-sm text-muted-foreground mb-4">{region === "nigeria" ? "No sources yet. Add your website or public business pages. If customers mostly contact you on WhatsApp or by phone, describe that in the source notes instead of adding it as a supported channel." : "No sources yet."}</div>
           ) : (
             <ul className="space-y-2 mb-4">
               {sources.map((src) => (
@@ -315,7 +317,7 @@ export default function ProjectSettings() {
 
           <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-2 mb-2">
             <select value={newSourceType} onChange={(e) => setNewSourceType(e.target.value)} className="bg-secondary border border-border rounded-lg px-3 py-2.5 text-sm">
-              {["website", "instagram", "facebook", "tiktok", "whatsapp", "youtube", "linkedin", "manual"].map((t) => (
+              {["website", "instagram", "facebook", "tiktok", "youtube", "linkedin", "manual"].map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>

@@ -790,7 +790,7 @@ function SeoMetaTab({ projectId, plan }: { projectId: number; plan: string }) {
   });
 
   if (plan === "trial") {
-    return <TrialGate featureName="Meta Tags Generator" description="Generate SEO meta titles, descriptions, and Open Graph tags for all your pages. Upgrade to a paid plan." />;
+    return <TrialGate featureName="Meta Tags Generator" description="Generate SEO meta titles, descriptions, and Open Graph tags for all your pages. View available plans for paid access." />;
   }
 
   if (isLoading) return <div className="py-20 text-center text-white/30"><RefreshCw className="w-5 h-5 animate-spin mx-auto" /></div>;
