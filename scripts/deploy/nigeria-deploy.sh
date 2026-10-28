@@ -14,6 +14,19 @@ LIVE_PUBLIC="$APP_DIR/artifacts/growthforge/dist/public"
 RELEASES_DIR="$APP_DIR/.deploy-releases"
 TMP_RELEASES="$RELEASES_DIR/tmp"
 
+ensure_runtime_access() {
+  # The Nigeria API service runs as `ubuntu`, while installs are performed by
+  # `nigeria-deploy`. pnpm's content-addressed store under node_modules/.pnpm is
+  # not world/group traversable by default, so package symlinks can resolve for
+  # the deploy user yet still crash the running service with ERR_MODULE_NOT_FOUND.
+  # Grant the service user read+traverse on this app's runtime dependency tree
+  # only; do not broaden access outside the Nigeria app directory.
+  sudo setfacl -R -m u:ubuntu:rx "$APP_DIR/node_modules/.pnpm"
+  sudo setfacl -m u:ubuntu:rx "$APP_DIR/node_modules"
+}
+
+rehydrate_runtime() { pnpm install --frozen-lockfile --ignore-scripts; }
+
 cd "$APP_DIR"
 mkdir -p "$TMP_RELEASES"
 
@@ -43,6 +56,7 @@ rollback() {
   echo "$LOG ROLLBACK to $PREV"
   git checkout --quiet "$BRANCH" || git checkout --quiet -B "$BRANCH"
   git reset --hard --quiet "$PREV"
+  rehydrate_runtime || true
   bash scripts/deploy/build.sh || true
 
   # Re-point the live frontend to the previously working release when known.
@@ -51,6 +65,7 @@ rollback() {
     ln -s "$PREV_PUBLIC_TARGET" "$LIVE_PUBLIC"
   fi
 
+  ensure_runtime_access || true
   sudo systemctl restart "$SERVICE" || true
   for _ in $(seq 1 30); do
     if curl -fsS -o /dev/null "http://127.0.0.1:$PORT/api/healthz"; then
@@ -62,11 +77,14 @@ rollback() {
   return 1
 }
 
+rehydrate_runtime
 if ! bash scripts/deploy/build.sh; then
   echo "$LOG build failed"
   rollback || echo "$LOG rollback FAILED"
   exit 1
 fi
+
+ensure_runtime_access
 
 # Atomic frontend publish: move the just-built public dir into a SHA-named
 # release directory, then swap the live symlink in one rename step. Caddy keeps
