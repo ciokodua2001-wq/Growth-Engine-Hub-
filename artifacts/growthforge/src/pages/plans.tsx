@@ -646,12 +646,12 @@ export default function PlansPage() {
         {/* Page heading */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#00E676]/30 bg-[#00E676]/10 text-[#00E676] text-xs font-semibold mb-4">
-            <Zap className="w-3 h-3" /> 7-day free trial · No credit card required
+            <Zap className="w-3 h-3" /> {region === "nigeria" ? "7-day free trial · Billing in NGN after trial" : "7-day free trial · No credit card required"}
           </div>
           <h1 className="text-4xl font-bold text-white mb-3">
             Start growing with <span className="text-[#00E676]">AI</span>
           </h1>
-          <p className="text-white/50 text-lg">Try free for 7 days, then upgrade to keep going.</p>
+          <p className="text-white/50 text-lg">{region === "nigeria" ? "Try free for 7 days, then choose a monthly or annual NGN plan to continue." : "Try free for 7 days, then upgrade to keep going."}</p>
         </motion.div>
 
         {/* Free Trial Hero Card */}
@@ -682,7 +682,7 @@ export default function PlansPage() {
                 </span>
               </div>
               <p className="text-white/50 text-sm mb-3">
-                No credit card required. Explore the full platform with trial limits.
+                {region === "nigeria" ? "Explore the full platform with trial limits, then continue on a monthly or annual NGN plan." : "No credit card required. Explore the full platform with trial limits."}
               </p>
               <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-1">
                 {TRIAL_FEATURES.map((f) => (
@@ -700,7 +700,7 @@ export default function PlansPage() {
                 className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#00E676] text-black font-bold text-sm hover:bg-[#14F195] transition-all disabled:opacity-60"
               >
                 {startingTrial ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                Start Free Trial
+                {region === "nigeria" ? "Start 7-Day Trial" : "Start Free Trial"}
               </button>
             </div>
           </div>
@@ -748,7 +748,7 @@ export default function PlansPage() {
           transition={{ delay: 0.5 }}
           className="text-white/25 text-xs mt-10 text-center"
         >
-          {region === "nigeria" ? "Billed monthly or annually · Save 15% on annual plans. Cancel anytime." : "All plans billed monthly. Cancel anytime from your billing portal."} By subscribing you agree to our{" "}
+          {region === "nigeria" ? "Billed monthly or annually in NGN · Save 15% on annual plans. Cancel anytime." : "All plans billed monthly. Cancel anytime from your billing portal."} By subscribing you agree to our{" "}
           <Link href="/terms" className="underline hover:text-white/50">
             Terms of Service
           </Link>{" "}

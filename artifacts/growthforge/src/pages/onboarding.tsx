@@ -11,7 +11,6 @@ import {
   Facebook,
   Youtube,
   Linkedin,
-  MessageCircle,
   Music2,
   PenLine,
   Building2,
@@ -31,7 +30,6 @@ type SourceType =
   | "instagram"
   | "facebook"
   | "tiktok"
-  | "whatsapp"
   | "youtube"
   | "linkedin"
   | "manual";
@@ -47,10 +45,9 @@ const SOURCES: { id: SourceType; label: string; hint: string; icon: typeof Globe
   { id: "instagram", label: "Instagram", hint: "Profile handle + a short description.", icon: Instagram, placeholder: "instagram.com/yourhandle" },
   { id: "facebook", label: "Facebook", hint: "Page URL + a short description.", icon: Facebook, placeholder: "facebook.com/yourpage" },
   { id: "tiktok", label: "TikTok", hint: "Profile URL + a short description.", icon: Music2, placeholder: "tiktok.com/@yourhandle" },
-  { id: "whatsapp", label: "WhatsApp Business", hint: "Business description (no auto-read).", icon: MessageCircle, placeholder: "e.g. wa.me/2348012345678" },
   { id: "youtube", label: "YouTube", hint: "Channel URL + a short description.", icon: Youtube, placeholder: "youtube.com/@yourchannel" },
   { id: "linkedin", label: "LinkedIn", hint: "Company/profile URL + a short description.", icon: Linkedin, placeholder: "linkedin.com/company/yourcompany" },
-  { id: "manual", label: "No online presence", hint: "Describe your business or content in your own words.", icon: PenLine, placeholder: "" },
+  { id: "manual", label: "No website or public page", hint: "Describe your business or content in your own words.", icon: PenLine, placeholder: "" },
 ];
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -117,12 +114,12 @@ export default function OnboardingPage() {
 
   function goNext() {
     setError("");
-    if (step === 1 && !canAdvanceStep1()) { setError("Select the option that best describes you."); return; }
+    if (step === 1 && !canAdvanceStep1()) { setError(region === "nigeria" ? "Select the option that best describes your business or creator setup." : "Select the option that best describes you."); return; }
     if (step === 2 && !canAdvanceStep2()) {
-      setError(sourceIsWebsite ? "Enter your website URL." : "Enter a profile URL or a short description.");
+      setError(sourceIsWebsite ? "Enter your website URL." : (region === "nigeria" ? "Enter a public profile URL or a short business description. If customers mainly contact you by phone or WhatsApp, describe that in the business details instead of selecting it as a channel." : "Enter a profile URL or a short description."));
       return;
     }
-    if (step === 3 && !canAdvanceStep3()) { setError("A name is required."); return; }
+    if (step === 3 && !canAdvanceStep3()) { setError(region === "nigeria" ? "Enter your business name, creator name, or brand name." : "A name is required."); return; }
     if (step < 4) setStep(step + 1);
   }
 
@@ -176,14 +173,14 @@ export default function OnboardingPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error ?? "Something went wrong. Please try again.");
+        setError(data.error ?? (region === "nigeria" ? "Something went wrong while setting up your workspace. Please try again." : "Something went wrong. Please try again."));
         setStep(4);
         return;
       }
       const { project } = await res.json();
       setLocation(`/analysis-progress/${project.id}`);
     } catch {
-      setError("Network error. Please try again.");
+      setError(region === "nigeria" ? "Network error while setting up your workspace. Please try again." : "Network error. Please try again.");
       setStep(4);
     } finally {
       setSubmitting(false);
@@ -368,7 +365,7 @@ export default function OnboardingPage() {
             {step === 4 && (
               <motion.div key="s4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }}>
                 <h1 className="text-3xl font-bold mb-2">Confirm your workspace</h1>
-                <p className="text-white/40 mb-6">Here's what we'll use to build your AI marketing OS.</p>
+                <p className="text-white/40 mb-6">Here's what we'll use to build your workspace.</p>
 
                 <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 mb-4">
                   <div className="text-sm font-semibold text-white/70 mb-3">What you provided</div>
@@ -387,7 +384,7 @@ export default function OnboardingPage() {
                   <p className="text-sm text-white/50">
                     {sourceIsWebsite
                       ? "Your website content will be fetched and analyzed automatically when you run your first analysis."
-                      : "Nothing is read automatically from social platforms - GrowthForge analyzes the description you provide. No scraping, no private-account access."}
+                      : "Nothing is read automatically from social platforms - GrowthForge analyzes the description you provide. No scraping, no private-account access. If your customers mainly reach you through phone calls, walk-ins, or WhatsApp chats, describe that in your business details so the workspace reflects how you actually sell."}
                   </p>
                 </div>
 
@@ -431,7 +428,7 @@ export default function OnboardingPage() {
                   <Loader2 className="w-8 h-8 text-[#00E676] animate-spin" />
                 </div>
                 <h1 className="text-3xl font-bold mb-3">Creating your workspace...</h1>
-                <p className="text-white/50">Setting up your AI marketing OS. This will only take a moment.</p>
+                <p className="text-white/50">{region === "nigeria" ? "Setting up your GrowthForge workspace for the Nigerian market. This will only take a moment." : "Setting up your AI marketing OS. This will only take a moment."}</p>
               </motion.div>
             )}
           </AnimatePresence>

@@ -12,10 +12,11 @@ import { useState, useRef, useEffect } from "react";
 import { useTrialUsage } from "@/hooks/use-trial-usage";
 import { UpgradeModal } from "@/components/ui/upgrade-modal";
 import { Link } from "wouter";
+import { getClientRegion } from "@/lib/region";
 
 const MESSAGE_LIMIT = 10;
 
-const EXAMPLE_PROMPTS = [
+const GLOBAL_EXAMPLE_PROMPTS = [
   { label: "Analyze my business and website.", icon: "🔍" },
   { label: "Discover my top 3 competitors.", icon: "🏆" },
   { label: "Create a marketing strategy.", icon: "📈" },
@@ -23,12 +24,28 @@ const EXAMPLE_PROMPTS = [
   { label: "Produce a Promotional Video.", icon: "🎬" },
 ];
 
-const QUICK_CHIPS = [
+const NIGERIA_EXAMPLE_PROMPTS = [
+  { label: "Analyze my business for the Nigerian market.", icon: "🇳🇬" },
+  { label: "Find my top competitors in Lagos or Abuja.", icon: "🏆" },
+  { label: "Create a local growth strategy in Nigeria.", icon: "📈" },
+  { label: "Generate 5 social posts for Nigerian customers.", icon: "💬" },
+  { label: "Produce a promotional video for my offer.", icon: "🎬" },
+];
+
+const GLOBAL_QUICK_CHIPS = [
   "Analyze my business.",
   "Discover competitors.",
   "Generate social posts.",
   "Create email campaign.",
   "Produce a Promotional Video.",
+];
+
+const NIGERIA_QUICK_CHIPS = [
+  "Analyze my business for Nigeria.",
+  "Discover competitors in Lagos.",
+  "Generate social posts for Nigerian customers.",
+  "Create an email campaign for local buyers.",
+  "Produce a promotional video.",
 ];
 
 const CAPABILITIES = [
@@ -71,6 +88,7 @@ function MessageContent({ content }: { content: string }) {
 }
 
 export default function ProjectAgent() {
+  const region = getClientRegion();
   const params = useParams<{ projectId: string }>();
   const projectId = parseInt(params.projectId, 10);
   const [message, setMessage] = useState("");
@@ -89,6 +107,8 @@ export default function ProjectAgent() {
   }, [history, agentChat.isPending]);
 
   const messagesUsed = history?.filter((m) => m.role === "user").length ?? 0;
+  const examplePrompts = region === "nigeria" ? NIGERIA_EXAMPLE_PROMPTS : GLOBAL_EXAMPLE_PROMPTS;
+  const quickChips = region === "nigeria" ? NIGERIA_QUICK_CHIPS : GLOBAL_QUICK_CHIPS;
   const messagesRemaining = Math.max(0, MESSAGE_LIMIT - messagesUsed);
   const limitReached = messagesUsed >= MESSAGE_LIMIT;
 
@@ -141,7 +161,7 @@ export default function ProjectAgent() {
               <h1 className="text-lg font-black tracking-tight">Forge</h1>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded-full">AI Agent</span>
             </div>
-            <p className="text-xs text-muted-foreground">Your autonomous marketing co-pilot</p>
+            <p className="text-xs text-muted-foreground">{region === "nigeria" ? "Your AI growth assistant for the Nigerian market" : "Your autonomous marketing co-pilot"}</p>
           </div>
           <div className="ml-auto flex items-center gap-3">
             {/* Message counter */}
@@ -193,7 +213,7 @@ export default function ProjectAgent() {
           >
             <div className="flex items-center gap-2 text-amber-300 text-sm">
               <Zap className="w-4 h-4" />
-              <span>You've used all 10 trial messages.</span>
+              <span>{region === "nigeria" ? "You've used all 10 trial messages for this workspace." : "You've used all 10 trial messages."}</span>
             </div>
             <Link
               href="/plans"
@@ -268,7 +288,7 @@ export default function ProjectAgent() {
               transition={{ delay: 0.55, duration: 0.4 }}
               className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-md"
             >
-              {EXAMPLE_PROMPTS.map((prompt, i) => (
+              {examplePrompts.map((prompt, i) => (
                 <motion.button
                   key={prompt.label}
                   initial={{ opacity: 0, y: 8 }}
@@ -369,7 +389,7 @@ export default function ProjectAgent() {
       {/* Quick chips */}
       {hasMessages && !agentChat.isPending && !limitReached && (
         <div className="px-6 pb-2 flex gap-2 overflow-x-auto shrink-0 scrollbar-none">
-          {QUICK_CHIPS.map((chip) => (
+          {quickChips.map((chip) => (
             <button
               key={chip}
               onClick={() => handleSend(chip)}

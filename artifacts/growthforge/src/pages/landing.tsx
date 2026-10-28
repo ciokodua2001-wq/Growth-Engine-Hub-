@@ -665,7 +665,7 @@ export default function LandingPage() {
               ) : (
                 <Link href="/sign-up" className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold text-base px-8 py-4 rounded-xl transition-all shadow-lg hover:scale-[1.02] text-black"
                   style={{ background: "#00E676", boxShadow: "0 0 40px rgba(0,230,118,0.25)" }}>
-                  Start Free Trial <ArrowRight className="h-5 w-5" />
+                  {region === "nigeria" ? "Start 7-Day Trial" : "Start Free Trial"} <ArrowRight className="h-5 w-5" />
                 </Link>
               )}
               <a href="#showcase" className="w-full sm:w-auto flex items-center justify-center gap-2 text-white/70 font-semibold text-base px-8 py-4 rounded-xl border border-white/10 hover:border-white/25 hover:text-white transition-all"
@@ -841,11 +841,11 @@ export default function LandingPage() {
             style={{ background: "linear-gradient(135deg, rgba(0,230,118,0.06) 0%, rgba(0,212,255,0.04) 100%)" }}>
             <div>
               <h3 className="text-2xl md:text-3xl font-black text-white mb-2">Ready to replace your marketing team?</h3>
-              <p className="text-white/50">Start your free 7-day trial. No credit card, no commitment.</p>
+              <p className="text-white/50">{region === "nigeria" ? "Start your free 7-day trial, then continue on a monthly or annual NGN plan." : "Start your free 7-day trial. No credit card, no commitment."}</p>
             </div>
             <Link href="/sign-up" className="shrink-0 flex items-center gap-2 font-bold px-8 py-4 rounded-xl text-black hover:scale-[1.02] transition-all"
               style={{ background: "#00E676", boxShadow: "0 0 30px rgba(0,230,118,0.2)" }}>
-              Start Free Trial <ArrowRight className="w-4 h-4" />
+              {region === "nigeria" ? "Start 7-Day Trial" : "Start Free Trial"} <ArrowRight className="w-4 h-4" />
             </Link>
           </FadeIn>
         </div>
@@ -890,7 +890,7 @@ export default function LandingPage() {
           <FadeIn className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/sign-up" className="flex items-center gap-2 font-bold px-8 py-4 rounded-xl text-black transition-all hover:scale-[1.02]"
               style={{ background: "#00E676", boxShadow: "0 0 30px rgba(0,230,118,0.2)" }}>
-              Start Free Trial <ArrowRight className="w-4 h-4" />
+              {region === "nigeria" ? "Start 7-Day Trial" : "Start Free Trial"} <ArrowRight className="w-4 h-4" />
             </Link>
             <a href="#features" className="flex items-center gap-2 font-semibold px-8 py-4 rounded-xl border border-white/10 text-white/60 hover:text-white hover:border-white/25 transition-all">
               See All Features
@@ -1117,7 +1117,7 @@ export default function LandingPage() {
           <FadeIn className="flex justify-center mb-10">
             <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-[#00E676]/30 bg-[#00E676]/10">
               <Check className="w-4 h-4 text-[#00E676] shrink-0" />
-              <span className="text-[#00E676] text-sm font-semibold">All plans include a 7-day free trial - no credit card required</span>
+              <span className="text-[#00E676] text-sm font-semibold">{region === "nigeria" ? "All plans include a 7-day free trial before NGN billing starts" : "All plans include a 7-day free trial - no credit card required"}</span>
             </div>
           </FadeIn>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
@@ -1207,9 +1207,9 @@ export default function LandingPage() {
                           : { background: "transparent", color: plan.color, border: `1.5px solid ${plan.color}44` }
                         }
                       >
-                        <ArrowRight className="w-3.5 h-3.5" /> Start Free Trial
+                        <ArrowRight className="w-3.5 h-3.5" /> {region === "nigeria" ? "Start 7-Day Trial" : "Start Free Trial"}
                       </Link>
-                      <p className="text-center text-[10px] text-white/20">7-day free trial · No credit card required</p>
+                      <p className="text-center text-[10px] text-white/20">{region === "nigeria" ? "7-day free trial · Monthly or annual NGN plans" : "7-day free trial · No credit card required"}</p>
                     </div>
                   </div>
                 </div>
@@ -1220,7 +1220,7 @@ export default function LandingPage() {
             <p className="text-white/30 text-sm">
               Want to use GrowthForge now?{" "}
               <Link href="/sign-up" className="hover:underline font-semibold" style={{ color: "#00E676" }}>Start your free 7-day trial</Link>
-              {" "}- no credit card required.
+              {region === "nigeria" ? " - before monthly or annual NGN billing begins." : " - no credit card required."}
             </p>
           </FadeIn>
         </div>
@@ -1269,13 +1269,13 @@ export default function LandingPage() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link href="/sign-up" className="flex items-center gap-2 font-bold text-lg px-10 py-5 rounded-xl text-black transition-all hover:scale-[1.02]"
                 style={{ background: "#00E676", boxShadow: "0 0 50px rgba(0,230,118,0.3)" }}>
-                Start Free Trial <ArrowRight className="h-5 w-5" />
+                {region === "nigeria" ? "Start 7-Day Trial" : "Start Free Trial"} <ArrowRight className="h-5 w-5" />
               </Link>
               <Link href="/contact" className="flex items-center gap-2 font-semibold text-base px-8 py-5 rounded-xl border border-white/10 text-white/70 hover:text-white hover:border-white/25 transition-all">
                 Book a Demo
               </Link>
             </div>
-            <p className="mt-5 text-sm text-white/25">Free 7-day trial · No credit card required · Cancel anytime</p>
+            <p className="mt-5 text-sm text-white/25">{region === "nigeria" ? "Free 7-day trial · NGN plans available monthly or annually · Cancel anytime" : "Free 7-day trial · No credit card required · Cancel anytime"}</p>
           </FadeIn>
         </div>
       </section>

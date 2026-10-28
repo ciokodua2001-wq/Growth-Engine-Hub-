@@ -1,7 +1,9 @@
 import { Link } from "wouter";
+import { getClientRegion } from "@/lib/region";
 import { Zap, ArrowLeft } from "lucide-react";
 
 export default function RefundPolicyPage() {
+  const region = getClientRegion();
   return (
     <div className="min-h-screen text-white" style={{ background: "#040B14" }}>
       <nav className="border-b border-white/8 px-6 py-4">
@@ -26,7 +28,7 @@ export default function RefundPolicyPage() {
 
           <section>
             <h2 className="text-xl font-bold text-white mb-3">1. Free Trial</h2>
-            <p>GrowthForge offers a 7-day free trial with no credit card required. No charges are made during the trial period and no refunds are applicable. You may cancel at any time before the trial ends without any obligation.</p>
+            <p>{region === "nigeria" ? "GrowthForge offers a 7-day free trial. If billing is introduced for your account after the trial, charges would only begin after you choose a paid plan. No charges are made during the trial period and no refunds apply to unused trial access." : "GrowthForge offers a 7-day free trial with no credit card required. No charges are made during the trial period and no refunds are applicable. You may cancel at any time before the trial ends without any obligation."}</p>
           </section>
 
           <section>
