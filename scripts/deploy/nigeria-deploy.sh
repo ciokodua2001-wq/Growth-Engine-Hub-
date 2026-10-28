@@ -83,6 +83,13 @@ mv "$STAGE_DIR" "$RELEASE_DIR"
 ln -sfn "$RELEASE_DIR/public" "$LIVE_PUBLIC.new"
 mv -Tf "$LIVE_PUBLIC.new" "$LIVE_PUBLIC"
 
+# A fresh vite build emits 0770 dirs, which makes the whole frontend 403 for
+# Caddy while the API health check stays green. .deploy-releases carries a
+# default ACL granting caddy read+traverse, so new releases inherit access;
+# this chmod is belt-and-braces and needs no root (the deploy user is
+# deliberately not allowed to sudo setfacl).
+chmod -R o+rX "$RELEASE_DIR"
+
 if [ "$API_CHANGED" = "1" ]; then
   sudo systemctl restart "$SERVICE"
 fi
