@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { Logo } from "@/components/ui/logo";
+import { getClientRegion } from "@/lib/region";
 
 const TRIAL_FEATURES = [
   "1 Project",
@@ -490,8 +491,7 @@ export default function PlansPage() {
 
   // Detect regional storefront from hostname + load Nigeria (NGN) pricing
   useEffect(() => {
-    const host = window.location.hostname.toLowerCase();
-    if (host === "ng.usegrowthforge.com" || host.startsWith("ng.")) {
+    if (getClientRegion() === "nigeria") {
       setRegion("nigeria");
       fetch("/api/paystack/pricing")
         .then((r) => r.json())
