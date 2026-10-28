@@ -76,8 +76,18 @@ test -s "$LIVE_PUBLIC/index.html" || { echo "$LOG frontend index missing after b
 grep -rq "mo equivalent" "$LIVE_PUBLIC/assets/" || { echo "$LOG Nigeria pricing marker missing from built assets"; rollback || true; exit 1; }
 
 rm -rf "$STAGE_DIR"
-mkdir -p "$STAGE_DIR"
-mv "$LIVE_PUBLIC" "$STAGE_DIR/public"
+mkdir -p "$STAGE_DIR/public"
+
+# Once the frontend is live, $LIVE_PUBLIC is a symlink to the current release.
+# Moving the symlink itself into the next staged release creates a self-loop
+# (public -> .../public), so seed the staged release with the current target's
+# contents instead. Keep the old move behaviour only for the initial bootstrap
+# case where public is still a real directory.
+if [ -L "$LIVE_PUBLIC" ]; then
+  cp -a "$LIVE_PUBLIC/." "$STAGE_DIR/public/"
+else
+  mv "$LIVE_PUBLIC" "$STAGE_DIR/public"
+fi
 rm -rf "$RELEASE_DIR"
 mv "$STAGE_DIR" "$RELEASE_DIR"
 ln -sfn "$RELEASE_DIR/public" "$LIVE_PUBLIC.new"
