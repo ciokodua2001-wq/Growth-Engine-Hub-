@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { getAuth } from "../lib/supabaseAuth.js";
 import { db } from "@workspace/db";
 import { usersTable, projectsTable, businessSourcesTable, creatorProfilesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { detectLocaleFromUrl, mapToSupportedLocale } from "../utils/urlLocaleDetector.js";
 import { getSupportedLocales } from "../lib/localization.js";
 import { SOURCE_TYPES, type SourceType } from "../lib/businessSourceIngestor.js";
@@ -11,6 +11,53 @@ const router: IRouter = Router();
 
 const OPERATING_MODELS = ["business", "creator", "hybrid"] as const;
 type OperatingModel = (typeof OPERATING_MODELS)[number];
+
+function buildProjectDescription(args: {
+  businessDescription?: string | null;
+  targetCustomers?: string | null;
+  primaryGoal?: string | null;
+  location?: string | null;
+}) {
+  const parts = [
+    args.businessDescription?.trim() ? `About: ${args.businessDescription.trim()}` : null,
+    args.targetCustomers?.trim() ? `Customers: ${args.targetCustomers.trim()}` : null,
+    args.primaryGoal?.trim() ? `Goal: ${args.primaryGoal.trim()}` : null,
+    args.location?.trim() ? `Location: ${args.location.trim()}` : null,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" | ") : null;
+}
+
+router.get("/onboarding", async (req, res): Promise<void> => {
+  try {
+    const auth = getAuth(req);
+    const userId = auth?.userId;
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    const [project] = await db
+      .select()
+      .from(projectsTable)
+      .where(and(eq(projectsTable.ownerId, userId), isNull(projectsTable.deletedAt)))
+      .orderBy(projectsTable.createdAt);
+
+    const sources = project
+      ? await db.select().from(businessSourcesTable).where(eq(businessSourcesTable.projectId, project.id))
+      : [];
+
+    const [creatorProfile] = project
+      ? await db.select().from(creatorProfilesTable).where(eq(creatorProfilesTable.projectId, project.id))
+      : [undefined];
+
+    res.json({ user, project: project ?? null, sources, creatorProfile: creatorProfile ?? null });
+  } catch (err) {
+    req.log.error({ err }, "Error loading onboarding state");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 router.post("/onboarding", async (req, res): Promise<void> => {
   try {
@@ -21,10 +68,11 @@ router.post("/onboarding", async (req, res): Promise<void> => {
       return;
     }
 
-    // Inherit the current plan from the user row so upgraded accounts do not
-    // get stuck with trial limits on newly created projects.
-    const [userRow] = await db.select({ plan: usersTable.plan }).from(usersTable).where(eq(usersTable.id, userId));
-    const userPlan = userRow?.plan ?? "trial";
+    const [userRow] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    if (!userRow) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
 
     const body = req.body as {
       businessName?: string;
@@ -32,14 +80,12 @@ router.post("/onboarding", async (req, res): Promise<void> => {
       sourceType?: string;
       sourceUrl?: string | null;
       operatingModel?: string;
+      businessDescription?: string | null;
       declaredDescription?: string | null;
-      primaryGoal?: string;
-      targetMarket?: string;
-      /**
-       * BCP-47 locale code the user explicitly confirmed in the onboarding
-       * market detection widget. When provided and valid, skips the server-side
-       * detector run entirely - the user's choice is authoritative.
-       */
+      primaryGoal?: string | null;
+      targetCustomers?: string | null;
+      industry?: string | null;
+      location?: string | null;
       confirmedLocale?: string;
       creatorProfile?: {
         creatorName?: string;
@@ -68,10 +114,8 @@ router.post("/onboarding", async (req, res): Promise<void> => {
       return;
     }
 
-    // Resolve the primary source. A website is one possible source - not a
-    // prerequisite for creating a project.
     let sourceType: SourceType;
-    if (body.sourceType && SOURCE_TYPES.includes(body.sourceType as SourceType)) {
+    if (body.sourceType && SOURCE_TYPES.includes(body.sourceType as SourceType) && body.sourceType !== "whatsapp") {
       sourceType = body.sourceType as SourceType;
     } else if (body.websiteUrl) {
       sourceType = "website";
@@ -84,25 +128,23 @@ router.post("/onboarding", async (req, res): Promise<void> => {
       res.status(400).json({ error: "websiteUrl is required for website projects" });
       return;
     }
-    // For non-website sources, websiteUrl is irrelevant and sourceUrl is optional
-    // (a creator may onboard with a manual description only).
+
     const sourceUrl = sourceType === "website" ? null : (body.sourceUrl?.trim() || null);
-
     const declaredContent = body.declaredDescription?.trim() || null;
-    const description = [body.primaryGoal, body.targetMarket, declaredContent].filter(Boolean).join(" | ") || null;
+    const description = buildProjectDescription({
+      businessDescription: body.businessDescription,
+      targetCustomers: body.targetCustomers,
+      primaryGoal: body.primaryGoal,
+      location: body.location,
+    });
 
-    // ── Determine the locale to store ────────────────────────────────────────
     let detectedLocale: string | null = null;
     const supported = getSupportedLocales();
 
     if (body.confirmedLocale && supported.includes(body.confirmedLocale)) {
       detectedLocale = body.confirmedLocale;
-      req.log.info(
-        { locale: body.confirmedLocale, source: "user-confirmed" },
-        "Using user-confirmed locale from onboarding widget",
-      );
+      req.log.info({ locale: body.confirmedLocale, source: "user-confirmed" }, "Using user-confirmed locale from onboarding widget");
     } else if (websiteUrl) {
-      // Server-side URL detection is only meaningful for website sources.
       try {
         const localeResult = await detectLocaleFromUrl(websiteUrl);
         req.log.info(
@@ -115,43 +157,60 @@ router.post("/onboarding", async (req, res): Promise<void> => {
       }
     }
 
-    // ── Create the project ───────────────────────────────────────────────────
-    const [project] = await db
-      .insert(projectsTable)
-      .values({
-        ownerId: userId,
-        name: businessName,
-        websiteUrl,
-        sourceType,
-        sourceUrl,
-        operatingModel,
-        industry: null,
-        description,
-        plan: userPlan,
-        status: "pending",
-        detectedLocale,
-      })
-      .returning();
+    const [existingProject] = await db
+      .select()
+      .from(projectsTable)
+      .where(and(eq(projectsTable.ownerId, userId), isNull(projectsTable.deletedAt)))
+      .orderBy(projectsTable.createdAt);
 
-    // ── Record the primary source in the multi-source ledger ─────────────────
-    const sourceValue = sourceUrl ?? sourceType;
-    await db.insert(businessSourcesTable).values({
-      projectId: project.id,
+    const plan = userRow.plan ?? "trial";
+    const nextProjectValues = {
+      name: businessName,
+      websiteUrl,
       sourceType,
       sourceUrl,
-      sourceValue,
-      displayLabel: sourceUrl ?? sourceType,
-      authorizationStatus: "none",
-      retrievalMethod: "none",
-      declaredContent,
-      status: "active",
-    });
+      operatingModel,
+      industry: body.industry?.trim() || null,
+      description,
+      plan,
+      status: existingProject?.status ?? "pending",
+      detectedLocale,
+    };
 
-    // ── Creator/hybrid profile (all optional) ─────────────────────────────────
+    const [project] = existingProject
+      ? await db.update(projectsTable).set(nextProjectValues).where(eq(projectsTable.id, existingProject.id)).returning()
+      : await db.insert(projectsTable).values({ ownerId: userId, ...nextProjectValues }).returning();
+
+    const existingSources = await db.select().from(businessSourcesTable).where(eq(businessSourcesTable.projectId, project.id));
+    const primarySource = existingSources.find((s) => s.sourceType === sourceType && (s.sourceUrl ?? null) === sourceUrl);
+    const sourceValue = sourceUrl ?? sourceType;
+
+    if (primarySource) {
+      await db
+        .update(businessSourcesTable)
+        .set({
+          displayLabel: sourceUrl ?? sourceType,
+          declaredContent,
+          status: "active",
+        })
+        .where(eq(businessSourcesTable.id, primarySource.id));
+    } else {
+      await db.insert(businessSourcesTable).values({
+        projectId: project.id,
+        sourceType,
+        sourceUrl,
+        sourceValue,
+        displayLabel: sourceUrl ?? sourceType,
+        authorizationStatus: "none",
+        retrievalMethod: "none",
+        declaredContent,
+        status: "active",
+      });
+    }
+
     if (operatingModel !== "business") {
       const cp = body.creatorProfile ?? {};
-      await db.insert(creatorProfilesTable).values({
-        projectId: project.id,
+      const creatorValues = {
         creatorName: cp.creatorName?.trim() || businessName,
         channelName: cp.channelName?.trim() || null,
         primaryPlatform: sourceType === "website" ? null : sourceType,
@@ -164,15 +223,32 @@ router.post("/onboarding", async (req, res): Promise<void> => {
         currentGoals: cp.currentGoals?.trim() || null,
         monetizationMethods: cp.monetizationMethods?.length ? cp.monetizationMethods : null,
         selfReportedStats: cp.selfReportedStats ?? null,
-      });
+      };
+
+      const [existingCreatorProfile] = await db.select().from(creatorProfilesTable).where(eq(creatorProfilesTable.projectId, project.id));
+      if (existingCreatorProfile) {
+        await db.update(creatorProfilesTable).set(creatorValues).where(eq(creatorProfilesTable.id, existingCreatorProfile.id));
+      } else {
+        await db.insert(creatorProfilesTable).values({ projectId: project.id, ...creatorValues });
+      }
     }
 
+    const trialEndsAt = userRow.trialEndsAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await db
       .update(usersTable)
-      .set({ onboardingComplete: true })
+      .set({
+        onboardingComplete: true,
+        plan: userRow.plan ?? "trial",
+        subscriptionStatus: userRow.subscriptionStatus ?? "trial",
+        trialEndsAt,
+      })
       .where(eq(usersTable.id, userId));
 
-    res.json({ project });
+    const [updatedUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    const sources = await db.select().from(businessSourcesTable).where(eq(businessSourcesTable.projectId, project.id));
+    const [creatorProfile] = await db.select().from(creatorProfilesTable).where(eq(creatorProfilesTable.projectId, project.id));
+
+    res.json({ project, user: updatedUser, sources, creatorProfile: creatorProfile ?? null });
   } catch (err) {
     req.log.error({ err }, "Error completing onboarding");
     res.status(500).json({ error: "Internal server error" });

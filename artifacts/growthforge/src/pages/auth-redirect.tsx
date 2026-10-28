@@ -3,14 +3,6 @@ import { useSearch } from "wouter";
 import { Loader2 } from "lucide-react";
 import { basePath } from "@/lib/basePath";
 
-/**
- * Post-sign-in landing route - the `callbackURL` target for both email/password
- * and Google OAuth sign-in.
- *
- * Checks user credentials and role directly via `/api/auth/provision` to ensure
- * instantaneous, reliable routing to /admin (for super_admin / owner) or
- * /dashboard (for standard users).
- */
 export default function AuthRedirectPage() {
   const search = useSearch();
   const redirectUrl = new URLSearchParams(search).get("redirect_url");
@@ -20,30 +12,38 @@ export default function AuthRedirectPage() {
 
     async function checkAndRedirect() {
       try {
-        const res = await fetch("/api/auth/provision", {
+        const provisionRes = await fetch("/api/auth/provision", {
           method: "POST",
           credentials: "include",
         });
         if (unmounted) return;
 
-        if (res.ok) {
-          const user = await res.json();
-          if (redirectUrl) {
-            const dest = redirectUrl.startsWith("http") ? redirectUrl : `${basePath}${redirectUrl}`;
-            window.location.href = dest;
-            return;
-          }
-          const target =
-            user.isOwner || user.role === "admin" || user.role === "super_admin"
-              ? "/admin"
-              : "/dashboard";
-          window.location.href = `${basePath}${target}`;
-        } else {
+        if (!provisionRes.ok) {
           window.location.href = `${basePath}/sign-in`;
+          return;
         }
+
+        const user = await provisionRes.json();
+        if (redirectUrl) {
+          const dest = redirectUrl.startsWith("http") ? redirectUrl : `${basePath}${redirectUrl}`;
+          window.location.href = dest;
+          return;
+        }
+
+        if (user.isOwner || user.role === "admin" || user.role === "super_admin") {
+          window.location.href = `${basePath}/admin`;
+          return;
+        }
+
+        if (!user.onboardingComplete) {
+          window.location.href = `${basePath}/onboarding`;
+          return;
+        }
+
+        window.location.href = `${basePath}/dashboard`;
       } catch {
         if (!unmounted) {
-          window.location.href = `${basePath}/dashboard`;
+          window.location.href = `${basePath}/sign-in`;
         }
       }
     }

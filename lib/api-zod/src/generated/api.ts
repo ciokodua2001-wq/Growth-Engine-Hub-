@@ -107,6 +107,7 @@ export const UpdateProjectParams = zod.object({
 export const UpdateProjectBody = zod.object({
   "name": zod.string().optional(),
   "websiteUrl": zod.string().optional(),
+  "industry": zod.string().optional(),
   "description": zod.string().optional(),
   "autonomousMode": zod.boolean().optional(),
   "brandingCompanyName": zod.string().nullish(),

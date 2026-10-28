@@ -72,14 +72,28 @@ router.post("/auth/start-trial", async (req, res): Promise<void> => {
       return;
     }
 
-    const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-    await db
-      .update(usersTable)
-      .set({ plan: "trial", subscriptionStatus: "trial", trialEndsAt })
+    const [existingUser] = await db
+      .select({ plan: usersTable.plan, subscriptionStatus: usersTable.subscriptionStatus, trialEndsAt: usersTable.trialEndsAt })
+      .from(usersTable)
       .where(eq(usersTable.id, userId));
 
-    res.json({ trialEndsAt });
+    const existingTrialEndsAt = existingUser?.trialEndsAt ?? null;
+    const hasActiveOrPastTrial = !!existingTrialEndsAt;
+    const trialEndsAt = existingTrialEndsAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    if (!hasActiveOrPastTrial) {
+      await db
+        .update(usersTable)
+        .set({ plan: "trial", subscriptionStatus: "trial", trialEndsAt })
+        .where(eq(usersTable.id, userId));
+    }
+
+    res.json({
+      trialEndsAt,
+      reusedExistingTrial: hasActiveOrPastTrial,
+      subscriptionStatus: existingUser?.subscriptionStatus ?? "trial",
+      plan: existingUser?.plan ?? "trial",
+    });
   } catch (err) {
     req.log.error({ err }, "Error starting trial");
     res.status(500).json({ error: "Internal server error" });
