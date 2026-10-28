@@ -216,10 +216,10 @@ const PRICING = [
 ];
 
 const FAQ = [
-  { q: "What is GrowthForge?", a: "GrowthForge is an AI Growth Operating System built by Strapli Technologies. You paste your business website URL and it builds your entire marketing department in minutes - competitive intelligence, brand strategy, social and email content, video campaigns, ad creatives, and an AI agent that can execute tasks on demand. It replaces tools and headcount that would otherwise cost $150K+ per year." },
+  { q: "What is GrowthForge?", a: "GrowthForge is an AI growth platform built by Strapli Technologies. You add your business website or primary online presence and it helps you build strategy, content, campaigns, and marketing workflows faster without needing a full in-house team." },
   { q: "How does GrowthForge work?", a: "Three steps: (1) Paste your website URL. (2) GrowthForge's AI reads your site, discovers your top competitors, identifies market gaps, and builds a complete marketing strategy tailored to your brand. (3) Use the strategy to generate content, videos, campaigns, and more - all in one place. No setup, no learning curve." },
   { q: "Do I need marketing experience?", a: "No. GrowthForge is built for founders, operators, and lean teams who want results without needing to hire a marketing director. The platform handles strategy, positioning, and execution - you just review and publish." },
-  { q: "What plans are available?", a: "GrowthForge offers four paid tiers: Starter ($39/mo, 1 project, 5 Promotional Videos/mo with 80s included), Get-Going ($99/mo, 3 projects, 13 Promotional Videos/mo with 200s included), Growth ($249/mo, 6 projects, 35 Promotional Videos/mo with 560s included), and Agency ($599/mo, 20 projects, 70 Promotional Videos/mo with 1,120s included). All plans include AI video generation at 1080p HD. Start with a free 7-day trial - no credit card required." },
+  { q: "What plans are available?", a: "GrowthForge offers four paid tiers on the Nigeria storefront: Starter at ₦40,000/month, Get-Going at ₦100,000/month, Growth at ₦250,000/month, and Agency at ₦600,000/month. Annual billing is available at a 15% discount, and every plan includes a 7-day free trial." },
   { q: "Can I analyze competitors?", a: "Yes. GrowthForge automatically discovers your top competitors, analyzes their positioning, identifies weaknesses in their messaging, and generates a full competitive report - including exactly how to position your brand to win against each one." },
   { q: "Can I generate written content?", a: "Yes. GrowthForge generates social media posts, email campaigns, ad copy, and ad creatives - all grounded in your actual business analysis and brand voice. Content is produced in batches so you always have a pipeline ready to publish." },
   { q: "How does video generation work?", a: "GrowthForge renders complete AI Promotional Videos - scene-by-scene with voiceover, brand visuals, and captions - all at 1080p HD. Video generation is a paid-plan feature (5-70 Promotional Videos per month depending on your tier, with included render seconds). The free trial does not include video blueprints or rendering." },
@@ -1153,7 +1153,7 @@ export default function LandingPage() {
                         <span className="text-3xl font-black text-white">{plan.currencySymbol}{plan.displayPrice}</span>
                         <span className="text-white/40 text-sm">/mo</span>
                       </div>
-                      <div className="text-white/25 text-[11px] mt-0.5">Billed monthly · Cancel anytime</div>
+                      <div className="text-white/25 text-[11px] mt-0.5">{region === "nigeria" ? "Monthly or annual billing · Save 15% annually" : "Billed monthly · Cancel anytime"}</div>
                     </div>
 
                     {/* Hero stats */}

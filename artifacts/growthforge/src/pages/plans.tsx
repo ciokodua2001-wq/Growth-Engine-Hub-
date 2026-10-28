@@ -359,7 +359,7 @@ function PlanCard({
                 </span>
               </>
             ) : (
-              "Billed monthly · Cancel anytime"
+              region === "nigeria" ? "Billed monthly in NGN · Cancel anytime" : "Billed monthly · Cancel anytime"
             )}
           </p>
         </div>
@@ -435,7 +435,7 @@ function PlanCard({
             ) : (
               <>
                 <CreditCard className="w-3.5 h-3.5" />
-                Get Started
+                {region === "nigeria" ? "Choose Plan" : "Get Started"}
               </>
             )}
           </button>

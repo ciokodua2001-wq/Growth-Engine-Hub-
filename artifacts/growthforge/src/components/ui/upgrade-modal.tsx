@@ -1,6 +1,7 @@
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Zap, Check, ArrowRight, CreditCard } from "lucide-react";
+import { getClientRegion } from "@/lib/region";
 
 interface UpgradeModalProps {
   open: boolean;
@@ -21,6 +22,7 @@ const UPGRADE_HIGHLIGHTS = [
 
 export function UpgradeModal({ open, onClose, feature, limit, limitLabel }: UpgradeModalProps) {
   const [, setLocation] = useLocation();
+  const region = getClientRegion();
 
   const handleUpgrade = () => {
     onClose();
@@ -86,11 +88,11 @@ export function UpgradeModal({ open, onClose, feature, limit, limitLabel }: Upgr
               >
                 <div>
                   <p className="text-xs text-white/40">Starting from</p>
-                  <p className="text-lg font-bold text-white">$39<span className="text-sm font-normal text-white/40">/mo</span></p>
+                  <p className="text-lg font-bold text-white">{region === "nigeria" ? <>₦40,000<span className="text-sm font-normal text-white/40">/mo</span></> : <>$39<span className="text-sm font-normal text-white/40">/mo</span></>}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-[#00E676]">Starter · Get-Going · Growth · Agency</p>
-                  <p className="text-[10px] text-white/30 mt-0.5">Cancel anytime</p>
+                  <p className="text-[10px] text-white/30 mt-0.5">{region === "nigeria" ? "Monthly or annual plans · 15% off annual" : "Cancel anytime"}</p>
                 </div>
               </div>
 
