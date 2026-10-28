@@ -971,7 +971,7 @@ export default function ProjectCampaigns() {
         </div>
         <TrialGate
           featureName="Campaign Manager"
-          description="Included in all paid plans. Connect ad accounts, build coordinated campaigns across channels, and generate AI performance reports."
+          description="Available with paid access. Connect ad accounts, build coordinated campaigns across channels, and generate AI performance reports."
         />
       </div>
     );

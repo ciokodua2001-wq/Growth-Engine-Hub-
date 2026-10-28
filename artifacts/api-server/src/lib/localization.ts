@@ -116,7 +116,7 @@ const COPYWRITING_FORMULA_OVERRIDES: Record<string, string> = {
   Nigerian audiences are marketing-savvy and wary of scams — establish legitimacy and
   trust early (proof points, guarantees, delivery terms, "Pay on delivery" where
   applicable). Speak to aspiration and upward mobility, never pity. CTAs must be direct
-  and action-oriented (Shop now, Order now, Chat on WhatsApp). Default to clear standard
+  and action-oriented (Shop now, Order now, Send a message). Default to clear standard
   Nigerian English; use slang only for youth-focused brands.`,
 };
 

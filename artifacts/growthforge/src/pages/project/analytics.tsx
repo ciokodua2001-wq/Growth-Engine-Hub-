@@ -390,7 +390,7 @@ export default function ProjectAnalytics() {
             ) : reportsLocked || showReportGate ? (
               <TrialGate
                 featureName="AI Campaign Reports"
-                description="Included in all paid plans. Generate AI performance reports with recommendations from your live campaign data."
+                description="Available with paid access. Generate AI performance reports with recommendations from your live campaign data."
               />
             ) : (
               <div className="text-center py-10 rounded-xl border border-dashed border-border">

@@ -359,7 +359,7 @@ function PlanCard({
                 </span>
               </>
             ) : (
-              region === "nigeria" ? "Billed monthly in NGN · Cancel anytime" : "Billed monthly · Cancel anytime"
+              region === "nigeria" ? "Monthly NGN pricing · Paid activation pending" : "Billed monthly · Cancel anytime"
             )}
           </p>
         </div>
@@ -651,7 +651,7 @@ export default function PlansPage() {
           <h1 className="text-4xl font-bold text-white mb-3">
             Start growing with <span className="text-[#00E676]">AI</span>
           </h1>
-          <p className="text-white/50 text-lg">{region === "nigeria" ? "Try free for 7 days, then review the available monthly or annual NGN plans for paid activation." : "Try free for 7 days, then upgrade to keep going."}</p>
+          <p className="text-white/50 text-lg">{region === "nigeria" ? "Try free for 7 days, then review the available monthly or annual NGN plans while paid activation remains pending." : "Try free for 7 days, then upgrade to keep going."}</p>
         </motion.div>
 
         {/* Free Trial Hero Card */}
@@ -748,7 +748,7 @@ export default function PlansPage() {
           transition={{ delay: 0.5 }}
           className="text-white/25 text-xs mt-10 text-center"
         >
-          {region === "nigeria" ? "Billed monthly or annually in NGN · Save 15% on annual plans. Cancel anytime." : "All plans billed monthly. Cancel anytime from your billing portal."} By subscribing you agree to our{" "}
+          {region === "nigeria" ? "Monthly or annual NGN pricing · Save 15% on annual plans · Paid activation pending." : "All plans billed monthly. Cancel anytime from your billing portal."} By subscribing you agree to our{" "}
           <Link href="/terms" className="underline hover:text-white/50">
             Terms of Service
           </Link>{" "}

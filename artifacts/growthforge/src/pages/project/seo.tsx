@@ -512,7 +512,7 @@ function SeoStrategyTab({ projectId, plan }: { projectId: number; plan: string }
   const isGenerating = generating || data?.status === "generating";
 
   if (isTrialOrMissing) {
-    return <TrialGate featureName="AI SEO Strategy Builder" description="Included in all paid plans. Generate a comprehensive SEO strategy covering traditional search and AI discovery platforms." />;
+    return <TrialGate featureName="AI SEO Strategy Builder" description="Available with paid access. Generate a comprehensive SEO strategy covering traditional search and AI discovery platforms." />;
   }
 
   if (isLoading) {

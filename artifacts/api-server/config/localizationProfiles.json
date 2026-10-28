@@ -453,7 +453,7 @@
       }
     ],
     "seo_behavior": {
-      "search_engine": "Google.com.ng dominates, with strong Google (general) and social discovery (Instagram, TikTok, WhatsApp) for Nigerian users",
+      "search_engine": "Google.com.ng dominates, with strong Google (general) and social discovery (Instagram, TikTok, Facebook, and business directories) for Nigerian users",
       "keyword_style": "Nigerian users search in full conversational phrases, often adding 'in Nigeria', city names (Lagos, Abuja, Port Harcourt, Ibadan), 'price', and 'how to'. Include long-tail question keywords and local place names.",
       "preferred_query_patterns": [
         "How to… in Nigeria",
@@ -482,7 +482,7 @@
         "Get started",
         "Book now",
         "Call now",
-        "Chat on WhatsApp",
+        "Send a message",
         "Learn more"
       ],
       "formal_register": "Respectful but approachable; 'you' is fine for most B2C. For B2B and older audiences use full sentences and titles (Mr/Mrs/Dr) where appropriate."
@@ -551,7 +551,7 @@
       }
     ],
     "seo_behavior": {
-      "search_engine": "Google.com.ng dominates, with strong Google (general) and social discovery (Instagram, TikTok, WhatsApp) for Nigerian users",
+      "search_engine": "Google.com.ng dominates, with strong Google (general) and social discovery (Instagram, TikTok, Facebook, and business directories) for Nigerian users",
       "keyword_style": "Nigerian users search in full conversational phrases, often adding 'in Nigeria', city names (Lagos, Abuja, Port Harcourt, Ibadan), 'price', and 'how to'. Include long-tail question keywords and local place names.",
       "preferred_query_patterns": [
         "How to… in Nigeria",
@@ -577,7 +577,7 @@
       "preferred_cta_verbs": [
         "Buy am now",
         "Order now",
-        "Chat us for WhatsApp",
+        "Send us a message",
         "Try am today",
         "Get started",
         "Call now",

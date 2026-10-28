@@ -112,7 +112,7 @@ export default function ProjectAds() {
       {locked ? (
         <TrialGate
           featureName="Ad Creative Engine"
-          description="Included in all paid plans. Generate high-converting ad creatives with hooks optimized for Meta, Google, LinkedIn, TikTok, and YouTube."
+          description="Available with paid access. Generate high-converting ad creatives with hooks optimized for Meta, Google, LinkedIn, TikTok, and YouTube."
         />
       ) : isLoading ? (
         <div className="flex items-center justify-center py-32"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
