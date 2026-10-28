@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/auth-context";
@@ -165,7 +165,7 @@ const TESTIMONIALS = [
 
 const PRICING = [
   {
-    name: "Starter", price: 39, color: "#00E676", highlight: false,
+    name: "Starter", price: 39, nigeriaPrice: 40000, color: "#00E676", highlight: false,
     desc: "For solo founders and small businesses",
     stats: [{ value: "1", label: "Project" }, { value: "5", label: "Promo Videos/mo" }, { value: "70", label: "Content/mo" }],
     groups: [
@@ -177,7 +177,7 @@ const PRICING = [
     ],
   },
   {
-    name: "Get-Going", price: 99, color: "#00D4FF", highlight: true, highlightLabel: "Most Popular",
+    name: "Get-Going", price: 99, nigeriaPrice: 100000, color: "#00D4FF", highlight: true, highlightLabel: "Most Popular",
     desc: "For growing creators ready to scale",
     stats: [{ value: "3", label: "Projects" }, { value: "13", label: "Promo Videos/mo" }, { value: "160", label: "Content/mo" }],
     groups: [
@@ -189,7 +189,7 @@ const PRICING = [
     ],
   },
   {
-    name: "Growth", price: 249, color: "#14F195", highlight: false,
+    name: "Growth", price: 249, nigeriaPrice: 250000, color: "#14F195", highlight: false,
     desc: "For teams serious about growth",
     stats: [{ value: "6", label: "Projects" }, { value: "35", label: "Promo Videos/mo" }, { value: "320", label: "Content/mo" }],
     groups: [
@@ -201,7 +201,7 @@ const PRICING = [
     ],
   },
   {
-    name: "Agency", price: 599, color: "#FF6B35", highlight: false, highlightLabel: "Best Value",
+    name: "Agency", price: 599, nigeriaPrice: 600000, color: "#FF6B35", highlight: false, highlightLabel: "Best Value",
     desc: "For agencies managing multiple clients",
     stats: [{ value: "20", label: "Projects" }, { value: "70", label: "Promo Videos/mo" }, { value: "640", label: "Content/mo" }],
     groups: [
@@ -457,6 +457,16 @@ export default function LandingPage() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { user, isLoaded, signOut } = useAuth();
   const [, setLocation] = useLocation();
+
+  const hostname = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
+  const region = hostname === "ng.usegrowthforge.com" || hostname === "ng.dev.usegrowthforge.com"
+    ? "nigeria"
+    : "global";
+  const pricingCards = useMemo(() => PRICING.map((plan) => ({
+    ...plan,
+    displayPrice: region === "nigeria" ? plan.nigeriaPrice.toLocaleString("en-NG") : String(plan.price),
+    currencySymbol: region === "nigeria" ? "₦" : "$",
+  })), [region]);
 
   const isAuthed = isLoaded && !!user;
   const { isAdmin } = useCurrentUser();
@@ -1092,7 +1102,11 @@ export default function LandingPage() {
           <FadeIn className="text-center mb-10">
             <SectionLabel>Pricing</SectionLabel>
             <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-4">Simple, Transparent Pricing</h2>
-            <p className="text-white/50 text-lg">Replace a $120K/year marketing team for a fraction of the cost.</p>
+            {region === "nigeria" ? (
+              <p className="text-white/50 text-lg">Pay in NGN on the Nigeria storefront with pricing built for Nigerian businesses.</p>
+            ) : (
+              <p className="text-white/50 text-lg">Replace a $120K/year marketing team for a fraction of the cost.</p>
+            )}
           </FadeIn>
           <FadeIn className="flex justify-center mb-10">
             <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-[#00E676]/30 bg-[#00E676]/10">
@@ -1101,7 +1115,7 @@ export default function LandingPage() {
             </div>
           </FadeIn>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-            {PRICING.map((plan, i) => (
+            {pricingCards.map((plan, i) => (
               <FadeIn key={plan.name} delay={i * 0.08}>
                 <div
                   className="relative flex flex-col rounded-2xl overflow-hidden h-full"
@@ -1130,7 +1144,7 @@ export default function LandingPage() {
                       <div className="text-lg font-bold text-white mb-0.5">{plan.name}</div>
                       <div className="text-xs text-white/40 mb-3">{plan.desc}</div>
                       <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-black text-white">${plan.price}</span>
+                        <span className="text-3xl font-black text-white">{plan.currencySymbol}{plan.displayPrice}</span>
                         <span className="text-white/40 text-sm">/mo</span>
                       </div>
                       <div className="text-white/25 text-[11px] mt-0.5">Billed monthly · Cancel anytime</div>
