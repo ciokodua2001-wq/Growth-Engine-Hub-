@@ -6,12 +6,14 @@ import { Logo } from "@/components/ui/logo";
 import { PasswordInput } from "@/components/ui/password-input";
 import { authClient } from "@/lib/authClient";
 import { basePath } from "@/lib/basePath";
+import { getClientRegion } from "@/lib/region";
 
 const inputClasses =
   "w-full h-11 rounded-lg bg-[#0f2035] border border-[#1e3a5f] text-white placeholder:text-[#7a8fa6] px-3.5 text-sm outline-none focus:border-[#00E676] transition-colors";
 
 export default function SignUpPage() {
   const [, setLocation] = useLocation();
+  const region = getClientRegion();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -76,7 +78,7 @@ export default function SignUpPage() {
           <Logo size={52} />
           <span className="text-xl font-bold text-white">GrowthForge</span>
         </Link>
-        <p className="text-[#7a8fa6] text-sm">Create your free account</p>
+        <p className="text-[#7a8fa6] text-sm">{region === "nigeria" ? "Create your free GrowthForge Nigeria account" : "Create your free account"}</p>
       </div>
 
       <div className="bg-[#081526] rounded-2xl w-[440px] max-w-full overflow-hidden shadow-2xl shadow-black/60 border border-[#1e3a5f] p-8">
@@ -119,7 +121,7 @@ export default function SignUpPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className={inputClasses}
-                  placeholder="you@company.com"
+                  placeholder={region === "nigeria" ? "you@business.com.ng" : "you@company.com"}
                 />
               </div>
               <div>

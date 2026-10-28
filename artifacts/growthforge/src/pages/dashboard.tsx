@@ -15,6 +15,7 @@ import { Plus, Globe, Zap, ArrowRight, Loader2, X, Brain, ChevronRight, Crown, T
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Logo } from "@/components/ui/logo";
+import { getClientRegion } from "@/lib/region";
 
 const PROJECT_SHORTCUTS = [
   { label: "Campaigns", path: "campaigns", icon: Target, color: "text-emerald-400" },
@@ -95,6 +96,7 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
   const createProject = useCreateProject();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const region = getClientRegion();
   const [, setLocation] = useLocation();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -126,7 +128,7 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
         <div className="flex items-center justify-between mb-2">
           <div>
             <h2 className="text-xl font-bold">New Project</h2>
-            <p className="text-sm text-muted-foreground mt-1">Paste your URL to launch your AI marketing OS</p>
+            <p className="text-sm text-muted-foreground mt-1">{region === "nigeria" ? "Paste your website or main business page to launch your Nigeria-focused growth workspace" : "Paste your URL to launch your AI marketing OS"}</p>
           </div>
           <button
             onClick={onClose}
@@ -160,7 +162,7 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
                 type="url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://yourwebsite.com"
+                placeholder={region === "nigeria" ? "https://yourbusiness.com.ng" : "https://yourwebsite.com"}
                 className="w-full bg-secondary border border-border rounded-xl pl-10 pr-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                 required
                 autoFocus
@@ -175,7 +177,7 @@ function NewProjectModal({ onClose }: { onClose: () => void }) {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="My Startup Marketing"
+              placeholder={region === "nigeria" ? "Lagos Fashion Brand" : "My Startup Marketing"}
               className="w-full bg-secondary border border-border rounded-xl px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
             />
           </div>
@@ -212,9 +214,9 @@ export default function DashboardPage() {
     if (isLoaded && !user) setLocation("/sign-in");
   }, [isLoaded, user, setLocation]);
 
-  // Admins/super admins should never land on the user dashboard — send them to the Admin Console.
+  // Admins/super admins should never land on the user dashboard - send them to the Admin Console.
   // Exception: the platform owner needs access to create content, so skip the redirect for them.
-  // Wait for the user record to load before deciding — isOwner is false until the API responds.
+  // Wait for the user record to load before deciding - isOwner is false until the API responds.
   useEffect(() => {
     if (!isUserLoading && isAdmin && !isOwner) setLocation("/admin", { replace: true });
   }, [isUserLoading, isAdmin, isOwner, setLocation]);
@@ -279,7 +281,7 @@ export default function DashboardPage() {
           </motion.button>
         </div>
 
-        {/* Meta reconnect banners — one per project with a broken/undecryptable token */}
+        {/* Meta reconnect banners - one per project with a broken/undecryptable token */}
         {projects && projects.length > 0 && (
           <div className="flex flex-col gap-2 mb-6 empty:hidden">
             {projects.map(p => (
@@ -295,9 +297,9 @@ export default function DashboardPage() {
         ) : projectsFailed ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <AlertTriangle className="h-10 w-10 text-amber-400 mb-4" />
-            <h2 className="text-xl font-bold mb-2">Couldn’t load your projects</h2>
+            <h2 className="text-xl font-bold mb-2">Couldn't load your projects</h2>
             <p className="text-muted-foreground max-w-sm mb-4">
-              The server didn’t return your project list. Refresh the page or click below to retry.
+              The server didn't return your project list. Refresh the page or click below to retry.
             </p>
             <button
               onClick={() => refetchProjects()}

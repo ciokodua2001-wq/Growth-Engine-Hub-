@@ -21,6 +21,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
+import { getClientRegion } from "@/lib/region";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -55,6 +56,7 @@ const SOURCES: { id: SourceType; label: string; hint: string; icon: typeof Globe
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
+  const region = getClientRegion();
   const [, setLocation] = useLocation();
   const { user, isLoaded } = useAuth();
 
@@ -266,10 +268,9 @@ export default function OnboardingPage() {
             {/* ── Step 2 - Source ─────────────────────────────────────────── */}
             {step === 2 && (
               <motion.div key="s2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }}>
-                <h1 className="text-3xl font-bold mb-2">Where can we learn about you?</h1>
+                <h1 className="text-3xl font-bold mb-2">{region === "nigeria" ? "Where should GrowthForge Nigeria start?" : "Where can we learn about you?"}</h1>
                 <p className="text-white/40 mb-8">
-                  Pick your main online presence. GrowthForge analyzes your <b>website</b> automatically; for social
-                  platforms it uses the description you provide (it does not read private accounts).
+                  {region === "nigeria" ? "Pick the channel Nigerian customers know you from best. GrowthForge analyzes your website automatically; for Instagram, Facebook, TikTok, WhatsApp Business and other social profiles, it uses the description you provide." : <>Pick your main online presence. GrowthForge analyzes your <b>website</b> automatically; for social platforms it uses the description you provide (it does not read private accounts).</>}
                 </p>
                 <div className="grid grid-cols-2 gap-3 mb-6">
                   {SOURCES.map((s) => (

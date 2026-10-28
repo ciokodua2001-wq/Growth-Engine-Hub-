@@ -1,8 +1,11 @@
 import { Link } from "wouter";
 import { Zap, ArrowLeft, Target, Lightbulb, Rocket, Heart } from "lucide-react";
 import { motion } from "framer-motion";
+import { getClientRegion } from "@/lib/region";
 
 export default function AboutPage() {
+  const region = getClientRegion();
+
   return (
     <div className="min-h-screen text-white" style={{ background: "#040B14" }}>
       <nav className="border-b border-white/8 px-6 py-4">
@@ -25,11 +28,16 @@ export default function AboutPage() {
             <Zap className="w-3 h-3" /> About GrowthForge
           </div>
           <h1 className="text-5xl md:text-6xl font-black tracking-tighter text-white mb-6">
-            We Built the Marketing<br />
-            <span style={{ color: "#00E676" }}>Department You Can't Afford.</span>
+            {region === "nigeria" ? <>
+              GrowthForge for<br />
+              <span style={{ color: "#00E676" }}>Nigerian Businesses That Want to Grow.</span>
+            </> : <>
+              We Built the Marketing<br />
+              <span style={{ color: "#00E676" }}>Department You Can't Afford.</span>
+            </>}
           </h1>
           <p className="text-white/50 text-xl max-w-2xl mx-auto leading-relaxed">
-            GrowthForge was created because great marketing shouldn't be reserved for companies with $100K budgets.
+            {region === "nigeria" ? "GrowthForge Nigeria exists for businesses that need practical growth support for the Nigerian market — without hiring a full agency or building a large in-house team first." : "GrowthForge was created because great marketing shouldn't be reserved for companies with $100K budgets."}
           </p>
         </motion.div>
 

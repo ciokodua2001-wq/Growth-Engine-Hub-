@@ -13,6 +13,7 @@ import {
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Logo } from "@/components/ui/logo";
+import { getClientRegion } from "@/lib/region";
 
 /* ─── Data ─────────────────────────────────────────────────── */
 
@@ -458,10 +459,7 @@ export default function LandingPage() {
   const { user, isLoaded, signOut } = useAuth();
   const [, setLocation] = useLocation();
 
-  const hostname = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
-  const region = hostname === "ng.usegrowthforge.com" || hostname === "ng.dev.usegrowthforge.com"
-    ? "nigeria"
-    : "global";
+  const region = getClientRegion();
   const pricingCards = useMemo(() => PRICING.map((plan) => ({
     ...plan,
     displayPrice: region === "nigeria" ? plan.nigeriaPrice.toLocaleString("en-NG") : String(plan.price),
@@ -641,13 +639,21 @@ export default function LandingPage() {
             </motion.div>
             <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.1 }}
               className="text-5xl md:text-6xl xl:text-7xl font-black tracking-tighter leading-[1.02] mb-6 text-white">
-              Paste Your URL.<br />
-              <span style={{ color: "#00E676" }}>Get Your Marketing</span><br />
-              Department.
+              {region === "nigeria" ? (<>
+                Grow Your Business.<br />
+                <span style={{ color: "#00E676" }}>Built for Nigeria&apos;s</span><br />
+                Digital Market.
+              </>) : (<>
+                Paste Your URL.<br />
+                <span style={{ color: "#00E676" }}>Get Your Marketing</span><br />
+                Department.
+              </>)}
             </motion.h1>
             <motion.p initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.2 }}
               className="text-lg md:text-xl text-white/50 max-w-xl mx-auto lg:mx-0 mb-8 leading-relaxed">
-              GrowthForge is the AI Growth Operating System that analyzes your business, discovers competitors, creates marketing assets, generates video campaigns, and helps businesses scale faster.
+              {region === "nigeria"
+                ? "GrowthForge Nigeria helps Nigerian businesses turn their website, Instagram, Facebook, TikTok, and WhatsApp presence into a practical growth system for leads, repeat customers, and stronger local visibility."
+                : "GrowthForge is the AI Growth Operating System that analyzes your business, discovers competitors, creates marketing assets, generates video campaigns, and helps businesses scale faster."}
             </motion.p>
             <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.3 }}
               className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-7">
@@ -669,9 +675,9 @@ export default function LandingPage() {
             </motion.div>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.55 }}
               className="flex flex-wrap items-center justify-center lg:justify-start gap-x-5 gap-y-2 text-sm text-white/40">
-              <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> No credit card required</span>
+              <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> {region === "nigeria" ? "Built for Nigerian businesses" : "No credit card required"}</span>
               <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> 7-day free trial</span>
-              <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> Cancel anytime</span>
+              <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#00E676]" /> {region === "nigeria" ? "Instagram, Facebook, TikTok & WhatsApp-first" : "Cancel anytime"}</span>
             </motion.div>
           </div>
           <motion.div initial={{ opacity: 0, y: 32, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }} className="relative">
@@ -1283,7 +1289,7 @@ export default function LandingPage() {
                 <Logo size={52} />
                 <span className="font-bold text-white">GrowthForge</span>
               </Link>
-              <p className="text-white/40 text-sm leading-relaxed max-w-xs">The AI Growth Operating System for ambitious businesses. Paste your URL. Get your marketing department.</p>
+              <p className="text-white/40 text-sm leading-relaxed max-w-xs">{region === "nigeria" ? "The AI growth platform for Nigerian businesses that need better visibility, stronger offers, and consistent customer acquisition across digital channels." : "The AI Growth Operating System for ambitious businesses. Paste your URL. Get your marketing department."}</p>
               <div className="mt-4 text-xs text-white/25">By Strapli Technologies Inc.</div>
             </div>
             {Object.entries(FOOTER_LINKS).map(([section, links]) => (

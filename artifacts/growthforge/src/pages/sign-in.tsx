@@ -6,6 +6,7 @@ import { Logo } from "@/components/ui/logo";
 import { PasswordInput } from "@/components/ui/password-input";
 import { authClient } from "@/lib/authClient";
 import { basePath } from "@/lib/basePath";
+import { getClientRegion } from "@/lib/region";
 
 const inputClasses =
   "w-full h-11 rounded-lg bg-[#0f2035] border border-[#1e3a5f] text-white placeholder:text-[#7a8fa6] px-3.5 text-sm outline-none focus:border-[#00E676] transition-colors";
@@ -30,6 +31,7 @@ function authRedirectAbsoluteUrl(redirectUrl: string | null): string {
 }
 
 export default function SignInPage() {
+  const region = getClientRegion();
   const [, setLocation] = useLocation();
   const search = useSearch();
   const redirectUrl = new URLSearchParams(search).get("redirect_url");

@@ -2,8 +2,10 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { Zap, ArrowLeft, Mail, MessageSquare, Clock, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { getClientRegion } from "@/lib/region";
 
 export default function ContactPage() {
+  const region = getClientRegion();
   const [step, setStep] = useState<"form" | "loading" | "done">("form");
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [aiResponse, setAiResponse] = useState<string>("");
@@ -25,7 +27,7 @@ export default function ContactPage() {
         throw new Error(body.error ?? "Something went wrong. Please try again.");
       }
       const data = await res.json() as { aiResponse?: string; escalated?: boolean };
-      setAiResponse(data.aiResponse ?? "We've received your message and will get back to you within 24 hours.");
+      setAiResponse(data.aiResponse ?? (region === "nigeria" ? "We've received your message and will get back to you within 24 hours with guidance relevant to your GrowthForge Nigeria account." : "We've received your message and will get back to you within 24 hours."));
       setEscalated(!!data.escalated);
       setStep("done");
     } catch (err) {
