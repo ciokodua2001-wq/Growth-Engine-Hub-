@@ -2,15 +2,18 @@
  * Nigeria onboarding journey - HTTP-level tests against the real Postgres
  * test DB (growthforge_nigeria_test), exercising the actual route chain for:
  *
- *   - trial assignment + prevention of trial resets
+ *   - trial assignment + prevention of trial resets (including expired trials)
  *   - onboarding save / resume / completion
  *   - reusing the existing business project (no duplicate rows)
  *   - persistence of business information (name, industry, description)
  *   - cross-user data isolation (ownership enforcement)
  *   - updating business info via the account-settings PATCH route
+ *   - the first AI marketing action (business analysis) for a trial account
  *
- * Only `getAuth` is stubbed (to a mutable user id) - the DB, drizzle, and the
- * real route handlers all run as in production.
+ * Only `getAuth` is stubbed (to a mutable user id) and the credential-heavy /
+ * external-network deps (AI generation, email, quota, content integrity, Meta
+ * retrieval) are mocked - the DB, drizzle, authz, and the real route handlers
+ * all run as in production.
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
@@ -34,23 +37,72 @@ vi.mock("../lib/supabaseAuth.js", () => ({
   supabaseAuthMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
+// ── Mock external/credential-heavy deps so the analysis route loads cleanly ──
+vi.mock("../lib/aiJson.js", () => ({
+  generateJson: async () => ({
+    industry: "Fashion and clothing",
+    businessSummary: "A Lagos fashion retailer selling ready-to-wear outfits.",
+    products: "Ready-to-wear outfits",
+    services: "Custom tailoring",
+    uniqueValueProposition: "Fast, affordable, on-trend pieces.",
+    targetCustomers: "Working women in Lagos aged 25-45",
+    idealCustomerProfile: "A busy Lagos professional who values convenience.",
+    customerPainPoints: "Limited time to shop; difficulty finding the right fit.",
+    brandVoice: "Warm, confident, fashion-forward.",
+    brandPositioning: "Affordable premium everyday fashion.",
+    customerBenefits: "Convenience, fit, and current style.",
+    purchaseTriggers: "New arrivals and seasonal promotions.",
+    marketOpportunities: "Online sales and Instagram discovery.",
+    growthOpportunities: "Grow Instagram and launch targeted ads.",
+  }),
+}));
+
+vi.mock("../lib/emailNotifier.js", () => ({
+  notifyAnalysisComplete: async () => {},
+  notifyPostAutoPublished: async () => {},
+  getOwnerEmailForProject: async () => null,
+  notifyScheduledEmailReady: async () => {},
+}));
+
+vi.mock("../lib/planLimits.js", () => ({
+  consumeQuota: async () => ({ allowed: true, message: "" }),
+  meetsMinPlan: () => true,
+  getQuotaRemaining: async () => 999,
+  PLAN_PROJECT_LIMITS: {},
+  currentPeriodStart: () => new Date(),
+}));
+
+vi.mock("../lib/contentIntegrity.js", () => ({
+  hashContent: () => "testhash",
+  recordGenerated: async () => {},
+  recordGeneratedBatch: async () => {},
+  recordAccessed: async () => {},
+}));
+
+vi.mock("../lib/metaProfileRetrieval.js", () => ({
+  retrieveMetaSourcesForProject: async () => [],
+}));
+
 let db: any;
 let usersTable: any;
 let projectsTable: any;
+let businessAnalysisTable: any;
 let app: express.Express;
 
 beforeAll(async () => {
-  ({ db, usersTable, projectsTable } = await import("@workspace/db"));
+  ({ db, usersTable, projectsTable, businessAnalysisTable } = await import("@workspace/db"));
 
   const authRouter = (await import("../routes/auth.js")).default;
   const onboardingRouter = (await import("../routes/onboarding.js")).default;
   const projectsRouter = (await import("../routes/projects.js")).default;
+  const analysisRouter = (await import("../routes/analysis.js")).default;
 
   app = express();
   app.use(express.json());
   app.use(authRouter);
   app.use(onboardingRouter);
   app.use(projectsRouter);
+  app.use(analysisRouter);
 });
 
 async function seedUser(id: string, overrides: Record<string, unknown> = {}) {
@@ -72,14 +124,14 @@ async function projectCountFor(userId: string) {
 
 beforeEach(async () => {
   await db.execute(
-    sql`TRUNCATE TABLE business_sources, creator_profiles, projects, users RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE TABLE analysis_sources, business_analysis, business_sources, creator_profiles, projects, users RESTART IDENTITY CASCADE`,
   );
   currentUser.id = USER_A;
 });
 
 afterAll(async () => {
   await db.execute(
-    sql`TRUNCATE TABLE business_sources, creator_profiles, projects, users RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE TABLE analysis_sources, business_analysis, business_sources, creator_profiles, projects, users RESTART IDENTITY CASCADE`,
   );
 });
 
@@ -104,7 +156,7 @@ describe("POST /auth/start-trial", () => {
     expect(new Date(user!.trialEndsAt!).getTime()).toBe(end);
   });
 
-  it("reuses an existing trial instead of resetting it", async () => {
+  it("reuses an existing (unexpired) trial instead of resetting it", async () => {
     const original = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
     await seedUser(USER_A, { plan: "trial", subscriptionStatus: "trial", trialEndsAt: original });
 
@@ -115,6 +167,19 @@ describe("POST /auth/start-trial", () => {
 
     const user = await getUser(USER_A);
     expect(new Date(user!.trialEndsAt!).getTime()).toBe(original.getTime());
+  });
+
+  it("does NOT restart an already-expired trial", async () => {
+    const expired = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000); // 10 days ago
+    await seedUser(USER_A, { plan: "trial", subscriptionStatus: "trial", trialEndsAt: expired });
+
+    const res = await request(app).post("/auth/start-trial").send({});
+    expect(res.status).toBe(200);
+    expect(res.body.reusedExistingTrial).toBe(true);
+    expect(new Date(res.body.trialEndsAt).getTime()).toBe(expired.getTime());
+
+    const user = await getUser(USER_A);
+    expect(new Date(user!.trialEndsAt!).getTime()).toBe(expired.getTime());
   });
 });
 
@@ -179,6 +244,18 @@ describe("POST /onboarding", () => {
     expect(second.body.project.industry).toBe("Retail and general trading");
   });
 
+  it("does NOT reset an expired trial when onboarding is called again", async () => {
+    const expired = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+    await seedUser(USER_A, { plan: "trial", subscriptionStatus: "trial", trialEndsAt: expired });
+
+    const res = await request(app).post("/onboarding").send(payload);
+    expect(res.status).toBe(200);
+
+    const user = await getUser(USER_A);
+    expect(new Date(user!.trialEndsAt!).getTime()).toBe(expired.getTime());
+    expect(res.body.user.trialEndsAt).toBe(expired.toISOString());
+  });
+
   it("requires a business name", async () => {
     await seedUser(USER_A);
     const res = await request(app).post("/onboarding").send({ ...payload, businessName: "   " });
@@ -188,7 +265,7 @@ describe("POST /onboarding", () => {
 });
 
 describe("GET /onboarding (resume)", () => {
-  it("returns previously saved onboarding state", async () => {
+  it("returns previously saved onboarding state without losing information", async () => {
     await seedUser(USER_A);
     const created = await request(app).post("/onboarding").send({
       businessName: "Abuja Realty",
@@ -208,8 +285,21 @@ describe("GET /onboarding (resume)", () => {
     expect(res.body.project.id).toBe(projectId);
     expect(res.body.project.name).toBe("Abuja Realty");
     expect(res.body.project.industry).toBe("Real estate");
+    expect(res.body.project.description).toContain("About: Affordable apartments in Abuja.");
+    expect(res.body.project.description).toContain("Customers: Young professionals");
+    expect(res.body.project.description).toContain("Goal: Increase online sales");
+    expect(res.body.project.description).toContain("Location: Wuse, Abuja");
     expect(res.body.user.onboardingComplete).toBe(true);
     expect(res.body.sources.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("returns a null project (no crash) for a user who never completed onboarding", async () => {
+    await seedUser(USER_A); // onboardingComplete defaults to false, no project
+    const res = await request(app).get("/onboarding");
+    expect(res.status).toBe(200);
+    expect(res.body.project).toBeNull();
+    expect(res.body.user.onboardingComplete).toBe(false);
+    expect(res.body.sources).toEqual([]);
   });
 });
 
@@ -238,6 +328,65 @@ describe("account settings - PATCH /projects/:id", () => {
   });
 });
 
+describe("first AI marketing action - POST /projects/:id/analyze", () => {
+  it("completes business analysis for an authenticated trial user", async () => {
+    await seedUser(USER_A, { plan: "trial", subscriptionStatus: "trial" });
+
+    const onboarded = await request(app).post("/onboarding").send({
+      businessName: "Ada Fashion House",
+      industry: "Fashion and clothing",
+      businessDescription: "Ready-to-wear outfits for busy working women.",
+      targetCustomers: "Working women in Lagos",
+      primaryGoal: "Get more customers",
+      sourceType: "manual",
+      declaredDescription: "Ready-to-wear outfits for working women in Lagos.",
+    });
+    expect(onboarded.status).toBe(200);
+    const projectId = onboarded.body.project.id;
+
+    const res = await request(app).post(`/projects/${projectId}/analyze`).send({
+      sourceType: "manual",
+      businessDescription: "Ready-to-wear outfits for working women in Lagos.",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("complete");
+    expect(res.body.industry).toBe("Fashion and clothing");
+    expect(res.body.businessSummary).toContain("Lagos fashion retailer");
+
+    // The analysis is persisted and linked to the project.
+    const [analysis] = await db
+      .select()
+      .from(businessAnalysisTable)
+      .where(eq(businessAnalysisTable.projectId, projectId));
+    expect(analysis.status).toBe("complete");
+    expect(analysis.industry).toBe("Fashion and clothing");
+  });
+
+  it("rejects analysis for a project the caller does not own", async () => {
+    await seedUser(USER_A, { plan: "trial", subscriptionStatus: "trial" });
+    const onboarded = await request(app).post("/onboarding").send({
+      businessName: "Owner A Business",
+      industry: "Digital services",
+      businessDescription: "Web design for SMEs.",
+      targetCustomers: "Nigerian SMEs",
+      primaryGoal: "Get more customers",
+      sourceType: "manual",
+      declaredDescription: "Web design for small businesses.",
+    });
+    const projectId = onboarded.body.project.id;
+
+    await seedUser(USER_B, { plan: "trial", subscriptionStatus: "trial" });
+    currentUser.id = USER_B;
+
+    const res = await request(app).post(`/projects/${projectId}/analyze`).send({
+      sourceType: "manual",
+      businessDescription: "Some business.",
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("cross-user data isolation", () => {
   it("prevents user B from reading or updating user A's project", async () => {
     await seedUser(USER_A);
@@ -251,7 +400,6 @@ describe("cross-user data isolation", () => {
     });
     const projectId = created.body.project.id;
 
-    // Switch the stubbed auth identity to user B.
     await seedUser(USER_B);
     currentUser.id = USER_B;
 
@@ -261,7 +409,6 @@ describe("cross-user data isolation", () => {
     const update = await request(app).patch(`/projects/${projectId}`).send({ name: "Hijacked" });
     expect(update.status).toBe(404);
 
-    // User B still cannot list user A's project.
     const list = await request(app).get("/projects");
     expect(list.status).toBe(200);
     expect(list.body.every((p: { id: number }) => p.id !== projectId)).toBe(true);
