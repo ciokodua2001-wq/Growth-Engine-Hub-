@@ -147,7 +147,11 @@ export default function OnboardingPage() {
   }, [trialEndsAt]);
 
   function canContinueFromBusiness() {
-    return businessName.trim().length > 1 && businessDescription.trim().length > 4 && targetCustomers.trim().length > 2;
+    return businessName.trim().length > 1 && businessDescription.trim().length > 4;
+  }
+
+  function canContinueFromCustomers() {
+    return targetCustomers.trim().length > 2;
   }
 
   function canContinueFromPresence() {
@@ -310,7 +314,7 @@ export default function OnboardingPage() {
                 </div>
                 <Field label="Business location (optional)" value={location} onChange={setBusinessLocation} placeholder="Example: Lekki, Lagos" />
               </div>
-              <NavRow onBack={() => { setError(""); setStep(1); }} onNext={() => canContinueFromBusiness() ? setStep(3) : setError("Please tell us who your customers are before continuing.")} nextLabel="Continue" />
+              <NavRow onBack={() => { setError(""); setStep(1); }} onNext={() => canContinueFromCustomers() ? setStep(3) : setError("Please tell us who your customers are before continuing.")} nextLabel="Continue" />
               {error && <ErrorBox msg={error} />}
             </motion.div>
           )}
