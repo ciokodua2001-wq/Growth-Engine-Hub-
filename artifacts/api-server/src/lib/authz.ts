@@ -75,17 +75,27 @@ export async function requireActiveSubscription(req: Request, res: Response, nex
   const userId = getAuth(req)?.userId;
   if (!userId) { next(); return; }
 
-  const [user] = await db.select({ subscriptionStatus: usersTable.subscriptionStatus, isOwner: usersTable.isOwner })
+  const [user] = await db.select({ subscriptionStatus: usersTable.subscriptionStatus, isOwner: usersTable.isOwner, trialEndsAt: usersTable.trialEndsAt })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
 
-  // Platform owner has unlimited access — bypass all subscription checks
+  // Platform owner has unlimited access - bypass all subscription checks
   if (user?.isOwner) { next(); return; }
 
-  if (user?.subscriptionStatus === "cancelled") {
+  // A 7-day trial ends at trialEndsAt; enforce that boundary lazily so an expired
+  // trial can no longer generate AI content (trial quota is a lifetime cap and does
+  // not itself time-box the trial).
+  const trialExpired =
+    user?.subscriptionStatus === "trial" &&
+    user?.trialEndsAt != null &&
+    user.trialEndsAt.getTime() <= Date.now();
+
+  if (user?.subscriptionStatus === "cancelled" || trialExpired) {
     res.status(403).json({
-      error: "subscription_cancelled",
-      message: "Your subscription has been cancelled. Your existing content remains available in read-only mode for 90 days. To generate new content, please reactivate your subscription.",
+      error: trialExpired ? "trial_expired" : "subscription_cancelled",
+      message: trialExpired
+        ? "Your free trial has ended. Upgrade to a plan to continue generating content."
+        : "Your subscription has been cancelled. Your existing content remains available in read-only mode for 90 days. To generate new content, please reactivate your subscription.",
     });
     return;
   }
