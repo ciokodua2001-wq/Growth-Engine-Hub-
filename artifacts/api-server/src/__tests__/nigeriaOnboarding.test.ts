@@ -414,3 +414,18 @@ describe("cross-user data isolation", () => {
     expect(list.body.every((p: { id: number }) => p.id !== projectId)).toBe(true);
   });
 });
+
+describe("authentication enforcement", () => {
+  it("returns 401 for protected routes when no user is authenticated", async () => {
+    await seedUser(USER_A);
+    currentUser.id = ""; // simulate no authenticated session
+
+    const onboarding = await request(app).post("/onboarding").send({ businessName: "No Auth" });
+    expect(onboarding.status).toBe(401);
+
+    const trial = await request(app).post("/auth/start-trial").send({});
+    expect(trial.status).toBe(401);
+
+    currentUser.id = USER_A; // restore
+  });
+});
