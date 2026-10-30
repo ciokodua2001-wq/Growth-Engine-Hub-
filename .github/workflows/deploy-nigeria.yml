@@ -38,10 +38,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Gate - refuse to deploy unless the pipeline is fully configured
-        if: vars.NIGERIA_CI_ENABLED != 'true' || secrets.NIGERIA_SSH_KEY == '' || secrets.NIGERIA_SSH_KNOWN_HOSTS == '' || secrets.NIGERIA_SSH_HOST == '' || secrets.NIGERIA_SSH_USER == ''
         run: |
-          echo "::error::Nigeria CI is not configured. Set NIGERIA_CI_ENABLED=true (repo variable) and the NIGERIA_SSH_* secrets, then re-run."
-          exit 1
+          if [ "${{ vars.NIGERIA_CI_ENABLED }}" != "true" ] || [ -z "${{ secrets.NIGERIA_SSH_KEY }}" ] || [ -z "${{ secrets.NIGERIA_SSH_KNOWN_HOSTS }}" ] || [ -z "${{ secrets.NIGERIA_SSH_HOST }}" ] || [ -z "${{ secrets.NIGERIA_SSH_USER }}" ]; then
+            echo "::error::Nigeria CI is not configured. Set NIGERIA_CI_ENABLED=true (repo variable) and the NIGERIA_SSH_* secrets, then re-run."
+            exit 1
+          fi
 
       - name: Load runner deploy key (private key from GitHub secret; never committed)
         uses: webfactory/ssh-agent@v0.9.1
