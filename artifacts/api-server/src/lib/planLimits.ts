@@ -119,8 +119,8 @@ export function meetsMinPlan(projectPlan: string, minPlan: string): boolean {
   const tiers = PLAN_TIER_ORDER as readonly string[];
   const projectIdx = tiers.indexOf(projectPlan);
   const minIdx = tiers.indexOf(minPlan);
-  if (minIdx === -1) return true;
-  if (projectIdx === -1) return true;
+  if (minIdx === -1) return false;   // unknown minPlan is a coding error - deny
+  if (projectIdx === -1) return false; // unknown plan receives no paid access
   return projectIdx >= minIdx;
 }
 
@@ -281,11 +281,11 @@ export async function getQuotaRemaining(
   return Math.max(0, limit - (row?.count ?? 0));
 }
 
-// Video minutes display was removed — Promotional Videos (video_blueprints) is the
+// Video minutes display was removed - Promotional Videos (video_blueprints) is the
 // public-facing metric. renderedVideoSecondsLimit always returns null (not displayed).
 
 /**
- * Returns quota usage for a project — used by the frontend to display
+ * Returns quota usage for a project - used by the frontend to display
  * usage bars and remaining quota.
  *
  * - trial projects: lifetime usage from trialUsageTable, limits from TRIAL_LIMITS
