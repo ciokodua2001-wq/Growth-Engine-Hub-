@@ -71,34 +71,70 @@ export async function loadAccessibleProject(
  * any attempt to generate new content returns 403 with a clear message.
  * Wire onto individual POST routes that cost AI quota.
  */
+const GRACE_WINDOW_MS = 72 * 60 * 60 * 1000; // 72 hours
+
 export async function requireActiveSubscription(req: Request, res: Response, next: NextFunction): Promise<void> {
   const userId = getAuth(req)?.userId;
   if (!userId) { next(); return; }
 
-  const [user] = await db.select({ subscriptionStatus: usersTable.subscriptionStatus, isOwner: usersTable.isOwner, trialEndsAt: usersTable.trialEndsAt })
+  const [user] = await db.select({
+    subscriptionStatus: usersTable.subscriptionStatus,
+    isOwner: usersTable.isOwner,
+    trialEndsAt: usersTable.trialEndsAt,
+    subscriptionPastDueSince: usersTable.subscriptionPastDueSince,
+  })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
 
   // Platform owner has unlimited access - bypass all subscription checks
   if (user?.isOwner) { next(); return; }
 
+  const status = user?.subscriptionStatus;
+
   // A 7-day trial ends at trialEndsAt; enforce that boundary lazily so an expired
   // trial can no longer generate AI content (trial quota is a lifetime cap and does
   // not itself time-box the trial).
   const trialExpired =
-    user?.subscriptionStatus === "trial" &&
+    status === "trial" &&
     user?.trialEndsAt != null &&
     user.trialEndsAt.getTime() <= Date.now();
 
-  if (user?.subscriptionStatus === "cancelled" || trialExpired) {
+  // Terminal / non-paying states block immediately (no grace).
+  const immediateBlock = status === "cancelled" || status === "unpaid" || status === "incomplete_expired";
+
+  // past_due: allow a 72-hour grace from the FIRST failure, then block.
+  const pastDueGraceExpired =
+    status === "past_due" &&
+    user?.subscriptionPastDueSince != null &&
+    Date.now() - user.subscriptionPastDueSince.getTime() > GRACE_WINDOW_MS;
+
+  if (trialExpired) {
     res.status(403).json({
-      error: trialExpired ? "trial_expired" : "subscription_cancelled",
-      message: trialExpired
-        ? "Your free trial has ended. Upgrade to a plan to continue generating content."
-        : "Your subscription has been cancelled. Your existing content remains available in read-only mode for 90 days. To generate new content, please reactivate your subscription.",
+      error: "trial_expired",
+      message: "Your free trial has ended. Upgrade to a plan to continue generating content.",
     });
     return;
   }
+
+  if (immediateBlock) {
+    const cancelled = status === "cancelled";
+    res.status(403).json({
+      error: cancelled ? "subscription_cancelled" : "payment_required",
+      message: cancelled
+        ? "Your subscription has been cancelled. Your existing content remains available in read-only mode for 90 days. To generate new content, please reactivate your subscription."
+        : "Your subscription payment could not be completed. Please update your payment method to restore access.",
+    });
+    return;
+  }
+
+  if (pastDueGraceExpired) {
+    res.status(403).json({
+      error: "payment_past_due",
+      message: "Your payment is past due. Please update your payment method to restore access.",
+    });
+    return;
+  }
+
   next();
 }
 

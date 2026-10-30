@@ -7,7 +7,11 @@ import { creditPurchasedSeconds, resetMonthlySecondsForUser } from "./lib/videoW
 
 type StripeEvent = {
   type: string;
-  data: { object: Record<string, unknown> };
+  created: number;
+  data: {
+    object: Record<string, unknown>;
+    previous_attributes?: Record<string, unknown>;
+  };
 };
 
 async function updateUserFromSubscriptionEvent(event: StripeEvent): Promise<void> {
@@ -24,9 +28,9 @@ async function updateUserFromSubscriptionEvent(event: StripeEvent): Promise<void
   if (event.type === "customer.subscription.deleted") {
     await db
       .update(usersTable)
-      .set({ subscriptionStatus: "cancelled", cancelledAt: new Date() })
+      .set({ subscriptionStatus: "cancelled", cancelledAt: new Date(), subscriptionPastDueSince: null })
       .where(eq(usersTable.stripeCustomerId, customerId));
-    logger.info({ customerId }, "Stripe: subscription deleted — user marked cancelled");
+    logger.info({ customerId }, "Stripe: subscription deleted - user marked cancelled");
     return;
   }
 
@@ -43,16 +47,29 @@ async function updateUserFromSubscriptionEvent(event: StripeEvent): Promise<void
   const plan     = metadata?.plan ?? "starter";
 
   const isActive = ["active", "trialing"].includes(sub.status);
+  const status   = isActive ? "active" : sub.status;
+  // Authoritative Stripe event timestamp (Unix seconds) for the grace window.
+  const eventTime = new Date((event.created || Math.floor(Date.now() / 1000)) * 1000);
+
+  // Record the FIRST time the subscription enters past_due. COALESCE keeps the
+  // earliest timestamp, so duplicate or re-delivered events cannot extend the
+  // grace period. Any non-past_due status (recovery or terminal) clears it.
+  const pastDueSince =
+    status === "past_due"
+      ? sql`COALESCE(${usersTable.subscriptionPastDueSince}, ${eventTime})`
+      : null;
+
   await db
     .update(usersTable)
     .set({
       plan,
-      subscriptionStatus:   isActive ? "active" : sub.status,
+      subscriptionStatus:   status,
       stripeSubscriptionId: sub.id,
+      subscriptionPastDueSince: pastDueSince,
     })
     .where(eq(usersTable.stripeCustomerId, customerId));
 
-  logger.info({ customerId, plan, stripeStatus: sub.status }, "Stripe: user plan synced from subscription event");
+  logger.info({ customerId, plan, stripeStatus: status }, "Stripe: user plan synced from subscription event");
 
   // Reset monthly video seconds on subscription renewal/upgrade
   if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.created") {
@@ -66,7 +83,7 @@ async function updateUserFromSubscriptionEvent(event: StripeEvent): Promise<void
         logger.info({ userId: user.id, plan }, "Monthly video seconds reset on subscription event");
       }
     } catch (err) {
-      logger.warn({ err, customerId }, "Failed to reset video wallet on subscription event — non-fatal");
+      logger.warn({ err, customerId }, "Failed to reset video wallet on subscription event - non-fatal");
     }
   }
 }
@@ -97,7 +114,7 @@ async function handleCheckoutCompleted(event: StripeEvent): Promise<void> {
   }
 
   if (session.payment_status !== "paid") {
-    logger.warn({ sessionId: session.id, paymentStatus: session.payment_status }, "checkout.session.completed but payment_status != paid — skipping");
+    logger.warn({ sessionId: session.id, paymentStatus: session.payment_status }, "checkout.session.completed but payment_status != paid - skipping");
     return;
   }
 

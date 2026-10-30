@@ -12,3 +12,9 @@
 
 ALTER TABLE "competitors" ADD COLUMN "superseded_at" timestamp with time zone;
 ALTER TABLE "personas"     ADD COLUMN "superseded_at" timestamp with time zone;
+
+-- Billing-integrity (global launch): failed-payment grace tracking + video-credit
+-- idempotency. Both additive/forward-only.
+ALTER TABLE "users" ADD COLUMN "subscription_past_due_since" timestamp with time zone;
+CREATE UNIQUE INDEX IF NOT EXISTS "video_second_logs_stripe_session_key"
+  ON "video_second_logs" ("stripe_session_id");

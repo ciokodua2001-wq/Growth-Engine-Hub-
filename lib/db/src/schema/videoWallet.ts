@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, real, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, real, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
 export const videoWalletsTable = pgTable("video_wallets", {
@@ -30,7 +30,12 @@ export const videoSecondLogsTable = pgTable("video_second_logs", {
   stripeSessionId:       text("stripe_session_id"),
   amountPaidUsd:         real("amount_paid_usd"),
   createdAt:             timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  // One idempotency record per Stripe checkout session. PostgreSQL unique
+  // indexes treat NULLs as distinct, so non-credit log rows (NULL session id)
+  // are unaffected.
+  uniqueIndex("video_second_logs_stripe_session_key").on(table.stripeSessionId),
+]);
 
 export const videoConfigTable = pgTable("video_config", {
   key:         text("key").primaryKey(),

@@ -159,7 +159,7 @@ export async function deductVideoSeconds(
       .where(eq(videoWalletsTable.userId, userId));
 
     if (!row) {
-      logger.warn({ userId, videoId }, "No wallet found for deduction — skipping");
+      logger.warn({ userId, videoId }, "No wallet found for deduction - skipping");
       return;
     }
 
@@ -207,35 +207,63 @@ export async function creditPurchasedSeconds(
 ): Promise<VideoWalletBalance> {
   await getOrCreateWallet(userId, plan);
 
-  const [updated] = await db
-    .update(videoWalletsTable)
-    .set({
-      purchasedVideoSeconds: sql`purchased_video_seconds + ${seconds}`,
-      totalPurchasedSeconds: sql`total_purchased_seconds + ${seconds}`,
-      updatedAt: new Date(),
-    })
-    .where(eq(videoWalletsTable.userId, userId))
-    .returning();
+  const result = await db.transaction(async (tx) => {
+    // Idempotency record first: the unique index on stripe_session_id serializes
+    // concurrent deliveries and rejects duplicates atomically.
+    const inserted = await tx
+      .insert(videoSecondLogsTable)
+      .values({
+        userId,
+        type:                "purchased_credit",
+        secondsChanged:      0,
+        fromMonthly:         0,
+        fromPurchased:       0,
+        newMonthlyBalance:   0,
+        newPurchasedBalance: 0,
+        description:         "purchasing video credit",
+        stripeSessionId,
+        amountPaidUsd,
+      })
+      .onConflictDoNothing()
+      .returning({ id: videoSecondLogsTable.id });
 
-  if (!updated) throw new Error(`Wallet not found for user ${userId}`);
+    // Already processed (duplicate or concurrent delivery) - no additional credit.
+    if (inserted.length === 0) return { duplicate: true as const };
 
-  const newMonthlyBalance = Math.max(0, updated.monthlyVideoSeconds - updated.monthlySecondsUsed);
+    const [updated] = await tx
+      .update(videoWalletsTable)
+      .set({
+        purchasedVideoSeconds: sql`purchased_video_seconds + ${seconds}`,
+        totalPurchasedSeconds: sql`total_purchased_seconds + ${seconds}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(videoWalletsTable.userId, userId))
+      .returning();
 
-  await db.insert(videoSecondLogsTable).values({
-    userId,
-    type:               "purchased_credit",
-    secondsChanged:     seconds,
-    fromMonthly:        0,
-    fromPurchased:      0,
-    newMonthlyBalance,
-    newPurchasedBalance: updated.purchasedVideoSeconds,
-    description:        `Purchased ${seconds}s video credit`,
-    stripeSessionId,
-    amountPaidUsd,
+    if (!updated) throw new Error(`Wallet not found for user ${userId}`);
+
+    const newMonthlyBalance = Math.max(0, updated.monthlyVideoSeconds - updated.monthlySecondsUsed);
+
+    await tx
+      .update(videoSecondLogsTable)
+      .set({
+        secondsChanged:      seconds,
+        newMonthlyBalance,
+        newPurchasedBalance: updated.purchasedVideoSeconds,
+        description:         `Purchased ${seconds}s video credit`,
+      })
+      .where(eq(videoSecondLogsTable.id, inserted[0].id));
+
+    return { duplicate: false as const, balance: toBalance(updated) };
   });
 
+  if (result.duplicate) {
+    logger.info({ userId, stripeSessionId }, "Duplicate video-credit checkout ignored (already processed)");
+    return getOrCreateWallet(userId, plan);
+  }
+
   logger.info({ userId, seconds, stripeSessionId }, "Purchased video seconds credited");
-  return toBalance(updated);
+  return result.balance;
 }
 
 export async function giftVideoSeconds(
