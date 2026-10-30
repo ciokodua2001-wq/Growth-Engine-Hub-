@@ -15,7 +15,7 @@ router.post("/projects/:id/images/generate", requireActiveSubscription, async (r
   const userId = requireUserId(req, res);
   if (!userId) return;
 
-  const projectId = parseInt(req.params.id, 10);
+  const projectId = parseInt(req.params.id as string, 10);
   if (isNaN(projectId)) {
     res.status(400).json({ error: "Invalid project ID" });
     return;
