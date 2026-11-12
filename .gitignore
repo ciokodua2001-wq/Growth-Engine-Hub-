@@ -56,3 +56,4 @@ Thumbs.db
 
 # Local Dev Toolbox marker (not secret, just local bookkeeping)
 .toolbox-project
+.strapli/
