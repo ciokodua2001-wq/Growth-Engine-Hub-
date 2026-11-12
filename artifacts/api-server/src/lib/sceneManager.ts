@@ -1002,14 +1002,18 @@ Generate exactly ${targetSceneCount} scenes. Make every scene visually distinct 
 
     logger.info({ videoId: video.id }, "[SceneManager] Calling Claude for scene decomposition");
 
-    const result = await generateJson<AIDecompositionResult>({
+    const result = await generateJson<AIDecompositionResult | AISceneDescriptor[]>({
       system: systemPrompt,
       prompt: userPrompt,
       maxTokens: 4096,
       label: `scene decomposition - video #${video.id}`,
     });
 
-    if (!Array.isArray(result.scenes) || result.scenes.length === 0) {
+    // The prompt asks for {"scenes": [...]}, but with responseMimeType set the
+    // model sometimes returns the bare array. Accept both shapes — rejecting a
+    // usable response here turned it into a customer-facing 500.
+    const scenesList = Array.isArray(result) ? result : result?.scenes;
+    if (!Array.isArray(scenesList) || scenesList.length === 0) {
       throw new Error("AI returned empty scenes array");
     }
 
@@ -1017,12 +1021,12 @@ Generate exactly ${targetSceneCount} scenes. Make every scene visually distinct 
     // For counts != 6, COMMERCIAL_SCENE_STRUCTURE may not have an entry at index i;
     // fall back to reasonable defaults so the record is always valid.
     const knownTypes: CommercialSceneType[] = ["hook", "problem", "solution", "benefits", "proof", "cta"];
-    return result.scenes.map((s, i) => ({
+    return scenesList.map((s, i) => ({
       ...s,
       sceneIndex: i,
       sceneType: knownTypes.includes(s.sceneType as CommercialSceneType)
         ? (s.sceneType as CommercialSceneType)
-        : (COMMERCIAL_SCENE_STRUCTURE[i]?.type ?? (i === 0 ? "hook" : i === result.scenes.length - 1 ? "cta" : "solution")),
+        : (COMMERCIAL_SCENE_STRUCTURE[i]?.type ?? (i === 0 ? "hook" : i === scenesList.length - 1 ? "cta" : "solution")),
       sceneName: s.sceneName || COMMERCIAL_SCENE_STRUCTURE[i]?.name || `Scene ${i + 1}`,
     }));
   }

@@ -38,6 +38,22 @@ function extractJsonBlock(text: string): string {
   const openFence = text.match(/^```(?:json)?\s*([\s\S]*)/i);
   const candidate = openFence ? openFence[1] : text;
 
+  // Case 2b: the model is asked for `responseMimeType: application/json`, so it
+  // usually returns a complete JSON document — an OBJECT or a top-level ARRAY.
+  // If the whole candidate parses, hand it back untouched. Slicing to the
+  // outermost { … } (Case 3) CORRUPTS arrays: it strips the enclosing brackets
+  // and concatenates the elements (`{…}, {…}`), which then fails JSON.parse and
+  // surfaced as "AI response was not valid JSON" during scene decomposition.
+  const trimmed = candidate.trim();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      JSON.parse(trimmed);
+      return trimmed;
+    } catch {
+      // fall through to the defensive brace-slice recovery below
+    }
+  }
+
   // Case 3: locate the outermost { … } in whatever we have.
   const firstBrace = candidate.indexOf("{");
   const lastBrace  = candidate.lastIndexOf("}");
