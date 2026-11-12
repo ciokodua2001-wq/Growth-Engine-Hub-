@@ -1,5 +1,9 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import pino from "pino";
 import { objectStorageClient, signObjectURL } from "./objectStorage.js";
+import { extractLastFramePng } from "./wanFfmpeg.js";
 import { db, klingSceneJobsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -26,6 +30,12 @@ export interface OmniSceneRenderResult {
   videoUrl: string;
   durationSec: number;
   providerTaskId: string;
+  /**
+   * Signed URL of this clip's final frame, stored for the NEXT scene when that
+   * scene is a continuity (newSceneCut=false) shot. Mirrors VeoRenderer —
+   * without it, Omni could never enter its image-conditioned path.
+   */
+  lastFrameUrl?: string;
 }
 
 interface InteractionContent {
@@ -224,6 +234,19 @@ async function downloadVideo(uri: string): Promise<Buffer> {
   return bytes;
 }
 
+async function storeLastFramePng(localPngPath: string, videoId: number, sceneIndex: number): Promise<string> {
+  const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+  if (!bucketId) throw new Error("DEFAULT_OBJECT_STORAGE_BUCKET_ID not set");
+
+  const buffer = fs.readFileSync(localPngPath);
+  const objectName = `renders/omni/video-${videoId}-scene-${sceneIndex}-lastframe.png`;
+  await objectStorageClient.bucket(bucketId).file(objectName).save(buffer, { metadata: { contentType: "image/png" } });
+
+  // 24h: a continuity scene can be submitted minutes (or, after a failure,
+  // hours) later, and the source frame must still resolve when it is.
+  return signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 86_400 });
+}
+
 async function storeSceneMp4(bytes: Buffer, videoId: number, sceneIndex: number): Promise<string> {
   const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
   if (!bucketId) throw new Error("DEFAULT_OBJECT_STORAGE_BUCKET_ID not set");
@@ -254,7 +277,10 @@ export class OmniRenderer {
     interactionId: string,
     completedResponse?: InteractionResponse,
   ): Promise<OmniSceneRenderResult> {
-    logger.info({ sceneJobId: request.sceneJobId, interactionId }, "[OmniRenderer] Waiting for native-audio video generation");
+    logger.info(
+      { sceneJobId: request.sceneJobId, interactionId, mode: request.newSceneCut ? "T2V" : "I2V" },
+      "[OmniRenderer] Waiting for native-audio video generation",
+    );
     const response = completedResponse ?? await pollInteraction(interactionId);
     if (response.model && response.model !== MODEL_ID) {
       throw new Error(`Gemini returned unexpected model ${response.model}; expected ${MODEL_ID}`);
@@ -263,7 +289,23 @@ export class OmniRenderer {
     const bytes = typeof video === "string" ? await downloadVideo(video) : video;
     const videoUrl = await storeSceneMp4(bytes, request.videoId, request.sceneIndex);
     logger.info({ sceneJobId: request.sceneJobId, interactionId, bytes: bytes.length, videoUrl }, "[OmniRenderer] Native-audio MP4 stored");
-    return { videoUrl, durationSec: OMNI_SCENE_DURATION_SEC, providerTaskId: interactionId };
+
+    let lastFrameUrl: string | undefined;
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "omni-scene-"));
+    try {
+      const mp4Path = path.join(tmpDir, "scene.mp4");
+      const framePath = path.join(tmpDir, "lastframe.png");
+      fs.writeFileSync(mp4Path, bytes);
+      await extractLastFramePng(mp4Path, framePath);
+      lastFrameUrl = await storeLastFramePng(framePath, request.videoId, request.sceneIndex);
+    } catch (err) {
+      // Non-fatal: only a future continuity scene loses its source frame.
+      logger.warn({ err, sceneJobId: request.sceneJobId }, "[OmniRenderer] Last-frame extraction failed (non-fatal)");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+
+    return { videoUrl, durationSec: OMNI_SCENE_DURATION_SEC, providerTaskId: interactionId, lastFrameUrl };
   }
 }
 

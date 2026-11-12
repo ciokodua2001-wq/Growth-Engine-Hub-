@@ -639,7 +639,27 @@ export class SceneManager {
       await db.update(klingSceneJobsTable)
         .set({ status: "succeed", videoUrl: result.videoUrl, durationSec: result.durationSec, updatedAt: new Date() })
         .where(eq(klingSceneJobsTable.id, scene.id));
-      logger.info({ sceneJobId: scene.id, interactionId: result.providerTaskId }, "[SceneManager] Scene rendered via Gemini Omni");
+
+      // Feed this clip's last frame forward so the NEXT scene can render as a
+      // continuity (I2V) shot. Kling and Veo already do this; Omni must match,
+      // otherwise the image-conditioned branch of OmniRenderer is unreachable.
+      if (result.lastFrameUrl) {
+        await db
+          .update(klingSceneJobsTable)
+          .set({ sourceFrameUrl: result.lastFrameUrl, updatedAt: new Date() })
+          .where(
+            and(
+              eq(klingSceneJobsTable.videoId, scene.videoId),
+              eq(klingSceneJobsTable.sceneIndex, scene.sceneIndex + 1),
+              eq(klingSceneJobsTable.newSceneCut, false),
+            ),
+          );
+      }
+
+      logger.info(
+        { sceneJobId: scene.id, interactionId: result.providerTaskId, hasLastFrame: Boolean(result.lastFrameUrl) },
+        "[SceneManager] Scene rendered via Gemini Omni",
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error({ err: message, sceneJobId: scene.id }, "[SceneManager] Gemini Omni render failed - marking scene failed (no provider fallback)");
