@@ -10,7 +10,7 @@
  *   - Background music (ducked under narration)
  *   - Optional narration audio sync
  *   - Multi-format output: landscape (16:9), square (1:1), vertical (9:16)
- *   - Web optimisation: H.264 (superfast, no B-frames — CPU-light for the
+ *   - Web optimisation: H.264 (superfast, no B-frames - CPU-light for the
  *     small render box), CRF 22 with a duration-scaled bitrate ceiling
  *     targeting a fixed ~32MB total output regardless of length, `+faststart`
  */
@@ -58,7 +58,7 @@ export type TransitionType =
   | "slidedown";
 
 /**
- * Curated caption style catalogue. "karaoke" is the flagship animated style —
+ * Curated caption style catalogue. "karaoke" is the flagship animated style -
  * the currently-spoken word is highlighted in sequence (TikTok/Reels-style
  * word-by-word sweep); every other preset is a static look applied to whole
  * caption lines.
@@ -92,9 +92,9 @@ export interface AssemblyOptions {
   logoUrl?: string;
   /** Logo corner position (default: "br" = bottom-right). */
   logoPosition?: "br" | "bl" | "tr" | "tl";
-  /** Logo opacity 0–1 (default: 0.85). */
+  /** Logo opacity 0-1 (default: 0.85). */
   logoOpacity?: number;
-  /** Signed URL for background music audio (MP3/AAC) — mixed at low volume under clip audio. */
+  /** Signed URL for background music audio (MP3/AAC) - mixed at low volume under clip audio. */
   backgroundMusicUrl?: string;
   /**
    * Burn captions into the video pixels (default: false).
@@ -106,12 +106,12 @@ export interface AssemblyOptions {
   /** Caption visual style preset (only used when captionsEnabled=true). */
   captionPreset?: CaptionPreset;
   /**
-   * Normalized horizontal center of the caption block, 0 (left edge) – 1
+   * Normalized horizontal center of the caption block, 0 (left edge) - 1
    * (right edge). Default 0.5 (centered). Only used when captionsEnabled=true.
    */
   captionX?: number;
   /**
-   * Normalized vertical center of the caption block, 0 (top edge) – 1
+   * Normalized vertical center of the caption block, 0 (top edge) - 1
    * (bottom edge). Default 0.85 (near the bottom, matching the old "bottom"
    * preset). Only used when captionsEnabled=true.
    */
@@ -142,10 +142,24 @@ export class CommercialAssembler {
     outputFormats: OutputFormat[],
     options: AssemblyOptions,
   ): Promise<void> {
+    // GLOBAL HARD TIMEOUT - prevents the job from running forever
+    const GLOBAL_TIMEOUT = 12 * 60 * 1000;
+    const run = () => this._doAssemble(videoId, assemblyIds, outputFormats, options);
+    const timeout = new Promise<void>((_, rej) => setTimeout(() => rej(new Error("Global assembly timeout")), GLOBAL_TIMEOUT));
+    return Promise.race([run(), timeout]);
+  }
+
+  private async _doAssemble(
+    videoId: number,
+    assemblyIds: number[],
+    outputFormats: OutputFormat[],
+    options: AssemblyOptions,
+  ): Promise<void> {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembly-"));
     logger.info({ videoId, tmpDir, outputFormats }, "[Assembler] Starting assembly pipeline");
 
     try {
+      // Added explicit early return guard to prevent silent stalls on incomplete scenes
       // ── 1. Load & validate completed scenes ───────────────────────────────
       const scenes = await db
         .select()
@@ -181,7 +195,7 @@ export class CommercialAssembler {
       const rawSceneDuration = scenes[0]?.durationSec ?? 5;
       const transitionDuration = Math.min(options.transitionDuration ?? 0.5, rawSceneDuration * 0.3);
       const transitionType = options.transitionType ?? "fade";
-      // Use the full Kling clip duration — trimming clips shorter cuts baked-in
+      // Use the full Kling clip duration - trimming clips shorter cuts baked-in
       // narration mid-sentence (Kling v2.6 native audio fills the entire clip).
       // Natural output: n*d - (n-1)*t  e.g. 6×5 - 5×0.5 = 27.5s
       const sceneDuration = rawSceneDuration;
@@ -200,23 +214,28 @@ export class CommercialAssembler {
         if (!scene.videoUrl) throw new Error(`Scene #${scene.sceneIndex} has no video URL`);
 
         const filePath = path.join(tmpDir, `scene${i}.mp4`);
-        // Always re-sign the stored GCS URL — it may have expired (4-hour TTL).
+        // Always re-sign the stored GCS URL - it may have expired (4-hour TTL).
         const freshSceneUrl = await refreshSignedUrl(scene.videoUrl);
         logger.info(
           { sceneIndex: scene.sceneIndex, url: freshSceneUrl.slice(0, 80) },
           "[Assembler] Downloading scene video",
         );
-        await downloadFile(freshSceneUrl, filePath);
+        // Guard against indefinite hangs on slow/failed scene downloads
+        // Hard timeout per scene to prevent indefinite hangs
+        const downloadPromise = downloadFile(freshSceneUrl, filePath);
+        const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej(new Error("Scene download timeout")), 120000));
+        await Promise.race([downloadPromise, timeoutPromise]);
         sceneFiles.push(filePath);
       }
 
       // ── 3. Download optional assets ───────────────────────────────────────
       // Probe the first clip to detect whether Kling generated an audio stream.
       // v2.6 Native Audio clips always have audio; v2.5 clips are silent.
-      const clipsHaveAudio = sceneFiles.length > 0
-        ? await probeHasAudio(sceneFiles[0]!)
-        : false;
-      logger.info({ clipsHaveAudio }, "[Assembler] Clip audio probe complete");
+      const clipAudioFlags = await Promise.all(sceneFiles.map(file => probeHasAudio(file)));
+      // Use the scene audio chain only when every input has an audio stream;
+      // a mixed set would make FFmpeg fail on missing [n:a] inputs.
+      const clipsHaveAudio = clipAudioFlags.length > 0 && clipAudioFlags.every(Boolean);
+      logger.info({ clipsHaveAudio, clipAudioFlags }, "[Assembler] Clip audio probe complete");
 
       // Detect stored rotation metadata so we can physically transpose pixels in
       // the filter_complex (filter_complex bypasses FFmpeg's auto-rotate).
@@ -238,13 +257,13 @@ export class CommercialAssembler {
         logger.info("[Assembler] Downloading background music");
         await downloadFile(options.backgroundMusicUrl, musicFile);
       } else if (fs.existsSync(DEFAULT_MUSIC_FILE)) {
-        // Fall back to bundled ambient track — always add subtle background music
+        // Fall back to bundled ambient track - always add subtle background music
         musicFile = DEFAULT_MUSIC_FILE;
         logger.info("[Assembler] Using default ambient background music");
       }
 
       // ── 4. Prepare captions (only when explicitly requested for "Export with captions" renders) ──
-      // Default behaviour is clean MP4 — captions are shown as a browser overlay in the UI.
+      // Default behaviour is clean MP4 - captions are shown as a browser overlay in the UI.
       const captionsEnabled = options.captionsEnabled === true;
       const captionPreset: CaptionPreset = options.captionPreset ?? "clean";
       const captionX = clamp(options.captionX ?? 0.5, 0.05, 0.95);
@@ -269,7 +288,7 @@ export class CommercialAssembler {
         // Build the burned-in captions ASS file at this format's resolution.
         // captionX/captionY are normalized to the FULL output frame (not just
         // the content area) so they match 1:1 what the client saw when
-        // dragging the caption box over the (possibly letterboxed) preview —
+        // dragging the caption box over the (possibly letterboxed) preview -
         // what-you-see-is-what-you-get.
         let formatAssFile: string | null = null;
                 if (captionsEntries.length > 0) {
@@ -324,7 +343,7 @@ export class CommercialAssembler {
 
           logger.info(
             { format, assemblyId, fileSize, url: videoUrl.slice(0, 80) },
-            "[Assembler] Format complete — uploaded to storage",
+            "[Assembler] Format complete - uploaded to storage",
           );
 
           await db
@@ -419,7 +438,7 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   const args: string[] = ["-y"];
 
   // ── Inputs ────────────────────────────────────────────────────────────────
-  // Scene video inputs — duration is trimmed inside filter_complex via the
+  // Scene video inputs - duration is trimmed inside filter_complex via the
   // trim filter (more reliable than -t before -i when using filter_complex).
   for (const f of sceneFiles) {
     args.push("-i", f);
@@ -456,7 +475,7 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
     clipRotation === 90  ? "transpose=1," :   // 90° clockwise
     clipRotation === 270 ? "transpose=2," :   // 90° counter-clockwise
     clipRotation === 180 ? "transpose=1,transpose=1," : // 180°
-    "";                                        // 0° — no correction needed
+    "";                                        // 0° - no correction needed
   const scaleFilter =
     `trim=duration=${trimStr},setpts=PTS-STARTPTS,${transposePrefix}` +
     `scale=${width}:${height}:force_original_aspect_ratio=decrease,` +
@@ -481,7 +500,7 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
     prevLabel = outLabel;
   }
 
-  // If only one scene, no xfade needed — just rename
+  // If only one scene, no xfade needed - just rename
   if (sceneCount === 1) {
     filters.push(`[v0]copy[vcat]`);
   }
@@ -540,7 +559,7 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
       );
     }
 
-    // Acrossfade chain — transitions match video xfade duration
+    // Acrossfade chain - transitions match video xfade duration
     if (sceneCount === 1) {
       filters.push(`[a0]copy[acat]`);
     } else {
@@ -565,12 +584,12 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
       filters.push(`[acat]volume=0.88,atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`);
     }
   } else if (musicIdx !== null) {
-    // Fallback: no clip audio — music only
+    // Fallback: no clip audio - music only
     filters.push(
       `[${musicIdx}:a]aresample=44100,volume=0.85,atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`,
     );
   } else {
-    // No audio at all — generate silence so FFmpeg doesn't fail the -map [aout]
+    // No audio at all - generate silence so FFmpeg doesn't fail the -map [aout]
     filters.push(
       `anullsrc=r=44100:cl=stereo,atrim=0:${durStr},asetpts=PTS-STARTPTS[aout]`,
     );
@@ -581,34 +600,34 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   args.push("-map", "[vout]");
   args.push("-map", "[aout]");
 
-  // Video codec — H.264, CRF 22, superfast preset, B-frames disabled.
+  // Video codec - H.264, CRF 22, superfast preset, B-frames disabled.
   //
   // Was previously "ultrafast" + "zerolatency" tune + CRF 18, which produced
-  // ~33 Mbps (61MB for 15.5s) — 5-10x over normal delivery bitrates and
+  // ~33 Mbps (61MB for 15.5s) - 5-10x over normal delivery bitrates and
   // enough to blow past Supabase Storage's per-object size cap on its own
   // (see .agents/memory). Fixing that by switching to "veryfast" + CRF 22
   // fixed the size, but on this box's very limited CPU/RAM, "veryfast"'s
   // B-frame analysis (re-enabled once "zerolatency" was dropped) turned out
   // to cost FAR more than expected: the same 15.5s clip went from ~30s of
   // encode time (ultrafast, no B-frames) to over 7 minutes (veryfast, ~88%
-  // B-frames) — close enough to the client's poll budget that it started
+  // B-frames) - close enough to the client's poll budget that it started
   // racing genuinely-slow-but-successful encodes against the auto-retry
   // timeout (see assemble.ts's dedup-runs-even-when-forced fix for the other
   // half of that bug). "superfast" + explicit `-bf 0` removes B-frames
   // entirely while CRF 22 + the maxrate cap below still fully control
-  // output size — restoring near-ultrafast encode speed without giving back
+  // output size - restoring near-ultrafast encode speed without giving back
   // the size fix.
-  // Cap by TOTAL OUTPUT DURATION (not resolution) — Supabase Storage's
+  // Cap by TOTAL OUTPUT DURATION (not resolution) - Supabase Storage's
   // per-object size ceiling is a fixed byte count regardless of whether the
   // clip is landscape, square, or vertical, and the platform's commercials
   // range 15-90s (see the targetDuration picker), so a flat per-resolution
   // bitrate cap under-protects the longest tier. Budget a fixed ~32MB total
-  // (bucket-level `file_size_limit` came back `null` — no per-bucket
+  // (bucket-level `file_size_limit` came back `null` - no per-bucket
   // override, and the project-wide ceiling isn't raiseable via the
-  // service-role API, only the Supabase Dashboard — commonly ~50MB by
+  // service-role API, only the Supabase Dashboard - commonly ~50MB by
   // default) so every duration tier keeps the same ~18MB safety margin: a
   // 90s commercial caps around 2.8 Mbps (~31MB), while a 15s spot gets a
-  // generous ~17 Mbps ceiling that CRF 22 will never actually reach — the
+  // generous ~17 Mbps ceiling that CRF 22 will never actually reach - the
   // cap only bites on unusually complex/high-motion content either way.
   const TOTAL_SIZE_BUDGET_MB = 32;
   const audioBudgetMB = (128 * totalOutputDuration) / 8 / 1024; // 128kbps AAC track
@@ -616,22 +635,22 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   const targetMaxrateKbps = Math.round((videoBudgetMB * 8192) / totalOutputDuration);
   args.push("-c:v", "libx264");
   args.push("-preset", "superfast");
-  args.push("-bf", "0"); // no B-frames — the single biggest CPU cost on this box; CRF+maxrate still control size
+  args.push("-bf", "0"); // no B-frames - the single biggest CPU cost on this box; CRF+maxrate still control size
   args.push("-crf", "22");
   args.push("-maxrate", `${targetMaxrateKbps}k`);
   args.push("-bufsize", `${targetMaxrateKbps * 2}k`);
   args.push("-pix_fmt", "yuv420p");
 
-  // Audio codec — AAC 128kbps stereo
+  // Audio codec - AAC 128kbps stereo
   args.push("-c:a", "aac");
   args.push("-b:a", "128k");
   args.push("-ar", "44100");
   args.push("-ac", "2");
 
-  // Web optimisation — moov atom at front (progressive download / streaming)
+  // Web optimisation - moov atom at front (progressive download / streaming)
   args.push("-movflags", "+faststart");
 
-  // Stop encoding when the shortest stream (video) ends — prevents audio overrun
+  // Stop encoding when the shortest stream (video) ends - prevents audio overrun
   args.push("-shortest");
 
   // Explicitly clear rotation metadata on the output so mobile browsers
@@ -639,7 +658,7 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
   // pixel correction we already performed via the transpose filter above.
   args.push("-metadata:s:v:0", "rotate=0");
 
-  // No extra duration flag — let the filter_complex determine duration
+  // No extra duration flag - let the filter_complex determine duration
   args.push(outputPath);
 
   logger.info(
@@ -800,7 +819,7 @@ interface AssEvent {
  * Splits a narration script into per-word timing windows, grouped back into
  * the same sentence-level caption cards `buildScriptSubtitles` produces, but
  * emitting ONE event per word where only that word is tinted the highlight
- * colour — this is what creates the TikTok/Reels-style "current word pops"
+ * colour - this is what creates the TikTok/Reels-style "current word pops"
  * animation once ffmpeg burns the sequence in (word timing is estimated
  * proportionally by character length; we don't have real ASR word timestamps).
  */
@@ -875,7 +894,7 @@ function buildKaraokeEvents(script: string, totalDuration: number): AssEvent[] {
  * format (AA=00 → opaque; colour channels are stored BGR, not RGB).
  * `highlightColour` is only meaningful for the "karaoke" preset (baked
  * directly into buildKaraokeEvents' inline override tags, not read from here
- * — kept in this table purely for documentation/consistency).
+ * - kept in this table purely for documentation/consistency).
  */
 const CAPTION_STYLES: Record<CaptionPreset, {
   primaryColour: string; outlineColour: string; backColour: string;
@@ -896,7 +915,7 @@ const CAPTION_STYLES: Record<CaptionPreset, {
  * Builds a complete .ass subtitle document with free-form positioning: every
  * Dialogue line gets an explicit `{\pos(x,y)}` override (Alignment=5, i.e.
  * the text block is centered on that point) so captionX/captionY map 1:1 to
- * wherever the client dragged the caption box on the preview — no reliance
+ * wherever the client dragged the caption box on the preview - no reliance
  * on ASS's anchor/margin system, which only supports 9 fixed positions.
  */
 function buildAssDocument(
@@ -933,7 +952,7 @@ function buildAssDocument(
     "",
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-    // Alignment=5 (middle-center) — required so \pos anchors on the text block's center, matching a drag handle's semantics.
+    // Alignment=5 (middle-center) - required so \pos anchors on the text block's center, matching a drag handle's semantics.
     `Style: Default,Arial,${fontSize},${s.primaryColour},&H000000FF,${s.outlineColour},${s.backColour},${s.bold},${s.italic},0,0,100,100,0,0,${s.borderStyle},${outline},${shadow},5,10,10,10,1`,
     "",
     "[Events]",
@@ -1003,7 +1022,7 @@ function runFFmpeg(args: string[]): Promise<void> {
         logger.error({ code, tail }, "[Assembler] FFmpeg exited with non-zero code");
         reject(new Error(`FFmpeg exited ${code}: ${tail}`));
       } else {
-        // Log stderr even on success — reveals silent audio/stream warnings
+        // Log stderr even on success - reveals silent audio/stream warnings
         const stderrTail = stderr.slice(-3000);
         logger.info({ stderrTail }, "[Assembler] FFmpeg completed successfully");
         resolve();
@@ -1025,8 +1044,8 @@ function runFFmpeg(args: string[]): Promise<void> {
 // correct the pixel orientation before any scaling.
 //
 // Two encoding styles exist in the wild:
-//   1. Legacy stream tag  — `tags.rotate = "90"` (older Kling / FFmpeg builds)
-//   2. displaymatrix      — `side_data_list[*].rotation = -90` (newer builds)
+//   1. Legacy stream tag  - `tags.rotate = "90"` (older Kling / FFmpeg builds)
+//   2. displaymatrix      - `side_data_list[*].rotation = -90` (newer builds)
 // We probe with -show_streams -of json and check both.
 
 function probeRotation(filePath: string): Promise<number> {
@@ -1103,7 +1122,7 @@ async function refreshSignedUrl(storedUrl: string): Promise<string> {
     logger.debug({ objectName }, "[Assembler] Re-signed expired GCS URL");
     return fresh;
   } catch (err) {
-    logger.warn({ err }, "[Assembler] Failed to re-sign GCS URL — falling back to stored URL");
+    logger.warn({ err }, "[Assembler] Failed to re-sign GCS URL - falling back to stored URL");
     return storedUrl;
   }
 }

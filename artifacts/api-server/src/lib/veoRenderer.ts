@@ -9,12 +9,12 @@ import { eq } from "drizzle-orm";
 
 const logger = pino({ name: "veoRenderer" });
 
-// ── Google Veo 3.1 Lite — managed, native-audio video generation ────────────
+// ── Google Veo 3.1 Lite - managed, native-audio video generation ────────────
 // Chosen after a side-by-side production-brief comparison against Veo 3.1
 // Fast and the existing Kling v2.6 pipeline (see
 // .agents/memory/veo-lite-integration.md) as the best price/quality balance
 // for talking-actor commercial footage. Uses the same GOOGLE_GENAI_API_KEY
-// already configured for Gemini text/image generation — no new secret.
+// already configured for Gemini text/image generation - no new secret.
 //
 // HTTP contract (Gemini Developer API, verified against a working standalone
 // test harness that generated 8 real comparison clips):
@@ -27,7 +27,7 @@ const logger = pino({ name: "veoRenderer" });
 //      downloadable clip (auth via the same x-goog-api-key header).
 //
 // Video and native audio (dialogue + ambience) arrive already muxed into one
-// MP4 — no separate TTS/mixing step needed, same as Kling v2.6 native audio.
+// MP4 - no separate TTS/mixing step needed, same as Kling v2.6 native audio.
 
 const BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const VEO_MODEL_ID = "veo-3.1-lite-generate-preview";
@@ -48,7 +48,7 @@ export interface VeoSceneRenderRequest {
   durationSec: number;
   /** true = new scene cut → text-to-video (T2V). false = continuity → image-to-video (I2V). */
   newSceneCut: boolean;
-  /** Required when newSceneCut is false — the last frame of the previous scene's clip. */
+  /** Required when newSceneCut is false - the last frame of the previous scene's clip. */
   sourceFrameUrl?: string | null;
 }
 
@@ -56,7 +56,7 @@ export interface VeoSceneRenderResult {
   videoUrl: string;
   durationSec: number;
   providerTaskId?: string;
-  /** Signed URL to the last frame of this clip — for the next scene's I2V continuity. */
+  /** Signed URL to the last frame of this clip - for the next scene's I2V continuity. */
   lastFrameUrl?: string;
 }
 
@@ -73,11 +73,11 @@ export function checkVeoRequirements(): VeoRequirementsResult {
 }
 
 /**
- * Veo 3.1 (all tiers, including Lite) only supports 16:9 and 9:16 — there is
+ * Veo 3.1 (all tiers, including Lite) only supports 16:9 and 9:16 - there is
  * no native square/1:1 mode. For a square-format request we render 9:16
  * (portrait) instead of 16:9: ffmpegAssembler's scale+pad step then letterboxes
  * left/right rather than top/bottom, which keeps a to-camera talking actor's
- * full height in frame — the far more common failure mode for this footage.
+ * full height in frame - the far more common failure mode for this footage.
  */
 function mapAspectRatioForVeo(aspectRatio: string): "16:9" | "9:16" {
   return aspectRatio === "16:9" ? "16:9" : "9:16";
@@ -124,7 +124,7 @@ async function startGeneration(instance: VeoInstance, aspectRatio: "16:9" | "9:1
 
     if (res.status === 429 && attempt < SUBMIT_MAX_ATTEMPTS) {
       const delay = 15_000 * attempt;
-      logger.warn({ attempt, maxAttempts: SUBMIT_MAX_ATTEMPTS, delay }, "[VeoRenderer] 429 rate-limited — retrying");
+      logger.warn({ attempt, maxAttempts: SUBMIT_MAX_ATTEMPTS, delay }, "[VeoRenderer] 429 rate-limited - retrying");
       await sleep(delay);
       continue;
     }
@@ -142,13 +142,19 @@ async function pollOperation(operationName: string): Promise<VeoOperationRespons
   for (let i = 0; i < POLL_MAX_ATTEMPTS; i++) {
     await sleep(POLL_INTERVAL_MS);
 
+    // HARD TIMEOUT - never let a single Veo scene poll longer than 8 minutes
+    // (prevents indefinite stalls when Google operation is slow or stuck)
+    if (i > 48) { // 48 × 10s = 8 minutes
+      throw new Error(`Veo generation timed out after 8 minutes (operation=${operationName})`);
+    }
+
     const res = await fetch(`${BASE_URL}/${operationName}`, {
       headers: { "x-goog-api-key": apiKey() },
       signal: AbortSignal.timeout(15_000),
     });
     const text = await res.text();
     if (!res.ok) {
-      logger.warn({ status: res.status, operationName, poll: i }, "[VeoRenderer] Poll request failed — retrying next interval");
+      logger.warn({ status: res.status, operationName, poll: i }, "[VeoRenderer] Poll request failed - retrying next interval");
       continue;
     }
 
@@ -231,7 +237,7 @@ export class VeoRenderer {
     );
 
     const operationName = await startGeneration(instance, aspectRatio);
-    logger.info({ sceneJobId: req.sceneJobId, operationName }, "[VeoRenderer] Operation started — polling");
+    logger.info({ sceneJobId: req.sceneJobId, operationName }, "[VeoRenderer] Operation started - polling");
 
     await this.persistSubmitted(req.sceneJobId, operationName);
     return this.finishScene(req, operationName);
@@ -277,7 +283,7 @@ export class VeoRenderer {
         await extractLastFramePng(mp4Path, framePath);
         lastFrameUrl = await storeLastFramePng(framePath, req.videoId, req.sceneIndex);
       } catch (err) {
-        // Non-fatal — only blocks a FUTURE continuity scene, not this one.
+        // Non-fatal - only blocks a FUTURE continuity scene, not this one.
         logger.warn({ err, sceneJobId: req.sceneJobId }, "[VeoRenderer] Last-frame extraction failed (non-fatal)");
       }
 
