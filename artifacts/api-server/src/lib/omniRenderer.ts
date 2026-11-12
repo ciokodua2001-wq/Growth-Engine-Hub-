@@ -47,6 +47,7 @@ interface InteractionResponse {
 interface VideoFileResponse {
   state?: string;
   uri?: string;
+  downloadUri?: string;
   mime_type?: string;
 }
 
@@ -161,28 +162,61 @@ function extractVideoData(response: InteractionResponse): Buffer | string {
   return bytes;
 }
 
-async function downloadVideo(uri: string): Promise<Buffer> {
-  const fileId = uri.match(/\/files\/([^/?]+)/)?.[1];
-  if (fileId) {
-    const deadline = Date.now() + 5 * 60_000;
-    while (Date.now() < deadline) {
-      const file = await requestJson(`${FILES_BASE_URL}/${encodeURIComponent(fileId)}`, {
-        method: "GET",
-        signal: AbortSignal.timeout(30_000),
-      }) as InteractionResponse & VideoFileResponse;
-      if (file.state === "ACTIVE") break;
-      if (["FAILED", "CANCELLED", "CANCELED"].includes(file.state ?? "")) {
-        throw new Error(`Gemini Omni hosted video file entered ${file.state} state`);
-      }
-      await sleep(2_000);
+/**
+ * Extract the Files API resource name from a hosted-video URI.
+ *
+ * `delivery: "uri"` returns e.g.
+ *   https://generativelanguage.googleapis.com/v1beta/files/figwq4tpkvuv:download?alt=media
+ * The `:download` custom-method verb is NOT part of the resource name —
+ * including it makes GetFile fail with HTTP 400 "File name may only contain
+ * lowercase alphanumeric characters or dashes". Verified against the live API.
+ */
+function parseFileResourceName(uri: string): string | null {
+  return uri.match(/\/files\/([^:?#/]+)(?::[a-zA-Z]+)?(?:[?#]|$)/)?.[1] ?? null;
+}
+
+/**
+ * Wait for the hosted file to become ACTIVE, then return its metadata
+ * (`downloadUri` / `uri`) so the byte fetch never depends on a stale verb URL.
+ */
+async function waitForActiveFile(fileId: string): Promise<VideoFileResponse | null> {
+  const deadline = Date.now() + 5 * 60_000;
+  while (Date.now() < deadline) {
+    const file = await requestJson(`${FILES_BASE_URL}/${encodeURIComponent(fileId)}`, {
+      method: "GET",
+      signal: AbortSignal.timeout(30_000),
+    }) as InteractionResponse & VideoFileResponse & { downloadUri?: string };
+    if (file.state === "ACTIVE") return file;
+    if (["FAILED", "CANCELLED", "CANCELED"].includes(file.state ?? "")) {
+      throw new Error(`Gemini Omni hosted video file entered ${file.state} state`);
     }
-    if (Date.now() >= deadline) throw new Error("Gemini Omni hosted video file did not become ACTIVE within five minutes");
+    await sleep(2_000);
   }
-  const response = await fetch(uri, {
+  throw new Error("Gemini Omni hosted video file did not become ACTIVE within five minutes");
+}
+
+async function downloadVideo(uri: string): Promise<Buffer> {
+  const fileId = parseFileResourceName(uri);
+  let downloadUrl = uri;
+
+  if (fileId) {
+    // Metadata polling is a readiness check, not a hard requirement: if it
+    // fails for any reason we still try the URI the interaction handed us
+    // rather than throwing away a clip Google has already charged for.
+    try {
+      const meta = await waitForActiveFile(fileId) as (VideoFileResponse & { downloadUri?: string }) | null;
+      downloadUrl = meta?.downloadUri || meta?.uri || uri;
+    } catch (err) {
+      logger.warn({ err, fileId }, "[OmniRenderer] File metadata poll failed - fetching returned URI directly");
+      downloadUrl = uri;
+    }
+  }
+
+  const response = await fetch(downloadUrl, {
     headers: { "x-goog-api-key": apiKey() },
     signal: AbortSignal.timeout(180_000),
   });
-  if (!response.ok) throw new Error(`Gemini Omni video URI download HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`Gemini Omni video download HTTP ${response.status}`);
   const bytes = Buffer.from(await response.arrayBuffer());
   if (bytes.length < 1024 || bytes.length > MAX_VIDEO_BYTES) {
     throw new Error(`Gemini Omni downloaded MP4 has unexpected size (${bytes.length} bytes)`);
