@@ -15,7 +15,7 @@
    env `CAP_MIN=120`) with role from `ltx-stop-enforcer-role-policy.json`, invoked by an
    EventBridge schedule `rate(5 minutes)`. This is the **independent time-based hard stop**.
 4. S3 buckets `gf-ltx-output` (private) + `gf-ltx-models` (optional weight backup).
-5. Apply `phase-b-provisioning-policy-v3.json` to `GrowthForge-LTX-Setup` (after approval).
+5. Apply `phase-b-provisioning-policy-v4.json` to `GrowthForge-LTX-Setup` (after approval).
 
 ## Deployment (one command, after approval)
 ```bash

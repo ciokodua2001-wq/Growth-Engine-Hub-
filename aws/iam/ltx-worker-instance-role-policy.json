@@ -2,9 +2,15 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "SelfDescribeStop",
+      "Sid": "DescribeInstances",
       "Effect": "Allow",
-      "Action": ["ec2:DescribeInstances", "ec2:StopInstances"],
+      "Action": "ec2:DescribeInstances",
+      "Resource": "*"
+    },
+    {
+      "Sid": "StopTaggedWorkers",
+      "Effect": "Allow",
+      "Action": "ec2:StopInstances",
       "Resource": "arn:aws:ec2:us-east-1:975356610033:instance/*",
       "Condition": {
         "StringEquals": { "ec2:ResourceTag/ltx": "worker" }
