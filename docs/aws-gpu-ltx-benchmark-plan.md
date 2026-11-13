@@ -37,16 +37,20 @@ g6e = NVIDIA **L40S (48 GB)** per GPU.
 |---------------|-------------|------|--------|----------------|----------------------|
 | g6e.xlarge    | 1           | 4    | 32 GB  | $1.861         | **Too little RAM** (32 GB) for CPU offload of a 12B encoder + VAEs |
 | g6e.2xlarge   | 1           | 8    | 64 GB  | $2.242         | Marginal; offload RAM still tight |
-| g6e.4xlarge   | 1           | 16   | 128 GB | $3.004         | Acceptable |
-| **g6e.8xlarge** | 1         | 32   | 256 GB | **$4.529**     | **Recommended benchmark host** (48 GB VRAM + 256 GB RAM for offload) |
+| **g6e.4xlarge** | 1         | 16   | 128 GB | **$3.004**     | **Recommended** (48 GB VRAM + 128 GB RAM for fp8 offload) |
+| g6e.8xlarge   | 1         | 32   | 256 GB | $4.529         | Extra RAM headroom; not required |
 | g6e.12xlarge  | 4           | 48   | 384 GB | $10.493        | Upgrade path if fp8/offload too slow (4× VRAM) |
 | g6e.16xlarge  | 1           | 64   | 512 GB | $7.577         | More RAM only, same 48 GB VRAM (skip) |
 | g6e.24xlarge  | 4           | 96   | 768 GB | $15.066        | Overkill for benchmark |
 | g6e.48xlarge  | 8           | 192  | 1536 GB| $30.131        | Overkill for benchmark |
 
-**Recommended:** `g6e.8xlarge` (single L40S, 256 GB RAM), `us-east-1` (N. Virginia).
-The 256 GB system RAM is the point - LTX-2.5's CPU-offload path needs it, which is
-exactly what `g6e.xlarge` (32 GB) lacks. us-west-2 (Oregon) is the fallback region.
+**Recommended:** `g6e.4xlarge` (single L40S, 128 GB RAM), `us-east-1` (N. Virginia).
+**Revised 2026-11-13 with real measurements** (Runpod A100-SXM 80 GB, bf16, no offload):
+5.04 s clip, 1920x1088, native AAC 48 kHz stereo, ~99 s render, **42.7 GB peak VRAM**
+(the 12B text encoder offloads after encoding). Therefore fp8-cast (~20 GB) fits 48 GB
+with large headroom, and 128 GB system RAM comfortably holds the fp8 transformer +
+offloaded encoder. g6e.8xlarge's 256 GB is no longer required.
+us-west-2 (Oregon) is the fallback region.
 
 Availability/quotas: g6e frequently ships with **0 vCPU quota on new accounts**. Step 1
 of any run is a Service Quota increase for "Running On-Demand G and VT instances"
