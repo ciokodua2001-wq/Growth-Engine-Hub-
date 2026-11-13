@@ -5,7 +5,10 @@
       "Sid": "CreateBoundedRole",
       "Effect": "Allow",
       "Action": "iam:CreateRole",
-      "Resource": "arn:aws:iam::975356610033:role/ltx-*",
+      "Resource": [
+        "arn:aws:iam::975356610033:role/ltx-worker-instance-role",
+        "arn:aws:iam::975356610033:role/ltx-stop-enforcer-role"
+      ],
       "Condition": {
         "StringEquals": { "iam:PermissionsBoundary": "arn:aws:iam::975356610033:policy/ltx-boundary" }
       }
@@ -22,39 +25,55 @@
         "iam:GetInstanceProfile"
       ],
       "Resource": [
-        "arn:aws:iam::975356610033:role/ltx-*",
-        "arn:aws:iam::975356610033:instance-profile/ltx-*"
+        "arn:aws:iam::975356610033:role/ltx-worker-instance-role",
+        "arn:aws:iam::975356610033:role/ltx-stop-enforcer-role",
+        "arn:aws:iam::975356610033:instance-profile/ltx-worker-instance-profile"
       ]
     },
     {
-      "Sid": "PassRoles",
+      "Sid": "PassWorkerRoleToEC2",
       "Effect": "Allow",
       "Action": "iam:PassRole",
-      "Resource": [
-        "arn:aws:iam::975356610033:role/ltx-worker-instance-role",
-        "arn:aws:iam::975356610033:role/ltx-stop-enforcer-role"
-      ],
-      "Condition": {
-        "StringEquals": { "iam:PassedToService": ["ec2.amazonaws.com", "lambda.amazonaws.com"] }
-      }
+      "Resource": "arn:aws:iam::975356610033:role/ltx-worker-instance-role",
+      "Condition": { "StringEquals": { "iam:PassedToService": "ec2.amazonaws.com" } }
+    },
+    {
+      "Sid": "PassEnforcerRoleToLambda",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::975356610033:role/ltx-stop-enforcer-role",
+      "Condition": { "StringEquals": { "iam:PassedToService": "lambda.amazonaws.com" } }
     },
     {
       "Sid": "CreateBuckets",
       "Effect": "Allow",
       "Action": "s3:CreateBucket",
-      "Resource": "arn:aws:s3:::gf-ltx-*"
+      "Resource": [
+        "arn:aws:s3:::gf-ltx-output",
+        "arn:aws:s3:::gf-ltx-models"
+      ]
     },
     {
-      "Sid": "CreateLambda",
+      "Sid": "CreateEnforcerLambda",
       "Effect": "Allow",
-      "Action": ["lambda:CreateFunction", "lambda:AddPermission", "lambda:GetFunction"],
-      "Resource": "arn:aws:lambda:us-east-1:975356610033:function:ltx-*"
+      "Action": ["lambda:CreateFunction", "lambda:GetFunction"],
+      "Resource": "arn:aws:lambda:us-east-1:975356610033:function:ltx-stop-enforcer"
+    },
+    {
+      "Sid": "GrantEventBridgeInvoke",
+      "Effect": "Allow",
+      "Action": "lambda:AddPermission",
+      "Resource": "arn:aws:lambda:us-east-1:975356610033:function:ltx-stop-enforcer",
+      "Condition": {
+        "StringEquals": { "lambda:Principal": "events.amazonaws.com" },
+        "ArnEquals": { "lambda:SourceArn": "arn:aws:events:us-east-1:975356610033:rule/ltx-stop-enforcer" }
+      }
     },
     {
       "Sid": "CreateRule",
       "Effect": "Allow",
       "Action": ["events:PutRule", "events:PutTargets"],
-      "Resource": "arn:aws:events:us-east-1:975356610033:rule/ltx-*"
+      "Resource": "arn:aws:events:us-east-1:975356610033:rule/ltx-stop-enforcer"
     }
   ]
 }
