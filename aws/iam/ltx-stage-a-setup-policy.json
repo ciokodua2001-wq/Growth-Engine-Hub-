@@ -88,7 +88,7 @@
     {
       "Sid": "VerifyEnforcerChain",
       "Effect": "Allow",
-      "Action": ["lambda:GetPolicy", "events:DescribeRule", "events:ListTargetsByRule"],
+      "Action": ["lambda:GetPolicy", "lambda:InvokeFunction", "events:DescribeRule", "events:ListTargetsByRule"],
       "Resource": [
         "arn:aws:lambda:us-east-1:975356610033:function:ltx-stop-enforcer",
         "arn:aws:events:us-east-1:975356610033:rule/ltx-stop-enforcer"
