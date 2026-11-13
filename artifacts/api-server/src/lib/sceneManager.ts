@@ -173,6 +173,26 @@ interface KlingApiResponse {
 
 // ── SceneManager ──────────────────────────────────────────────────────────────
 
+/**
+ * Rewrites domain tokens in a spoken line so a text-to-speech voice reads them
+ * correctly instead of guessing. "ng.quantivarian.com" must be heard as
+ * "n-g dot quantivarian dot com", but Omni's native-audio voice read the
+ * ambiguous two-letter subdomain "ng." as "n." (it dropped the g). Dots are
+ * expanded to " dot " and 1-2 letter labels are spelled out letter-by-letter;
+ * longer labels are left as words. Applied ONLY to the spoken prompt — the
+ * stored narrationLine (used for captions) keeps the real domain verbatim.
+ */
+function ttsSafeSpeech(text: string): string {
+  return text.replace(
+    /\b([a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\b/gi,
+    domain =>
+      domain
+        .split(".")
+        .map(label => (/^[a-z]{1,2}$/i.test(label) ? label.split("").join(" ") : label))
+        .join(" dot "),
+  );
+}
+
 export class SceneManager {
   // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -281,7 +301,7 @@ export class SceneManager {
           const fullPrompt = enforceNoTextSuffix(
             [
               s.klingPrompt.replace(/\.\s*No text.*$/i, "").trim(),
-              s.narrationLine ? `Narrator voice says: "${s.narrationLine}".` : "",
+              s.narrationLine ? `Narrator voice says: "${ttsSafeSpeech(s.narrationLine)}".` : "",
               s.audioMood ?? "",
             ]
               .filter(Boolean)
@@ -984,7 +1004,7 @@ The Kling prompt (klingPrompt) is the VISUAL description only - do NOT include a
 - Structured: [style]. [environment]. [subject action]. [camera]. [lighting]. [mood]. No text, no signs, no writing.
 
 Additionally provide two audio fields per scene (Kling v2.6 Native Audio):
-- narrationLine: What is SPOKEN in this scene - a short, punchy marketing line (10-18 words max) that is SPECIFIC to the actual business. The spoken line MUST be fully delivered by ~7.0 seconds of the 8-second clip, so the final ~1 second is ambient only (no spoken words) — scene transitions are crossfaded and must never cut a word mid-sentence (use its real name, product, or value proposition from the business context). Progress the story across the 6 scenes: Hook grabs attention, Problem names the pain, Solution introduces the product, Benefits gives the result, Proof builds trust, CTA closes with the business name and action (e.g. "Try GrowthForge free at usegrowthforge.com").
+- narrationLine: What is SPOKEN in this scene - a short, punchy marketing line (10-18 words max) that is SPECIFIC to the actual business (use its real name, product, or value proposition from the business context). The spoken line MUST be fully delivered by ~7.0 seconds of the 8-second clip, so the final ~1 second is ambient only (no spoken words) — scene transitions are crossfaded and must never cut a word mid-sentence. Progress the story across the 6 scenes: Hook grabs attention, Problem names the pain, Solution introduces the product, Benefits gives the result, Proof builds trust, CTA closes with the business name and action (e.g. "Try GrowthForge free at usegrowthforge.com").
 - audioMood: Ambient sound + music style that matches this scene's energy and business type (e.g. "busy city street ambience, upbeat corporate jazz", "quiet office hum, minimal piano score", "crowd cheering, energetic hip-hop beat"). 2-3 descriptive phrases only.
 
 Return ONLY valid JSON in this exact shape:
