@@ -193,18 +193,13 @@ export class CommercialAssembler {
 
       const sceneCount = scenes.length;
       const rawSceneDuration = scenes[0]?.durationSec ?? 5;
-      const transitionDuration = Math.min(options.transitionDuration ?? 0.5, rawSceneDuration * 0.3);
-      const transitionType = options.transitionType ?? "fade";
-      // Use the full Kling clip duration - trimming clips shorter cuts baked-in
-      // narration mid-sentence (Kling v2.6 native audio fills the entire clip).
-      // Natural output: n*d - (n-1)*t  e.g. 6×5 - 5×0.5 = 27.5s
       const sceneDuration = rawSceneDuration;
-      const totalOutputDuration =
-        sceneCount * sceneDuration - (sceneCount - 1) * transitionDuration;
+      const requestedTransition = Math.min(options.transitionDuration ?? 0.5, rawSceneDuration * 0.3);
+      const transitionType = options.transitionType ?? "fade";
 
       logger.info(
-        { sceneCount, sceneDuration, transitionDuration, totalOutputDuration, targetDuration },
-        "[Assembler] Scene timing calculated",
+        { sceneCount, sceneDuration, requestedTransition },
+        "[Assembler] Scene timing calculated (transitions finalized after audio probe)",
       );
 
       // ── 2. Download all scene videos to tmp ───────────────────────────────
@@ -243,6 +238,24 @@ export class CommercialAssembler {
         ? await probeRotation(sceneFiles[0]!)
         : 0;
       logger.info({ clipRotation }, "[Assembler] Clip rotation probe complete");
+
+      // Speech-aware transitions: for each boundary, probe whether the OUTGOING
+      // clip ends in silence. If it does, keep the full requested crossfade; if
+      // speech/ambient runs right to the last frame (the common native-audio
+      // case), drop to an 80ms crossfade so the tail of a spoken line is not
+      // audibly swallowed mid-word by a 500ms fade. Video and audio share the
+      // same per-boundary duration, so the two streams can never drift apart.
+      const transitionDurations: number[] = [];
+      for (let i = 0; i < sceneCount - 1; i++) {
+        const endsInSilence = await probeEndsInSilence(sceneFiles[i]!, sceneDuration);
+        transitionDurations.push(endsInSilence ? requestedTransition : 0.08);
+      }
+      const totalOutputDuration =
+        sceneCount * sceneDuration - transitionDurations.reduce((a, b) => a + b, 0);
+      logger.info(
+        { transitionDurations, totalOutputDuration },
+        "[Assembler] Speech-aware transitions calculated",
+      );
 
       let logoFile: string | null = null;
       if (options.logoUrl) {
@@ -329,7 +342,7 @@ export class CommercialAssembler {
             height,
             sceneCount,
             sceneDuration,
-            transitionDuration,
+            transitionDurations,
             transitionType,
             totalOutputDuration,
             logoPosition: options.logoPosition ?? "br",
@@ -408,12 +421,14 @@ interface EncodeOptions {
   height: number;
   sceneCount: number;
   sceneDuration: number;
-  transitionDuration: number;
+  transitionDurations: number[];
   transitionType: TransitionType;
   totalOutputDuration: number;
   logoPosition: "br" | "bl" | "tr" | "tl";
   logoOpacity: number;
 }
+
+const requestedXfadeFallback = 0.5;
 
 async function encodeFormat(opts: EncodeOptions): Promise<void> {
   const {
@@ -427,7 +442,7 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
     height,
     sceneCount,
     sceneDuration,
-    transitionDuration,
+    transitionDurations,
     transitionType,
     totalOutputDuration,
     logoPosition,
@@ -486,15 +501,17 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
     filters.push(`[${i}:v]${scaleFilter}[v${i}]`);
   }
 
-  // Step 2: xfade transition chain
-  // xfade offset for scene pair i→i+1: i * (sceneDuration - transitionDuration)
+  // Step 2: xfade transition chain (per-boundary durations: smooth fades where
+  // the outgoing clip ends in silence, snappy cuts where it ends in speech)
   let prevLabel = "v0";
+  let offset = 0;
   for (let i = 0; i < sceneCount - 1; i++) {
-    const offset = (i + 1) * (sceneDuration - transitionDuration);
+    const d = transitionDurations[i] ?? requestedXfadeFallback;
+    offset += sceneDuration - d;
     const outLabel = i === sceneCount - 2 ? "vcat" : `x${i}${i + 1}`;
     filters.push(
       `[${prevLabel}][v${i + 1}]` +
-        `xfade=transition=${transitionType}:duration=${transitionDuration}:offset=${offset.toFixed(3)}` +
+        `xfade=transition=${transitionType}:duration=${d.toFixed(3)}:offset=${offset.toFixed(3)}` +
         `[${outLabel}]`,
     );
     prevLabel = outLabel;
@@ -565,9 +582,10 @@ async function encodeFormat(opts: EncodeOptions): Promise<void> {
     } else {
       let prevLabel = "a0";
       for (let i = 1; i < sceneCount; i++) {
+        const d = transitionDurations[i - 1] ?? requestedXfadeFallback;
         const outLabel = i === sceneCount - 1 ? "acat" : `ac${i}`;
         filters.push(
-          `[${prevLabel}][a${i}]acrossfade=d=${transitionDuration.toFixed(3)}:c1=tri:c2=tri[${outLabel}]`,
+          `[${prevLabel}][a${i}]acrossfade=d=${d.toFixed(3)}:c1=tri:c2=tri[${outLabel}]`,
         );
         prevLabel = outLabel;
       }
@@ -1086,6 +1104,29 @@ function probeRotation(filePath: string): Promise<number> {
 
 // Runs ffprobe on a file and returns true if it contains at least one audio stream.
 // Used to detect whether Kling v2.6 Native Audio generated audio in each clip.
+
+// Runs silencedetect and reports whether the clip ENDS in silence (its final
+// silence window reaches the very end of the clip). This is what decides whether
+// a crossfade can safely consume the clip's tail without swallowing a word.
+// -25dB matches the quiet ambient floor of native-audio clips: speech sits well
+// above it, a spoken line that runs to the end has no final window at all.
+function probeEndsInSilence(filePath: string, clipDurationSec: number): Promise<boolean> {
+  return new Promise(resolve => {
+    const proc = spawn("ffmpeg", [
+      "-hide_banner", "-nostats", "-i", filePath,
+      "-af", "silencedetect=noise=-25dB:d=0.10",
+      "-f", "null", "/dev/null",
+    ], { stdio: ["ignore", "ignore", "pipe"] });
+    let err = "";
+    proc.stderr?.on("data", (d: Buffer) => { err += d.toString(); });
+    proc.on("close", () => {
+      const ends = Array.from(err.matchAll(/silence_end:\s*([0-9.]+)/g)).map(m => parseFloat(m[1]!));
+      const lastEnd = ends.length ? ends[ends.length - 1]! : 0;
+      resolve(lastEnd >= clipDurationSec - 0.08);
+    });
+    proc.on("error", () => resolve(false));
+  });
+}
 
 function probeHasAudio(filePath: string): Promise<boolean> {
   return new Promise(resolve => {

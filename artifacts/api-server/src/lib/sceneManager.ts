@@ -984,7 +984,7 @@ The Kling prompt (klingPrompt) is the VISUAL description only - do NOT include a
 - Structured: [style]. [environment]. [subject action]. [camera]. [lighting]. [mood]. No text, no signs, no writing.
 
 Additionally provide two audio fields per scene (Kling v2.6 Native Audio):
-- narrationLine: What is SPOKEN in this scene - a short, punchy marketing line (10-18 words max) that is SPECIFIC to the actual business (use its real name, product, or value proposition from the business context). Progress the story across the 6 scenes: Hook grabs attention, Problem names the pain, Solution introduces the product, Benefits gives the result, Proof builds trust, CTA closes with the business name and action (e.g. "Try GrowthForge free at usegrowthforge.com").
+- narrationLine: What is SPOKEN in this scene - a short, punchy marketing line (10-18 words max) that is SPECIFIC to the actual business. The spoken line MUST be fully delivered by ~7.0 seconds of the 8-second clip, so the final ~1 second is ambient only (no spoken words) — scene transitions are crossfaded and must never cut a word mid-sentence (use its real name, product, or value proposition from the business context). Progress the story across the 6 scenes: Hook grabs attention, Problem names the pain, Solution introduces the product, Benefits gives the result, Proof builds trust, CTA closes with the business name and action (e.g. "Try GrowthForge free at usegrowthforge.com").
 - audioMood: Ambient sound + music style that matches this scene's energy and business type (e.g. "busy city street ambience, upbeat corporate jazz", "quiet office hum, minimal piano score", "crowd cheering, energetic hip-hop beat"). 2-3 descriptive phrases only.
 
 Return ONLY valid JSON in this exact shape:
