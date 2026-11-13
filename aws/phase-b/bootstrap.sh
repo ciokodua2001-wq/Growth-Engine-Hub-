@@ -46,7 +46,7 @@ After=network.target
 [Service]
 ExecStart=/models/watchdog.sh
 Restart=on-failure
-Environment=MAX_RUNTIME_MIN=240
+Environment=MAX_RUNTIME_MIN=120
 Environment=IDLE_TIMEOUT_MIN=15
 Environment=HEARTBEAT=/models/job/.heartbeat
 [Install]

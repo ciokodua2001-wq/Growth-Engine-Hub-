@@ -4,7 +4,7 @@
 #   - idle timeout (default 15 min, heartbeat file) -> stop self
 # Run as a systemd service on the worker. Uses IMDSv2 + the instance role.
 set -u
-MAX_RUNTIME_MIN="${MAX_RUNTIME_MIN:-240}"
+MAX_RUNTIME_MIN="${MAX_RUNTIME_MIN:-120}"
 IDLE_TIMEOUT_MIN="${IDLE_TIMEOUT_MIN:-15}"
 HEARTBEAT="${HEARTBEAT:-/models/job/.heartbeat}"
 REGION="${AWS_REGION:-us-east-1}"
