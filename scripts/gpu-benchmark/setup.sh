@@ -1,43 +1,43 @@
 #!/usr/bin/env bash
 # LTX-2.5 one-render benchmark - setup (run once on the rented GPU).
-# Pre-authored so billable setup time is minimal. Confirm the two lines marked
-# [CONFIRM] against the model card's "ltx-pipelines installation" doc at run time
-# (a 30-second check, zero cost) - package names move.
+# Verified against the Lightricks/LTX-2.5 model card (2026-11-13):
+#   install = git clone LTX-2 + `uv sync`; weights = 6 specific bf16 files.
 set -euo pipefail
 
-HF_TOKEN="${HF_TOKEN:-}"                 # required to download Lightricks/LTX-2.5
-MODEL_DIR="${MODEL_DIR:-$HOME/models/LTX-2.5}"
-VRAM_GB="${VRAM_GB:-}"                    # auto-detected if empty
+HF_TOKEN="${HF_TOKEN:-}"                 # required (gated model)
+MODEL_DIR="${MODEL_DIR:-$HOME/LTX-2/models/ltx-2.5}"
+REPO_DIR="${REPO_DIR:-$HOME/LTX-2}"
 
 echo "== GPU =="
-nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
-if [ -z "$VRAM_GB" ]; then
-  VRAM_GB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1 | awk '{print int($1/1024)}')
-fi
-echo "detected VRAM ~${VRAM_GB} GB"
+nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
 echo "system RAM: $(free -g | awk '/Mem:/{print $2}') GB"
 
 echo "== deps =="
 sudo apt-get update -qq && sudo apt-get install -y -qq build-essential git curl python3 python3-venv python3-pip
 curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
+uv --version
 
-echo "== venv + torch (CUDA 12.4) =="
-uv venv "$HOME/ltx-venv" --python 3.11
-source "$HOME/ltx-venv/bin/activate"
-uv pip install --upgrade pip
-uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+echo "== clone LTX-2 (provides ltx_pipelines) =="
+rm -rf "$REPO_DIR"
+git clone https://github.com/Lightricks/LTX-2.git "$REPO_DIR"
+cd "$REPO_DIR"
+# Installs ltx_pipelines + torch (CUDA 12.7+) per the repo lockfile.
+uv sync
+uv pip install "huggingface_hub[hf_transfer]"   # ensures `hf` CLI + fast transfer
+source .venv/bin/activate
 
-echo "== ltx-pipelines =="
-# [CONFIRM] exact install line (pip vs git) from the model card's install doc.
-uv pip install ltx-pipelines || \
-  uv pip install "ltx-pipelines @ git+https://github.com/Lightricks/ltx-pipelines.git"
-
-echo "== download weights (~80-100 GB) =="
-uv pip install "huggingface_hub[cli]"
+echo "== download LTX-2.5 split weights (bf16 only, ~70 GB) =="
 if [ -z "$HF_TOKEN" ]; then echo "ERROR: set HF_TOKEN"; exit 1; fi
 mkdir -p "$MODEL_DIR"
-hf download Lightricks/LTX-2.5 --local-dir "$MODEL_DIR"
+hf download Lightricks/LTX-2.5 \
+  diffusion_models/ltx-2.5-22b-distilled-transformer-bf16.safetensors \
+  text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors \
+  vae/ltx-2.5-video-vae-bf16.safetensors \
+  vae/ltx-2.5-audio-vae-bf16.safetensors \
+  model_patches/ltx-2.5-duration-head-bf16.safetensors \
+  latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors \
+  --local-dir "$MODEL_DIR" --token "$HF_TOKEN"
 
 echo "== done =="
 du -sh "$MODEL_DIR"
