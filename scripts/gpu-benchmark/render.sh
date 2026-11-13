@@ -32,6 +32,7 @@ uv run python -m ltx_pipelines.distilled \
   --duration-head-path   "$MODEL_DIR/model_patches/ltx-2.5-duration-head-bf16.safetensors" \
   --spatial-upsampler-path "$MODEL_DIR/latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors" \
   --num-frames 121 \
+  --width 1920 --height 1088 \
   $QUANT \
   --prompt "$PROMPT" \
   --seed 42 \
