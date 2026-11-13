@@ -60,3 +60,31 @@ Then `-t sceneDuration` is passed before each `-i sceneFile` as an FFmpeg input 
 **Rule:** `pollAssembly` needs a hard timeout (8 minutes) to surface "Retry Assembly" if the assembly never completes. Also handle `overallStatus === "idle"` as an error rather than infinite loop.
 
 **Why:** Without a timeout, users see an infinite spinner with no way to recover.
+
+---
+
+## Speech-aware transitions (2026-11-13)
+
+**Rule:** `encodeFormat` must not use one fixed transition duration. Probe each
+OUTGOING clip with `silencedetect` (`probeEndsInSilence`, -25dB). If it ends in
+silence keep the user's requested crossfade; if speech/ambient runs to the last
+frame (the common native-audio case), drop that boundary to 80ms. Video and
+audio MUST share the same per-boundary duration or A/V drifts; offsets and
+`totalOutputDuration` accumulate the per-boundary values.
+
+**Why:** Omni/Kling native-audio clips often carry narration to the very last
+frame. A fixed 500ms `acrossfade` at every boundary audibly swallowed the tail
+of a spoken line mid-word. Measured: only 1 of 6 Omni clips ended in silence.
+The long-term fix is in the decomposition prompt (narration must finish by
+~7.0s leaving ~1s of ambient tail); the assembler change is the safety net.
+
+## Deploys must restart BOTH the API and the FFmpeg worker
+
+**Rule:** after rsync-ing `dist`, run `sudo systemctl restart
+growthforge-dev-api.service growthforge-ffmpeg-worker.service` (or
+`deploy/restart-dev.sh`). The worker is a separate unit
+(`dist/ffmpeg-worker.mjs`) and keeps the old build in memory until restarted.
+
+**Why:** on 2026-11-13 the speech-aware transition fix produced an unchanged
+45.5s output and no new log line, because the assembly is claimed and encoded
+by `growthforge-ffmpeg-worker.service`, which was still running the old code.
