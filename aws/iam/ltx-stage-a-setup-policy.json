@@ -20,7 +20,6 @@
         "iam:CreateInstanceProfile",
         "iam:AddRoleToInstanceProfile",
         "iam:PutRolePolicy",
-        "iam:AttachRolePolicy",
         "iam:GetRole",
         "iam:GetInstanceProfile"
       ],
@@ -29,6 +28,15 @@
         "arn:aws:iam::975356610033:role/ltx-stop-enforcer-role",
         "arn:aws:iam::975356610033:instance-profile/ltx-worker-instance-profile"
       ]
+    },
+    {
+      "Sid": "AttachSSMCoreOnly",
+      "Effect": "Allow",
+      "Action": "iam:AttachRolePolicy",
+      "Resource": "arn:aws:iam::975356610033:role/ltx-worker-instance-role",
+      "Condition": {
+        "ArnEquals": { "iam:PolicyARN": "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore" }
+      }
     },
     {
       "Sid": "PassWorkerRoleToEC2",
