@@ -15,6 +15,74 @@ const POLL_INTERVAL_MS = 10_000;
 const POLL_TIMEOUT_MS = 20 * 60_000;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
+// ── Cost accounting ────────────────────────────────────────────────────────────
+// Omni bills on OUTPUT tokens at the Gemini API Standard tier ($12 / 1M tokens).
+// 1080p ≈ 8,688 tokens/sec ⇒ ~$0.104/sec effective. We record Google's actual
+// usage when the response carries it, and fall back to the documented rate.
+const OMNI_USD_PER_1M_OUTPUT_TOKENS = 12;
+const OMNI_ESTIMATED_USD_PER_SEC_1080P = 0.104;
+const OMNI_DAILY_CAP_ENV = "OMNI_DAILY_COST_CAP_USD";
+const DEFAULT_DAILY_CAP_USD = 10;
+const COUNTER_FILE = path.join(process.cwd(), ".omni-cost-counter.json");
+
+function estimateClipCostUsd(): number {
+  return OMNI_SCENE_DURATION_SEC * OMNI_ESTIMATED_USD_PER_SEC_1080P;
+}
+
+function dailySpendKey(): string {
+  return new Date().toISOString().slice(0, 10); // UTC date
+}
+
+function readDailySpend(): number {
+  try {
+    const data = JSON.parse(fs.readFileSync(COUNTER_FILE, "utf8"));
+    return data.date === dailySpendKey() ? (data.spentUsd ?? 0) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeDailySpend(spentUsd: number): void {
+  try {
+    fs.writeFileSync(COUNTER_FILE, JSON.stringify({ date: dailySpendKey(), spentUsd }), "utf8");
+  } catch (err) {
+    logger.warn({ err }, "[OmniRenderer] cost counter write failed (non-fatal)");
+  }
+}
+
+function dailyCapUsd(): number {
+  const n = Number(process.env[OMNI_DAILY_CAP_ENV]);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_CAP_USD;
+}
+
+function assertUnderDailyCap(): void {
+  const cap = dailyCapUsd();
+  const spent = readDailySpend();
+  const estimate = estimateClipCostUsd();
+  if (spent + estimate > cap) {
+    throw new Error(
+      `Omni daily cost cap reached: $${spent.toFixed(2)} already spent today + ~$${estimate.toFixed(2)} for the next clip would exceed the $${cap.toFixed(2)} cap. Raise OMNI_DAILY_COST_CAP_USD to continue.`,
+    );
+  }
+}
+
+function extractOutputTokens(response: InteractionResponse): number | undefined {
+  const u: Record<string, unknown> =
+    (response.usage as Record<string, unknown>) ??
+    (response.usage_metadata as unknown as Record<string, unknown>) ??
+    (response.usageMetadata as unknown as Record<string, unknown>) ??
+    {};
+  const v =
+    u.output_tokens ?? u.outputTokenCount ?? u.output_token_count ??
+    u.total_tokens ?? u.totalTokenCount ?? u.total_token_count;
+  return typeof v === "number" && v > 0 ? v : undefined;
+}
+
+function usageCostUsd(response: InteractionResponse): number | undefined {
+  const tokens = extractOutputTokens(response);
+  return tokens ? (tokens * OMNI_USD_PER_1M_OUTPUT_TOKENS) / 1_000_000 : undefined;
+}
+
 export interface OmniSceneRenderRequest {
   sceneJobId: number;
   videoId: number;
@@ -36,6 +104,10 @@ export interface OmniSceneRenderResult {
    * without it, Omni could never enter its image-conditioned path.
    */
   lastFrameUrl?: string;
+  /** Actual billed output tokens returned by Google for this clip (if present). */
+  usageOutputTokens?: number;
+  /** Estimated USD cost of this clip, computed from Google's usage when available. */
+  costUsd?: number;
 }
 
 interface InteractionContent {
@@ -52,6 +124,10 @@ interface InteractionResponse {
   model?: string;
   steps?: InteractionStep[];
   errors?: Array<{ message?: string }>;
+  // Google returns usage under one of several shapes depending on API version.
+  usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number; inputTokenCount?: number; outputTokenCount?: number };
+  usage_metadata?: { input_token_count?: number; output_token_count?: number; total_token_count?: number };
+  usageMetadata?: { inputTokenCount?: number; outputTokenCount?: number; totalTokenCount?: number };
 }
 
 interface VideoFileResponse {
@@ -257,6 +333,9 @@ async function storeSceneMp4(bytes: Buffer, videoId: number, sceneIndex: number)
 
 export class OmniRenderer {
   async renderScene(request: OmniSceneRenderRequest): Promise<OmniSceneRenderResult> {
+    // Refuse BEFORE spending when today's cap would be exceeded.
+    assertUnderDailyCap();
+
     const interaction = await submitInteraction(request);
     if (!interaction.id) throw new Error("Gemini Omni create interaction returned no interaction id");
 
@@ -285,6 +364,15 @@ export class OmniRenderer {
     if (response.model && response.model !== MODEL_ID) {
       throw new Error(`Gemini returned unexpected model ${response.model}; expected ${MODEL_ID}`);
     }
+
+    const usageOutputTokens = extractOutputTokens(response);
+    const costUsd = usageCostUsd(response) ?? estimateClipCostUsd();
+    logger.info(
+      { sceneJobId: request.sceneJobId, interactionId, usageOutputTokens, costUsd: Number(costUsd.toFixed(4)) },
+      "[OmniRenderer] Usage (Google billed basis)",
+    );
+    writeDailySpend(readDailySpend() + costUsd);
+
     const video = extractVideoData(response);
     const bytes = typeof video === "string" ? await downloadVideo(video) : video;
     const videoUrl = await storeSceneMp4(bytes, request.videoId, request.sceneIndex);
@@ -305,7 +393,14 @@ export class OmniRenderer {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
 
-    return { videoUrl, durationSec: OMNI_SCENE_DURATION_SEC, providerTaskId: interactionId, lastFrameUrl };
+    return {
+      videoUrl,
+      durationSec: OMNI_SCENE_DURATION_SEC,
+      providerTaskId: interactionId,
+      lastFrameUrl,
+      usageOutputTokens,
+      costUsd,
+    };
   }
 }
 
