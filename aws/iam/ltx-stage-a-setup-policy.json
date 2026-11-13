@@ -73,8 +73,10 @@
       "Action": "lambda:AddPermission",
       "Resource": "arn:aws:lambda:us-east-1:975356610033:function:ltx-stop-enforcer",
       "Condition": {
-        "StringEquals": { "lambda:Principal": "events.amazonaws.com" },
-        "ArnEquals": { "lambda:SourceArn": "arn:aws:events:us-east-1:975356610033:rule/ltx-stop-enforcer" }
+        "StringEquals": {
+          "lambda:Principal": "events.amazonaws.com",
+          "lambda:SourceArn": "arn:aws:events:us-east-1:975356610033:rule/ltx-stop-enforcer"
+        }
       }
     },
     {
@@ -82,6 +84,15 @@
       "Effect": "Allow",
       "Action": ["events:PutRule", "events:PutTargets"],
       "Resource": "arn:aws:events:us-east-1:975356610033:rule/ltx-stop-enforcer"
+    },
+    {
+      "Sid": "VerifyEnforcerChain",
+      "Effect": "Allow",
+      "Action": ["lambda:GetPolicy", "events:DescribeRule", "events:ListTargetsByRule"],
+      "Resource": [
+        "arn:aws:lambda:us-east-1:975356610033:function:ltx-stop-enforcer",
+        "arn:aws:events:us-east-1:975356610033:rule/ltx-stop-enforcer"
+      ]
     }
   ]
 }
