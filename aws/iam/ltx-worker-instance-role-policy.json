@@ -1,0 +1,35 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SelfDescribeStop",
+      "Effect": "Allow",
+      "Action": ["ec2:DescribeInstances", "ec2:StopInstances"],
+      "Resource": "arn:aws:ec2:us-east-1:975356610033:instance/*",
+      "Condition": {
+        "StringEquals": { "ec2:ResourceTag/ltx": "worker" }
+      }
+    },
+    {
+      "Sid": "S3OutputUpload",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::gf-ltx-output",
+        "arn:aws:s3:::gf-ltx-output/*"
+      ]
+    },
+    {
+      "Sid": "Logs",
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": "arn:aws:logs:us-east-1:975356610033:log-group:/aws/ltx/*"
+    },
+    {
+      "Sid": "Metrics",
+      "Effect": "Allow",
+      "Action": "cloudwatch:PutMetricData",
+      "Resource": "*"
+    }
+  ]
+}
