@@ -32,8 +32,20 @@ is B200/H100/A100/V100. A100 80GB there is $3.19/hr (worse than Runpod's $2.09).
   → **48 GB** works only with `--quantization fp8-cast --offload cpu`, and the
   offloaded modules need **≥128 GB system RAM** (256 GB ideal).
 
+## Resolution ladder (upscaling to 2K / 4K)
+
+The spatial upsampler is **×2 per pass**; `--width/--height` are the FINAL output.
+
+| Target | Flags | Notes |
+|---|---|---|
+| 1080p | `--width 1920 --height 1088 --spatial-upscalings 1` (default) | matches the commercial pipeline |
+| 4K | `--width 3840 --height 2176 --spatial-upscalings 2` | documented; doubles upscale VRAM+time → **A100 80GB path** |
+| 2K (2560×1440) | none native | not a clean ×2 of a ÷32 base; upscale 1080p→2K in ffmpeg, or render 4K→downscale |
+
 1080p is supported on both paths: base ~960×544 (or 544×960) then the 2× spatial
-upsampler → 1920×1088 (÷32 constraint; pad to 1920×1080 in ffmpeg after).
+upsampler → 1920×1088 (÷32 constraint; pad to 1920×1080 in ffmpeg after). 4K is
+feasible on A100 80GB but adds a second upsampling pass (more VRAM + time); on the
+48 GB fp8 path it is much higher risk.
 
 ## The two cheapest technically viable configs
 

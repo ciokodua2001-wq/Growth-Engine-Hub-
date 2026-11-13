@@ -9,11 +9,17 @@ PROMPT="${1:-Photorealistic cinematic, cozy study room, a young Nigerian student
 OUT="$HOME/ltx-output"
 mkdir -p "$OUT"
 
-# 1080p landscape: base 960x544, 2x spatial upsampler -> 1920x1088.
+# Resolution ladder (spatial upsampler is x2 per pass; width/height = FINAL output):
+#   1080p: WIDTH=1920 HEIGHT=1088 UPSCALINGS=1   (default, matches commercial pipeline)
+#   4K:    WIDTH=3840 HEIGHT=2176 UPSCALINGS=2   (adds VRAM + time; use the A100 80GB path)
+#   2K: no native x2 preset (2560x1440 isn't a clean 2x of a /32 base) — upscale
+#       1080p->2K in ffmpeg, or render 4K and downscale.
+WIDTH="${WIDTH:-1920}"; HEIGHT="${HEIGHT:-1088}"; UPSCALINGS="${UPSCALINGS:-1}"
 # 48 GB -> fp8 + CPU offload; 80 GB -> bf16 (no offload).
 QUANT=""
 if [ "$VRAM_GB" -lt 70 ]; then QUANT="--quantization fp8-cast --offload cpu"; fi
 echo "VRAM ${VRAM_GB} GB -> quant flags: ${QUANT:-'(none, bf16)'}"
+echo "resolution: ${WIDTH}x${HEIGHT}, spatial-upscalings=${UPSCALINGS}"
 
 # GPU utilization sampler in the background.
 nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv -l 5 > "$OUT/gpu.csv" &
@@ -23,14 +29,14 @@ export PATH="$HOME/.local/bin:$PATH"
 source "$HOME/ltx-venv/bin/activate"
 
 START=$(date +%s)
-# [CONFIRM] file names against the downloaded tree if the repo layout differs.
+# [CONFIRM] file names + that --width/--height mean FINAL output (not base) in this CLI.
 uv run python -m ltx_pipelines.distilled \
   --transformer-path "$MODEL_DIR/diffusion_models/ltx-2.5-22b-distilled-transformer-bf16.safetensors" \
   --text-encoder-path "$MODEL_DIR/text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors" \
   --video-vae-path "$MODEL_DIR/vae/ltx-2.5-video-vae-bf16.safetensors" \
   --audio-vae-path "$MODEL_DIR/vae/ltx-2.5-audio-vae-bf16.safetensors" \
   --spatial-upsampler-path "$MODEL_DIR/latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors" \
-  --width 960 --height 544 \
+  --width "$WIDTH" --height "$HEIGHT" --spatial-upscalings "$UPSCALINGS" \
   --num-frames 121 \
   $QUANT \
   --prompt "$PROMPT" \
