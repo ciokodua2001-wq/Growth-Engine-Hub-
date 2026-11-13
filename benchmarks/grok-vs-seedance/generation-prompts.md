@@ -1,6 +1,12 @@
-# Quantivarian Brief #1 - Generation Prompts (for approval)
+# Quantivarian Brief #1 - Generation Prompts (FINAL dialogue, for approval)
 
 Both requests target: **15 s · 9:16 · 720p · native audio · one generation each**.
+
+Final dialogue (identical for both providers):
+- Shot 1 [0-3s]: "Worried about your child's exams?"
+- Shot 2 [3-7s]: "Quantivarian offers AI tutoring aligned with Nigeria's NERDC curriculum."
+- Shot 3 [7-11s]: "From Pre-Nursery to SS3, track their progress."
+- Shot 4 [11-15s]: "Help your child achieve more with Quantivarian."
 
 ---
 
@@ -8,15 +14,15 @@ Both requests target: **15 s · 9:16 · 720p · native audio · one generation e
 
 ### Prompt (single text content - timeline storyboard)
 ```
-A premium 15-second photorealistic commercial for Quantivarian, an AI tutoring app built strictly for the Nigerian NERDC curriculum. Sleek luxury aesthetic with warm, vibrant modern Nigerian home tones. A professional Nigerian mother in her early 30s, in sophisticated smart-casual attire, delivers the ad directly to camera. Sunlit modern Lagos living room, bright natural window light mixed with soft interior accents. Natural studio ambience, clear intelligible dialogue, consistent facial identity throughout.
+A premium 15-second photorealistic commercial for Quantivarian, an AI tutoring app aligned with Nigeria's NERDC curriculum. Sleek luxury aesthetic with warm, vibrant modern Nigerian home tones. A professional Nigerian mother in her early 30s, in sophisticated smart-casual attire, delivers the ad directly to camera. Sunlit modern Lagos living room, bright natural window light mixed with soft interior accents. Natural studio ambience, clear intelligible dialogue, consistent facial identity throughout.
 
-Shot 1 [0-3s, dolly in, 50mm]: The mother looks directly into the lens with empathetic curiosity, leaning slightly forward, in warm morning sunlight. She says: "Is your child struggling with exam prep?" Hard cut.
+Shot 1 [0-3s, dolly in, 50mm]: The mother looks directly into the lens with empathetic curiosity, leaning slightly forward, in warm morning sunlight. She says: "Worried about your child's exams?" Hard cut.
 
-Shot 2 [3-7s, pan right, 35mm]: The mother turns toward the study desk and gestures at her child studying on a tablet, confident and proud, soft natural key light. She says: "Quantivarian delivers AI tutoring built strictly for the Nigerian NERDC curriculum." Hard cut.
+Shot 2 [3-7s, pan right, 35mm]: The mother turns toward the study desk and gestures at her child studying on a tablet, confident and proud, soft natural key light. She says: "Quantivarian offers AI tutoring aligned with Nigeria's NERDC curriculum." Hard cut.
 
-Shot 3 [7-11s, close-up tracking shift, 85mm]: The mother holds up a smartphone displaying a live progress analytics dashboard, presenting it to camera, reassuring and smiling, clean balanced daylight. She says: "From Pre-Nursery to SS3. Track their real-time progress today." Hard cut.
+Shot 3 [7-11s, close-up tracking shift, 85mm]: The mother holds up a smartphone displaying a live progress analytics dashboard, presenting it to camera, reassuring and smiling, clean balanced daylight. She says: "From Pre-Nursery to SS3, track their progress." Hard cut.
 
-Shot 4 [11-15s, slow dolly back, 50mm]: The mother smiles warmly and nods encouragingly directly into the camera, radiant and decisive, bright golden accent light. She says: "And secure top grades!" Fade to black.
+Shot 4 [11-15s, slow dolly back, 50mm]: The mother smiles warmly and nods encouragingly directly into the camera, radiant and decisive, bright golden accent light. She says: "Help your child achieve more with Quantivarian." Fade to black.
 ```
 
 ### Request body
@@ -40,15 +46,15 @@ Shot 4 [11-15s, slow dolly back, 50mm]: The mother smiles warmly and nods encour
 
 ### Prompt
 ```
-A 15-second photorealistic commercial for Quantivarian, an AI tutoring app built strictly for the Nigerian NERDC curriculum. Sleek luxury aesthetic, warm modern Nigerian home tones, cinematic shallow depth of field. A professional Nigerian mother in her early 30s in sophisticated smart-casual attire speaks directly to the viewer. Sunlit modern Lagos living room, bright natural window light with soft interior accents. Natural studio ambience, clear lip-synced speech, consistent facial identity, no subtitles, no text overlays.
+A 15-second photorealistic commercial for Quantivarian, an AI tutoring app aligned with Nigeria's NERDC curriculum. Sleek luxury aesthetic, warm modern Nigerian home tones, cinematic shallow depth of field. A professional Nigerian mother in her early 30s in sophisticated smart-casual attire speaks directly to the viewer. Sunlit modern Lagos living room, bright natural window light with soft interior accents. Natural studio ambience, clear lip-synced speech, consistent facial identity, no subtitles, no text overlays.
 
-Wide shot, slow dolly in: the mother looks into the lens with warm empathetic curiosity, leaning forward in morning sunlight. She says: "Is your child struggling with exam prep?"
+Wide shot, slow dolly in: the mother looks into the lens with warm empathetic curiosity, leaning forward in morning sunlight. She says: "Worried about your child's exams?"
 
-Cut to a pan right: she turns toward her child studying on a tablet at a desk and gestures proudly. She says: "Quantivarian delivers AI tutoring built strictly for the Nigerian NERDC curriculum."
+Cut to a pan right: she turns toward her child studying on a tablet at a desk and gestures proudly. She says: "Quantivarian offers AI tutoring aligned with Nigeria's NERDC curriculum."
 
-Cut to a close-up: she holds up a smartphone showing a live progress dashboard, smiling reassuringly. She says: "From Pre-Nursery to SS3. Track their real-time progress today."
+Cut to a close-up: she holds up a smartphone showing a live progress dashboard, smiling reassuringly. She says: "From Pre-Nursery to SS3, track their progress."
 
-Cut to a slow dolly back: she nods encouragingly into the camera in golden accent light. She says: "And secure top grades!"
+Cut to a slow dolly back: she nods encouragingly into the camera in golden accent light. She says: "Help your child achieve more with Quantivarian."
 ```
 
 ### Request body
