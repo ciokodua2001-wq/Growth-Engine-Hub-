@@ -1,3 +1,7 @@
+import { spawn } from "node:child_process";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import pino from "pino";
 import type { CommercialRenderer, CommercialRenderJob, CommercialRenderResult, CommercialRendererCapabilities } from "./commercialRenderer.js";
 import { buildGrokGenerationRequest, GROK_VIDEO_ENDPOINT, GROK_VIDEO_STATUS_ENDPOINT } from "./grokRequest.js";
@@ -7,6 +11,10 @@ const logger = pino({ name: "grokRenderer" });
 const DEFAULT_POLL_INTERVAL_MS = 10_000;
 const DEFAULT_MAX_POLLS = 90;
 const MAX_VIDEO_BYTES = 256 * 1024 * 1024;
+const OUTPUT_DIMS: Record<CommercialRenderJob["aspectRatio"], { width: number; height: number }> = {
+  "16:9": { width: 1920, height: 1080 }, "9:16": { width: 1080, height: 1920 },
+  "1:1": { width: 1080, height: 1080 }, "4:5": { width: 1080, height: 1350 },
+};
 export const GROK_STORAGE_REFERENCE_PREFIX = "grok-object://";
 export const GROK_MEDIA_PATH = "/api/projects";
 
@@ -16,6 +24,7 @@ export interface GrokRendererDependencies {
   sleep(ms: number): Promise<void>;
   save(bucket: string, key: string, body: Buffer, contentType: string): Promise<void>;
   signUrl(bucket: string, key: string): Promise<string>;
+  normalizeFrame(input: Buffer, aspectRatio: CommercialRenderJob["aspectRatio"]): Promise<Buffer>;
   pollIntervalMs: number;
   maxPolls: number;
 }
@@ -25,6 +34,7 @@ const defaults: GrokRendererDependencies = {
   sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
   save: async (bucket, key, body, contentType) => objectStorageClient.bucket(bucket).file(key).save(body, { metadata: { contentType } }),
   signUrl: (bucket, key) => signObjectURL({ bucketName: bucket, objectName: key, method: "GET", ttlSec: 604800 }),
+  normalizeFrame: normalizeVideoFrame,
   pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
   maxPolls: DEFAULT_MAX_POLLS,
 };
@@ -108,12 +118,13 @@ export class GrokCommercialRenderer implements CommercialRenderer {
     const bytes = Buffer.concat(chunks, totalBytes);
     if (bytes.length === 0 || bytes.length > MAX_VIDEO_BYTES) throw new Error("Grok returned an invalid or oversized video file");
 
+    const normalizedBytes = await this.deps.normalizeFrame(bytes, job.aspectRatio);
     const key = `commercial/grok/${job.videoId}/${Date.now()}-${requestId}.mp4`;
-    await this.deps.save(bucket, key, bytes, "video/mp4");
+    await this.deps.save(bucket, key, normalizedBytes, "video/mp4");
     // Persist a stable internal reference, not an expiring presigned URL.
     // Routes convert it into an authenticated media link on demand.
     const videoUrl = `grok-object://${encodeURIComponent(bucket)}/${key.split("/").map(encodeURIComponent).join("/")}`;
-    logger.info({ videoId: job.videoId, requestId, bytes: bytes.length }, "Grok video stored in object storage");
+    logger.info({ videoId: job.videoId, requestId, bytes: normalizedBytes.length, aspectRatio: job.aspectRatio, width: OUTPUT_DIMS[job.aspectRatio].width, height: OUTPUT_DIMS[job.aspectRatio].height }, "Normalized video stored in object storage");
     return { videoUrl, durationSec: completed.video?.duration ?? request.duration };
   }
 
@@ -129,5 +140,28 @@ export class GrokCommercialRenderer implements CommercialRenderer {
       throw new Error(`Grok API ${method} failed (HTTP ${response.status}): ${errorText}`);
     }
     return await response.json() as GrokStatus;
+  }
+}
+
+async function normalizeVideoFrame(input: Buffer, aspectRatio: CommercialRenderJob["aspectRatio"]): Promise<Buffer> {
+  const { width, height } = OUTPUT_DIMS[aspectRatio];
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "grok-frame-"));
+  const inputPath = path.join(dir, "input.mp4");
+  const outputPath = path.join(dir, "output.mp4");
+  try {
+    fs.writeFileSync(inputPath, input);
+    await new Promise<void>((resolve, reject) => {
+      const filter = `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1`;
+      const child = spawn("ffmpeg", ["-y", "-i", inputPath, "-vf", filter, "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", outputPath], { stdio: ["ignore", "ignore", "pipe"] });
+      let stderr = "";
+      child.stderr?.on("data", (chunk: Buffer) => { stderr = (stderr + chunk.toString()).slice(-4000); });
+      child.once("error", reject);
+      child.once("close", code => code === 0 ? resolve() : reject(new Error(`Video frame normalization failed (FFmpeg ${code}): ${stderr}`)));
+    });
+    const output = fs.readFileSync(outputPath);
+    if (!output.length || output.length > MAX_VIDEO_BYTES) throw new Error("Normalized video is empty or exceeds the maximum allowed size");
+    return output;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 }

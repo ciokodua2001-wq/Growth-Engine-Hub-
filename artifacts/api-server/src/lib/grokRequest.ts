@@ -22,6 +22,14 @@ export interface GrokGenerationRequest {
   generate_audio: true;
 }
 
+/** xAI currently accepts 16:9, 9:16 and 1:1. 4:5 is made exact by our
+ * post-generation frame normalization, starting from the closest portrait. */
+export function grokSourceAspectRatio(aspectRatio: CommercialRenderJob["aspectRatio"]): GrokGenerationRequest["aspect_ratio"] {
+  if (aspectRatio === "4:5") return "9:16";
+  if (aspectRatio === "16:9" || aspectRatio === "9:16" || aspectRatio === "1:1") return aspectRatio;
+  throw new Error(`Unsupported output aspect ratio: ${aspectRatio}`);
+}
+
 /**
  * Pure request builder; it performs no I/O and reads no credentials.
  */
@@ -44,10 +52,7 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
   if (!content.trim()) throw new Error("Grok generation requires a non-empty prompt");
   const prompt = `${content}\n\n${GROK_NO_TEXT_INSTRUCTIONS}`;
 
-  const aspectRatio = job.aspectRatio;
-  if (aspectRatio !== "16:9" && aspectRatio !== "9:16" && aspectRatio !== "1:1") {
-    throw new Error(`Grok does not support aspect ratio: ${aspectRatio}`);
-  }
+  const aspectRatio = grokSourceAspectRatio(job.aspectRatio);
 
   const duration = job.durationSec ?? 15;
   if (!Number.isInteger(duration) || duration < 1 || duration > 15) {

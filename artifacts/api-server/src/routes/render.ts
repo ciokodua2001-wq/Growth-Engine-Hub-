@@ -14,15 +14,15 @@ const logger = pino({ name: "render.route" });
 
 router.param("id", requireProjectOwnershipParam());
 
-// DEV-only owner capability, with rate required for an honest pre-cost estimate.
-router.get("/grok-capabilities", async (req, res) => {
+// Generic readiness check; never expose provider identity or production costs.
+router.get("/video-render-capabilities", async (req, res) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
   const [user] = await db.select({ isOwner: usersTable.isOwner }).from(usersTable).where(eq(usersTable.id, userId));
   const rate = Number(process.env.GROK_VIDEO_COST_PER_SECOND_USD);
   const configured = checkGrokRenderRequirements().ready && Number.isFinite(rate) && rate > 0;
   res.setHeader("Cache-Control", "no-store");
-  res.json({ enabled: configured && user?.isOwner === true, estimatedCostPerSecondUsd: configured ? rate : null });
+  res.json({ enabled: configured && user?.isOwner === true });
 });
 
 // ── Start a video render ──────────────────────────────────────────────────────
@@ -37,8 +37,8 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
   }
 
   const requestedProvider = (req.body as { provider?: unknown } | undefined)?.provider;
-  if (requestedProvider !== "grok") {
-    res.status(400).json({ error: "Only the approved commercial video workflow is available." });
+  if (requestedProvider !== undefined && requestedProvider !== "grok") {
+    res.status(400).json({ error: "The requested video production option is unavailable." });
     return;
   }
   const provider = "grok" as const;
@@ -53,7 +53,7 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     captionsEnabled?: boolean;
   };
   const validResolutions: RenderResolution[] = ["1080p", "4k"];
-  const validAspectRatios: AspectRatio[] = ["16:9", "9:16", "1:1"];
+  const validAspectRatios: AspectRatio[] = ["16:9", "9:16", "1:1", "4:5"];
   if (!validResolutions.includes(resolution)) {
     res.status(400).json({ error: `resolution must be one of: ${validResolutions.join(", ")}` });
     return;
@@ -80,11 +80,11 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     const [user] = await db.select({ isOwner: usersTable.isOwner }).from(usersTable).where(eq(usersTable.id, userId));
     const rate = Number(process.env.GROK_VIDEO_COST_PER_SECOND_USD);
     if (user?.isOwner !== true) {
-      res.status(403).json({ error: "Grok generation is restricted to the DEV owner during testing." });
+      res.status(403).json({ error: "Video production is temporarily unavailable for this account." });
       return;
     }
     if (!Number.isFinite(rate) || rate <= 0) {
-      res.status(503).json({ error: "Video rendering is temporarily unavailable", message: "Provider cost estimate is not configured." });
+      res.status(503).json({ error: "Video rendering is temporarily unavailable", message: "Please try again later or contact support if this persists." });
       return;
     }
   }

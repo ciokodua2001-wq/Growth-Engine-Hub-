@@ -396,11 +396,7 @@ function RenderPanel({
   isStarterPlan: boolean;
 }) {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
-  const renderProvider = "grok" as const;
-  const [grokAvailable, setGrokAvailable] = useState(false);
-  const [grokCostPerSecond, setGrokCostPerSecond] = useState<number | null>(null);
-  const [confirmGrokCost, setConfirmGrokCost] = useState(false);
-  const [captionsEnabled, setCaptionsEnabled] = useState(false);
+  const [renderAvailable, setRenderAvailable] = useState(false);
   const [locallyStarted, setLocallyStarted] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [cancellingRender, setCancellingRender] = useState(false);
@@ -410,15 +406,14 @@ function RenderPanel({
 
   useEffect(() => {
     let active = true;
-    fetch("/api/grok-capabilities", { credentials: "include" })
+    fetch("/api/video-render-capabilities", { credentials: "include" })
       .then(response => response.ok ? response.json() : null)
       .then(data => {
         if (active) {
-          setGrokAvailable(data?.enabled === true);
-          setGrokCostPerSecond(typeof data?.estimatedCostPerSecondUsd === "number" ? data.estimatedCostPerSecondUsd : null);
+          setRenderAvailable(data?.enabled === true);
         }
       })
-      .catch(() => { if (active) setGrokAvailable(false); });
+      .catch(() => { if (active) setRenderAvailable(false); });
     return () => { active = false; };
   }, []);
 
@@ -483,20 +478,14 @@ function RenderPanel({
   };
 
   const handleRender = () => {
-    if (!grokAvailable || startRender.isPending) return;
-    setConfirmGrokCost(true);
-  };
-
-  const confirmAndStartGrokRender = () => {
-    if (!grokAvailable || grokCostPerSecond === null || startRender.isPending) return;
-    setConfirmGrokCost(false);
+    if (!renderAvailable || startRender.isPending) return;
     setLocallyStarted(true);
     setElapsedSec(0);
     startRender.mutate(
       {
         id: projectId,
         videoId: video.id,
-        data: { resolution: "1080p" as const, aspectRatio, captionsEnabled, provider: "grok" as const },
+        data: { resolution: "1080p" as const, aspectRatio, captionsEnabled: false, provider: "grok" as const },
       },
       {
         onSuccess: () => {
@@ -568,10 +557,10 @@ function RenderPanel({
           </div>
           <button
             onClick={handleRender}
-            disabled={startRender.isPending || !grokAvailable}
+            disabled={startRender.isPending || !renderAvailable}
             className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-red-500/20 hover:bg-red-500/30 text-red-300 hover:text-red-200 border border-red-500/30 transition-colors disabled:opacity-50"
           >
-            <RefreshCw className="w-3 h-3" /> Review Cost &amp; Retry
+            <RefreshCw className="w-3 h-3" /> Produce video
           </button>
         </div>
       )}
@@ -647,77 +636,17 @@ function RenderPanel({
             </div>
           </div>
 
-          <div>
-            <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Video Provider</p>
-            <div className={`rounded-xl border px-3 py-2.5 ${grokAvailable ? "border-[#00E676]/30 bg-[#00E676]/8" : "border-white/10 bg-white/3 opacity-70"}`}>
-              <span className="text-[11px] font-black">Grok Imagine 1.5 Lite</span>
-              <span className="block text-[9px] text-white/50 mt-0.5">{grokAvailable ? "Only video generator · native spoken audio" : "Video production is currently unavailable"}</span>
-            </div>
-          </div>
-
-          {/* Captions Toggle */}
-          {renderProvider !== "grok" && <div className="flex items-center justify-between rounded-xl border border-white/8 bg-white/2 px-3 py-2.5">
-            <div>
-              <p className="text-xs font-semibold text-white/70">Bold Captions</p>
-              <p className="text-[10px] text-white/35 mt-0.5">Burned-in subtitles for social engagement</p>
-            </div>
-            <button
-              role="switch"
-              aria-checked={captionsEnabled}
-              onClick={() => setCaptionsEnabled(!captionsEnabled)}
-              style={{
-                position: "relative",
-                flexShrink: 0,
-                marginLeft: "12px",
-                width: "44px",
-                height: "24px",
-                borderRadius: "12px",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-                backgroundColor: captionsEnabled ? "#00E676" : "rgba(255,255,255,0.15)",
-                transition: "background-color 0.2s",
-              }}
-            >
-              <span
-                style={{
-                  position: "absolute",
-                  top: "2px",
-                  left: captionsEnabled ? "22px" : "2px",
-                  width: "20px",
-                  height: "20px",
-                  borderRadius: "50%",
-                  backgroundColor: "white",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
-                  transition: "left 0.2s",
-                }}
-              />
-            </button>
-          </div>}
-
-          <div className="rounded-xl border border-[#00E676]/20 bg-[#00E676]/5 px-3 py-2 text-[11px] text-white/70">
-            Estimated cost: {grokCostPerSecond === null ? "unavailable until the owner capability check completes" : `$${grokCostPerSecond.toFixed(2)} per second · up to $${(grokCostPerSecond * Math.min(15, Math.max(1, video.duration ?? 15))).toFixed(2)} for this clip`}. No generation occurs until you explicitly confirm.
-          </div>
-          {confirmGrokCost && <div role="alertdialog" aria-label="Confirm paid Grok video generation" className="rounded-xl border border-amber-400/30 bg-amber-400/8 p-3 space-y-2">
-            <p className="text-xs font-semibold text-amber-100">Confirm paid video generation with Grok Imagine 1.5 Lite?</p>
-            <p className="text-[11px] text-white/70">Estimated cost: {grokCostPerSecond === null ? "unavailable; generation is disabled until a valid estimate is loaded" : `$${grokCostPerSecond.toFixed(2)} per second, up to $${(grokCostPerSecond * Math.min(15, Math.max(1, video.duration ?? 15))).toFixed(2)} for this clip`}.</p>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setConfirmGrokCost(false)} className="rounded-lg px-3 py-1.5 text-xs border border-white/10">Cancel</button>
-              <button type="button" onClick={confirmAndStartGrokRender} disabled={!grokAvailable || grokCostPerSecond === null || startRender.isPending} className="rounded-lg px-3 py-1.5 text-xs font-bold bg-[#00E676] text-[#04100a] disabled:opacity-40">Confirm &amp; Generate</button>
-            </div>
-          </div>}
-
           {/* Render button */}
           <button
             onClick={handleRender}
-            disabled={startRender.isPending || !grokAvailable}
+            disabled={startRender.isPending || !renderAvailable}
             className="w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: "#00E676", color: "#040B14" }}
           >
             {startRender.isPending ? (
               <><Loader2 className="w-4 h-4 animate-spin" /> Starting production...</>
             ) : (
-              <><Film className="w-4 h-4" /> Review Cost &amp; Continue</>
+              <><Film className="w-4 h-4" /> Produce video</>
             )}
           </button>
 

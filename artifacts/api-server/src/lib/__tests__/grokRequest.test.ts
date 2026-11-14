@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGrokGenerationRequest, GROK_VIDEO_MODEL, grokBillableSeconds } from "../grokRequest.js";
+import { buildGrokGenerationRequest, GROK_VIDEO_MODEL, grokBillableSeconds, grokSourceAspectRatio } from "../grokRequest.js";
 import type { CommercialRenderJob } from "../commercialRenderer.js";
 
 describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
@@ -30,10 +30,12 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
     })).toThrow("non-empty prompt");
   });
 
-  it("rejects unsupported aspect ratios", () => {
-    expect(() => buildGrokGenerationRequest({
-      script: "Ad prompt", aspectRatio: "4:5" as "9:16",
-    })).toThrow("does not support aspect ratio");
+  it("supports every product ratio and maps 4:5 to portrait source generation", () => {
+    expect(grokSourceAspectRatio("16:9")).toBe("16:9");
+    expect(grokSourceAspectRatio("9:16")).toBe("9:16");
+    expect(grokSourceAspectRatio("1:1")).toBe("1:1");
+    expect(grokSourceAspectRatio("4:5")).toBe("9:16");
+    expect(buildGrokGenerationRequest({ script: "Ad prompt", aspectRatio: "4:5" }).aspect_ratio).toBe("9:16");
   });
 
   it("rejects invalid durations", () => {

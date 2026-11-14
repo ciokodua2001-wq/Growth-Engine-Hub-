@@ -43,6 +43,7 @@ describe("GrokCommercialRenderer (mocked provider, no paid requests)", () => {
       fetch: fetchMock, sleep: async () => {}, pollIntervalMs: 0, maxPolls: 3,
       save: async (...args) => { saved.push(args); },
       signUrl: async (_bucket, key) => `https://storage.invalid/${key}`,
+      normalizeFrame: async input => input,
     });
     const result = await renderer.render(job);
     expect(fetchMock).toHaveBeenCalledTimes(3);
