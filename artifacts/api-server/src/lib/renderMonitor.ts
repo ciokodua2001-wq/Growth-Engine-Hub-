@@ -95,41 +95,6 @@ export async function recoverStuckScenes(): Promise<RecoveryResult> {
     }
   }
 
-  // Gemini Omni Interactions API jobs are resumable by their persisted interaction ID.
-  // Resume the same paid job after a process restart; never create a duplicate interaction.
-  const omniOrphans = await db
-    .select()
-    .from(klingSceneJobsTable)
-    .where(and(
-      eq(klingSceneJobsTable.provider, "omni"),
-      eq(klingSceneJobsTable.status, "processing"),
-      isNotNull(klingSceneJobsTable.externalTaskId),
-      lt(klingSceneJobsTable.updatedAt, processingCutoff),
-    ));
-
-  for (const orphan of omniOrphans) {
-    try {
-      const { getOmniRenderer } = await import("./omniRenderer.js");
-      const renderer = getOmniRenderer();
-      const result = await renderer.resumeScene({
-        sceneJobId: orphan.id,
-        videoId: orphan.videoId,
-        sceneIndex: orphan.sceneIndex,
-        prompt: orphan.prompt,
-        aspectRatio: orphan.aspectRatio,
-        durationSec: orphan.durationSec ?? 8,
-        newSceneCut: Boolean(orphan.newSceneCut),
-        sourceFrameUrl: orphan.sourceFrameUrl,
-      }, orphan.externalTaskId!);
-      await db.update(klingSceneJobsTable)
-        .set({ status: "succeed", videoUrl: result.videoUrl, durationSec: result.durationSec, updatedAt: now })
-        .where(eq(klingSceneJobsTable.id, orphan.id));
-      logger.info({ sceneId: orphan.id, interactionId: orphan.externalTaskId }, "[RenderMonitor] Omni orphan resumed from persisted interaction");
-    } catch (err) {
-      logger.warn({ err, sceneId: orphan.id }, "[RenderMonitor] Omni orphan resume failed - will be re-evaluated next scan");
-    }
-  }
-
   // Find scenes stuck in "submitted" (never started processing)
   const stuckSubmitted = await db
     .select({ id: klingSceneJobsTable.id, videoId: klingSceneJobsTable.videoId, retryCount: klingSceneJobsTable.retryCount })

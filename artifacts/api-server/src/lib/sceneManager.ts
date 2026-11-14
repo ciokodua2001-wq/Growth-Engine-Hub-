@@ -9,7 +9,6 @@ import { getRenderQueue } from "./renderQueue.js";
 import { getActiveVideoProvider } from "./videoProviderConfig.js";
 import { getWanRenderer } from "./wanRenderer.js";
 import { getVeoRenderer, VEO_SCENE_DURATION_SEC } from "./veoRenderer.js";
-import { getOmniRenderer, OMNI_SCENE_DURATION_SEC } from "./omniRenderer.js";
 import type { CommercialSceneType, KlingSceneJob } from "@workspace/db";
 import { extractDialogueLines, distributeDialogue } from "./dialogue.js";
 
@@ -208,7 +207,7 @@ export class SceneManager {
     // closely as possible. Read once up front so a mid-flight provider flip
     // doesn't change scene count for a video already being decomposed.
     const activeProvider = getActiveVideoProvider();
-    const clipLenSec = activeProvider === "veo" ? VEO_SCENE_DURATION_SEC : activeProvider === "omni" ? OMNI_SCENE_DURATION_SEC : KLING_DURATION_SEC;
+    const clipLenSec = activeProvider === "veo" ? VEO_SCENE_DURATION_SEC : KLING_DURATION_SEC;
     const targetSceneCount = computeTargetSceneCount(Number(video.duration) || 30, clipLenSec);
 
     // ── Prompt fingerprint ─────────────────────────────────────────────────
@@ -456,6 +455,10 @@ export class SceneManager {
     // deliberate business decision (e.g. to keep serving customers during an
     // extended Wan/Veo outage), never a silent, automatic per-request switch.
     const activeProvider = getActiveVideoProvider();
+    if (!activeProvider) {
+      await this.markSceneFailed(sceneJobId, "Video generation is disabled because no approved provider is configured.");
+      return;
+    }
 
     if (activeProvider === "wan") {
       await db
@@ -474,16 +477,6 @@ export class SceneManager {
         .where(eq(klingSceneJobsTable.id, sceneJobId));
 
       await this.processSceneViaVeo(scene);
-      return;
-    }
-
-    if (activeProvider === "omni") {
-      await db
-        .update(klingSceneJobsTable)
-        .set({ provider: "omni", updatedAt: new Date() })
-        .where(eq(klingSceneJobsTable.id, sceneJobId));
-
-      await this.processSceneViaOmni(scene);
       return;
     }
 
@@ -619,31 +612,6 @@ export class SceneManager {
         "[SceneManager] Veo render failed - marking scene failed (no automatic Kling fallback by design)",
       );
       await this.markSceneFailed(scene.id, `Veo render failed: ${msg}`);
-    }
-  }
-
-  /** Renders a scene as an 8-second native-audio clip with Gemini Omni Flash. */
-  private async processSceneViaOmni(scene: KlingSceneJob): Promise<void> {
-    try {
-      const renderer = getOmniRenderer();
-      const result = await renderer.renderScene({
-        sceneJobId: scene.id,
-        videoId: scene.videoId,
-        sceneIndex: scene.sceneIndex,
-        prompt: scene.prompt,
-        aspectRatio: scene.aspectRatio,
-        durationSec: OMNI_SCENE_DURATION_SEC,
-        newSceneCut: scene.newSceneCut,
-        sourceFrameUrl: scene.sourceFrameUrl,
-      });
-      await db.update(klingSceneJobsTable)
-        .set({ status: "succeed", videoUrl: result.videoUrl, durationSec: result.durationSec, updatedAt: new Date() })
-        .where(eq(klingSceneJobsTable.id, scene.id));
-      logger.info({ sceneJobId: scene.id, interactionId: result.providerTaskId }, "[SceneManager] Scene rendered via Gemini Omni");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error({ err: message, sceneJobId: scene.id }, "[SceneManager] Gemini Omni render failed - marking scene failed (no provider fallback)");
-      await this.markSceneFailed(scene.id, `Gemini Omni render failed: ${message}`);
     }
   }
 
@@ -1119,8 +1087,12 @@ export function checkSceneManagerRequirements(): { ready: boolean; missing: stri
     ? Boolean(process.env.KLING_API_KEY)
     : provider === "wan"
       ? Boolean(process.env.VAST_AI_API_KEY && process.env.VAST_AI_ENDPOINT_ID)
-      : Boolean(process.env.GOOGLE_GENAI_API_KEY);
-  if (!providerReady) missing.push(`credentials for selected video provider (${provider})`);
+      : provider === "veo"
+        ? Boolean(process.env.GOOGLE_GENAI_API_KEY)
+        : false;
+  if (!providerReady) missing.push(provider
+    ? `credentials for selected video provider (${provider})`
+    : "an explicitly approved active video provider");
 
   return { ready: missing.length === 0, missing };
 }

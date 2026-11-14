@@ -229,6 +229,11 @@ router.get("/projects/:id/videos/:videoId/scenes", async (req, res) => {
 router.post("/projects/:id/videos/:videoId/scenes/:sceneId/retry", async (req, res) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
+  const { ready } = checkSceneManagerRequirements();
+  if (!ready) {
+    res.status(503).json({ error: "Video generation is disabled until an approved provider is configured." });
+    return;
+  }
 
   const projectId = parseInt(req.params.id, 10);
   const videoId = parseInt(req.params.videoId, 10);

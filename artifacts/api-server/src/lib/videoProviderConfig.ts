@@ -1,6 +1,6 @@
 import type { VideoRenderProvider } from "@workspace/db";
 
-const VALID_PROVIDERS: VideoRenderProvider[] = ["wan", "veo", "omni", "kling"];
+const VALID_PROVIDERS: VideoRenderProvider[] = ["wan", "veo", "kling"];
 
 /**
  * Reads ACTIVE_VIDEO_PROVIDER and returns the currently selected primary
@@ -11,11 +11,11 @@ const VALID_PROVIDERS: VideoRenderProvider[] = ["wan", "veo", "omni", "kling"];
  * explicitly opted into Wan (e.g. the Lightsail server, until its own .env
  * is updated) behaving exactly as it did before this migration.
  */
-export function getActiveVideoProvider(): VideoRenderProvider {
+export function getActiveVideoProvider(): VideoRenderProvider | null {
   const raw = (process.env.ACTIVE_VIDEO_PROVIDER ?? "").trim().toLowerCase();
   return VALID_PROVIDERS.includes(raw as VideoRenderProvider)
     ? (raw as VideoRenderProvider)
-    : "kling";
+    : null;
 }
 
 export type SupportedAspectRatio = "16:9" | "1:1" | "9:16";
@@ -37,8 +37,8 @@ export interface VideoProviderCapabilities {
  */
 export function getVideoProviderCapabilities(): VideoProviderCapabilities {
   const provider = getActiveVideoProvider();
-  if (provider === "veo" || provider === "omni") {
+  if (provider === "veo") {
     return { supportedAspectRatios: ["16:9", "9:16"] };
   }
-  return { supportedAspectRatios: ["16:9", "1:1", "9:16"] };
+  return provider ? { supportedAspectRatios: ["16:9", "1:1", "9:16"] } : { supportedAspectRatios: [] };
 }
