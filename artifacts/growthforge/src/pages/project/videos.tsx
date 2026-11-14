@@ -563,15 +563,15 @@ function RenderPanel({
         <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
           <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-red-400">Production failed</p>
-            <p className="text-xs text-white/40 mt-0.5">{renderStatus?.renderError ?? video.renderError ?? "Something went wrong during production. Please try again."}</p>
+            <p className="text-xs font-semibold text-red-400">This video couldn't be completed</p>
+            <p className="text-xs text-white/50 mt-0.5">Your video time was returned for this attempt. Your brief and script are safe.</p>
           </div>
           <button
             onClick={handleRender}
-            disabled={startRender.isPending}
+            disabled={startRender.isPending || !grokAvailable}
             className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-red-500/20 hover:bg-red-500/30 text-red-300 hover:text-red-200 border border-red-500/30 transition-colors disabled:opacity-50"
           >
-            <RefreshCw className="w-3 h-3" /> Try Again
+            <RefreshCw className="w-3 h-3" /> Review Cost &amp; Retry
           </button>
         </div>
       )}
@@ -724,7 +724,7 @@ function RenderPanel({
           {startRender.isError && (
             <p className="text-xs text-red-400 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />
-              {(startRender.error as { message?: string })?.message ?? "Couldn't start production - please try again"}
+              We couldn't start video production. Your brief is safe; please try again later or contact support.
             </p>
           )}
         </>
