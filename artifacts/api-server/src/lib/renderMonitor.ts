@@ -1,13 +1,13 @@
 /**
- * RenderMonitor — background service that keeps commercial render jobs healthy.
+ * RenderMonitor - background service that keeps commercial render jobs healthy.
  *
  * Responsibilities:
- *   1. Stuck scene recovery — find scenes that have been in "submitted" or
+ *   1. Stuck scene recovery - find scenes that have been in "submitted" or
  *      "processing" longer than their expected timeout and reset them to
  *      "pending" so the next polling cycle re-queues them.
- *   2. Orphaned scene reprocessing — after a server restart, scenes that were
+ *   2. Orphaned scene reprocessing - after a server restart, scenes that were
  *      mid-flight (submitted to Kling) get their polling loop resumed.
- *   3. Periodic metrics logging — aggregated counts for observability.
+ *   3. Periodic metrics logging - aggregated counts for observability.
  *
  * Runs on a configurable interval (default: 5 min).
  * Called once from index.ts after the server starts listening.
@@ -32,7 +32,7 @@ const STUCK_SUBMITTED_MS = 35 * 60 * 1000; // 35 min
  */
 const STUCK_PROCESSING_MS = 50 * 60 * 1000; // 50 min
 
-/** Max retries per scene — beyond this, leave in failed and don't auto-recover. */
+/** Max retries per scene - beyond this, leave in failed and don't auto-recover. */
 const MAX_AUTO_RECOVERY_RETRIES = 2;
 
 /** Monitor interval. */
@@ -95,6 +95,41 @@ export async function recoverStuckScenes(): Promise<RecoveryResult> {
     }
   }
 
+  // Gemini Omni Interactions API jobs are resumable by their persisted interaction ID.
+  // Resume the same paid job after a process restart; never create a duplicate interaction.
+  const omniOrphans = await db
+    .select()
+    .from(klingSceneJobsTable)
+    .where(and(
+      eq(klingSceneJobsTable.provider, "omni"),
+      eq(klingSceneJobsTable.status, "processing"),
+      isNotNull(klingSceneJobsTable.externalTaskId),
+      lt(klingSceneJobsTable.updatedAt, processingCutoff),
+    ));
+
+  for (const orphan of omniOrphans) {
+    try {
+      const { getOmniRenderer } = await import("./omniRenderer.js");
+      const renderer = getOmniRenderer();
+      const result = await renderer.resumeScene({
+        sceneJobId: orphan.id,
+        videoId: orphan.videoId,
+        sceneIndex: orphan.sceneIndex,
+        prompt: orphan.prompt,
+        aspectRatio: orphan.aspectRatio,
+        durationSec: orphan.durationSec ?? 8,
+        newSceneCut: Boolean(orphan.newSceneCut),
+        sourceFrameUrl: orphan.sourceFrameUrl,
+      }, orphan.externalTaskId!);
+      await db.update(klingSceneJobsTable)
+        .set({ status: "succeed", videoUrl: result.videoUrl, durationSec: result.durationSec, updatedAt: now })
+        .where(eq(klingSceneJobsTable.id, orphan.id));
+      logger.info({ sceneId: orphan.id, interactionId: orphan.externalTaskId }, "[RenderMonitor] Omni orphan resumed from persisted interaction");
+    } catch (err) {
+      logger.warn({ err, sceneId: orphan.id }, "[RenderMonitor] Omni orphan resume failed - will be re-evaluated next scan");
+    }
+  }
+
   // Find scenes stuck in "submitted" (never started processing)
   const stuckSubmitted = await db
     .select({ id: klingSceneJobsTable.id, videoId: klingSceneJobsTable.videoId, retryCount: klingSceneJobsTable.retryCount })
@@ -139,7 +174,7 @@ export async function recoverStuckScenes(): Promise<RecoveryResult> {
   const beyondRetry = allStuck.filter(s => s.retryCount >= MAX_AUTO_RECOVERY_RETRIES);
 
   if (beyondRetry.length > 0) {
-    // Mark permanently failed — these have been retried too many times automatically
+    // Mark permanently failed - these have been retried too many times automatically
     await db
       .update(klingSceneJobsTable)
       .set({
@@ -151,7 +186,7 @@ export async function recoverStuckScenes(): Promise<RecoveryResult> {
 
     logger.warn(
       { count: beyondRetry.length, ids: beyondRetry.map(s => s.id) },
-      "[RenderMonitor] Scenes beyond retry cap — marking failed",
+      "[RenderMonitor] Scenes beyond retry cap - marking failed",
     );
   }
 
@@ -164,7 +199,7 @@ export async function recoverStuckScenes(): Promise<RecoveryResult> {
     };
   }
 
-  // Reset recoverable scenes to "pending" — SceneManager will re-process them
+  // Reset recoverable scenes to "pending" - SceneManager will re-process them
   await db
     .update(klingSceneJobsTable)
     .set({
@@ -254,7 +289,7 @@ export function startRenderMonitor(): NodeJS.Timeout {
         if (result.totalReset > 0) {
           logger.warn(result, "[RenderMonitor] Recovery cycle complete");
         } else {
-          logger.info(result, "[RenderMonitor] Routine check — no stuck scenes");
+          logger.info(result, "[RenderMonitor] Routine check - no stuck scenes");
         }
       })
       .catch(err => {

@@ -1301,11 +1301,13 @@ export const StartVideoRenderParams = zod.object({
 export const startVideoRenderBodyResolutionDefault = `1080p`;
 export const startVideoRenderBodyAspectRatioDefault = `16:9`;
 export const startVideoRenderBodyCaptionsEnabledDefault = false;
+export const startVideoRenderBodyProviderDefault = `kling`;
 
 export const StartVideoRenderBody = zod.object({
   "resolution": zod.enum(['1080p', '4k']).default(startVideoRenderBodyResolutionDefault),
   "aspectRatio": zod.enum(['16:9', '9:16', '1:1', '4:5']).default(startVideoRenderBodyAspectRatioDefault).describe('Output aspect ratio for the rendered video.'),
-  "captionsEnabled": zod.boolean().default(startVideoRenderBodyCaptionsEnabledDefault).describe('When true, bold burned-in captions are embedded in the video.')
+  "captionsEnabled": zod.boolean().default(startVideoRenderBodyCaptionsEnabledDefault).describe('When true, bold burned-in captions are embedded in the video.'),
+  "provider": zod.enum(['kling', 'grok']).default(startVideoRenderBodyProviderDefault).describe('Video generation provider for this render. Grok is disabled unless explicitly enabled by deployment configuration.')
 })
 
 export const StartVideoRenderResponse = zod.object({
@@ -1571,15 +1573,15 @@ export const GetCampaignPerformanceParams = zod.object({
 export const GetCampaignPerformanceResponse = zod.object({
   "campaignId": zod.number(),
   "period": zod.string(),
-  "impressions": zod.number().optional(),
-  "clicks": zod.number().optional(),
-  "conversions": zod.number().optional(),
-  "spend": zod.number().optional(),
-  "revenue": zod.number().optional(),
-  "roas": zod.number().optional(),
-  "ctr": zod.number().optional(),
-  "cpc": zod.number().optional(),
-  "cpa": zod.number().optional()
+  "impressions": zod.number().nullable().optional(),
+  "clicks": zod.number().nullable().optional(),
+  "conversions": zod.number().nullable().optional(),
+  "spend": zod.number().nullable().optional(),
+  "revenue": zod.number().nullable().optional(),
+  "roas": zod.number().nullable().optional(),
+  "ctr": zod.number().nullable().optional(),
+  "cpc": zod.number().nullable().optional(),
+  "cpa": zod.number().nullable().optional()
 })
 
 
@@ -1614,19 +1616,19 @@ export const GetProjectAnalyticsParams = zod.object({
 export const GetProjectAnalyticsResponse = zod.object({
   "projectId": zod.number(),
   "period": zod.string(),
-  "adSpend": zod.number().optional(),
-  "roas": zod.number().optional(),
-  "impressions": zod.number().optional(),
-  "clicks": zod.number().optional(),
-  "conversions": zod.number().optional(),
+  "adSpend": zod.number().nullable().optional(),
+  "roas": zod.number().nullable().optional(),
+  "impressions": zod.number().nullable().optional(),
+  "clicks": zod.number().nullable().optional(),
+  "conversions": zod.number().nullable().optional(),
   "activeCampaigns": zod.number().optional(),
-  "revenue": zod.number().optional(),
+  "revenue": zod.number().nullable().optional(),
   "socialReach": zod.number().optional(),
   "socialEngagement": zod.number().optional(),
   "publishedPosts": zod.number().optional(),
   "emailRecipients": zod.number().optional(),
   "sentCampaigns": zod.number().optional(),
-  "emailOpenRate": zod.number().optional(),
+  "emailOpenRate": zod.number().nullable().optional(),
   "contentPieces": zod.number().optional(),
   "videosCreated": zod.number().optional(),
   "adsGenerated": zod.number().optional(),

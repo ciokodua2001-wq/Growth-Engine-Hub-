@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { requireUserId, loadOwnedProject } from "../lib/authz.js";
-import { requireProjectOwnershipParam } from "../lib/authz.js";
+import { requireUserId, loadOwnedProject, requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { consumeQuota } from "../lib/planLimits.js";
 import { getGroundingContext } from "../lib/projectContext.js";
 import { generateImageBuffer } from "@workspace/integrations-google-genai/image";
@@ -12,11 +11,11 @@ const router = Router();
 router.param("id", requireProjectOwnershipParam());
 
 // ── Generate AI image ─────────────────────────────────────────────────────────
-router.post("/projects/:id/images/generate", async (req, res) => {
+router.post("/projects/:id/images/generate", requireActiveSubscription, async (req, res) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
-  const projectId = parseInt(req.params.id, 10);
+  const projectId = parseInt(req.params.id as string, 10);
   if (isNaN(projectId)) {
     res.status(400).json({ error: "Invalid project ID" });
     return;
@@ -135,7 +134,7 @@ async function uploadImageToStorage(buffer: Buffer): Promise<string> {
   const bucket = objectStorageClient.bucket(bucketId);
   await bucket.file(objectName).save(buffer, { metadata: { contentType: "image/png" } });
 
-  // 30-day signed URL — long-lived enough for marketing use
+  // 30-day signed URL - long-lived enough for marketing use
   return signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 60 * 60 * 24 * 30 });
 }
 

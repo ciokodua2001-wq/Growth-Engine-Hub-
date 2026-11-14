@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { videoWalletsTable, videoSecondLogsTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { getMonthlySecondsByPlan } from "./videoConfig.js";
 import pino from "pino";
 
@@ -145,6 +145,92 @@ export async function checkVideoSeconds(
   return { allowed: true, balance };
 }
 
+/** Atomically consume the wallet allowance before a billable generation starts. */
+export async function reserveVideoSeconds(
+  userId: string,
+  seconds: number,
+  videoId: number,
+  projectId: number,
+  description: string,
+  plan?: string,
+): Promise<boolean> {
+  await getOrCreateWallet(userId, plan);
+  return db.transaction(async (tx) => {
+    const [row] = await tx.select().from(videoWalletsTable)
+      .where(eq(videoWalletsTable.userId, userId)).for("update");
+    if (!row) return false;
+    const [prior] = await tx.select({ id: videoSecondLogsTable.id }).from(videoSecondLogsTable).where(and(
+      eq(videoSecondLogsTable.userId, userId), eq(videoSecondLogsTable.videoId, videoId), eq(videoSecondLogsTable.type, "deduction"),
+    ));
+    if (prior) return true;
+    const monthly = Math.max(0, row.monthlyVideoSeconds - row.monthlySecondsUsed);
+    if (monthly + row.purchasedVideoSeconds < seconds) return false;
+    const fromMonthly = Math.min(seconds, monthly);
+    const fromPurchased = seconds - fromMonthly;
+    await tx.update(videoWalletsTable).set({
+      monthlySecondsUsed: row.monthlySecondsUsed + fromMonthly,
+      purchasedVideoSeconds: row.purchasedVideoSeconds - fromPurchased,
+      totalRenderedSeconds: row.totalRenderedSeconds + seconds,
+      updatedAt: new Date(),
+    }).where(eq(videoWalletsTable.userId, userId));
+    await tx.insert(videoSecondLogsTable).values({
+      userId, videoId, projectId, type: "deduction", secondsChanged: -seconds,
+      fromMonthly, fromPurchased,
+      newMonthlyBalance: monthly - fromMonthly,
+      newPurchasedBalance: row.purchasedVideoSeconds - fromPurchased,
+      description,
+    });
+    return true;
+  });
+}
+
+/** Refund the unspent portion of a render reservation once, safely under retries. */
+export async function refundReservedVideoSeconds(
+  userId: string,
+  refundTarget: number,
+  videoId: number,
+  projectId: number,
+  description: string,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [wallet] = await tx.select().from(videoWalletsTable)
+      .where(eq(videoWalletsTable.userId, userId)).for("update");
+    if (!wallet) return;
+    const [deduction] = await tx.select().from(videoSecondLogsTable).where(and(
+      eq(videoSecondLogsTable.userId, userId), eq(videoSecondLogsTable.videoId, videoId), eq(videoSecondLogsTable.type, "deduction"),
+    ));
+    if (!deduction) return;
+    const refunds = await tx.select().from(videoSecondLogsTable).where(and(
+      eq(videoSecondLogsTable.userId, userId), eq(videoSecondLogsTable.videoId, videoId), eq(videoSecondLogsTable.type, "refund"),
+    ));
+    const alreadyRefunded = refunds.reduce((sum, row) => sum + row.secondsChanged, 0);
+    const target = Math.min(Math.max(0, refundTarget), -deduction.secondsChanged);
+    const delta = target - alreadyRefunded;
+    if (delta <= 0) return;
+    const alreadyMonthly = refunds.reduce((sum, row) => sum + row.fromMonthly, 0);
+    const alreadyPurchased = refunds.reduce((sum, row) => sum + row.fromPurchased, 0);
+    let monthlyDelta = Math.min(Math.max(0, target - deduction.fromPurchased), deduction.fromMonthly) - alreadyMonthly;
+    let purchasedDelta = Math.min(target, deduction.fromPurchased) - alreadyPurchased;
+    if (wallet.lastResetAt > deduction.createdAt) {
+      purchasedDelta += monthlyDelta;
+      monthlyDelta = 0;
+    }
+    await tx.update(videoWalletsTable).set({
+      monthlySecondsUsed: Math.max(0, wallet.monthlySecondsUsed - monthlyDelta),
+      purchasedVideoSeconds: wallet.purchasedVideoSeconds + purchasedDelta,
+      totalRenderedSeconds: Math.max(0, wallet.totalRenderedSeconds - delta),
+      updatedAt: new Date(),
+    }).where(eq(videoWalletsTable.userId, userId));
+    await tx.insert(videoSecondLogsTable).values({
+      userId, videoId, projectId, type: "refund", secondsChanged: delta,
+      fromMonthly: monthlyDelta, fromPurchased: purchasedDelta,
+      newMonthlyBalance: Math.max(0, wallet.monthlyVideoSeconds - wallet.monthlySecondsUsed + monthlyDelta),
+      newPurchasedBalance: wallet.purchasedVideoSeconds + purchasedDelta,
+      description,
+    });
+  });
+}
+
 export async function deductVideoSeconds(
   userId: string,
   seconds: number,
@@ -153,13 +239,28 @@ export async function deductVideoSeconds(
   description: string,
 ): Promise<void> {
   await db.transaction(async (tx) => {
+    // Lock the wallet row and check the render-specific ledger entry inside
+    // the same transaction. Retries/recovery for one video cannot deduct twice.
     const [row] = await tx
       .select()
       .from(videoWalletsTable)
-      .where(eq(videoWalletsTable.userId, userId));
+      .where(eq(videoWalletsTable.userId, userId))
+      .for("update");
 
     if (!row) {
-      logger.warn({ userId, videoId }, "No wallet found for deduction — skipping");
+      logger.warn({ userId, videoId }, "No wallet found for deduction - skipping");
+      return;
+    }
+
+    const [priorDeduction] = await tx.select({ id: videoSecondLogsTable.id })
+      .from(videoSecondLogsTable)
+      .where(and(
+        eq(videoSecondLogsTable.userId, userId),
+        eq(videoSecondLogsTable.videoId, videoId),
+        eq(videoSecondLogsTable.type, "deduction"),
+      ));
+    if (priorDeduction) {
+      logger.info({ userId, videoId }, "Duplicate render deduction ignored");
       return;
     }
 
@@ -207,35 +308,63 @@ export async function creditPurchasedSeconds(
 ): Promise<VideoWalletBalance> {
   await getOrCreateWallet(userId, plan);
 
-  const [updated] = await db
-    .update(videoWalletsTable)
-    .set({
-      purchasedVideoSeconds: sql`purchased_video_seconds + ${seconds}`,
-      totalPurchasedSeconds: sql`total_purchased_seconds + ${seconds}`,
-      updatedAt: new Date(),
-    })
-    .where(eq(videoWalletsTable.userId, userId))
-    .returning();
+  const result = await db.transaction(async (tx) => {
+    // Idempotency record first: the unique index on stripe_session_id serializes
+    // concurrent deliveries and rejects duplicates atomically.
+    const inserted = await tx
+      .insert(videoSecondLogsTable)
+      .values({
+        userId,
+        type:                "purchased_credit",
+        secondsChanged:      0,
+        fromMonthly:         0,
+        fromPurchased:       0,
+        newMonthlyBalance:   0,
+        newPurchasedBalance: 0,
+        description:         "purchasing video credit",
+        stripeSessionId,
+        amountPaidUsd,
+      })
+      .onConflictDoNothing()
+      .returning({ id: videoSecondLogsTable.id });
 
-  if (!updated) throw new Error(`Wallet not found for user ${userId}`);
+    // Already processed (duplicate or concurrent delivery) - no additional credit.
+    if (inserted.length === 0) return { duplicate: true as const };
 
-  const newMonthlyBalance = Math.max(0, updated.monthlyVideoSeconds - updated.monthlySecondsUsed);
+    const [updated] = await tx
+      .update(videoWalletsTable)
+      .set({
+        purchasedVideoSeconds: sql`purchased_video_seconds + ${seconds}`,
+        totalPurchasedSeconds: sql`total_purchased_seconds + ${seconds}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(videoWalletsTable.userId, userId))
+      .returning();
 
-  await db.insert(videoSecondLogsTable).values({
-    userId,
-    type:               "purchased_credit",
-    secondsChanged:     seconds,
-    fromMonthly:        0,
-    fromPurchased:      0,
-    newMonthlyBalance,
-    newPurchasedBalance: updated.purchasedVideoSeconds,
-    description:        `Purchased ${seconds}s video credit`,
-    stripeSessionId,
-    amountPaidUsd,
+    if (!updated) throw new Error(`Wallet not found for user ${userId}`);
+
+    const newMonthlyBalance = Math.max(0, updated.monthlyVideoSeconds - updated.monthlySecondsUsed);
+
+    await tx
+      .update(videoSecondLogsTable)
+      .set({
+        secondsChanged:      seconds,
+        newMonthlyBalance,
+        newPurchasedBalance: updated.purchasedVideoSeconds,
+        description:         `Purchased ${seconds}s video credit`,
+      })
+      .where(eq(videoSecondLogsTable.id, inserted[0].id));
+
+    return { duplicate: false as const, balance: toBalance(updated) };
   });
 
+  if (result.duplicate) {
+    logger.info({ userId, stripeSessionId }, "Duplicate video-credit checkout ignored (already processed)");
+    return getOrCreateWallet(userId, plan);
+  }
+
   logger.info({ userId, seconds, stripeSessionId }, "Purchased video seconds credited");
-  return toBalance(updated);
+  return result.balance;
 }
 
 export async function giftVideoSeconds(

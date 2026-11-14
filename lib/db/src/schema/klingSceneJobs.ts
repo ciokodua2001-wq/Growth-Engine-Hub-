@@ -5,12 +5,11 @@ export type KlingSceneJobStatus = "pending" | "submitted" | "processing" | "succ
 
 // Which backend actually rendered (or will render) this scene. "wan" = the
 // self-hosted Wan 2.2 worker on Vast.ai (cheapest, self-hosted GPU); "veo" =
-// Google Veo 3.1 Lite (managed API, native audio, chosen production-quality
-// winner); "kling" = the original Kling AI API (manual fallback only — see
-// ACTIVE_VIDEO_PROVIDER + sceneManager.ts). There is deliberately NO automatic
-// per-scene fallback between providers — an operator flips ACTIVE_VIDEO_PROVIDER
-// explicitly.
-export type VideoRenderProvider = "wan" | "veo" | "kling";
+// Google Veo 3.1 Lite; "omni" = Gemini Omni 1.2 Flash (native synchronized
+// audio/video); "kling" = the original Kling AI API. There is deliberately NO
+// automatic per-scene fallback between providers - an operator flips
+// ACTIVE_VIDEO_PROVIDER explicitly.
+export type VideoRenderProvider = "wan" | "veo" | "omni" | "kling";
 
 export type CommercialSceneType =
   | "hook"
@@ -69,7 +68,7 @@ export const klingSceneJobsTable = pgTable("kling_scene_jobs", {
   // Null for T2V scenes (newSceneCut = true).
   sourceFrameUrl: text("source_frame_url"),
 
-  // ── Prompt fingerprint — SHA-256 of (script+storyboard+cinematicPlan) ────
+  // ── Prompt fingerprint - SHA-256 of (script+storyboard+cinematicPlan) ────
   // Allows decomposeBlueprint to skip the Claude AI call when the blueprint
   // hasn't changed since the last decomposition.
   promptHash: text("prompt_hash"),

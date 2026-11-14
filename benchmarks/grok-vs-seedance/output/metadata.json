@@ -1,0 +1,27 @@
+{
+  "grok": {
+    "model": "grok-imagine-video-1.5-lite",
+    "request_id": "1a613e13-b11b-928c-8981-f38deab02543",
+    "status": "done",
+    "cost_usd": 0.45,
+    "video": {
+      "file": "grok-brief1.mp4",
+      "duration_s": 15.04,
+      "resolution": "720x1280",
+      "fps": 24,
+      "video_codec": "h264",
+      "audio_codec": "aac",
+      "size_bytes": 5452625
+    }
+  },
+  "seedance": {
+    "model": "dreamina-seedance-2-5-260628",
+    "status": "blocked",
+    "task_id": null,
+    "cost_usd": 0,
+    "error": {
+      "code": "ModelNotOpen",
+      "message": "Your account 3005537130 has not activated the model dreamina-seedance-2-5-260628. Please activate the model service in the Ark Console."
+    }
+  }
+}

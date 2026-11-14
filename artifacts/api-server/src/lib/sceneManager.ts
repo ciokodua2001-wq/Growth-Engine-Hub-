@@ -9,6 +9,7 @@ import { getRenderQueue } from "./renderQueue.js";
 import { getActiveVideoProvider } from "./videoProviderConfig.js";
 import { getWanRenderer } from "./wanRenderer.js";
 import { getVeoRenderer, VEO_SCENE_DURATION_SEC } from "./veoRenderer.js";
+import { getOmniRenderer, OMNI_SCENE_DURATION_SEC } from "./omniRenderer.js";
 import type { CommercialSceneType, KlingSceneJob } from "@workspace/db";
 import { extractDialogueLines, distributeDialogue } from "./dialogue.js";
 
@@ -16,7 +17,7 @@ const logger = pino({ name: "sceneManager" });
 
 /**
  * Programmatically guarantee every Kling prompt ends with the no-text phrase.
- * This runs in code regardless of what Claude generated — it is not advisory.
+ * This runs in code regardless of what Claude generated - it is not advisory.
  */
 function enforceNoTextSuffix(prompt: string): string {
   const suffix = "No text, no signs, no writing.";
@@ -48,19 +49,19 @@ const MAX_USER_RETRIES = 10;
 
 // Server-side auto-retries happen silently before the scene is ever marked "failed".
 // Each attempt re-submits a fresh Kling task. The DB status stays "submitted"/
-// "processing" throughout — the user never sees a failed state while retrying.
+// "processing" throughout - the user never sees a failed state while retrying.
 const MAX_AUTO_RETRIES = 3;
 
 /**
  * Returns the number of scenes to generate for a given target duration, given
- * the active provider's per-clip length (5 s for Kling/Wan, 8 s for Veo — see
+ * the active provider's per-clip length (5 s for Kling/Wan, 8 s for Veo - see
  * VEO_SCENE_DURATION_SEC). With 0.5 s xfade transitions: assembled output =
  * n×clipLen − (n−1)×0.5.
  *
  * Matches the platform's 5 selectable targetDuration options (15/30/45/60/90
- * — see videos.tsx). Previously only had 4 tiers topping out at "durationSec
+ * - see videos.tsx). Previously only had 4 tiers topping out at "durationSec
  * > 45", which silently gave 60s AND 90s requests the exact same (~55-60s)
- * scene count — neither actually reached its selected length. Now every
+ * scene count - neither actually reached its selected length. Now every
  * option gets its own tier.
  *
  * At clipLen=5 (Kling/Wan):
@@ -97,37 +98,37 @@ export const COMMERCIAL_SCENE_STRUCTURE: Array<{
     type: "hook",
     name: "Hook",
     objective: "Grab attention in the first 3 seconds with a visually striking, relatable moment",
-    timeHint: "0–5 s",
+    timeHint: "0-5 s",
   },
   {
     type: "problem",
     name: "Problem",
     objective: "Show the viewer's pain point or frustration in a visceral, empathetic way",
-    timeHint: "5–10 s",
+    timeHint: "5-10 s",
   },
   {
     type: "solution",
     name: "Solution",
     objective: "Introduce the product or service as the clear, effortless answer",
-    timeHint: "10–15 s",
+    timeHint: "10-15 s",
   },
   {
     type: "benefits",
     name: "Benefits",
-    objective: "Visually demonstrate the 3 most compelling benefits — show, don't tell",
-    timeHint: "15–20 s",
+    objective: "Visually demonstrate the 3 most compelling benefits - show, don't tell",
+    timeHint: "15-20 s",
   },
   {
     type: "proof",
     name: "Proof",
     objective: "Build trust with social proof, results, or transformation moments",
-    timeHint: "20–25 s",
+    timeHint: "20-25 s",
   },
   {
     type: "cta",
     name: "Call to Action",
     objective: "Drive immediate action with urgency, a clear next step, and brand confidence",
-    timeHint: "25–30 s",
+    timeHint: "25-30 s",
   },
 ];
 
@@ -172,6 +173,26 @@ interface KlingApiResponse {
 
 // ── SceneManager ──────────────────────────────────────────────────────────────
 
+/**
+ * Rewrites domain tokens in a spoken line so a text-to-speech voice reads them
+ * correctly instead of guessing. "ng.quantivarian.com" must be heard as
+ * "n-g dot quantivarian dot com", but Omni's native-audio voice read the
+ * ambiguous two-letter subdomain "ng." as "n." (it dropped the g). Dots are
+ * expanded to " dot " and 1-2 letter labels are spelled out letter-by-letter;
+ * longer labels are left as words. Applied ONLY to the spoken prompt — the
+ * stored narrationLine (used for captions) keeps the real domain verbatim.
+ */
+function ttsSafeSpeech(text: string): string {
+  return text.replace(
+    /\b([a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\b/gi,
+    domain =>
+      domain
+        .split(".")
+        .map(label => (/^[a-z]{1,2}$/i.test(label) ? label.split("").join(" ") : label))
+        .join(" dot "),
+  );
+}
+
 export class SceneManager {
   // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -181,7 +202,7 @@ export class SceneManager {
    * Idempotency: Computes a SHA-256 fingerprint of the blueprint content
    * (script + storyboard + cinematicPlan). If all 6 scene records already exist
    * with the same fingerprint and none have failed, returns the cached scenes
-   * without calling Claude — reducing AI spend on repeated calls.
+   * without calling Claude - reducing AI spend on repeated calls.
    *
    * Duplicate prevention: Uses a per-video in-process lock so that two
    * simultaneous requests for the same video don't both run Claude and
@@ -207,7 +228,7 @@ export class SceneManager {
     // closely as possible. Read once up front so a mid-flight provider flip
     // doesn't change scene count for a video already being decomposed.
     const activeProvider = getActiveVideoProvider();
-    const clipLenSec = activeProvider === "veo" ? VEO_SCENE_DURATION_SEC : KLING_DURATION_SEC;
+    const clipLenSec = activeProvider === "veo" ? VEO_SCENE_DURATION_SEC : activeProvider === "omni" ? OMNI_SCENE_DURATION_SEC : KLING_DURATION_SEC;
     const targetSceneCount = computeTargetSceneCount(Number(video.duration) || 30, clipLenSec);
 
     // ── Prompt fingerprint ─────────────────────────────────────────────────
@@ -236,7 +257,7 @@ export class SceneManager {
     if (allMatch) {
       logger.info(
         { videoId, aspectRatio: klingAspectRatio, targetSceneCount, promptHash: promptHash.slice(0, 8) },
-        "[SceneManager] Blueprint unchanged — returning cached scenes (no Claude call)",
+        "[SceneManager] Blueprint unchanged - returning cached scenes (no Claude call)",
       );
       return existing;
     }
@@ -265,7 +286,7 @@ export class SceneManager {
 
     logger.info(
       { videoId, sceneCount: scenes.length },
-      "[SceneManager] AI decomposition complete — creating scene records",
+      "[SceneManager] AI decomposition complete - creating scene records",
     );
 
     // Delete existing records for this video before inserting fresh ones
@@ -280,7 +301,7 @@ export class SceneManager {
           const fullPrompt = enforceNoTextSuffix(
             [
               s.klingPrompt.replace(/\.\s*No text.*$/i, "").trim(),
-              s.narrationLine ? `Narrator voice says: "${s.narrationLine}".` : "",
+              s.narrationLine ? `Narrator voice says: "${ttsSafeSpeech(s.narrationLine)}".` : "",
               s.audioMood ?? "",
             ]
               .filter(Boolean)
@@ -322,7 +343,7 @@ export class SceneManager {
   /**
    * Fire-and-forget: starts independent background rendering for every pending
    * scene in a video. Scenes that are already submitted/processing/succeed are
-   * left untouched — only "pending" scenes are started.
+   * left untouched - only "pending" scenes are started.
    */
   startSceneRendering(videoId: number): void {
     this.runSceneRendering(videoId).catch(err => {
@@ -345,7 +366,7 @@ export class SceneManager {
       throw new Error(`Scene ${sceneJobId} is not in failed state (current: ${scene.status})`);
     }
 
-    // Enforce retry cap — automatic recovery does not count toward this limit
+    // Enforce retry cap - automatic recovery does not count toward this limit
     // since it uses its own check in RenderMonitor.
     if (scene.retryCount >= MAX_USER_RETRIES) {
       throw new Error(
@@ -414,7 +435,7 @@ export class SceneManager {
       "[SceneManager] Starting independent rendering for pending scenes",
     );
 
-    // Each scene runs completely independently — one failure does not affect others.
+    // Each scene runs completely independently - one failure does not affect others.
     // Each processScene call will acquire its own slot from the global render queue,
     // so all 6 launches happen immediately but only KLING_CONCURRENCY run at once
     // across ALL videos from ALL users.
@@ -431,7 +452,7 @@ export class SceneManager {
    * herd API abuse when many users generate simultaneously.
    *
    * Updates the DB at every status transition. Any failure is logged and
-   * recorded in DB — the scene moves to "failed" and the rest are unaffected.
+   * recorded in DB - the scene moves to "failed" and the rest are unaffected.
    */
   private async processScene(sceneJobId: number): Promise<void> {
     const scene = await this.loadScene(sceneJobId);
@@ -446,12 +467,12 @@ export class SceneManager {
     );
 
     // ── Provider dispatch ──────────────────────────────────────────────────
-    // ACTIVE_VIDEO_PROVIDER selects the EXCLUSIVE renderer for new scenes —
-    // there is deliberately NO automatic per-scene fallback to Kling. If Wan
-    // or Veo is active and a scene fails, it fails visibly (status="failed",
+    // ACTIVE_VIDEO_PROVIDER selects the EXCLUSIVE renderer for new scenes -
+    // there is deliberately NO automatic per-scene fallback. If a provider is
+    // active and a scene fails, it fails visibly (status="failed",
     // errorMessage set) exactly like a Kling failure would. Kling's own code
     // path is left fully intact and untouched below, but it is only reached
-    // by an operator explicitly setting ACTIVE_VIDEO_PROVIDER=kling — a
+    // by an operator explicitly setting ACTIVE_VIDEO_PROVIDER=kling - a
     // deliberate business decision (e.g. to keep serving customers during an
     // extended Wan/Veo outage), never a silent, automatic per-request switch.
     const activeProvider = getActiveVideoProvider();
@@ -476,20 +497,30 @@ export class SceneManager {
       return;
     }
 
+    if (activeProvider === "omni") {
+      await db
+        .update(klingSceneJobsTable)
+        .set({ provider: "omni", updatedAt: new Date() })
+        .where(eq(klingSceneJobsTable.id, sceneJobId));
+
+      await this.processSceneViaOmni(scene);
+      return;
+    }
+
     await this.processSceneViaKling(scene);
   }
 
   /**
    * Renders a scene via the self-hosted Wan 2.2 (14B, T2V-A14B + I2V-A14B)
-   * worker on Vast.ai Serverless (min_workers=0 — scales to zero between
+   * worker on Vast.ai Serverless (min_workers=0 - scales to zero between
    * renders). Full implementation lives in wanRenderer.ts: resolves a worker
    * via Vast's /route/, submits a ComfyUI T2V or I2V workflow_json to
    * /generate/sync, and stores the transcoded MP4 in our own Supabase bucket
-   * (the worker uploads directly there via an S3-compatible passthrough — see
+   * (the worker uploads directly there via an S3-compatible passthrough - see
    * .agents/memory/wan-vast-video-migration.md for the full contract).
    *
-   * On failure, marks the scene "failed" with the error message — same as a
-   * genuine Kling failure — rather than silently switching providers. This
+   * On failure, marks the scene "failed" with the error message - same as a
+   * genuine Kling failure - rather than silently switching providers. This
    * makes a Wan outage immediately visible (failed scenes, error messages,
    * metrics) so a human can decide whether to temporarily flip
    * ACTIVE_VIDEO_PROVIDER to "kling" for new renders.
@@ -521,7 +552,7 @@ export class SceneManager {
       // Feed this clip's last frame forward so a FUTURE continuity scene
       // (newSceneCut=false) can use it as its I2V source frame. Scene-cut
       // decisions aren't authored by the AI decomposition step yet (all
-      // scenes currently default newSceneCut=true / pure T2V) — this just
+      // scenes currently default newSceneCut=true / pure T2V) - this just
       // keeps the data ready for when that authoring logic lands.
       if (result.lastFrameUrl) {
         await db
@@ -544,14 +575,14 @@ export class SceneManager {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error(
         { err: msg, sceneJobId: scene.id, sceneIndex: scene.sceneIndex },
-        "[SceneManager] Wan render failed — marking scene failed (no automatic Kling fallback by design)",
+        "[SceneManager] Wan render failed - marking scene failed (no automatic Kling fallback by design)",
       );
       await this.markSceneFailed(scene.id, `Wan render failed: ${msg}`);
     }
   }
 
   /**
-   * Renders a scene via Google Veo 3.1 Lite (managed API, native audio) —
+   * Renders a scene via Google Veo 3.1 Lite (managed API, native audio) -
    * the chosen production-quality winner from the Veo Fast vs. Lite vs.
    * Kling comparison. Full implementation lives in veoRenderer.ts.
    *
@@ -605,9 +636,54 @@ export class SceneManager {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error(
         { err: msg, sceneJobId: scene.id, sceneIndex: scene.sceneIndex },
-        "[SceneManager] Veo render failed — marking scene failed (no automatic Kling fallback by design)",
+        "[SceneManager] Veo render failed - marking scene failed (no automatic Kling fallback by design)",
       );
       await this.markSceneFailed(scene.id, `Veo render failed: ${msg}`);
+    }
+  }
+
+  /** Renders a scene as an 8-second native-audio clip with Gemini Omni Flash. */
+  private async processSceneViaOmni(scene: KlingSceneJob): Promise<void> {
+    try {
+      const renderer = getOmniRenderer();
+      const result = await renderer.renderScene({
+        sceneJobId: scene.id,
+        videoId: scene.videoId,
+        sceneIndex: scene.sceneIndex,
+        prompt: scene.prompt,
+        aspectRatio: scene.aspectRatio,
+        durationSec: OMNI_SCENE_DURATION_SEC,
+        newSceneCut: scene.newSceneCut,
+        sourceFrameUrl: scene.sourceFrameUrl,
+      });
+      await db.update(klingSceneJobsTable)
+        .set({ status: "succeed", videoUrl: result.videoUrl, durationSec: result.durationSec, updatedAt: new Date() })
+        .where(eq(klingSceneJobsTable.id, scene.id));
+
+      // Feed this clip's last frame forward so the NEXT scene can render as a
+      // continuity (I2V) shot. Kling and Veo already do this; Omni must match,
+      // otherwise the image-conditioned branch of OmniRenderer is unreachable.
+      if (result.lastFrameUrl) {
+        await db
+          .update(klingSceneJobsTable)
+          .set({ sourceFrameUrl: result.lastFrameUrl, updatedAt: new Date() })
+          .where(
+            and(
+              eq(klingSceneJobsTable.videoId, scene.videoId),
+              eq(klingSceneJobsTable.sceneIndex, scene.sceneIndex + 1),
+              eq(klingSceneJobsTable.newSceneCut, false),
+            ),
+          );
+      }
+
+      logger.info(
+        { sceneJobId: scene.id, interactionId: result.providerTaskId, hasLastFrame: Boolean(result.lastFrameUrl) },
+        "[SceneManager] Scene rendered via Gemini Omni",
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error({ err: message, sceneJobId: scene.id }, "[SceneManager] Gemini Omni render failed - marking scene failed (no provider fallback)");
+      await this.markSceneFailed(scene.id, `Gemini Omni render failed: ${message}`);
     }
   }
 
@@ -633,7 +709,7 @@ export class SceneManager {
         const backoffMs = 5_000 * attempt;
         logger.warn(
           { sceneJobId, sceneIndex: scene.sceneIndex, attempt, maxAttempts: MAX_AUTO_RETRIES + 1, lastError: lastError?.message },
-          `[SceneManager] Auto-retry ${attempt}/${MAX_AUTO_RETRIES} — backing off ${backoffMs}ms`,
+          `[SceneManager] Auto-retry ${attempt}/${MAX_AUTO_RETRIES} - backing off ${backoffMs}ms`,
         );
         await sleep(backoffMs);
         // Reset DB to "submitted" so client keeps seeing "in progress"
@@ -686,7 +762,7 @@ export class SceneManager {
           { sceneJobId, sceneIndex: scene.sceneIndex, storedUrl, attempt },
           "[SceneManager] Scene complete and stored",
         );
-        return; // success — exit the retry loop
+        return; // success - exit the retry loop
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         logger.warn(
@@ -694,15 +770,15 @@ export class SceneManager {
           "[SceneManager] Scene poll/download failed",
         );
         // If this was NOT a retriable Kling transient failure (e.g. download store error)
-        // we still retry — worst case we waste one Kling credit; better than showing a failed state.
+        // we still retry - worst case we waste one Kling credit; better than showing a failed state.
       }
     }
 
-    // ── All auto-retries exhausted — mark truly failed ─────────────────────
+    // ── All auto-retries exhausted - mark truly failed ─────────────────────
     const finalMsg = lastError?.message ?? "Scene failed after all auto-retry attempts";
     logger.error(
       { sceneJobId, sceneIndex: scene.sceneIndex, finalMsg },
-      "[SceneManager] All auto-retries exhausted — marking scene failed",
+      "[SceneManager] All auto-retries exhausted - marking scene failed",
     );
     await this.markSceneFailed(sceneJobId, finalMsg);
   }
@@ -758,6 +834,22 @@ export class SceneManager {
     klingTaskId: string,
     videoId: number,
   ): Promise<string> {
+    // HARD TIMEOUT - never let Kling polling run longer than 8 minutes
+    const POLL_TIMEOUT_MS = 8 * 60 * 1000;
+    return Promise.race([
+      this._pollKling(sceneJobId, sceneIndex, klingTaskId, videoId),
+      new Promise<string>((_, reject) =>
+        setTimeout(() => reject(new Error("Kling scene polling timed out after 8 minutes")), POLL_TIMEOUT_MS)
+      ),
+    ]);
+  }
+
+  private async _pollKling(
+    sceneJobId: number,
+    sceneIndex: number,
+    klingTaskId: string,
+    videoId: number,
+  ): Promise<string> {
     logger.info({ sceneJobId, sceneIndex, klingTaskId }, "[SceneManager] Starting poll loop");
 
     for (let poll = 0; poll < KLING_MAX_POLLS; poll++) {
@@ -781,10 +873,10 @@ export class SceneManager {
           return json.data;
         });
       } catch (err) {
-        // Individual poll failures are non-fatal — log and continue
+        // Individual poll failures are non-fatal - log and continue
         logger.warn(
           { err, sceneJobId, sceneIndex, klingTaskId, poll },
-          "[SceneManager] Poll request failed — retrying next interval",
+          "[SceneManager] Poll request failed - retrying next interval",
         );
         continue;
       }
@@ -812,7 +904,7 @@ export class SceneManager {
 
         logger.info(
           { sceneJobId, sceneIndex, klingTaskId, remoteUrl },
-          "[SceneManager] Scene ready — downloading from Kling CDN",
+          "[SceneManager] Scene ready - downloading from Kling CDN",
         );
 
         const storedKey = await this.downloadAndStore(remoteUrl, videoId, sceneIndex);
@@ -829,23 +921,23 @@ export class SceneManager {
 
         logger.info(
           { sceneJobId, sceneIndex, storedKey },
-          "[SceneManager] Scene downloaded and stored — marking succeed",
+          "[SceneManager] Scene downloaded and stored - marking succeed",
         );
         return storedKey;
       }
 
       if (taskData.task_status === "failed") {
         const msg = taskData.task_status_msg ?? `Kling generation failed (task=${klingTaskId})`;
-        // Throw without marking DB failed — processScene auto-retry loop handles that
-        logger.warn({ sceneJobId, sceneIndex, klingTaskId, msg }, "[SceneManager] Kling reported failure — auto-retry will handle");
+        // Throw without marking DB failed - processScene auto-retry loop handles that
+        logger.warn({ sceneJobId, sceneIndex, klingTaskId, msg }, "[SceneManager] Kling reported failure - auto-retry will handle");
         throw new Error(`Kling scene failed: ${msg}`);
       }
     }
 
     const timeoutMin = (KLING_MAX_POLLS * KLING_POLL_INTERVAL_MS) / 60_000;
     const msg = `Scene timed out after ${timeoutMin} min (task=${klingTaskId})`;
-    // Throw without marking DB failed — processScene auto-retry loop handles that
-    logger.warn({ sceneJobId, sceneIndex, klingTaskId }, `[SceneManager] ${msg} — auto-retry will handle`);
+    // Throw without marking DB failed - processScene auto-retry loop handles that
+    logger.warn({ sceneJobId, sceneIndex, klingTaskId }, `[SceneManager] ${msg} - auto-retry will handle`);
     throw new Error(msg);
   }
 
@@ -861,9 +953,9 @@ export class SceneManager {
     // Describe how to compress/expand the 6-beat commercial arc to fit targetSceneCount.
     // Always start with Hook and end with CTA; combine or split the middle beats as needed.
     const arcDescription = targetSceneCount <= 3
-      ? `Scene 1 (Hook): Grab attention — ${COMMERCIAL_SCENE_STRUCTURE[0]!.objective}
-Scene 2 (Solution): Introduce the product and its key benefits — ${COMMERCIAL_SCENE_STRUCTURE[2]!.objective}
-Scene ${targetSceneCount} (Call to Action): Close with a clear CTA — ${COMMERCIAL_SCENE_STRUCTURE[5]!.objective}`
+      ? `Scene 1 (Hook): Grab attention - ${COMMERCIAL_SCENE_STRUCTURE[0]!.objective}
+Scene 2 (Solution): Introduce the product and its key benefits - ${COMMERCIAL_SCENE_STRUCTURE[2]!.objective}
+Scene ${targetSceneCount} (Call to Action): Close with a clear CTA - ${COMMERCIAL_SCENE_STRUCTURE[5]!.objective}`
       : COMMERCIAL_SCENE_STRUCTURE
           .slice(0, Math.min(6, targetSceneCount))
           .map((s, i) => `${i + 1}. ${s.name} (${s.timeHint}): ${s.objective}`)
@@ -879,20 +971,20 @@ Your task is to decompose a commercial video brief into exactly ${targetSceneCou
 
 Each scene must include 8 cinematic metadata fields AND a ready-to-use Kling AI text-to-video prompt.
 
-Scene structure (always in this exact order — compress or expand the commercial arc to fit exactly ${targetSceneCount} scenes):
+Scene structure (always in this exact order - compress or expand the commercial arc to fit exactly ${targetSceneCount} scenes):
 ${arcDescription}
 
 For each scene, the 8 metadata fields are:
 - environment: Specific location, setting, time of day, weather (be cinematic and precise)
 - cameraMovement: Camera motion technique (push-in, pull-back, pan, tracking shot, handheld, drone, etc.)
 - lighting: Lighting setup and quality (golden hour, studio soft-box, neon backlit, etc.)
-- mood: Emotional tone and energy the viewer should feel (3–5 words)
+- mood: Emotional tone and energy the viewer should feel (3-5 words)
 - composition: Visual framing and layout (rule of thirds, centered, symmetrical, close-up, wide, etc.)
 - motion: Subject movement and action within the frame (precise and visual)
 - brandStyle: How brand identity appears visually (colors, aesthetic, product placement)
-- marketingObjective: One sentence — what this specific scene must achieve commercially
+- marketingObjective: One sentence - what this specific scene must achieve commercially
 
-CRITICAL — environments to NEVER use (they always produce text in AI video):
+CRITICAL - environments to NEVER use (they always produce text in AI video):
 - Car interiors, dashboards, instrument clusters, gauges, speedometers
 - Storefronts, shop windows, retail shelves, supermarkets
 - Computer screens, phone screens, monitors, tablets, TVs
@@ -904,16 +996,16 @@ Instead use: people in motion, natural landscapes, abstract environments, hands
 interacting with objects (not screens), aerial/drone shots, lifestyle moments,
 close-ups of faces with emotion, atmospheric environments without signage.
 
-The Kling prompt (klingPrompt) is the VISUAL description only — do NOT include audio in it:
+The Kling prompt (klingPrompt) is the VISUAL description only - do NOT include audio in it:
 - Photorealistic, cinema-grade, 4K quality
 - 350 characters max
-- Actionable visual description — absolutely NO text, letters, words, signs, or writing of any kind visible in the frame
+- Actionable visual description - absolutely NO text, letters, words, signs, or writing of any kind visible in the frame
 - MANDATORY: every klingPrompt must end with: "No text, no signs, no writing."
 - Structured: [style]. [environment]. [subject action]. [camera]. [lighting]. [mood]. No text, no signs, no writing.
 
 Additionally provide two audio fields per scene (Kling v2.6 Native Audio):
-- narrationLine: What is SPOKEN in this scene — a short, punchy marketing line (10–18 words max) that is SPECIFIC to the actual business (use its real name, product, or value proposition from the business context). Progress the story across the 6 scenes: Hook grabs attention, Problem names the pain, Solution introduces the product, Benefits gives the result, Proof builds trust, CTA closes with the business name and action (e.g. "Try GrowthForge free at usegrowthforge.com").
-- audioMood: Ambient sound + music style that matches this scene's energy and business type (e.g. "busy city street ambience, upbeat corporate jazz", "quiet office hum, minimal piano score", "crowd cheering, energetic hip-hop beat"). 2–3 descriptive phrases only.
+- narrationLine: What is SPOKEN in this scene - a short, punchy marketing line (10-18 words max) that is SPECIFIC to the actual business (use its real name, product, or value proposition from the business context). The spoken line MUST be fully delivered by ~7.0 seconds of the 8-second clip, so the final ~1 second is ambient only (no spoken words) — scene transitions are crossfaded and must never cut a word mid-sentence. Progress the story across the 6 scenes: Hook grabs attention, Problem names the pain, Solution introduces the product, Benefits gives the result, Proof builds trust, CTA closes with the business name and action (e.g. "Try GrowthForge free at usegrowthforge.com").
+- audioMood: Ambient sound + music style that matches this scene's energy and business type (e.g. "busy city street ambience, upbeat corporate jazz", "quiet office hum, minimal piano score", "crowd cheering, energetic hip-hop beat"). 2-3 descriptive phrases only.
 
 Return ONLY valid JSON in this exact shape:
 {
@@ -950,27 +1042,31 @@ Generate exactly ${targetSceneCount} scenes. Make every scene visually distinct 
 
     logger.info({ videoId: video.id }, "[SceneManager] Calling Claude for scene decomposition");
 
-    const result = await generateJson<AIDecompositionResult>({
+    const result = await generateJson<AIDecompositionResult | AISceneDescriptor[]>({
       system: systemPrompt,
       prompt: userPrompt,
       maxTokens: 4096,
-      label: `scene decomposition — video #${video.id}`,
+      label: `scene decomposition - video #${video.id}`,
     });
 
-    if (!Array.isArray(result.scenes) || result.scenes.length === 0) {
+    // The prompt asks for {"scenes": [...]}, but with responseMimeType set the
+    // model sometimes returns the bare array. Accept both shapes — rejecting a
+    // usable response here turned it into a customer-facing 500.
+    const scenesList = Array.isArray(result) ? result : result?.scenes;
+    if (!Array.isArray(scenesList) || scenesList.length === 0) {
       throw new Error("AI returned empty scenes array");
     }
 
-    // Ensure sceneType matches our known types — gracefully coerce unknown values.
+    // Ensure sceneType matches our known types - gracefully coerce unknown values.
     // For counts != 6, COMMERCIAL_SCENE_STRUCTURE may not have an entry at index i;
     // fall back to reasonable defaults so the record is always valid.
     const knownTypes: CommercialSceneType[] = ["hook", "problem", "solution", "benefits", "proof", "cta"];
-    return result.scenes.map((s, i) => ({
+    return scenesList.map((s, i) => ({
       ...s,
       sceneIndex: i,
       sceneType: knownTypes.includes(s.sceneType as CommercialSceneType)
         ? (s.sceneType as CommercialSceneType)
-        : (COMMERCIAL_SCENE_STRUCTURE[i]?.type ?? (i === 0 ? "hook" : i === result.scenes.length - 1 ? "cta" : "solution")),
+        : (COMMERCIAL_SCENE_STRUCTURE[i]?.type ?? (i === 0 ? "hook" : i === scenesList.length - 1 ? "cta" : "solution")),
       sceneName: s.sceneName || COMMERCIAL_SCENE_STRUCTURE[i]?.name || `Scene ${i + 1}`,
     }));
   }
@@ -982,7 +1078,7 @@ Generate exactly ${targetSceneCount} scenes. Make every scene visually distinct 
    *
    * The object key is deterministic (video-{id}-scene-{index}.mp4) rather than
    * timestamped, so re-downloads overwrite the previous file instead of creating
-   * orphaned objects that eat storage costs. The stored key — not a signed URL —
+   * orphaned objects that eat storage costs. The stored key - not a signed URL -
    * is what's persisted in the DB; fresh signed URLs are generated on demand.
    */
   private async downloadAndStore(
@@ -999,7 +1095,7 @@ Generate exactly ${targetSceneCount} scenes. Make every scene visually distinct 
     const buffer = Buffer.from(await res.arrayBuffer());
     logger.info(
       { videoId, sceneIndex, bytes: buffer.length },
-      "[SceneManager] Scene downloaded — uploading to object storage",
+      "[SceneManager] Scene downloaded - uploading to object storage",
     );
 
     const { objectStorageClient, signObjectURL } = await import("./objectStorage.js");
@@ -1008,12 +1104,12 @@ Generate exactly ${targetSceneCount} scenes. Make every scene visually distinct 
 
     const bucket = objectStorageClient.bucket(bucketId);
 
-    // Deterministic key — overwrites on retry rather than accumulating orphaned files
+    // Deterministic key - overwrites on retry rather than accumulating orphaned files
     const objectName = `renders/kling/video-${videoId}-scene-${sceneIndex}.mp4`;
     await bucket.file(objectName).save(buffer, { metadata: { contentType: "video/mp4" } });
 
     // Return a fresh signed URL valid for 4 hours.
-    // The raw objectName is NOT stored in the DB here — only the signed URL.
+    // The raw objectName is NOT stored in the DB here - only the signed URL.
     // RenderMonitor or a dedicated /refresh-url route can issue new signed URLs
     // from the stored klingTaskId + objectName pattern when needed.
     return signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 14_400 });
@@ -1050,7 +1146,7 @@ Generate exactly ${targetSceneCount} scenes. Make every scene visually distinct 
   }
 
   private normaliseAspectRatio(ar: string): string {
-    // Kling supports: 16:9, 9:16, 1:1, 4:3, 3:4, 21:9 — map 4:5 to 9:16
+    // Kling supports: 16:9, 9:16, 1:1, 4:3, 3:4, 21:9 - map 4:5 to 9:16
     if (ar === "4:5") return "9:16";
     return ar;
   }
@@ -1062,19 +1158,13 @@ export function checkSceneManagerRequirements(): { ready: boolean; missing: stri
   const missing: string[] = [];
   if (!process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID) missing.push("DEFAULT_OBJECT_STORAGE_BUCKET_ID");
 
-  // At least one video render provider must be usable. Note there is NO
-  // automatic per-scene fallback between providers at render time (see
-  // processScene) — this check only guards against launching a video with
-  // literally nothing configured. We report missing vars only if NONE of
-  // the three providers are usable.
-  const klingReady = Boolean(process.env.KLING_API_KEY);
-  const wanReady = Boolean(process.env.VAST_AI_API_KEY && process.env.VAST_AI_ENDPOINT_ID);
-  const veoReady = Boolean(process.env.GOOGLE_GENAI_API_KEY);
-  if (!klingReady && !wanReady && !veoReady) {
-    missing.push(
-      "KLING_API_KEY (or VAST_AI_API_KEY + VAST_AI_ENDPOINT_ID for Wan, or GOOGLE_GENAI_API_KEY for Veo)",
-    );
-  }
+  const provider = getActiveVideoProvider();
+  const providerReady = provider === "kling"
+    ? Boolean(process.env.KLING_API_KEY)
+    : provider === "wan"
+      ? Boolean(process.env.VAST_AI_API_KEY && process.env.VAST_AI_ENDPOINT_ID)
+      : Boolean(process.env.GOOGLE_GENAI_API_KEY);
+  if (!providerReady) missing.push(`credentials for selected video provider (${provider})`);
 
   return { ready: missing.length === 0, missing };
 }
@@ -1108,7 +1198,7 @@ async function withRetry<T>(
       const delay = baseDelayMs * 2 ** (attempt - 1) + Math.random() * 500;
       logger.warn(
         { attempt, maxAttempts, nextRetryMs: Math.round(delay) },
-        "[SceneManager] Transient error — retrying with backoff",
+        "[SceneManager] Transient error - retrying with backoff",
       );
       await sleep(delay);
     }
