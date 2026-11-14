@@ -126,6 +126,99 @@ router.post("/projects/:id/videos/:videoId/assemblies/:assemblyId/logo", async (
   }
 });
 
+async function resolveCompletedVideoUrl(projectId: number, videoId: number, storedUrl: string): Promise<string> {
+  if (storedUrl.startsWith("grok-object://")) {
+    const ref = storedUrl.slice("grok-object://".length);
+    const slash = ref.indexOf("/");
+    const bucketName = decodeURIComponent(ref.slice(0, slash));
+    const objectName = ref.slice(slash + 1).split("/").map(decodeURIComponent).join("/");
+    if (slash <= 0 || bucketName !== process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID || !objectName.startsWith(`commercial/grok/${videoId}/`)) {
+      throw new Error("Stored video reference is invalid");
+    }
+    return signObjectURL({ bucketName, objectName, method: "GET", ttlSec: 300 });
+  }
+  if (storedUrl.startsWith("/api/projects/")) throw new Error("Unsupported video media URL");
+  return refreshAssemblyUrl(storedUrl);
+}
+
+function hasPngTransparency(png: Buffer): boolean {
+  if (png[25] === 4 || png[25] === 6) return true;
+  if (png[25] !== 3) return false;
+  for (let offset = 8; offset + 12 <= png.length;) {
+    const length = png.readUInt32BE(offset);
+    if (length > png.length - offset - 12) return false;
+    const type = png.toString("ascii", offset + 4, offset + 8);
+    if (type === "tRNS") return true;
+    if (type === "IEND") return false;
+    offset += 12 + length;
+  }
+  return false;
+}
+
+// Primary Commercial Studio logo export path: apply a customer-supplied
+// transparent PNG to an already completed render; no AI is called.
+router.post("/projects/:id/videos/:videoId/logo", async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const projectId = Number(req.params.id);
+  const videoId = Number(req.params.videoId);
+  const assetId = Number(req.body?.assetId);
+  if (![projectId, videoId, assetId].every(Number.isSafeInteger)) {
+    res.status(400).json({ error: "Invalid project, video, or logo asset ID" });
+    return;
+  }
+  const [video] = await db.select().from(videosTable)
+    .where(and(eq(videosTable.id, videoId), eq(videosTable.projectId, projectId)));
+  if (!video?.videoUrl || video.renderStatus !== "complete") {
+    res.status(404).json({ error: "Completed video render not found" });
+    return;
+  }
+  const [asset] = await db.select().from(assetsTable)
+    .where(and(eq(assetsTable.id, assetId), eq(assetsTable.projectId, projectId)));
+  if (!asset?.url || asset.mimeType?.toLowerCase() !== "image/png") {
+    res.status(422).json({ error: "Choose a PNG logo attached to this project" });
+    return;
+  }
+  if ((asset.fileSize ?? 0) > 10 * 1024 * 1024) {
+    res.status(422).json({ error: "Logo file must be 10 MB or smaller" });
+    return;
+  }
+  try {
+    const response = await fetch(await refreshAssemblyUrl(asset.url), { signal: AbortSignal.timeout(20_000) });
+    if (!response.ok) throw new Error(`Logo asset unavailable (${response.status})`);
+    const length = Number(response.headers.get("content-length") ?? 0);
+    if (length > 10 * 1024 * 1024) {
+      res.status(422).json({ error: "Logo file must be 10 MB or smaller" });
+      return;
+    }
+    const logo = Buffer.from(await response.arrayBuffer());
+    if (logo.length < 26 || logo.length > 10 * 1024 * 1024 ||
+      !logo.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
+      logo.toString("ascii", 12, 16) !== "IHDR" || !hasPngTransparency(logo)) {
+      res.status(422).json({ error: "Choose a transparent PNG logo under 10 MB" });
+      return;
+    }
+    const result = await compositeLogoOnVideo(await resolveCompletedVideoUrl(projectId, videoId, video.videoUrl), logo, {
+      projectId, videoId,
+      x: typeof req.body?.x === "number" ? Math.min(0.98, Math.max(0.02, req.body.x)) : 0.82,
+      y: typeof req.body?.y === "number" ? Math.min(0.98, Math.max(0.02, req.body.y)) : 0.82,
+      scale: typeof req.body?.scale === "number" ? Math.min(0.5, Math.max(0.05, req.body.scale)) : 0.2,
+    });
+    const [exported] = await db.insert(commercialAssembliesTable).values({
+      videoId,
+      outputFormat: video.aspectRatio === "9:16" || video.aspectRatio === "4:5" ? "vertical" : video.aspectRatio === "1:1" ? "square" : "landscape",
+      status: "complete", videoUrl: result.url, durationSec: video.duration == null ? null : String(video.duration),
+      fileSizeBytes: result.bytes,
+      options: { postRenderLogo: { assetId, x: req.body?.x ?? 0.82, y: req.body?.y ?? 0.82, scale: req.body?.scale ?? 0.2 }, processing: "ffmpeg-only" },
+      completedAt: new Date(),
+    }).returning({ id: commercialAssembliesTable.id });
+    res.json({ ...result, assemblyId: exported!.id, sourceVideoId: videoId, processing: "ffmpeg-only" });
+  } catch (error) {
+    logger.error({ projectId, videoId, assetId, error: error instanceof Error ? error.message : String(error) }, "[assemble] Post-render logo export failed");
+    res.status(502).json({ error: "Could not export the video with this logo. Please try again." });
+  }
+});
+
 router.param("id", requireProjectOwnershipParam());
 
 // ── POST /projects/:id/videos/:videoId/assemble ───────────────────────────────
