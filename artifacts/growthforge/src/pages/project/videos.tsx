@@ -8,6 +8,7 @@ import {
   useGetVideoRenderStatus,
   useGenerateImage,
   useGetProjectUsage,
+  useUpdateVideo,
   getListVideosQueryKey,
   getGetVideoRenderStatusQueryKey,
   getGetProjectQueryKey,
@@ -24,7 +25,6 @@ import {
   Search, Filter, Clock, Archive, BarChart3, RotateCcw,
 } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
-import CommercialProductionProgress from "@/components/ui/commercial-progress";
 import ScriptFidelityPanel from "@/components/ui/script-fidelity-panel";
 import VideoWalletWidget from "@/components/video-wallet-widget";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -124,7 +124,7 @@ function CinematicBlueprintViewer({ plan, script }: { plan: CinematicPlan; scrip
                   <p className="text-xs text-white/85 leading-snug italic">"{shot.dialogue}"</p>
                 </div>
               ) : (
-                <p className="text-[9px] text-white/25 mb-2 italic">Silent — no spoken line</p>
+                <p className="text-[9px] text-white/25 mb-2 italic">Silent - no spoken line</p>
               )}
               <p className="text-xs text-white/60 leading-snug mb-2">{shot.subjectAction}</p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1">
@@ -184,25 +184,25 @@ function CinematicBlueprintViewer({ plan, script }: { plan: CinematicPlan; scrip
 
 // ── Trial gate: hardcoded sample blueprint preview ────────────────────────────
 const SAMPLE_BLUEPRINT: CinematicPlan = {
-  visualStyle: "Clean corporate minimalism with dynamic motion — crisp whites and deep navy, punctuated by electric accent lighting. Shot to feel like a premium product launch.",
-  characterDescription: "Founder in her 30s — sharp, confident, well-tailored blazer. Radiates the energy of someone who has already solved the problem.",
+  visualStyle: "Clean corporate minimalism with dynamic motion - crisp whites and deep navy, punctuated by electric accent lighting. Shot to feel like a premium product launch.",
+  characterDescription: "Founder in her 30s - sharp, confident, well-tailored blazer. Radiates the energy of someone who has already solved the problem.",
   environment: "Modern open-plan office at golden hour. Floor-to-ceiling windows. City skyline behind. Laptop open on a minimal glass desk.",
-  lighting: "Motivated window key — soft key, blue fill from off-camera LED. Lens flares on glass surfaces.",
-  cameraLanguage: "Handheld with intent — smooth but alive. Push-ins on key emotional beats. 50mm for dialogue, 85mm for hero shots.",
-  performanceDirection: "Quiet confidence. No overselling. The product speaks for itself — she just invites you in.",
+  lighting: "Motivated window key - soft key, blue fill from off-camera LED. Lens flares on glass surfaces.",
+  cameraLanguage: "Handheld with intent - smooth but alive. Push-ins on key emotional beats. 50mm for dialogue, 85mm for hero shots.",
+  performanceDirection: "Quiet confidence. No overselling. The product speaks for itself - she just invites you in.",
   textOverlayPlacement: "Lower-third brand lockup on opener. Product name animates in at midpoint. CTA card at end with URL.",
-  finalHeroShot: "Slow pull back from laptop screen showing the dashboard — founder smiling knowingly at camera, city glowing behind her.",
+  finalHeroShot: "Slow pull back from laptop screen showing the dashboard - founder smiling knowingly at camera, city glowing behind her.",
   shots: [
     {
       shotNumber: 1,
       duration: 5,
       dialogue: "You didn't start a business to spend all day managing it.",
-      environment: "Tight on founder's eyes — shallow depth, city blurred behind",
+      environment: "Tight on founder's eyes - shallow depth, city blurred behind",
       subjectAction: "Founder looks directly into camera, a slight knowing smile forming",
-      facialExpression: "Calm confidence — the look of someone who found the answer",
+      facialExpression: "Calm confidence - the look of someone who found the answer",
       bodyMovement: "Still. Minimal. Presence over movement.",
       cameraMovement: "Very slow push in to extreme close-up",
-      lensStyle: "85mm f/1.4 — cinematic bokeh",
+      lensStyle: "85mm f/1.4 - cinematic bokeh",
       lighting: "Single window key, cool blue fill",
       transition: "Cut on the word 'managing'",
       visualEffects: "Subtle lens flare from window reflection",
@@ -211,9 +211,9 @@ const SAMPLE_BLUEPRINT: CinematicPlan = {
       shotNumber: 2,
       duration: 8,
       dialogue: "GrowthForge reads your business and builds your marketing department in minutes.",
-      environment: "Over-the-shoulder — laptop screen showing the dashboard loading with AI-generated content",
+      environment: "Over-the-shoulder - laptop screen showing the dashboard loading with AI-generated content",
       subjectAction: "Founder types URL, watches results populate in real time",
-      facialExpression: "Focused, then impressed — eyebrows lifting as content appears",
+      facialExpression: "Focused, then impressed - eyebrows lifting as content appears",
       bodyMovement: "Leans forward slightly, elbows on desk",
       cameraMovement: "Rack focus from founder's face to laptop screen mid-sentence",
       lensStyle: "50mm f/2.0",
@@ -224,27 +224,27 @@ const SAMPLE_BLUEPRINT: CinematicPlan = {
     {
       shotNumber: 3,
       duration: 10,
-      dialogue: "Competitors. Strategy. Social posts, email campaigns, video — generated and ready to publish.",
-      environment: "Split-screen of dashboard features — competitor cards, strategy docs, content tiles",
+      dialogue: "Competitors. Strategy. Social posts, email campaigns, video - generated and ready to publish.",
+      environment: "Split-screen of dashboard features - competitor cards, strategy docs, content tiles",
       subjectAction: "Founder scrolls through dashboard, taps each section with natural confidence",
-      facialExpression: "Engaged, gesturing — natural, not rehearsed",
+      facialExpression: "Engaged, gesturing - natural, not rehearsed",
       bodyMovement: "Points at screen as features appear",
-      cameraMovement: "Static wide — then three fast ECUs of each feature loading",
+      cameraMovement: "Static wide - then three fast ECUs of each feature loading",
       lensStyle: "35mm wide, macro for screen detail",
-      lighting: "Even ambient — product clarity over mood",
+      lighting: "Even ambient - product clarity over mood",
       transition: "Fast cuts synced to voiceover beats",
       visualEffects: "Motion graphics callouts highlight each feature on screen",
     },
     {
       shotNumber: 4,
       duration: 7,
-      dialogue: "Start free. No credit card. Your entire marketing engine — live in seven minutes.",
-      environment: "Hero shot — founder standing, laptop closed, full city skyline visible",
+      dialogue: "Start free. No credit card. Your entire marketing engine - live in seven minutes.",
+      environment: "Hero shot - founder standing, laptop closed, full city skyline visible",
       subjectAction: "Turns to face camera, confident and inviting",
-      facialExpression: "Open, warm, direct — close of a trusted advisor",
+      facialExpression: "Open, warm, direct - close of a trusted advisor",
       bodyMovement: "Natural weight shift, open body language",
       cameraMovement: "Slow pull back to reveal full environment",
-      lensStyle: "24mm — environmental context",
+      lensStyle: "24mm - environmental context",
       lighting: "Golden hour backlight, rim light on shoulders",
       transition: "Fade to brand card",
       visualEffects: "Warm lens flare on pull back",
@@ -252,17 +252,17 @@ const SAMPLE_BLUEPRINT: CinematicPlan = {
   ],
 };
 
-const SAMPLE_SCRIPT = `SHOT 1 — OPEN ON FOUNDER
+const SAMPLE_SCRIPT = `SHOT 1 - OPEN ON FOUNDER
 "You didn't start a business to spend all day managing it."
 
-SHOT 2 — PRODUCT REVEAL
+SHOT 2 - PRODUCT REVEAL
 "GrowthForge reads your business and builds your marketing department in minutes."
 
-SHOT 3 — FEATURE SHOWCASE (V/O over screen recordings)
-"Competitors. Strategy. Social posts, email campaigns, video — generated and ready to publish."
+SHOT 3 - FEATURE SHOWCASE (V/O over screen recordings)
+"Competitors. Strategy. Social posts, email campaigns, video - generated and ready to publish."
 
-SHOT 4 — CLOSE / CTA
-"Start free. No credit card. Your entire marketing engine — live in seven minutes."
+SHOT 4 - CLOSE / CTA
+"Start free. No credit card. Your entire marketing engine - live in seven minutes."
 
 [END CARD: GrowthForge · UseGrowthForge.com · Start Free Trial]`;
 
@@ -271,7 +271,7 @@ function VideoStudioTrialGate() {
     <div className="mt-2">
       {/* Label */}
       <p className="text-[10px] font-semibold text-white/25 uppercase tracking-widest mb-3 flex items-center gap-2">
-        <Lock className="w-3 h-3" /> Sample Blueprint — Paid Plans Only
+        <Lock className="w-3 h-3" /> Sample Blueprint - Paid Plans Only
       </p>
 
       <div className="relative rounded-2xl overflow-hidden border border-white/8">
@@ -280,7 +280,7 @@ function VideoStudioTrialGate() {
           {/* Fake card header */}
           <div className="px-4 pt-4 pb-3 border-b border-white/6 flex items-center gap-3">
             <span className="text-[10px] font-black text-violet-400 bg-violet-500/15 border border-violet-500/20 px-2 py-0.5 rounded-full">PROMO</span>
-            <p className="text-sm font-bold text-white">30-Second Brand Commercial — Launch Campaign</p>
+            <p className="text-sm font-bold text-white">30-Second Brand Commercial - Launch Campaign</p>
             <span className="ml-auto text-[10px] text-white/25 shrink-0">4 Shots · 30s</span>
           </div>
           {/* Blueprint content */}
@@ -298,7 +298,7 @@ function VideoStudioTrialGate() {
             </div>
             <h3 className="text-xl font-black text-white mb-2">AI Commercial Studio</h3>
             <p className="text-sm text-white/55 mb-2 leading-relaxed">
-              That's a real blueprint above — actor scripts, cinematic shot lists, and production notes generated for your actual brand.
+              That's a real blueprint above - actor scripts, cinematic shot lists, and production notes generated for your actual brand.
             </p>
             <p className="text-xs text-white/30 mb-6 leading-relaxed">
               Upgrade to generate up to 70 Promotional Videos per month and render them into broadcast-ready 1080p HD commercials with AI voiceover and cinematic footage.
@@ -363,7 +363,7 @@ function RenderStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
     idle:       { label: "Ready to Produce", cls: "bg-white/5 text-white/30 border-white/10" },
     queued:     { label: "In Queue",         cls: "bg-yellow-500/15 text-yellow-400 border-yellow-500/20" },
-    processing: { label: "Producing…",       cls: "bg-blue-500/15 text-blue-400 border-blue-500/20" },
+    processing: { label: "Producing...",       cls: "bg-blue-500/15 text-blue-400 border-blue-500/20" },
     complete:   { label: "Delivered",         cls: "bg-[#00E676]/15 text-[#00E676] border-[#00E676]/20" },
     failed:     { label: "Needs Attention",  cls: "bg-red-500/15 text-red-400 border-red-500/20" },
   };
@@ -377,11 +377,11 @@ function RenderStatusBadge({ status }: { status: string }) {
 
 // ── Render Panel (shown inside selected video card) ───────────────────────────
 const RENDER_STEPS = [
-  { after: 0,    label: "Preparing your production…" },
-  { after: 15,   label: "Recording AI voiceover…" },
-  { after: 40,   label: "Filming AI video scenes…" },
-  { after: 90,   label: "Scene production in progress (~10 min)…" },
-  { after: 600,  label: "Assembling your final commercial…" },
+  { after: 0,    label: "Preparing your production..." },
+  { after: 15,   label: "Recording AI voiceover..." },
+  { after: 40,   label: "Filming AI video scenes..." },
+  { after: 90,   label: "Scene production in progress (~10 min)..." },
+  { after: 600,  label: "Assembling your final commercial..." },
 ];
 
 function RenderPanel({
@@ -396,7 +396,7 @@ function RenderPanel({
   isStarterPlan: boolean;
 }) {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
-  const [renderProvider, setRenderProvider] = useState<"kling" | "grok">("kling");
+  const renderProvider = "grok" as const;
   const [grokAvailable, setGrokAvailable] = useState(false);
   const [grokCostPerSecond, setGrokCostPerSecond] = useState<number | null>(null);
   const [confirmGrokCost, setConfirmGrokCost] = useState(false);
@@ -476,17 +476,19 @@ function RenderPanel({
       await queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) });
       await queryClient.invalidateQueries({ queryKey: getGetVideoRenderStatusQueryKey(projectId, video.id) });
     } catch (_err) {
-      // ignore — the poll will update status shortly
+      // ignore - the poll will update status shortly
     } finally {
       setCancellingRender(false);
     }
   };
 
   const handleRender = () => {
-    if (renderProvider === "grok" && !confirmGrokCost) {
-      setConfirmGrokCost(true);
-      return;
-    }
+    if (!grokAvailable || startRender.isPending) return;
+    setConfirmGrokCost(true);
+  };
+
+  const confirmAndStartGrokRender = () => {
+    if (!grokAvailable || grokCostPerSecond === null || startRender.isPending) return;
     setConfirmGrokCost(false);
     setLocallyStarted(true);
     setElapsedSec(0);
@@ -494,7 +496,7 @@ function RenderPanel({
       {
         id: projectId,
         videoId: video.id,
-        data: { resolution: "1080p" as const, aspectRatio, captionsEnabled, provider: renderProvider },
+        data: { resolution: "1080p" as const, aspectRatio, captionsEnabled, provider: "grok" as const },
       },
       {
         onSuccess: () => {
@@ -515,10 +517,10 @@ function RenderPanel({
       <div className="mt-4 pt-4 border-t border-border rounded-xl bg-[#00E676]/5 border border-[#00E676]/20 p-4">
         <div className="flex items-center gap-2 mb-2">
           <Lock className="w-4 h-4 text-[#00E676]" />
-          <span className="text-sm font-bold text-[#00E676]">Commercial Production — Paid Plans Only</span>
+          <span className="text-sm font-bold text-[#00E676]">Commercial Production - Paid Plans Only</span>
         </div>
         <p className="text-xs text-white/50 mb-3">
-          Your trial includes full Commercial Blueprints — scripts, storyboards, and scene direction. Upgrade to produce broadcast-ready MP4 commercials with AI voiceover and cinematic footage.
+          Your trial includes full Commercial Blueprints - scripts, storyboards, and scene direction. Upgrade to produce broadcast-ready MP4 commercials with AI voiceover and cinematic footage.
         </p>
         <a
           href="/plans"
@@ -580,7 +582,7 @@ function RenderPanel({
           <div className="flex items-center gap-3">
             <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-blue-400">Producing your commercial…</p>
+              <p className="text-xs font-bold text-blue-400">Producing your commercial...</p>
               <p className="text-xs text-white/50 mt-0.5">{stepLabel}</p>
             </div>
             <span className="text-[10px] text-white/25 tabular-nums shrink-0">
@@ -604,19 +606,19 @@ function RenderPanel({
               );
             })}
           </div>
-          <p className="text-[10px] text-white/25">AI scene production takes 10–15 minutes. You can safely leave this page — your commercial keeps running.</p>
+          <p className="text-[10px] text-white/25">AI scene production takes 10-15 minutes. You can safely leave this page - your commercial keeps running.</p>
           <button
             onClick={() => void handleCancelRender()}
             disabled={cancellingRender}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/40 hover:text-white/60 border border-white/10 transition-colors disabled:opacity-40 w-fit"
           >
             <X className="w-3 h-3" />
-            {cancellingRender ? "Cancelling…" : "Cancel Production"}
+            {cancellingRender ? "Cancelling..." : "Cancel Production"}
           </button>
         </div>
       )}
 
-      {/* Render config — only show when not in progress */}
+      {/* Render config - only show when not in progress */}
       {!locallyStarted && currentStatus !== "queued" && currentStatus !== "processing" && (
         <>
           {/* Aspect Ratio */}
@@ -647,15 +649,9 @@ function RenderPanel({
 
           <div>
             <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Video Provider</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setRenderProvider("kling")} className="py-2 px-3 rounded-xl border border-[#00D4FF]/50 bg-[#00D4FF]/10 text-left text-[#00D4FF]">
-                <span className="text-[11px] font-black">Kling</span>
-                <span className="block text-[9px] text-white/35 mt-0.5">Current provider</span>
-              </button>
-              <button type="button" onClick={() => { setRenderProvider("grok"); setConfirmGrokCost(false); }} disabled={!grokAvailable} title={grokAvailable ? "Grok Imagine video with native spoken audio" : "Grok is not enabled for this DEV owner account."} className={`py-2 px-3 rounded-xl border text-left ${renderProvider === "grok" ? "border-[#00E676]/50 bg-[#00E676]/10 text-[#00E676]" : "border-white/8 text-white/50"} ${grokAvailable ? "" : "cursor-not-allowed opacity-45"}`}>
-                <span className="text-[11px] font-black">Grok</span>
-                <span className="block text-[9px] text-white/35 mt-0.5">{grokAvailable ? "Native spoken audio · DEV owner test" : "Not enabled for this account"}</span>
-              </button>
+            <div className={`rounded-xl border px-3 py-2.5 ${grokAvailable ? "border-[#00E676]/30 bg-[#00E676]/8" : "border-white/10 bg-white/3 opacity-70"}`}>
+              <span className="text-[11px] font-black">Grok Imagine 1.5 Lite</span>
+              <span className="block text-[9px] text-white/50 mt-0.5">{grokAvailable ? "Only video generator · native spoken audio" : "Video production is currently unavailable"}</span>
             </div>
           </div>
 
@@ -699,32 +695,36 @@ function RenderPanel({
             </button>
           </div>}
 
-          {renderProvider === "grok" && <div className="rounded-xl border border-[#00E676]/20 bg-[#00E676]/5 px-3 py-2 text-[11px] text-white/70">
-            Estimated maximum provider cost: <strong>{grokCostPerSecond === null ? "unavailable" : `$${(grokCostPerSecond * Math.min(15, Math.max(1, video.duration ?? 15))).toFixed(2)} USD`}</strong> (up to {Math.min(15, Math.max(1, video.duration ?? 15))} seconds). The wallet reservation is shown separately by the server before generation; no provider call starts until you confirm.
-          </div>}
-          {confirmGrokCost && renderProvider === "grok" && <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 p-3 space-y-2">
-            <p className="text-xs text-amber-100">Confirm Grok paid generation with estimated maximum provider cost {grokCostPerSecond === null ? "unavailable" : `$${(grokCostPerSecond * Math.min(15, Math.max(1, video.duration ?? 15))).toFixed(2)} USD`}?</p>
-            <div className="flex gap-2"><button type="button" onClick={() => setConfirmGrokCost(false)} className="rounded-lg px-3 py-1.5 text-xs border border-white/10">Cancel</button><button type="button" onClick={() => { setConfirmGrokCost(false); setLocallyStarted(true); startRender.mutate({ id: projectId, videoId: video.id, data: { resolution: "1080p", aspectRatio, captionsEnabled: false, provider: "grok" } }, { onSuccess: () => void queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) }), onError: () => setLocallyStarted(false) }); }} className="rounded-lg px-3 py-1.5 text-xs font-bold bg-[#00E676] text-[#040B14]">Confirm paid generation</button></div>
+          <div className="rounded-xl border border-[#00E676]/20 bg-[#00E676]/5 px-3 py-2 text-[11px] text-white/70">
+            Estimated cost: {grokCostPerSecond === null ? "unavailable until the owner capability check completes" : `$${grokCostPerSecond.toFixed(2)} per second · up to $${(grokCostPerSecond * Math.min(15, Math.max(1, video.duration ?? 15))).toFixed(2)} for this clip`}. No generation occurs until you explicitly confirm.
+          </div>
+          {confirmGrokCost && <div role="alertdialog" aria-label="Confirm paid Grok video generation" className="rounded-xl border border-amber-400/30 bg-amber-400/8 p-3 space-y-2">
+            <p className="text-xs font-semibold text-amber-100">Confirm paid video generation with Grok Imagine 1.5 Lite?</p>
+            <p className="text-[11px] text-white/70">Estimated cost: {grokCostPerSecond === null ? "unavailable; generation is disabled until a valid estimate is loaded" : `$${grokCostPerSecond.toFixed(2)} per second, up to $${(grokCostPerSecond * Math.min(15, Math.max(1, video.duration ?? 15))).toFixed(2)} for this clip`}.</p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setConfirmGrokCost(false)} className="rounded-lg px-3 py-1.5 text-xs border border-white/10">Cancel</button>
+              <button type="button" onClick={confirmAndStartGrokRender} disabled={!grokAvailable || grokCostPerSecond === null || startRender.isPending} className="rounded-lg px-3 py-1.5 text-xs font-bold bg-[#00E676] text-[#04100a] disabled:opacity-40">Confirm &amp; Generate</button>
+            </div>
           </div>}
 
           {/* Render button */}
           <button
             onClick={handleRender}
-            disabled={startRender.isPending}
+            disabled={startRender.isPending || !grokAvailable}
             className="w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: "#00E676", color: "#040B14" }}
           >
             {startRender.isPending ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Starting production…</>
+              <><Loader2 className="w-4 h-4 animate-spin" /> Starting production...</>
             ) : (
-              <><Film className="w-4 h-4" /> Produce My Commercial</>
+              <><Film className="w-4 h-4" /> Review Cost &amp; Continue</>
             )}
           </button>
 
           {startRender.isError && (
             <p className="text-xs text-red-400 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" />
-              {(startRender.error as { message?: string })?.message ?? "Couldn't start production — please try again"}
+              {(startRender.error as { message?: string })?.message ?? "Couldn't start production - please try again"}
             </p>
           )}
         </>
@@ -876,7 +876,7 @@ function ImageStudio({ projectId, isTrial }: { projectId: number; isTrial: boole
             style={{ background: "#00D4FF", color: "#040B14" }}
           >
             {generating ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
+              <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</>
             ) : (
               <><Sparkles className="w-4 h-4" /> Generate {count > 1 ? `${count} Images` : "Image"}</>
             )}
@@ -978,6 +978,30 @@ function VideoCard({
   isTrial: boolean;
   isStarterPlan: boolean;
 }) {
+  const queryClient = useQueryClient();
+  const updateVideo = useUpdateVideo();
+  const [editingScript, setEditingScript] = useState(false);
+  const [scriptDraft, setScriptDraft] = useState(video.script ?? "");
+  const [scriptSaveError, setScriptSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editingScript) setScriptDraft(video.script ?? "");
+  }, [video.script, editingScript]);
+
+  const saveScript = () => {
+    setScriptSaveError(null);
+    updateVideo.mutate(
+      { id: projectId, videoId: video.id, data: { script: scriptDraft } },
+      {
+        onSuccess: async () => {
+          setEditingScript(false);
+          await queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) });
+        },
+        onError: (error) => setScriptSaveError(error.message || "Unable to save script"),
+      },
+    );
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -1061,8 +1085,26 @@ function VideoCard({
                       )}
                     </div>
                   ) : null}
+                  {video.script && (
+                    <div className="mt-3 rounded-xl border border-border bg-white/2 p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold text-white/70">Actor Script</p>
+                        {!editingScript && <button type="button" onClick={() => { setScriptDraft(video.script ?? ""); setScriptSaveError(null); setEditingScript(true); }} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/5">Edit script</button>}
+                      </div>
+                      {editingScript && (
+                        <>
+                          <textarea aria-label={`Edit script for ${video.title}`} value={scriptDraft} onChange={(event) => setScriptDraft(event.target.value)} rows={Math.min(14, Math.max(5, scriptDraft.split("\n").length + 2))} className="w-full resize-y rounded-lg border border-white/15 bg-[#07111d] p-3 text-sm leading-relaxed text-white outline-none focus:border-[#00E676]/60" />
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <button type="button" onClick={() => { setScriptDraft(video.script ?? ""); setEditingScript(false); setScriptSaveError(null); }} disabled={updateVideo.isPending} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/70 disabled:opacity-50">Cancel</button>
+                            <button type="button" onClick={saveScript} disabled={updateVideo.isPending || scriptDraft.trim() === (video.script ?? "").trim()} className="rounded-lg bg-[#00E676] px-3 py-1.5 text-xs font-bold text-[#04100a] disabled:opacity-45">{updateVideo.isPending ? "Saving..." : "Save script"}</button>
+                          </div>
+                          {scriptSaveError && <p role="alert" className="text-xs text-red-400">{scriptSaveError}</p>}
+                        </>
+                      )}
+                    </div>
+                  )}
                   <ScriptFidelityPanel video={video} projectId={projectId} />
-                  <CommercialProductionProgress video={video} projectId={projectId} isTrial={isTrial} />
+                  <RenderPanel video={video} projectId={projectId} isTrial={isTrial} isStarterPlan={isStarterPlan} />
                 </>
               );
             })()}
@@ -1368,7 +1410,7 @@ export default function ProjectVideos() {
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search blueprints…"
+                placeholder="Search blueprints..."
                 className="w-full pl-8 pr-8 py-2 rounded-xl bg-white/4 border border-white/8 text-xs text-white placeholder:text-white/25 focus:outline-none focus:border-white/20 transition-colors"
               />
               {searchQuery && (
@@ -1437,7 +1479,7 @@ export default function ProjectVideos() {
             </div>
           ) : (
             <>
-              {/* ── Active Workspace — latest generation batch ── */}
+              {/* ── Active Workspace - latest generation batch ── */}
               {activeBatch && (
                 <div className="mb-10">
                   <div className="flex items-center gap-2 mb-4">
@@ -1462,7 +1504,7 @@ export default function ProjectVideos() {
                 </div>
               )}
 
-              {/* ── History — older generation batches ── */}
+              {/* ── History - older generation batches ── */}
               {historyBatches.length > 0 && (
                 <div className="pt-6 border-t border-white/6">
                   <button
@@ -1562,7 +1604,7 @@ export default function ProjectVideos() {
           <VideoIcon className="h-16 w-16 text-primary/30 mb-6" />
           <h2 className="text-2xl font-bold mb-3">Your Studio is Ready</h2>
           <p className="text-muted-foreground mb-8 max-w-sm">
-            Create commercial briefs — fully written scripts, cinematic storyboards, and scene-by-scene production notes tailored to your brand.
+            Create commercial briefs - fully written scripts, cinematic storyboards, and scene-by-scene production notes tailored to your brand.
           </p>
           <button
             onClick={() => setModalOpen(true)}
@@ -1585,7 +1627,7 @@ export default function ProjectVideos() {
         subtitle="AI will write actor scripts, storyboards, and production notes for each video"
         defaultWebsiteUrl={project?.websiteUrl ?? ""}
         detectedLocale={project?.detectedLocale ?? undefined}
-        instructionsPlaceholder={`Examples:\n• Focus on product demo videos\n• Create viral TikTok hooks\n• Target founder pain points\n• Include customer testimonial style`}
+        instructionsPlaceholder={`Examples:\n* Focus on product demo videos\n* Create viral TikTok hooks\n* Target founder pain points\n* Include customer testimonial style`}
         processingSteps={VIDEO_STEPS}
         onSubmit={handleSubmit}
         ctaLabel={`Generate ${blueprintCount} Blueprint${blueprintCount !== 1 ? "s" : ""}`}
@@ -1596,7 +1638,7 @@ export default function ProjectVideos() {
         title="Generate AI Marketing Images"
         subtitle="AI generates marketing visuals grounded in your brand"
         defaultWebsiteUrl={project?.websiteUrl ?? ""}
-        instructionsPlaceholder={`Examples:\n• Hero product shot, clean background\n• Social media banner, bold typography\n• Team photo style, warm lighting`}
+        instructionsPlaceholder={`Examples:\n* Hero product shot, clean background\n* Social media banner, bold typography\n* Team photo style, warm lighting`}
         processingSteps={IMAGE_STEPS}
         onSubmit={async () => {}}
         ctaLabel="Generate Images"

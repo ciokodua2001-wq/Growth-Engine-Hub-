@@ -71,19 +71,19 @@ interface Stage {
 }
 
 const STAGES: Stage[] = [
-  { id: "analysis",   label: "Reading Your Brand",            detail: "Immersing in your business, audience, and competitive landscape to ground every frame…", icon: BarChart2,     weight: 3 },
-  { id: "strategy",   label: "Crafting the Message",          detail: "Identifying the sharpest angles, emotional hooks, and calls-to-action for your audience…", icon: Target,        weight: 3 },
-  { id: "script",     label: "Writing the Script",            detail: "Building a high-converting 30-second narrative with a proven Hook → Problem → CTA arc…",   icon: FileText,      weight: 3 },
-  { id: "blueprint",  label: "Designing the Production",      detail: "Laying out 6 cinematic scenes with camera language, lighting mood, and performance notes…", icon: Clapperboard,  weight: 3 },
-  { id: "scene_0",    label: "Filming Scene 1 — Hook",        detail: "Producing the opening moment that stops the scroll and demands attention in 3 seconds…",   icon: Film,          weight: 10 },
-  { id: "scene_1",    label: "Filming Scene 2 — Problem",     detail: "Capturing the viewer's challenge with empathy and visual authenticity…",                    icon: Film,          weight: 10 },
-  { id: "scene_2",    label: "Filming Scene 3 — Solution",    detail: "Revealing your product as the elegant, obvious answer to what they've been missing…",       icon: Film,          weight: 10 },
-  { id: "scene_3",    label: "Filming Scene 4 — Benefits",    detail: "Bringing the three most powerful benefits to life through cinematic storytelling…",          icon: Film,          weight: 10 },
-  { id: "scene_4",    label: "Filming Scene 5 — Proof",       detail: "Instilling confidence with transformation moments and social proof that converts…",         icon: Film,          weight: 10 },
-  { id: "scene_5",    label: "Filming Scene 6 — Call to Act", detail: "Closing with brand authority and urgency that drives immediate viewer response…",           icon: Film,          weight: 10 },
-  { id: "rendering",  label: "Assembling Your Commercial",    detail: "Joining all 6 scenes with cinematic crossfades and professional color normalization…",      icon: Film,          weight: 5 },
-  { id: "music",      label: "Adding the Score",              detail: "Weaving in background music at the perfect volume — supporting tone without distraction…",  icon: Music,         weight: 5 },
-  { id: "finalizing", label: "Preparing for Delivery",        detail: "Encoding to H.264 High Profile with faststart — instant playback on every platform…",      icon: Sparkles,      weight: 5 },
+  { id: "analysis",   label: "Reading Your Brand",            detail: "Immersing in your business, audience, and competitive landscape to ground every frame...", icon: BarChart2,     weight: 3 },
+  { id: "strategy",   label: "Crafting the Message",          detail: "Identifying the sharpest angles, emotional hooks, and calls-to-action for your audience...", icon: Target,        weight: 3 },
+  { id: "script",     label: "Writing the Script",            detail: "Building a high-converting 30-second narrative with a proven Hook → Problem → CTA arc...",   icon: FileText,      weight: 3 },
+  { id: "blueprint",  label: "Designing the Production",      detail: "Laying out 6 cinematic scenes with camera language, lighting mood, and performance notes...", icon: Clapperboard,  weight: 3 },
+  { id: "scene_0",    label: "Filming Scene 1 - Hook",        detail: "Producing the opening moment that stops the scroll and demands attention in 3 seconds...",   icon: Film,          weight: 10 },
+  { id: "scene_1",    label: "Filming Scene 2 - Problem",     detail: "Capturing the viewer's challenge with empathy and visual authenticity...",                    icon: Film,          weight: 10 },
+  { id: "scene_2",    label: "Filming Scene 3 - Solution",    detail: "Revealing your product as the elegant, obvious answer to what they've been missing...",       icon: Film,          weight: 10 },
+  { id: "scene_3",    label: "Filming Scene 4 - Benefits",    detail: "Bringing the three most powerful benefits to life through cinematic storytelling...",          icon: Film,          weight: 10 },
+  { id: "scene_4",    label: "Filming Scene 5 - Proof",       detail: "Instilling confidence with transformation moments and social proof that converts...",         icon: Film,          weight: 10 },
+  { id: "scene_5",    label: "Filming Scene 6 - Call to Act", detail: "Closing with brand authority and urgency that drives immediate viewer response...",           icon: Film,          weight: 10 },
+  { id: "rendering",  label: "Assembling Your Commercial",    detail: "Joining all 6 scenes with cinematic crossfades and professional color normalization...",      icon: Film,          weight: 5 },
+  { id: "music",      label: "Adding the Score",              detail: "Weaving in background music at the perfect volume - supporting tone without distraction...",  icon: Music,         weight: 5 },
+  { id: "finalizing", label: "Preparing for Delivery",        detail: "Encoding to H.264 High Profile with faststart - instant playback on every platform...",      icon: Sparkles,      weight: 5 },
   { id: "complete",   label: "Commercial Delivered",          detail: "Your commercial is ready to publish, share, and drive results.",                            icon: Check,         weight: 0 },
 ];
 
@@ -134,8 +134,8 @@ const MAX_SCENE_RETRIES = 10;
 function SceneTile({ scene }: { scene: SceneRecord }) {
   const name = scene.sceneName ?? `Scene ${scene.sceneIndex + 1}`;
   const isSuccess = scene.status === "succeed";
-  // Anything that isn't succeeded yet — including a scene that's silently
-  // being retried behind the scenes — reads as "still filming" to the
+  // Anything that isn't succeeded yet - including a scene that's silently
+  // being retried behind the scenes - reads as "still filming" to the
   // customer. We never surface failure/retry language here: the system
   // keeps working automatically until the scene comes back succeeded, and
   // customers should simply trust the video is on its way.
@@ -169,7 +169,7 @@ function SceneTile({ scene }: { scene: SceneRecord }) {
         : isInProgress ? "text-[#00D4FF]"
         : "text-white/30"
       }`}>
-        {name.split(" — ")[1] ?? name}
+        {name.split(" - ")[1] ?? name}
       </p>
     </div>
   );
@@ -211,7 +211,7 @@ function buildSubtitleTimings(
   return entries;
 }
 
-// Word-level timings for the "karaoke" live preview — mirrors the proportional
+// Word-level timings for the "karaoke" live preview - mirrors the proportional
 // per-word distribution the server uses when burning the real word-highlight
 // animation in, so what customers preview closely matches the final export.
 interface KaraokeSentenceTiming { words: string[]; startSec: number; endSec: number }
@@ -450,7 +450,7 @@ const CAPTION_PRESET_STYLES: Record<CaptionPreset, CSSProperties> = {
   },
 };
 
-/** Live overlay for a plain (non-karaoke) caption preset — positioned & scaled by the drag box. */
+/** Live overlay for a plain (non-karaoke) caption preset - positioned & scaled by the drag box. */
 
 // ── Caption layout (responsive safe-area) ─────────────────────────────────────
 // Shared between the browser preview and the FFmpeg export so captions wrap and
@@ -555,20 +555,20 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const [finalVideoUrl, setFinalVideoUrl] = useState<string | null>(video.videoUrl ?? null);
   const [error, setError] = useState<string | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
-  const musicUrlRef = useRef<string | null>(null); // keeps startAssembly closure fresh; always null now that custom upload UI is removed — assembly always uses the default ambient track
+  const musicUrlRef = useRef<string | null>(null); // keeps startAssembly closure fresh; always null now that custom upload UI is removed - assembly always uses the default ambient track
   const startedRef = useRef(false);
   const mountedRef = useRef(true);
   // Tracks scene IDs we've already auto-triggered a client-side retry for,
   // so we don't fire multiple retries from successive poll ticks.
   const autoRetriedRef = useRef<Set<number>>(new Set());
-  // Counts silent assembly retries — mirrors the scene auto-retry philosophy:
+  // Counts silent assembly retries - mirrors the scene auto-retry philosophy:
   // the customer never sees a stitching failure, we just quietly try again.
   const assemblyAutoRetryCountRef = useRef(0);
 
   const [selectedFormats, setSelectedFormats] = useState<OutputFormat[]>(["landscape"]);
   const selectedFormatsRef = useRef<OutputFormat[]>(["landscape"]);
 
-  // Which formats the currently active render provider can actually produce —
+  // Which formats the currently active render provider can actually produce -
   // fetched from the server so the picker never drifts out of sync with a
   // manual ACTIVE_VIDEO_PROVIDER flip (e.g. Veo has no native square/1:1
   // mode). Defaults to all 3 until the check resolves, and fails open (keeps
@@ -590,7 +590,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
         setAvailableFormats(formats);
 
         // A previously-selected format may no longer be supported (e.g. the
-        // operator switched providers between visits) — fall back rather
+        // operator switched providers between visits) - fall back rather
         // than let a stale selection submit an unsupported aspect ratio.
         const current = selectedFormatsRef.current;
         const stillValid = current.filter(f => formats.includes(f));
@@ -598,7 +598,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
         selectedFormatsRef.current = next;
         setSelectedFormats(next);
       } catch {
-        // Non-fatal — keep the default 3-option picker if the check fails.
+        // Non-fatal - keep the default 3-option picker if the check fails.
       }
     })();
     return () => {
@@ -607,10 +607,10 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   }, []);
 
   // ── Caption editor state (post-render, browser-side) ───────────────────────
-  // Default OFF ("leave blank") — captions are entirely opt-in.
+  // Default OFF ("leave blank") - captions are entirely opt-in.
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
   const [captionPreset, setCaptionPreset] = useState<CaptionPreset>("clean");
-  // Normalized to the full video frame, 0..1 — (0.5, 0.85) = centered, near the bottom.
+  // Normalized to the full video frame, 0..1 - (0.5, 0.85) = centered, near the bottom.
   const [captionX, setCaptionX] = useState(0.5);
   const [captionY, setCaptionY] = useState(0.85);
   const [captionScale, setCaptionScale] = useState(1.0);
@@ -655,17 +655,17 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const [currentCaptionText, setCurrentCaptionText] = useState<string | null>(null);
   const [currentKaraokeWords, setCurrentKaraokeWords] = useState<Array<{ word: string; active: boolean }> | null>(null);
   // Static fallback shown whenever the video is paused / hasn't reached a
-  // timed caption window yet — set once when timings are built so a client
+  // timed caption window yet - set once when timings are built so a client
   // can preview + drag + resize a style immediately after picking it,
   // without needing to hit Play first.
   const [previewCaptionText, setPreviewCaptionText] = useState<string | null>(null);
   const [previewKaraokeWords, setPreviewKaraokeWords] = useState<string[] | null>(null);
   const [finalAssemblyId, setFinalAssemblyId] = useState<number | null>(null);
-  // Cached captioned render — reused across Share/Download clicks as long as
+  // Cached captioned render - reused across Share/Download clicks as long as
   // the caption settings haven't changed since it was produced.
   const [captionedAssemblyId, setCaptionedAssemblyId] = useState<number | null>(null);
   const [captionedVideoUrl, setCaptionedVideoUrl] = useState<string | null>(null);
-  // "preparing" only ever shows calm, non-alarming language — never "error"/"retry"
+  // "preparing" only ever shows calm, non-alarming language - never "error"/"retry"
   // (matches the same philosophy as scene/assembly auto-retry elsewhere in this file).
   // A "Share the standard version now" escape hatch is always available while preparing,
   // so customers are never stuck waiting on the captioned render.
@@ -707,12 +707,12 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       v.addEventListener("timeupdate", checkEnd);
     }
   }, []);
-  // Custom "theater mode" fullscreen — a CSS-only, full-viewport overlay used
+  // Custom "theater mode" fullscreen - a CSS-only, full-viewport overlay used
   // INSTEAD of the browser's native Fullscreen API. Mobile browsers commonly
   // force native video fullscreen into landscape orientation regardless of
   // the video's own aspect ratio, which pillarboxes (and visually rotates)
   // portrait 9:16 videos. Theater mode sidesteps that entirely: it never
-  // calls requestFullscreen(), so there's no OS/browser orientation lock —
+  // calls requestFullscreen(), so there's no OS/browser orientation lock -
   // the video simply fills the current viewport at its own aspect ratio via
   // object-fit: contain, correctly edge-to-edge for 9:16 on a portrait phone.
   const [isTheaterMode, setIsTheaterMode] = useState(false);
@@ -776,7 +776,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       return;
     }
 
-    // In progress — restore from API
+    // In progress - restore from API
     if (rs === "processing" || rs === "queued") {
       setPhase("scenes");
       setCurrentStage("scene_0");
@@ -900,32 +900,6 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
 
         setScenes(data.scenes);
 
-        // ── Client-side auto-retry ──────────────────────────────────────────
-        // When a scene lands in "failed" status (server auto-retries exhausted),
-        // silently trigger another retry from the client without showing any
-        // failure UI to the user. Each auto-retry on the server runs 4 Kling
-        // attempts internally, so this gives another full retry cycle.
-        // We track which scene IDs we've already triggered so we don't fire
-        // duplicate retries on successive poll ticks.
-        for (const scene of data.scenes) {
-          if (
-            scene.status === "failed" &&
-            scene.retryCount < MAX_SCENE_RETRIES &&
-            !autoRetriedRef.current.has(scene.id)
-          ) {
-            autoRetriedRef.current.add(scene.id);
-            // Optimistically flip to "pending" so the tile stays blue (no red flash)
-            setScenes(prev => prev.map(s =>
-              s.id === scene.id ? { ...s, status: "pending" as const } : s,
-            ));
-            // Fire and forget — errors are non-fatal (next poll will catch it)
-            fetch(`${apiBase}/scenes/${scene.id}/retry`, { method: "POST" }).catch(() => {
-              // Re-allow retry next cycle if the request itself failed
-              autoRetriedRef.current.delete(scene.id);
-            });
-          }
-        }
-
         // Update the active scene stage label
         const activeScene = data.scenes.find(
           s => s.status === "submitted" || s.status === "processing",
@@ -957,7 +931,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
         }
       } catch (err) {
         if (!mountedRef.current) return;
-        // Non-fatal — just keep polling
+        // Non-fatal - just keep polling
       }
       await new Promise(r => setTimeout(r, INTERVAL));
     }
@@ -973,7 +947,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   }, [apiBase]);
 
   // Polls /assemblies for a specific assembly, within a bounded time budget.
-  // Returns null (never throws) on failure/timeout — callers always have a
+  // Returns null (never throws) on failure/timeout - callers always have a
   // silent, ready-made fallback (the plain video) so nobody is ever stuck.
   const pollForAssembly = useCallback(async (assemblyId: number, budgetMs: number) => {
     const startedAt = Date.now();
@@ -986,7 +960,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
         const target = data.assemblies.find(a => a.id === assemblyId);
         if (target?.status === "complete" && target.videoUrl) return target;
         if (target?.status === "failed") return null;
-      } catch { /* transient — keep polling within budget */ }
+      } catch { /* transient - keep polling within budget */ }
     }
     return null;
   }, [apiBase]);
@@ -995,7 +969,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
    * Ensures a captioned render exists for the CURRENT caption settings,
    * reusing a cached one if the style/position/scale haven't changed since
    * it was produced. Returns null (never throws) if it can't be produced in
-   * time — callers fall back to sharing the plain video rather than blocking.
+   * time - callers fall back to sharing the plain video rather than blocking.
    */
   const ensureCaptionedAssembly = useCallback(async (): Promise<{ id: number; videoUrl: string } | null> => {
     const fingerprint = `${captionPreset}|${captionX.toFixed(3)}|${captionY.toFixed(3)}|${captionScale.toFixed(3)}`;
@@ -1053,7 +1027,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   /**
    * Resolves which video to actually hand to Share/Download: the captioned
    * render when captions are on, silently falling back to the plain video if
-   * the captioned one isn't ready/available yet — so these actions never
+   * the captioned one isn't ready/available yet - so these actions never
    * present an error state or leave the customer stuck.
    */
   const resolveShareTarget = useCallback(async (): Promise<{ assemblyId: number | null; videoUrl: string | null }> => {
@@ -1065,7 +1039,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     return { assemblyId: finalAssemblyId, videoUrl: finalVideoUrl };
   }, [captionsEnabled, ensureCaptionedAssembly, finalAssemblyId, finalVideoUrl]);
 
-  /** Bails out of waiting for the captioned render — shares/downloads the plain video right now. */
+  /** Bails out of waiting for the captioned render - shares/downloads the plain video right now. */
   const skipCaptionWaitRef = useRef(false);
 
   const handleDownload = useCallback(async () => {
@@ -1144,7 +1118,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     setTimeout(() => setCopied(false), 2_500);
   }, [resolveShareTarget, getProxyDownloadUrl, video.title]);
 
-  // Copy Link stays instant — it never triggers a new captioned render, only
+  // Copy Link stays instant - it never triggers a new captioned render, only
   // uses one if already cached, so this lightweight action never makes anyone wait.
   const handleCopyLink = useCallback(async () => {
     const url = (captionsEnabled && captionedVideoUrl) ? captionedVideoUrl : finalVideoUrl;
@@ -1160,16 +1134,16 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   //
   // IMPORTANT, verified platform limitation (not a bug): wa.me / Facebook's
   // sharer / Twitter's intent / LinkedIn's share-offsite links are web
-  // "share intent" URLs — by design, every one of them can only carry a
+  // "share intent" URLs - by design, every one of them can only carry a
   // link + text, never an attached file. There is no client-side way to
   // make a plain link open WhatsApp/Facebook/etc. WITH the real MP4 bytes
   // attached. On a phone, a raw link to a video often previews strangely
-  // (or not at all) in the receiving app — which reads as "sharing some
+  // (or not at all) in the receiving app - which reads as "sharing some
   // weird format" even though nothing is actually broken.
   //
   // The one path that DOES attach the real .mp4 file is the OS's native
   // share sheet (navigator.share with a File), same mechanism the main
-  // "Share" button uses — the user just picks the app themselves from the
+  // "Share" button uses - the user just picks the app themselves from the
   // sheet instead of us being able to pre-select it. So on devices that
   // support file sharing, every platform button below now shares the real
   // file through that same native path; only when file sharing truly isn't
@@ -1204,7 +1178,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     window.open(shareLinks[platform], "_blank", "noopener,noreferrer,width=600,height=650");
   }, [captionsEnabled, captionedVideoUrl, finalVideoUrl, captionedAssemblyId, finalAssemblyId, getProxyDownloadUrl, video.title]);
 
-  // Escape hatch shown while a captioned render is preparing — immediately
+  // Escape hatch shown while a captioned render is preparing - immediately
   // shares/downloads the plain video instead of waiting any longer.
   const handleShareWithoutCaptions = useCallback(async () => {
     skipCaptionWaitRef.current = true;
@@ -1274,7 +1248,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const handleCaptionResizeStart = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Same pointer-capture fix as the drag handle above — locks the entire
+    // Same pointer-capture fix as the drag handle above - locks the entire
     // drag gesture to this handle so it can't be hijacked by a native
     // scroll/zoom gesture mid-drag on touch devices.
     const target = e.currentTarget;
@@ -1296,7 +1270,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     window.addEventListener("pointerup", onUp);
   }, [invalidateCaptionCache]);
 
-  /** Fully resets the caption editor — position, size, AND style — back to
+  /** Fully resets the caption editor - position, size, AND style - back to
    * the default "clean" look, so a client who's been experimenting can get
    * back to a plain, regular caption in one click. */
   const handleResetCaptionPosition = useCallback(() => {
@@ -1329,16 +1303,8 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     finally { setIsSavingCorrection(false); }
   }, [apiBase, localTranscript, invalidateCaptionCache]);
 
-  // ── Assembly trigger ───────────────────────────────────────────────────────
-  // Assembly hiccups (a stitching failure, a stuck/idle job, a timeout) are
-  // never shown to the customer as an error. We quietly re-trigger assembly
-  // a bounded number of times in the background first — only after that
-  // budget is exhausted do we fall back to the visible error screen, as a
-  // last-resort safety net for genuinely unrecoverable cases.
-  const ASSEMBLY_AUTO_RETRY_LIMIT = 5;
-  const ASSEMBLY_AUTO_RETRY_DELAY_MS = 8_000;
-
-  const startAssembly = useCallback(async (force = false) => {
+  // ── Assembly trigger (single attempt; no silent re-submission) ─────────────
+  const startAssembly = useCallback(async () => {
     try {
       const r = await fetch(`${apiBase}/assemble`, {
         method: "POST",
@@ -1348,7 +1314,6 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
           transitionType: "fade",
           transitionDuration: 0.5,
           ...(musicUrlRef.current ? { backgroundMusicUrl: musicUrlRef.current } : {}),
-          ...(force ? { force: true } : {}),
         }),
       });
       if (!r.ok) {
@@ -1358,13 +1323,6 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       await pollAssembly();
     } catch (err) {
       if (!mountedRef.current) return;
-      if (assemblyAutoRetryCountRef.current < ASSEMBLY_AUTO_RETRY_LIMIT) {
-        assemblyAutoRetryCountRef.current += 1;
-        await new Promise(res => setTimeout(res, ASSEMBLY_AUTO_RETRY_DELAY_MS));
-        if (!mountedRef.current) return;
-        await startAssembly(true);
-        return;
-      }
       setError("This is taking longer than expected. Please try again in a few minutes.");
       setPhase("error");
     }
@@ -1373,7 +1331,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   // ── Assembly polling with simulated sub-stages ─────────────────────────────
   const pollAssembly = useCallback(async () => {
     const INTERVAL = 6_000;
-    // 15 minutes — the render box is small enough that even a "fast" x264
+    // 15 minutes - the render box is small enough that even a "fast" x264
     // preset can occasionally run 5-8+ min for one clip (see ffmpegAssembler
     // comments). This budget just needs to comfortably outlast that AND the
     // server's own dedup-on-retry safety net (assemble.ts now always checks
@@ -1384,17 +1342,9 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     let subStageIdx = 0;
     const startedAt = Date.now();
 
-    // Silently re-triggers assembly, or — only once the retry budget is
-    // exhausted — falls back to a plain, non-technical error message.
+    // Failed/idle/time-out results are surfaced; never re-submit automatically.
     const retryOrGiveUp = async (): Promise<void> => {
       if (!mountedRef.current) return;
-      if (assemblyAutoRetryCountRef.current < ASSEMBLY_AUTO_RETRY_LIMIT) {
-        assemblyAutoRetryCountRef.current += 1;
-        await new Promise(res => setTimeout(res, ASSEMBLY_AUTO_RETRY_DELAY_MS));
-        if (!mountedRef.current) return;
-        await startAssembly(true);
-        return;
-      }
       setError("This is taking longer than expected. Please try again in a few minutes.");
       setPhase("error");
     };
@@ -1450,7 +1400,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
           return;
         }
 
-        // "failed" (a stitching error) or "idle" (no assembly row exists —
+        // "failed" (a stitching error) or "idle" (no assembly row exists -
         // unexpected after POST /assemble) are both silently retried rather
         // than surfaced to the customer.
         if (data.overallStatus === "failed" || data.overallStatus === "idle") {
@@ -1459,7 +1409,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
         }
 
       } catch {
-        // Transient poll error (e.g. a network blip) — not a real assembly
+        // Transient poll error (e.g. a network blip) - not a real assembly
         // failure, so just keep polling quietly.
         if (!mountedRef.current) return;
       }
@@ -1483,7 +1433,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     setCurrentStage("scene_0");
     setPhase("scenes");
     try {
-      // Send the selected output format as-is — the server (scenes.ts) maps it
+      // Send the selected output format as-is - the server (scenes.ts) maps it
       // to the real Kling/Wan aspect ratio (e.g. "vertical" -> "9:16") and
       // persists it so scene generation and final assembly stay in sync.
       const selectedFormat = selectedFormatsRef.current[0] ?? "landscape";
@@ -1494,7 +1444,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       });
       if (!r.ok) {
         const body = (await r.json().catch(() => ({}))) as { error?: string; message?: string };
-        throw new Error(body.message ?? body.error ?? `Scene generation failed (${r.status})`);
+        throw new Error("Legacy scene generation is no longer available. Use the Grok Commercial Studio.");
       }
       // Kick off polling
       await pollScenes();
@@ -1527,9 +1477,9 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const assemblyNotStarted = phase !== "assembling" && phase !== "complete";
   const etaMinutes = remainingScenes * SCENE_ETA_MINUTES + (assemblyNotStarted ? ASSEMBLY_ETA_MINUTES : phase === "assembling" ? 3 : 0);
 
-  // Only surface the "needs attention" banner when a scene is truly stuck —
+  // Only surface the "needs attention" banner when a scene is truly stuck -
   // We intentionally never surface a "failed"/"needs retry" state to the
-  // customer — the system retries silently in the background until each
+  // customer - the system retries silently in the background until each
   // scene succeeds, so the UI always reads as ordinary, ongoing progress.
   const allScenesSucceeded = scenes.length > 0 && scenes.every(s => s.status === "succeed");
   const activeSceneCount = scenes.filter(s => s.status === "submitted" || s.status === "processing").length;
@@ -1547,10 +1497,10 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
           <div className="rounded-xl bg-[#00E676]/5 border border-[#00E676]/20 p-4">
             <div className="flex items-center gap-2 mb-2">
               <LockIcon className="w-4 h-4 text-[#00E676]" />
-              <span className="text-sm font-bold text-[#00E676]">Commercial Production — Paid Plans Only</span>
+              <span className="text-sm font-bold text-[#00E676]">Commercial Production - Paid Plans Only</span>
             </div>
             <p className="text-xs text-white/50 mb-3">
-              Your trial includes full Commercial Blueprints — scripts, storyboards, and scene-by-scene production notes.
+              Your trial includes full Commercial Blueprints - scripts, storyboards, and scene-by-scene production notes.
               Upgrade to produce broadcast-ready MP4 commercials with AI-generated scenes, narration, and cinematic transitions.
             </p>
             <a
@@ -1580,7 +1530,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
           {!hasBlueprint ? (
             <div className="rounded-lg bg-yellow-500/8 border border-yellow-500/20 p-3 mb-3">
               <p className="text-xs text-yellow-400 font-medium">Create a brief first</p>
-              <p className="text-[10px] text-white/45 mt-0.5">Generate a Commercial Brief first — we'll use it as the production blueprint for your commercial.</p>
+              <p className="text-[10px] text-white/45 mt-0.5">Generate a Commercial Brief first - we'll use it as the production blueprint for your commercial.</p>
             </div>
           ) : (
             <>
@@ -1626,11 +1576,11 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
 
           <button
             disabled={!hasBlueprint}
-            onClick={() => void startProduction()}
-            className="w-full py-2.5 rounded-xl font-bold text-sm text-black bg-[#00E676] hover:bg-[#14F195] transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            disabled
+            className="w-full py-2.5 rounded-xl font-bold text-sm text-black bg-[#00E676]/40 cursor-not-allowed flex items-center justify-center gap-2"
           >
             <Film className="w-4 h-4" />
-            Produce Commercial
+            Grok Commercial Studio is the only available path
           </button>
         </div>
 
@@ -1648,9 +1598,9 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     return (
       <div className="mt-4 pt-4 border-t border-white/8 space-y-3">
 
-        {/* Video player with live, draggable caption preview — exactly what will be shared/published.
+        {/* Video player with live, draggable caption preview - exactly what will be shared/published.
             Theater mode (the outer backdrop below) is a CSS-only full-viewport overlay, used INSTEAD
-            of the browser's native Fullscreen API — native video fullscreen on mobile commonly forces
+            of the browser's native Fullscreen API - native video fullscreen on mobile commonly forces
             landscape orientation regardless of the video's own aspect ratio, which is exactly what
             pillarboxed/rotated the 9:16 video in testing. This approach never touches orientation,
             so a 9:16 video fills a portrait phone screen edge-to-edge, exactly as expected. */}
@@ -1694,7 +1644,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
           )}
           {captionsEnabled && (() => {
             // Show a caption box the moment captions are turned on / a style is
-            // picked — never gated on the video actually being mid-playback.
+            // picked - never gated on the video actually being mid-playback.
             // While playing, the live time-synced line/word takes over; while
             // paused (or before Play is first pressed) it falls back to the
             // first line so clients can position, resize, and preview a style
@@ -1714,10 +1664,10 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
               : null;
             return (
               // Outer wrapper is pointerEvents:none so it never blocks the native
-              // video controls underneath — only the small drag/resize handles
+              // video controls underneath - only the small drag/resize handles
               // (explicitly pointerEvents:auto below) are actually interactive.
               <div style={{ ...getCaptionOverlayStyle(captionX, captionY, captionScale, captionPreset, videoAspect ?? 0.5625), pointerEvents: "none" }}>
-                {/* inline-block so the wrapper shrinks to the actual caption box size —
+                {/* inline-block so the wrapper shrinks to the actual caption box size -
                     otherwise the drag/resize handles below would anchor to the full
                     (much wider) text-centering column instead of the visible box. */}
                 <div style={{ position: "relative", display: "inline-block" }}>
@@ -1749,7 +1699,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                       ))
                     )}
                   </div>
-                  {/* Resize handle — drag to grow/shrink the caption. Always
+                  {/* Resize handle - drag to grow/shrink the caption. Always
                       rendered (not conditional on any live text) so it's never
                       missing while captions are on. */}
                   <div
@@ -1763,7 +1713,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                     }}
                   >
                     {/* Larger invisible touch target (28px) wrapping a visible 14px green
-                        dot — keeps the handle easy to grab on mobile without looking oversized. */}
+                        dot - keeps the handle easy to grab on mobile without looking oversized. */}
                     <div style={{
                       width: 14, height: 14, borderRadius: "50%",
                       background: "#00E676", border: "2px solid #051",
@@ -1776,7 +1726,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
         </div>
         </div>
 
-        {/* Caption editor — post-render, before Share/Publish. Default is OFF ("leave blank"). */}
+        {/* Caption editor - post-render, before Share/Publish. Default is OFF ("leave blank"). */}
         {unclearSegment && (
           <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 space-y-2.5 mb-2">
             <div className="flex items-center justify-between">
@@ -1923,12 +1873,12 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             )}
           </div>
 
-        {/* Share / download — captions (if enabled) are applied automatically before either action */}
+        {/* Share / download - captions (if enabled) are applied automatically before either action */}
         <div className="space-y-2">
           {captionPrepState === "preparing" && (
             <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-[#00D4FF]/8 border border-[#00D4FF]/20">
               <span className="text-[10px] text-[#00D4FF] flex items-center gap-1.5">
-                <Loader2 className="w-3 h-3 animate-spin" /> Getting your captioned video ready — this usually takes under a minute…
+                <Loader2 className="w-3 h-3 animate-spin" /> Getting your captioned video ready - this usually takes under a minute...
               </span>
               <button
                 onClick={() => void handleShareWithoutCaptions()}
@@ -1956,7 +1906,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             </button>
           </div>
 
-          {/* Direct social platform share — real share-intent links (open in a
+          {/* Direct social platform share - real share-intent links (open in a
               new tab), so this works everywhere, not just on devices/browsers
               that support the native Web Share sheet used by the Share button above. */}
           <div className="flex gap-1.5">
@@ -1996,7 +1946,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-white/55 hover:bg-white/8 transition-all disabled:opacity-40"
           >
             {downloading
-              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Downloading…</>
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Downloading...</>
               : <><Download className="w-3.5 h-3.5" /> Download{captionsEnabled ? " with captions" : ""}</>}
           </button>
         </div>
@@ -2023,8 +1973,8 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
           <div className="flex items-start gap-2 mb-3">
             <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-bold text-red-400">Production couldn't complete</p>
-              <p className="text-[10px] text-white/45 mt-0.5 break-words">{error ?? "Something went wrong on our end. Give it another try."}</p>
+              <p className="text-xs font-bold text-red-400">Production is currently unavailable</p>
+              <p className="text-[10px] text-white/50 mt-0.5 break-words">Your brief and script are saved. Video generation with Grok Imagine is temporarily disabled; please try again later.</p>
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -2035,7 +1985,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                   setAssemblies([]);
                   setPhase("assembling");
                   assemblyAutoRetryCountRef.current = 0;
-                  void startAssembly(true);
+                  void startAssembly();
                 }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-[#00D4FF]/15 hover:bg-[#00D4FF]/25 text-[#00D4FF] border border-[#00D4FF]/25 transition-colors"
               >
@@ -2080,7 +2030,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             >
               <Loader2 className="w-3.5 h-3.5 text-[#00D4FF]" />
             </motion.div>
-            <span className="text-xs font-bold text-[#00D4FF]">Producing your commercial…</span>
+            <span className="text-xs font-bold text-[#00D4FF]">Producing your commercial...</span>
           </div>
           <div className="flex items-center gap-3">
             {etaMinutes > 0 && (
@@ -2111,7 +2061,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
         </div>
       </div>
 
-      {/* Scene grid — shown once scene generation starts */}
+      {/* Scene grid - shown once scene generation starts */}
       {scenes.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -2198,7 +2148,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
               {/* Status badge */}
               <div className="shrink-0 mt-0.5">
                 {isComplete_ && <span className="text-[9px] text-[#00E676]/50">done</span>}
-                {isActive && <span className="text-[9px] text-white/25">running…</span>}
+                {isActive && <span className="text-[9px] text-white/25">running...</span>}
               </div>
             </motion.div>
           );
@@ -2207,7 +2157,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
 
       {/* Footer note */}
       <p className="text-[10px] text-white/20 text-center">
-        AI scene production takes 8–15 min per scene. You can safely leave this page — your commercial keeps running in the background.
+        AI scene production takes 8-15 min per scene. You can safely leave this page - your commercial keeps running in the background.
       </p>
     </div>
   );
