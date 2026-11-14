@@ -2,6 +2,7 @@ import type { CommercialRenderJob } from "./commercialRenderer.js";
 
 export const GROK_VIDEO_MODEL = "grok-imagine-video-1.5-lite";
 export const GROK_VIDEO_ENDPOINT = "https://api.x.ai/v1/videos/generations";
+export const GROK_VIDEO_STATUS_ENDPOINT = "https://api.x.ai/v1/videos";
 export const GROK_NO_TEXT_INSTRUCTIONS =
   "Do not add unrequested captions, subtitles, text overlays, logos, or legible written text. Preserve and accurately render any customer-requested branding, logos, product labels, or approved on-screen text described in the brief or storyboard.";
 

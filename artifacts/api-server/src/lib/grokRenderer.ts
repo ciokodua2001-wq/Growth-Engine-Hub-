@@ -1,6 +1,6 @@
 import pino from "pino";
 import type { CommercialRenderer, CommercialRenderJob, CommercialRenderResult, CommercialRendererCapabilities } from "./commercialRenderer.js";
-import { buildGrokGenerationRequest, GROK_VIDEO_ENDPOINT } from "./grokRequest.js";
+import { buildGrokGenerationRequest, GROK_VIDEO_ENDPOINT, GROK_VIDEO_STATUS_ENDPOINT } from "./grokRequest.js";
 import { objectStorageClient, signObjectURL } from "./objectStorage.js";
 
 const logger = pino({ name: "grokRenderer" });
@@ -76,7 +76,7 @@ export class GrokCommercialRenderer implements CommercialRenderer {
     let completed: GrokStatus | undefined;
     for (let poll = 0; poll < this.deps.maxPolls; poll++) {
       await this.deps.sleep(this.deps.pollIntervalMs);
-      const status = await this.requestJson("GET", `${GROK_VIDEO_ENDPOINT}/${encodeURIComponent(requestId)}`, apiKey);
+      const status = await this.requestJson("GET", `${GROK_VIDEO_STATUS_ENDPOINT}/${encodeURIComponent(requestId)}`, apiKey);
       const normalized = (status.status ?? "").toLowerCase();
       if (["done", "completed", "succeeded"].includes(normalized)) { completed = status; break; }
       if (["failed", "error", "cancelled"].includes(normalized)) {

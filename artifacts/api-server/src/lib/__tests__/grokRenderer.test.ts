@@ -47,7 +47,7 @@ describe("GrokCommercialRenderer (mocked provider, no paid requests)", () => {
     const result = await renderer.render(job);
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.x.ai/v1/videos/generations");
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://api.x.ai/v1/videos/generations/req-123");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://api.x.ai/v1/videos/req-123");
     expect(fetchMock.mock.calls[2]?.[0]).toBeInstanceOf(URL);
     expect(String(fetchMock.mock.calls[2]?.[0])).toBe("https://assets.grok.com/output.mp4");
     expect(saved).toHaveLength(1);
@@ -82,6 +82,25 @@ describe("GrokCommercialRenderer (mocked provider, no paid requests)", () => {
     const renderer = new GrokCommercialRenderer({ fetch: fetchMock, sleep: async () => {}, pollIntervalMs: 0, maxPolls: 3 });
     await expect(renderer.render(job)).rejects.toThrow("Grok generation failed");
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses xAI's documented status route so submitted jobs do not 404 during polling", async () => {
+    process.env.GROK_VIDEO_ENABLED = "true";
+    process.env.GROWTHFORGE_GROK_API_KEY = "mock-key";
+    process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID = "mock-bucket";
+    process.env.OBJECT_STORAGE_ENDPOINT = "https://storage.invalid";
+    process.env.OBJECT_STORAGE_REGION = "us-east-1";
+    process.env.OBJECT_STORAGE_ACCESS_KEY_ID = "mock-access";
+    process.env.OBJECT_STORAGE_SECRET_ACCESS_KEY = "mock-secret";
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ request_id: "req-route" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ request_id: "req-route", status: "failed", error: "mock failure" }), { status: 200 }));
+    const renderer = new GrokCommercialRenderer({ fetch: fetchMock, sleep: async () => {}, pollIntervalMs: 0, maxPolls: 1 });
+    await expect(renderer.render(job)).rejects.toThrow("Grok generation failed");
+    expect(fetchMock.mock.calls.map(call => String(call[0]))).toEqual([
+      "https://api.x.ai/v1/videos/generations",
+      "https://api.x.ai/v1/videos/req-route",
+    ]);
   });
 
   it("rejects provider download URLs outside the trusted HTTPS hosts", async () => {

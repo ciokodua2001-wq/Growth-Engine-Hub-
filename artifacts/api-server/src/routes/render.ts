@@ -37,9 +37,11 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
   }
 
   const requestedProvider = (req.body as { provider?: unknown } | undefined)?.provider;
-  let authorizedProvider: "grok";
-  try { authorizedProvider = resolveCommercialVideoProvider(requestedProvider); }
-  catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Unsupported video provider" }); return; }
+  if (requestedProvider !== "grok") {
+    res.status(400).json({ error: "Only the approved commercial video workflow is available." });
+    return;
+  }
+  const provider = "grok" as const;
 
   const {
     resolution     = "1080p",
@@ -50,18 +52,13 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     aspectRatio?: string;
     captionsEnabled?: boolean;
   };
-    res.status(400).json({ error: "provider must be kling or grok" });
-    return;
-  }
-  if (provider === "grok" && aspectRatio === "4:5") {
-    res.status(400).json({ error: "Grok does not support aspect ratio 4:5" });
-    return;
-  }
+  const validResolutions: RenderResolution[] = ["1080p", "4k"];
+  const validAspectRatios: AspectRatio[] = ["16:9", "9:16", "1:1"];
   if (!validResolutions.includes(resolution)) {
     res.status(400).json({ error: `resolution must be one of: ${validResolutions.join(", ")}` });
     return;
   }
-  if (!validAspectRatios.includes(aspectRatio)) {
+  if (!validAspectRatios.includes(aspectRatio as AspectRatio)) {
     res.status(400).json({ error: `aspectRatio must be one of: ${validAspectRatios.join(", ")}` });
     return;
   }
