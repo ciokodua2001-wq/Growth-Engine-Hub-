@@ -2506,6 +2506,9 @@ components:
           type: string
         script:
           type: string
+        cinematicPlan:
+          type: string
+          description: JSON string of the editable cinematic production blueprint, including every shot and production direction
         storyboard:
           type: string
         voiceover:

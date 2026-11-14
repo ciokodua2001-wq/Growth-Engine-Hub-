@@ -606,6 +606,8 @@ export interface Video {
 export interface VideoUpdate {
   title?: string;
   script?: string;
+  /** JSON string of the editable cinematic production blueprint, including every shot and production direction */
+  cinematicPlan?: string;
   storyboard?: string;
   voiceover?: string;
 }

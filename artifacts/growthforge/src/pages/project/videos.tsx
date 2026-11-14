@@ -983,16 +983,27 @@ function VideoCard({
   const updateVideo = useUpdateVideo();
   const [editingScript, setEditingScript] = useState(false);
   const [scriptDraft, setScriptDraft] = useState(video.script ?? "");
+  const [planDraft, setPlanDraft] = useState<CinematicPlan | null>(() => parseCinematicPlan(video.cinematicPlan));
   const [scriptSaveError, setScriptSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!editingScript) setScriptDraft(video.script ?? "");
-  }, [video.script, editingScript]);
+    if (!editingScript) {
+      setScriptDraft(video.script ?? "");
+      setPlanDraft(parseCinematicPlan(video.cinematicPlan));
+    }
+  }, [video.script, video.cinematicPlan, editingScript]);
 
   const saveScript = () => {
     setScriptSaveError(null);
     updateVideo.mutate(
-      { id: projectId, videoId: video.id, data: { script: scriptDraft } },
+      {
+        id: projectId,
+        videoId: video.id,
+        data: {
+          script: scriptDraft,
+          ...(planDraft ? { cinematicPlan: JSON.stringify(planDraft) } : {}),
+        },
+      },
       {
         onSuccess: async () => {
           setEditingScript(false);
@@ -1086,18 +1097,53 @@ function VideoCard({
                       )}
                     </div>
                   ) : null}
-                  {video.script && (
+                  {(video.script || plan) && (
                     <div className="mt-3 rounded-xl border border-border bg-white/2 p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-semibold text-white/70">Actor Script</p>
-                        {!editingScript && <button type="button" onClick={() => { setScriptDraft(video.script ?? ""); setScriptSaveError(null); setEditingScript(true); }} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/5">Edit script</button>}
+                        <div>
+                          <p className="text-xs font-semibold text-white/70">Full Script & Shot Directions</p>
+                          <p className="mt-0.5 text-[10px] text-white/40">Edit dialogue, camera angles, action, lighting, and every production note.</p>
+                        </div>
+                        {!editingScript && <button type="button" onClick={() => { setScriptDraft(video.script ?? ""); setPlanDraft(parseCinematicPlan(video.cinematicPlan)); setScriptSaveError(null); setEditingScript(true); }} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/5">Edit full script</button>}
                       </div>
                       {editingScript && (
                         <>
-                          <textarea aria-label={`Edit script for ${video.title}`} value={scriptDraft} onChange={(event) => setScriptDraft(event.target.value)} rows={Math.min(14, Math.max(5, scriptDraft.split("\n").length + 2))} className="w-full resize-y rounded-lg border border-white/15 bg-[#07111d] p-3 text-sm leading-relaxed text-white outline-none focus:border-[#00E676]/60" />
+                          <label className="block space-y-1.5">
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-white/55">Complete actor dialogue script</span>
+                            <textarea aria-label={`Edit complete script for ${video.title}`} value={scriptDraft} onChange={(event) => setScriptDraft(event.target.value)} rows={Math.min(16, Math.max(6, scriptDraft.split("\n").length + 2))} className="w-full resize-y rounded-lg border border-white/15 bg-[#07111d] p-3 text-sm leading-relaxed text-white outline-none focus:border-[#00E676]/60" />
+                          </label>
+                          {planDraft && (
+                            <div className="space-y-4 pt-2">
+                              <div className="rounded-lg border border-white/10 p-3 space-y-3">
+                                <p className="text-xs font-bold text-[#00E676]">Production brief</p>
+                                {(["visualStyle", "characterDescription", "environment", "lighting", "cameraLanguage", "performanceDirection", "textOverlayPlacement", "finalHeroShot"] as const).map((field) => (
+                                  <label key={field} className="block space-y-1">
+                                    <span className="text-[10px] font-semibold uppercase tracking-wide text-white/50">{field.replace(/[A-Z]/g, (letter) => ` ${letter}`).trim()}</span>
+                                    <textarea value={planDraft[field]} onChange={(event) => setPlanDraft({ ...planDraft, [field]: event.target.value })} rows={2} className="w-full resize-y rounded-md border border-white/10 bg-[#07111d] p-2 text-xs leading-relaxed text-white outline-none focus:border-[#00E676]/60" />
+                                  </label>
+                                ))}
+                              </div>
+                              <div className="space-y-3">
+                                <p className="text-xs font-bold text-[#00D4FF]">Shot-by-shot direction</p>
+                                {planDraft.shots.map((shot, shotIndex) => (
+                                  <div key={`${shot.shotNumber}-${shotIndex}`} className="rounded-lg border border-white/10 p-3 space-y-2">
+                                    <p className="text-xs font-bold text-white">Shot {shot.shotNumber}</p>
+                                    <div className="grid gap-2 sm:grid-cols-2">
+                                      {(["duration", "dialogue", "environment", "subjectAction", "facialExpression", "bodyMovement", "cameraMovement", "lensStyle", "lighting", "visualEffects", "transition"] as const).map((field) => (
+                                        <label key={field} className="block space-y-1">
+                                          <span className="text-[10px] font-semibold uppercase tracking-wide text-white/50">{field.replace(/[A-Z]/g, (letter) => ` ${letter}`).trim()}</span>
+                                          <textarea value={shot[field]} onChange={(event) => setPlanDraft({ ...planDraft, shots: planDraft.shots.map((current, index) => index === shotIndex ? { ...current, [field]: field === "duration" ? Number(event.target.value) : event.target.value } : current) })} rows={field === "dialogue" || field === "subjectAction" || field === "environment" || field === "cameraMovement" ? 3 : 2} className="w-full resize-y rounded-md border border-white/10 bg-[#07111d] p-2 text-xs leading-relaxed text-white outline-none focus:border-[#00D4FF]/60" />
+                                        </label>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           <div className="flex flex-wrap items-center justify-end gap-2">
-                            <button type="button" onClick={() => { setScriptDraft(video.script ?? ""); setEditingScript(false); setScriptSaveError(null); }} disabled={updateVideo.isPending} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/70 disabled:opacity-50">Cancel</button>
-                            <button type="button" onClick={saveScript} disabled={updateVideo.isPending || scriptDraft.trim() === (video.script ?? "").trim()} className="rounded-lg bg-[#00E676] px-3 py-1.5 text-xs font-bold text-[#04100a] disabled:opacity-45">{updateVideo.isPending ? "Saving…" : "Save script"}</button>
+                            <button type="button" onClick={() => { setScriptDraft(video.script ?? ""); setPlanDraft(parseCinematicPlan(video.cinematicPlan)); setEditingScript(false); setScriptSaveError(null); }} disabled={updateVideo.isPending} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/70 disabled:opacity-50">Cancel</button>
+                            <button type="button" onClick={saveScript} disabled={updateVideo.isPending || (scriptDraft.trim() === (video.script ?? "").trim() && JSON.stringify(planDraft) === JSON.stringify(plan))} className="rounded-lg bg-[#00E676] px-3 py-1.5 text-xs font-bold text-[#04100a] disabled:opacity-45">{updateVideo.isPending ? "Saving..." : "Save all changes"}</button>
                           </div>
                           {scriptSaveError && <p role="alert" className="text-xs text-red-400">{scriptSaveError}</p>}
                         </>

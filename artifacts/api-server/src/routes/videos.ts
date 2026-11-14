@@ -136,15 +136,34 @@ router.patch("/projects/:id/videos/:videoId", async (req, res): Promise<void> =>
   const parsed = UpdateVideoBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const updateData: Record<string, unknown> = { ...parsed.data };
-  // Editing the script after approval invalidates the approval - the revised
-  // wording must be re-approved before generation (Phase C). Also clear the
-  // now-stale fidelity/transcript so it isn't presented against new dialogue.
-  if (typeof parsed.data.script === "string") {
+  // Editing dialogue after approval invalidates approval, whether the words
+  // were changed in the continuous script or in per-shot blueprint dialogue.
+  // Camera/lighting-only blueprint edits do not invalidate dialogue approval.
+  if (typeof parsed.data.script === "string" || typeof parsed.data.cinematicPlan === "string") {
     const [current] = await db
-      .select({ approvedScript: videosTable.approvedScript })
+      .select({
+        approvedScript: videosTable.approvedScript,
+        cinematicPlan: videosTable.cinematicPlan,
+      })
       .from(videosTable)
       .where(and(eq(videosTable.id, params.data.videoId), eq(videosTable.projectId, params.data.id)));
-    if (current?.approvedScript && current.approvedScript !== parsed.data.script) {
+
+    const dialogueFromPlan = (value: string | null | undefined): string => {
+      if (!value) return "";
+      try {
+        const plan = JSON.parse(value) as { shots?: Array<{ dialogue?: string }> };
+        return (plan.shots ?? []).map((shot) => (shot.dialogue ?? "").trim()).filter(Boolean).join(" ");
+      } catch {
+        return "";
+      }
+    };
+
+    const scriptChanged = typeof parsed.data.script === "string"
+      && current?.approvedScript !== parsed.data.script;
+    const planDialogueChanged = typeof parsed.data.cinematicPlan === "string"
+      && dialogueFromPlan(current?.cinematicPlan) !== dialogueFromPlan(parsed.data.cinematicPlan);
+
+    if (current?.approvedScript && (scriptChanged || planDialogueChanged)) {
       updateData.scriptStatus = "proposed";
       updateData.fidelityStatus = "unverified";
       updateData.fidelityReport = null;

@@ -1238,6 +1238,7 @@ export const UpdateVideoParams = zod.object({
 export const UpdateVideoBody = zod.object({
   "title": zod.string().optional(),
   "script": zod.string().optional(),
+  "cinematicPlan": zod.string().optional().describe('JSON string of the editable cinematic production blueprint, including every shot and production direction'),
   "storyboard": zod.string().optional(),
   "voiceover": zod.string().optional()
 })
