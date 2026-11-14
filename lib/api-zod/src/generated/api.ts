@@ -1301,11 +1301,13 @@ export const StartVideoRenderParams = zod.object({
 export const startVideoRenderBodyResolutionDefault = `1080p`;
 export const startVideoRenderBodyAspectRatioDefault = `16:9`;
 export const startVideoRenderBodyCaptionsEnabledDefault = false;
+export const startVideoRenderBodyProviderDefault = `kling`;
 
 export const StartVideoRenderBody = zod.object({
   "resolution": zod.enum(['1080p', '4k']).default(startVideoRenderBodyResolutionDefault),
   "aspectRatio": zod.enum(['16:9', '9:16', '1:1', '4:5']).default(startVideoRenderBodyAspectRatioDefault).describe('Output aspect ratio for the rendered video.'),
-  "captionsEnabled": zod.boolean().default(startVideoRenderBodyCaptionsEnabledDefault).describe('When true, bold burned-in captions are embedded in the video.')
+  "captionsEnabled": zod.boolean().default(startVideoRenderBodyCaptionsEnabledDefault).describe('When true, bold burned-in captions are embedded in the video.'),
+  "provider": zod.enum(['kling', 'grok']).default(startVideoRenderBodyProviderDefault).describe('Video generation provider for this render. Grok is disabled unless explicitly enabled by deployment configuration.')
 })
 
 export const StartVideoRenderResponse = zod.object({

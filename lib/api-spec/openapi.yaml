@@ -2737,6 +2737,11 @@ components:
           type: boolean
           default: false
           description: When true, bold burned-in captions are embedded in the video.
+        provider:
+          type: string
+          enum: ["kling", "grok"]
+          default: "kling"
+          description: Video generation provider for this render. Grok is disabled unless explicitly enabled by deployment configuration.
 
     VideoRenderStatus:
       type: object

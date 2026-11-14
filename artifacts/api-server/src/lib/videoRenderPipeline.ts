@@ -8,7 +8,10 @@ import { eq } from "drizzle-orm";
 import pino from "pino";
 import { synthesizeSpeech, type NarrationLocale } from "@workspace/integrations-google-tts-server";
 import { deductPlatformCredits } from "./platformCredits.js";
-import { deductVideoSeconds } from "./videoWallet.js";
+import { deductVideoSeconds, refundReservedVideoSeconds } from "./videoWallet.js";
+import { GrokCommercialRenderer } from "./grokRenderer.js";
+import { grokBillableSeconds } from "./grokRequest.js";
+import type { CommercialAspectRatio, CommercialRenderJob } from "./commercialRenderer.js";
 
 const FFMPEG_BIN = "ffmpeg";
 
@@ -26,7 +29,7 @@ const KLING_NEGATIVE_PROMPT =
   "blurry, low quality, distorted, ugly, pixelated, amateur, watermark, text overlay";
 
 // ── Google Cloud TTS voice resolution ─────────────────────────────────────────
-// Chirp 3: HD speaker names — shared across locales (en-CA / fr-CA), so the
+// Chirp 3: HD speaker names - shared across locales (en-CA / fr-CA), so the
 // same "character" can narrate in either language.
 const VOICE_SPEAKER_MALE   = "Charon";
 const VOICE_SPEAKER_FEMALE = "Kore";
@@ -59,6 +62,19 @@ export interface RenderRequirementsResult {
   missing: string[];
 }
 
+export function checkGrokRenderRequirements(): RenderRequirementsResult {
+  const missing: string[] = [];
+  if (process.env.GROK_VIDEO_ENABLED !== "true") missing.push("GROK_VIDEO_ENABLED=true (Grok remains disabled by default)");
+  if (!process.env.GROWTHFORGE_GROK_API_KEY) missing.push("GROWTHFORGE_GROK_API_KEY");
+  if (!process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID) missing.push("DEFAULT_OBJECT_STORAGE_BUCKET_ID");
+  if (!process.env.OBJECT_STORAGE_ENDPOINT) missing.push("OBJECT_STORAGE_ENDPOINT");
+  if (!process.env.OBJECT_STORAGE_REGION) missing.push("OBJECT_STORAGE_REGION");
+  if (!process.env.OBJECT_STORAGE_ACCESS_KEY_ID) missing.push("OBJECT_STORAGE_ACCESS_KEY_ID");
+  if (!process.env.OBJECT_STORAGE_SECRET_ACCESS_KEY) missing.push("OBJECT_STORAGE_SECRET_ACCESS_KEY");
+  if (!(Number(process.env.GROK_VIDEO_COST_PER_SECOND_USD) > 0)) missing.push("GROK_VIDEO_COST_PER_SECOND_USD (required for explicit cost estimate)");
+  return { ready: missing.length === 0, missing };
+}
+
 export function checkRenderRequirements(): RenderRequirementsResult {
   const missing: string[] = [];
   const hasGoogleTts =
@@ -76,11 +92,64 @@ export function startVideoRender(
   resolution: RenderResolution,
   aspectRatio: AspectRatio = "16:9",
   captionsEnabled = false,
+  provider: "kling" | "grok" = "kling",
 ): void {
-  runRenderPipeline(videoId, resolution, aspectRatio, captionsEnabled).catch((err) => {
+  const operation = provider === "grok"
+    ? runGrokRender(videoId, resolution, aspectRatio)
+    : runRenderPipeline(videoId, resolution, aspectRatio, captionsEnabled);
+  operation.catch((err) => {
     logger.error({ err, videoId }, "Render pipeline unhandled error");
-    void markFailed(videoId, "An unexpected error occurred. Please try again — your credits were not charged.");
+    void markFailed(videoId, "An unexpected error occurred. Please try again - your credits were not charged.");
   });
+}
+
+async function runGrokRender(videoId: number, resolution: RenderResolution, aspectRatio: AspectRatio): Promise<void> {
+  const [video] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
+  if (!video) throw new Error(`Video ${videoId} not found`);
+  const [project] = await db.select({ ownerId: projectsTable.ownerId }).from(projectsTable).where(eq(projectsTable.id, video.projectId));
+  const ownerUserId = project?.ownerId ?? null;
+  await db.update(videosTable).set({ renderStatus: "processing", renderResolution: resolution, renderStartedAt: new Date(), renderError: null }).where(eq(videosTable.id, videoId));
+  let chargedDuration = grokBillableSeconds(video.duration);
+  try {
+    let dialogue = "";
+    if (video.cinematicPlan) {
+      try {
+        const plan = JSON.parse(video.cinematicPlan) as { shots?: Array<{ dialogue?: string }> };
+        dialogue = plan.shots?.map(shot => shot.dialogue?.trim()).filter((line): line is string => Boolean(line)).join(" ") ?? "";
+      } catch { /* malformed optional plan: retain available script/storyboard */ }
+    }
+    const script = (video.approvedScript ?? video.voiceover ?? video.script ?? video.title).trim();
+    const renderJob: CommercialRenderJob = {
+      videoId, resolution, aspectRatio: aspectRatio as CommercialAspectRatio, captionsEnabled: false,
+      script: dialogue ? `${script}\n\nDialogue by shot: ${dialogue}` : script,
+      storyboard: video.storyboard, cinematicPlan: video.cinematicPlan,
+      durationSec: Math.min(15, Math.max(1, video.duration ?? 15)),
+    };
+    const result = await new GrokCommercialRenderer().render(renderJob);
+    if (result.durationSec && Number.isFinite(result.durationSec)) chargedDuration = grokBillableSeconds(video.duration, result.durationSec);
+    await db.update(videosTable).set({ renderStatus: "complete", videoUrl: result.videoUrl, duration: chargedDuration, renderCompletedAt: new Date(), captionsEnabled: false, fidelityStatus: "unverified" }).where(eq(videosTable.id, videoId));
+  } catch (error) {
+    logger.error({ err: error, videoId }, "Grok render failed");
+    await markFailed(videoId, "Grok generation failed. No automatic retry was attempted; reserved video seconds were returned.");
+    if (ownerUserId) {
+      try {
+        await refundReservedVideoSeconds(ownerUserId, Number.MAX_SAFE_INTEGER, videoId, video.projectId, "Grok generation failed; reservation returned");
+      } catch (refundError) {
+        logger.error({ err: refundError, ownerUserId, videoId }, "Failed to return Grok reservation; reconciliation required");
+      }
+    }
+    return;
+  }
+
+  // The wallet was reserved before provider submission; refund any unused
+  // seconds when the completed video is shorter than the estimate.
+  if (ownerUserId && chargedDuration < grokBillableSeconds(video.duration)) {
+    try {
+      await refundReservedVideoSeconds(ownerUserId, grokBillableSeconds(video.duration) - chargedDuration, videoId, video.projectId, "Unused Grok reservation returned after shorter completed clip");
+    } catch (error) {
+      logger.error({ err: error, ownerUserId, videoId }, "Grok clip completed but unused reservation refund failed; reconciliation required");
+    }
+  }
 }
 
 async function markFailed(videoId: number, error: string): Promise<void> {
@@ -141,12 +210,12 @@ async function runRenderPipeline(
     return;
   }
   const ttsChars = Math.min((scriptText ?? "").length, 800);
-  deductPlatformCredits("google-tts", ttsChars, `TTS voiceover — video #${videoId}`).catch(() => {});
+  deductPlatformCredits("google-tts", ttsChars, `TTS voiceover - video #${videoId}`).catch(() => {});
   await db.update(videosTable).set({ voiceoverUrl }).where(eq(videosTable.id, videoId));
 
   const duration = video.duration ?? 60;
 
-  // Step 2: Kling T2V — generate cinematic footage from blueprint scenes
+  // Step 2: Kling T2V - generate cinematic footage from blueprint scenes
   const numClips = Math.max(1, Math.ceil(duration / KLING_CLIP_DURATION_S));
   const scenePrompts = buildScenePrompts(video.title, video.storyboard ?? "", numClips, video.cinematicPlan);
 
@@ -157,19 +226,19 @@ async function runRenderPipeline(
     logger.error({ err, videoId }, "FAL clip generation failed");
     const msg = err instanceof Error && err.message.includes("timed out")
       ? "AI video generation is taking longer than expected. Please try again in a few minutes."
-      : "AI video generation hit a temporary issue. Please try again — your credits were not charged.";
+      : "AI video generation hit a temporary issue. Please try again - your credits were not charged.";
     await markFailed(videoId, msg);
     return;
   }
 
-  deductPlatformCredits("kling", footageUrls.length, `AI clips (${footageUrls.length}) — video #${videoId}`, {
+  deductPlatformCredits("kling", footageUrls.length, `AI clips (${footageUrls.length}) - video #${videoId}`, {
     minutesGenerated: (KLING_CLIP_DURATION_S / 60) * footageUrls.length,
     videosCount: footageUrls.length,
     projectId: video.projectId,
     videoId: String(videoId),
   }).catch(() => {});
 
-  // Step 3: FFmpeg composition — stitch footage with voiceover (+ optional captions)
+  // Step 3: FFmpeg composition - stitch footage with voiceover (+ optional captions)
   let finalUrl: string;
   try {
     finalUrl = await composeWithFFmpeg({
@@ -185,7 +254,7 @@ async function runRenderPipeline(
     logger.error({ err, videoId }, "FFmpeg composition failed");
     const msg = err instanceof Error && err.message.includes("timed out")
       ? "Video assembly is taking longer than expected. Please try again in a few minutes."
-      : "Final video assembly hit a temporary issue. Please try again — your credits were not charged.";
+      : "Final video assembly hit a temporary issue. Please try again - your credits were not charged.";
     await markFailed(videoId, msg);
     return;
   }
@@ -203,7 +272,7 @@ async function runRenderPipeline(
       duration,
       videoId,
       video.projectId,
-      `Video render completed — "${video.title}"`,
+      `Video render completed - "${video.title}"`,
     ).catch((err) => {
       logger.error({ err, ownerUserId, videoId, duration }, "Failed to deduct video seconds after render");
     });
@@ -617,7 +686,7 @@ async function withRetry<T>(
       lastErr = err;
       if (attempt === maxAttempts || !isRetryable(err)) throw err;
       const delay = baseDelayMs * 2 ** (attempt - 1) + Math.random() * 500;
-      logger.warn({ attempt, nextRetryMs: Math.round(delay) }, "Transient error — retrying");
+      logger.warn({ attempt, nextRetryMs: Math.round(delay) }, "Transient error - retrying");
       await sleep(delay);
     }
   }

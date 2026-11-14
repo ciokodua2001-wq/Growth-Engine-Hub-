@@ -758,6 +758,8 @@ export interface VideoRenderInput {
   aspectRatio?: VideoRenderInputAspectRatio;
   /** When true, bold burned-in captions are embedded in the video. */
   captionsEnabled?: boolean;
+  /** Video generation provider for this render. Grok is disabled unless explicitly enabled by deployment configuration. */
+  provider?: 'kling' | 'grok';
 }
 
 export interface VideoRenderStatus {

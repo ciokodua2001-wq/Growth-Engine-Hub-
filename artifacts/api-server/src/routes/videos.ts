@@ -17,6 +17,7 @@ import {
 } from "@workspace/api-zod";
 import { requireProjectOwnershipParam, requireActiveSubscription } from "../lib/authz.js";
 import { recordGeneratedBatch } from "../lib/contentIntegrity.js";
+import { GROK_STORAGE_REFERENCE_PREFIX } from "../lib/grokRenderer.js";
 
 const router: IRouter = Router();
 
@@ -26,7 +27,7 @@ router.get("/projects/:id/videos", async (req, res): Promise<void> => {
   const params = ListVideosParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const videos = await db.select().from(videosTable).where(eq(videosTable.projectId, params.data.id)).orderBy(desc(videosTable.createdAt));
-  res.json(videos.map(v => ({ ...v, createdAt: v.createdAt.toISOString() })));
+  res.json(videos.map(v => ({ ...v, videoUrl: v.videoUrl?.startsWith(GROK_STORAGE_REFERENCE_PREFIX) ? `/api/projects/${v.projectId}/videos/${v.id}/media` : v.videoUrl, createdAt: v.createdAt.toISOString() })));
 });
 
 router.post("/projects/:id/videos", requireActiveSubscription, async (req, res): Promise<void> => {
@@ -126,7 +127,7 @@ router.get("/projects/:id/videos/:videoId", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const [video] = await db.select().from(videosTable).where(and(eq(videosTable.id, params.data.videoId), eq(videosTable.projectId, params.data.id)));
   if (!video) { res.status(404).json({ error: "Video not found" }); return; }
-  res.json({ ...video, createdAt: video.createdAt.toISOString() });
+  res.json({ ...video, videoUrl: video.videoUrl?.startsWith(GROK_STORAGE_REFERENCE_PREFIX) ? `/api/projects/${video.projectId}/videos/${video.id}/media` : video.videoUrl, createdAt: video.createdAt.toISOString() });
 });
 
 router.patch("/projects/:id/videos/:videoId", async (req, res): Promise<void> => {
@@ -152,7 +153,7 @@ router.patch("/projects/:id/videos/:videoId", async (req, res): Promise<void> =>
   }
   const [video] = await db.update(videosTable).set(updateData).where(and(eq(videosTable.id, params.data.videoId), eq(videosTable.projectId, params.data.id))).returning();
   if (!video) { res.status(404).json({ error: "Video not found" }); return; }
-  res.json({ ...video, createdAt: video.createdAt.toISOString() });
+  res.json({ ...video, videoUrl: video.videoUrl?.startsWith(GROK_STORAGE_REFERENCE_PREFIX) ? `/api/projects/${video.projectId}/videos/${video.id}/media` : video.videoUrl, createdAt: video.createdAt.toISOString() });
 });
 
 router.delete("/projects/:id/videos/:videoId", async (req, res): Promise<void> => {
