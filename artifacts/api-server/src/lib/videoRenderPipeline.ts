@@ -76,13 +76,8 @@ export function checkGrokRenderRequirements(): RenderRequirementsResult {
 }
 
 export function checkRenderRequirements(): RenderRequirementsResult {
-  const missing: string[] = [];
-  const hasGoogleTts =
-    (process.env.GOOGLE_CLOUD_PROJECT_ID && process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON_STRING) ||
-    process.env.GOOGLE_GENAI_API_KEY;
-  if (!hasGoogleTts) missing.push("GOOGLE_CLOUD_PROJECT_ID + GOOGLE_APPLICATION_CREDENTIALS_JSON_STRING (or GOOGLE_GENAI_API_KEY)");
-  if (!process.env.KLING_API_KEY) missing.push("KLING_API_KEY");
-  return { ready: missing.length === 0, missing };
+  // Compatibility shim: legacy readiness callers must never enable Kling.
+  return checkGrokRenderRequirements();
 }
 
 // ── Public entry point ────────────────────────────────────────────────────────
@@ -168,6 +163,9 @@ async function runRenderPipeline(
   aspectRatio: AspectRatio = "16:9",
   captionsEnabled = false,
 ): Promise<void> {
+  // Retired multi-provider pipeline: fail before any legacy vendor call.
+  throw new Error("Legacy video pipeline is decommissioned; use the Grok-only Commercial Studio route");
+  /* istanbul ignore next -- retained temporarily for legacy data/media helpers */
   const [video] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
   if (!video) throw new Error(`Video ${videoId} not found`);
 

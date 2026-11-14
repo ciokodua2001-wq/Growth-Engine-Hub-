@@ -36,21 +36,20 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     return;
   }
 
+  const requestedProvider = (req.body as { provider?: unknown } | undefined)?.provider;
+  let authorizedProvider: "grok";
+  try { authorizedProvider = resolveCommercialVideoProvider(requestedProvider); }
+  catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Unsupported video provider" }); return; }
+
   const {
     resolution     = "1080p",
     aspectRatio    = "16:9",
     captionsEnabled = false,
-    provider = "kling",
   } = req.body as {
     resolution?: RenderResolution;
     aspectRatio?: string;
     captionsEnabled?: boolean;
-    provider?: "kling" | "grok";
   };
-
-  const validResolutions  = ["1080p", "4k"];
-  const validAspectRatios = ["16:9", "9:16", "1:1", "4:5"];
-  if (provider !== "kling" && provider !== "grok") {
     res.status(400).json({ error: "provider must be kling or grok" });
     return;
   }
