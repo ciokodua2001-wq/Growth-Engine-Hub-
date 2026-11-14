@@ -16,7 +16,7 @@ const logger = pino({ name: "klingRenderer" });
 // Non-China base URL (for servers outside mainland China)
 const KLING_BASE_URL = "https://api-singapore.klingai.com";
 const KLING_DEFAULT_MODEL = "kling-v2-6";
-const KLING_SCENE_DURATION_STR = "5";   // "5" or "10" — string per API spec
+const KLING_SCENE_DURATION_STR = "5";   // "5" or "10" - string per API spec
 const KLING_SCENE_DURATION_SEC = 5;
 const KLING_MODE = "std";               // "std" or "pro"
 const KLING_SOUND = "off";              // we handle audio separately
@@ -136,6 +136,8 @@ function buildScenePrompts(
         shot.visualEffects && !["none", "n/a"].includes(shot.visualEffects.toLowerCase())
           ? `Effects: ${shot.visualEffects}.`
           : "",
+        i === 0 ? "Opening frame: one full-frame, single-view cinematic shot. Never start with split-screen, divided panels, a triptych, grid, contact sheet, storyboard, collage, picture-in-picture, or multiple simultaneous views." : "One full-frame cinematic shot.",
+        "Do not invent or render any logo, brand mark, watermark, caption, subtitle, text overlay, or legible written text. Branding is composited only from an explicitly uploaded transparent logo asset after generation.",
         "Natural motion, shallow depth of field, professional color grading.",
       ]
         .filter(Boolean)
@@ -153,7 +155,8 @@ function buildScenePrompts(
   const base = scenes.length > 0 ? scenes : [`Marketing video for: ${title}`];
   return Array.from({ length: count }, (_, i) => {
     const scene = base[i % base.length] ?? title;
-    return `Cinematic marketing footage, professional grade, 4K quality. ${scene.slice(0, 400)}`;
+    const openingGuard = i === 0 ? " Opening frame: a single full-frame cinematic view; never split-screen, divided panels, triptych, grid, collage, or contact sheet." : " One full-frame cinematic shot.";
+    return `Cinematic marketing footage, professional grade, 4K quality. ${scene.slice(0, 350)}${openingGuard} Do not invent or render any logos, brand marks, watermarks, captions, subtitles, or legible text.`;
   });
 }
 
@@ -162,7 +165,7 @@ function buildScenePrompts(
 export class KlingCommercialRenderer implements CommercialRenderer {
   readonly name = "KlingCommercialRenderer";
   readonly description =
-    "Official Kling AI Developer API — generates cinematic scenes from Commercial Blueprints";
+    "Official Kling AI Developer API - generates cinematic scenes from Commercial Blueprints";
   readonly capabilities: CommercialRendererCapabilities = {
     supportsVoiceover: false,
     supportsFootage: true,
@@ -180,12 +183,12 @@ export class KlingCommercialRenderer implements CommercialRenderer {
     return Boolean(process.env.KLING_API_KEY && process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID);
   }
 
-  // ── render() — main entry point ──────────────────────────────────────────────
+  // ── render() - main entry point ──────────────────────────────────────────────
   // Accepts a CommercialRenderJob (the Blueprint), generates all scenes via the
   // official Kling API, downloads + stores each completed scene, and returns
   // a KlingRenderResult with per-scene URLs and DB record IDs.
   //
-  // FFmpeg composition is NOT performed here — caller handles assembly.
+  // FFmpeg composition is NOT performed here - caller handles assembly.
 
   async render(job: CommercialRenderJob): Promise<KlingRenderResult> {
     const { videoId, aspectRatio, durationSec = 60, storyboard, cinematicPlan } = job;
@@ -201,7 +204,7 @@ export class KlingCommercialRenderer implements CommercialRenderer {
 
     logger.info(
       { videoId, numScenes, klingAspectRatio, model: KLING_DEFAULT_MODEL },
-      "[KlingRenderer] Blueprint parsed — scene prompts built",
+      "[KlingRenderer] Blueprint parsed - scene prompts built",
     );
 
     // Persist all scene jobs to DB before any API calls
@@ -300,13 +303,13 @@ export class KlingCommercialRenderer implements CommercialRenderer {
             results[idx] = taskId;
             logger.info(
               { videoId, sceneIndex: idx, klingTaskId: taskId, externalTaskId },
-              "[KlingRenderer] Scene submitted to Kling — task created",
+              "[KlingRenderer] Scene submitted to Kling - task created",
             );
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             logger.error(
               { err, videoId, sceneIndex: idx, jobId },
-              "[KlingRenderer] Scene submission failed — marking failed in DB",
+              "[KlingRenderer] Scene submission failed - marking failed in DB",
             );
             await db
               .update(klingSceneJobsTable)
@@ -320,7 +323,7 @@ export class KlingCommercialRenderer implements CommercialRenderer {
     return results;
   }
 
-  // Single Kling T2V submission — POST /v1/videos/text2video
+  // Single Kling T2V submission - POST /v1/videos/text2video
   // Returns the Kling task_id on success.
   private async submitKlingScene(
     prompt: string,
@@ -389,7 +392,7 @@ export class KlingCommercialRenderer implements CommercialRenderer {
         if (!taskId) {
           logger.warn(
             { videoId, sceneIndex: idx },
-            "[KlingRenderer] Skipping poll — scene failed at submission",
+            "[KlingRenderer] Skipping poll - scene failed at submission",
           );
           return null;
         }
@@ -453,10 +456,10 @@ export class KlingCommercialRenderer implements CommercialRenderer {
           return json.data;
         });
       } catch (err) {
-        // Individual poll failures are non-fatal — log and continue polling
+        // Individual poll failures are non-fatal - log and continue polling
         logger.warn(
           { err, videoId, sceneIndex, klingTaskId, poll },
-          "[KlingRenderer] Poll request failed — will retry next interval",
+          "[KlingRenderer] Poll request failed - will retry next interval",
         );
         continue;
       }
@@ -488,7 +491,7 @@ export class KlingCommercialRenderer implements CommercialRenderer {
 
         logger.info(
           { videoId, sceneIndex, klingTaskId, remoteUrl },
-          "[KlingRenderer] Scene complete — downloading from Kling CDN",
+          "[KlingRenderer] Scene complete - downloading from Kling CDN",
         );
 
         const storedUrl = await this.downloadAndStore(remoteUrl, videoId, sceneIndex);
@@ -554,7 +557,7 @@ export class KlingCommercialRenderer implements CommercialRenderer {
     const buffer = Buffer.from(await res.arrayBuffer());
     logger.info(
       { videoId, sceneIndex, bytes: buffer.length },
-      "[KlingRenderer] Scene downloaded — uploading to object storage",
+      "[KlingRenderer] Scene downloaded - uploading to object storage",
     );
 
     return uploadSceneToStorage(buffer, videoId, sceneIndex);
@@ -563,7 +566,7 @@ export class KlingCommercialRenderer implements CommercialRenderer {
   // ── Aspect ratio normalisation ────────────────────────────────────────────
 
   // Kling supports: "16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "9:21"
-  // "4:5" is Instagram-specific — map to closest Kling-supported ratio
+  // "4:5" is Instagram-specific - map to closest Kling-supported ratio
   private normaliseAspectRatio(ar: string): string {
     if (ar === "4:5") return "9:16";
     return ar;
@@ -587,7 +590,7 @@ async function uploadSceneToStorage(
 
   await file.save(buffer, { metadata: { contentType: "video/mp4" } });
 
-  // 4-hour signed URL — scenes are consumed by FFmpeg composition in this window
+  // 4-hour signed URL - scenes are consumed by FFmpeg composition in this window
   return signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 14_400 });
 }
 
@@ -612,7 +615,7 @@ async function withRetry<T>(
       const delay = baseDelayMs * 2 ** (attempt - 1) + Math.random() * 500;
       logger.warn(
         { attempt, maxAttempts, nextRetryMs: Math.round(delay) },
-        "[KlingRenderer] Transient error — retrying with backoff",
+        "[KlingRenderer] Transient error - retrying with backoff",
       );
       await sleep(delay);
     }

@@ -1,5 +1,5 @@
 /**
- * Assembly routes — POST to start, GET to poll status.
+ * Assembly routes - POST to start, GET to poll status.
  *
  * POST /projects/:id/videos/:videoId/assemble
  *   Accepts: { outputFormats, transitionType, transitionDuration, logoUrl,
@@ -9,7 +9,7 @@
  *
  *   Deduplication: if a "complete" assembly already exists for a requested format
  *   with the same options fingerprint, it is returned immediately without re-running
- *   FFmpeg — preventing redundant CPU/storage spend when users click assemble twice.
+ *   FFmpeg - preventing redundant CPU/storage spend when users click assemble twice.
  *   This check runs even for force=true retries (button or client auto-retry), so a
  *   retry that races a genuinely slow-but-successful encode resolves instantly
  *   instead of burying the real result behind a second full re-encode.
@@ -34,6 +34,7 @@ import {
   videosTable,
   klingSceneJobsTable,
   commercialAssembliesTable,
+  assetsTable,
 } from "@workspace/db";
 import { eq, and, inArray, notInArray } from "drizzle-orm";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
@@ -45,6 +46,7 @@ import {
   type AssemblyOptions,
   type CaptionPreset,
 } from "../lib/ffmpegAssembler.js";
+import { compositeLogoOnVideo } from "../lib/ffmpegAssembler.js";
 import pino from "pino";
 
 const router = Router();
@@ -70,6 +72,60 @@ const VALID_FORMATS: OutputFormat[] = ["landscape", "square", "vertical"];
 const VALID_TRANSITIONS = ["fade", "dissolve", "wipeleft", "wiperight", "slideup", "slidedown"];
 const VALID_POSITIONS = ["br", "bl", "tr", "tl"];
 
+// This post-render operation uses FFmpeg on the completed assembly; it never invokes AI.
+router.post("/projects/:id/videos/:videoId/assemblies/:assemblyId/logo", async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const projectId = Number(req.params.id);
+  const videoId = Number(req.params.videoId);
+  const assemblyId = Number(req.params.assemblyId);
+  const assetId = Number(req.body?.assetId);
+  if (![projectId, videoId, assemblyId, assetId].every(Number.isSafeInteger)) {
+    res.status(400).json({ error: "Invalid project, video, assembly, or logo asset ID" });
+    return;
+  }
+  const [video] = await db.select({ id: videosTable.id }).from(videosTable)
+    .where(and(eq(videosTable.id, videoId), eq(videosTable.projectId, projectId)));
+  if (!video) { res.status(404).json({ error: "Video not found" }); return; }
+  const [assembly] = await db.select().from(commercialAssembliesTable)
+    .where(and(eq(commercialAssembliesTable.id, assemblyId), eq(commercialAssembliesTable.videoId, videoId), eq(commercialAssembliesTable.status, "complete")));
+  if (!assembly?.videoUrl) { res.status(404).json({ error: "Completed video render not found" }); return; }
+  const [asset] = await db.select().from(assetsTable)
+    .where(and(eq(assetsTable.id, assetId), eq(assetsTable.projectId, projectId)));
+  if (!asset?.url || asset.mimeType?.toLowerCase() !== "image/png") {
+    res.status(422).json({ error: "Choose a PNG logo attached to this project" });
+    return;
+  }
+  try {
+    const response = await fetch(asset.url, { signal: AbortSignal.timeout(20_000) });
+    if (!response.ok) throw new Error(`Logo asset unavailable (${response.status})`);
+    const logo = Buffer.from(await response.arrayBuffer());
+    if (logo.length < 26 || logo.length > 10 * 1024 * 1024 ||
+      !logo.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
+      logo.toString("ascii", 12, 16) !== "IHDR" || ![4, 6].includes(logo[25]!)) {
+      res.status(422).json({ error: "Choose a transparent PNG logo" });
+      return;
+    }
+    const result = await compositeLogoOnVideo(await refreshAssemblyUrl(assembly.videoUrl), logo, {
+      projectId,
+      videoId,
+      x: Number.isFinite(req.body?.x) ? req.body.x : 0.82,
+      y: Number.isFinite(req.body?.y) ? req.body.y : 0.82,
+      scale: Number.isFinite(req.body?.scale) ? req.body.scale : 0.2,
+    });
+    const [logoAssembly] = await db.insert(commercialAssembliesTable).values({
+      videoId, outputFormat: assembly.outputFormat, status: "complete", videoUrl: result.url,
+      durationSec: assembly.durationSec, fileSizeBytes: result.bytes,
+      options: { postRenderLogo: { assetId, x: req.body?.x ?? 0.82, y: req.body?.y ?? 0.82, scale: req.body?.scale ?? 0.2 }, sourceAssemblyId: assemblyId, processing: "ffmpeg-only" },
+      completedAt: new Date(),
+    }).returning({ id: commercialAssembliesTable.id });
+    res.json({ ...result, assemblyId: logoAssembly!.id, sourceAssemblyId: assemblyId, processing: "ffmpeg-only" });
+  } catch (error) {
+    logger.error({ projectId, videoId, assemblyId, assetId, error: error instanceof Error ? error.message : String(error) }, "[assemble] Post-render logo export failed");
+    res.status(502).json({ error: "Could not export the video with this logo. Please try again." });
+  }
+});
+
 router.param("id", requireProjectOwnershipParam());
 
 // ── POST /projects/:id/videos/:videoId/assemble ───────────────────────────────
@@ -88,7 +144,7 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
   const { ready, missing } = checkAssemblerRequirements();
   if (!ready) {
     // Full detail (may reference internal vendors/infra) stays server-side only.
-    logger.error({ missing }, "[assemble] Assembly pipeline unavailable — missing configuration");
+    logger.error({ missing }, "[assemble] Assembly pipeline unavailable - missing configuration");
     res.status(503).json({
       error: "Video assembly is temporarily unavailable",
       message: "Please try again later or contact support if this persists.",
@@ -167,7 +223,7 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
     ? Math.min(Math.max(body.logoOpacity, 0), 1)
     : 0.85;
 
-  // Caption burn-in is opt-in (default: false — clean MP4, browser overlay in UI).
+  // Caption burn-in is opt-in (default: false - clean MP4, browser overlay in UI).
   const captionsEnabled = body.captionsEnabled === true;
 
   // Captions must come from the REVIEWED actual-audio transcript. Never silently
@@ -206,7 +262,7 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
     ? (body.captionPreset as CaptionPreset)
     : "clean";
 
-  // Free-form position (0–1, normalized to the full output frame — matches
+  // Free-form position (0-1, normalized to the full output frame - matches
   // the client's drag-box preview) and font/box scale. Clamped defensively
   // even though ffmpegAssembler.ts clamps again internally.
   const clampNum = (v: unknown, min: number, max: number, fallback: number): number =>
@@ -230,8 +286,8 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
     captionScale,
   };
 
-  // ── Options fingerprint — used for assembly deduplication ──────────────────
-  // Dynamic URLs (logoUrl, musicUrl) are intentionally excluded — they are signed
+  // ── Options fingerprint - used for assembly deduplication ──────────────────
+  // Dynamic URLs (logoUrl, musicUrl) are intentionally excluded - they are signed
   // URLs that change per-request even for the same asset.
   // captionsEnabled + style are included so clean and captioned renders coexist.
   const optionsFingerprint = createHash("sha256")
@@ -259,16 +315,16 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
 
   // ── Deduplication: check for existing complete assemblies ──────────────────
   // If a complete assembly exists for each requested format with the same options
-  // fingerprint, return it immediately — no FFmpeg needed.
+  // fingerprint, return it immediately - no FFmpeg needed.
   //
   // Runs even when force=true. force is set both by the user-facing "Retry
   // Assembly" button AND by the client's silent auto-retry-on-timeout logic
-  // (commercial-progress.tsx) — and that timeout is a client-side clock that
+  // (commercial-progress.tsx) - and that timeout is a client-side clock that
   // can race a genuinely slow-but-successful encode (this box's encode times
   // and the client's poll budget are close enough that this isn't rare). If
   // force unconditionally skipped this check, a race would spawn a fully
-  // redundant re-encode AND — because GET /assemblies reports status from
-  // the LATEST row per format — bury the assembly that had just succeeded
+  // redundant re-encode AND - because GET /assemblies reports status from
+  // the LATEST row per format - bury the assembly that had just succeeded
   // behind a brand new "processing" row, so the client waits through a
   // second full encode for a video it already had. Always checking first
   // makes retries idempotent against real completions: a genuinely stuck
@@ -327,12 +383,12 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
     );
   }
 
-  // If ALL formats are cached, skip FFmpeg entirely — but still cancel any
+  // If ALL formats are cached, skip FFmpeg entirely - but still cancel any
   // stuck pending/processing rows for this video so the polling status is clean.
   if (formatsNeedingRender.length === 0) {
     logger.info(
       { videoId, formats: requestedFormats },
-      "[assemble] All formats already assembled with same options — returning cached",
+      "[assemble] All formats already assembled with same options - returning cached",
     );
     await db
       .update(commercialAssembliesTable)
@@ -348,7 +404,7 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
         ),
       );
     res.status(200).json({
-      message: "Assemblies already complete — returning cached results",
+      message: "Assemblies already complete - returning cached results",
       videoId,
       formats: requestedFormats,
       cached: true,
@@ -390,7 +446,7 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
 
   logger.info(
     { videoId, formats: formatsNeedingRender, assemblyIds, optionsFingerprint: optionsFingerprint.slice(0, 8) },
-    "[assemble] Assembly jobs created — starting pipeline",
+    "[assemble] Assembly jobs created - starting pipeline",
   );
 
   // Update video render status

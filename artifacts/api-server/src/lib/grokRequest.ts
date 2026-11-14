@@ -4,7 +4,7 @@ export const GROK_VIDEO_MODEL = "grok-imagine-video-1.5-lite";
 export const GROK_VIDEO_ENDPOINT = "https://api.x.ai/v1/videos/generations";
 export const GROK_VIDEO_STATUS_ENDPOINT = "https://api.x.ai/v1/videos";
 export const GROK_NO_TEXT_INSTRUCTIONS =
-  "Do not add unrequested captions, subtitles, text overlays, logos, or legible written text. Preserve and accurately render any customer-requested branding, logos, product labels, or approved on-screen text described in the brief or storyboard.";
+  "Generate one full-frame, single continuous cinematic shot. Never create split-screen, divided panels, triptychs, grids, contact sheets, storyboards, picture-in-picture, or multiple simultaneous views. The opening frame must be a normal full-frame cinematic image, not a collage or montage. Do not invent, approximate, synthesize, or display any logo, brand mark, watermark, product label, caption, subtitle, text overlay, or legible written text. Branding will only be composited from an explicitly uploaded transparent logo asset after generation.";
 
 export function grokBillableSeconds(requestedDuration: number | null | undefined, actualDuration?: number): number {
   const duration = actualDuration !== undefined && Number.isFinite(actualDuration)
@@ -65,7 +65,7 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
     .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
     .join("\n\n");
   if (!content.trim()) throw new Error("Grok generation requires a non-empty prompt");
-  const prompt = `${content}\n\nDialogue instruction: Speak the complete actor script exactly once and in order. Per-shot actor-line text is for shot timing and allocation only; do not repeat or add dialogue beyond the complete actor script.\n\n${GROK_NO_TEXT_INSTRUCTIONS}`;
+  const prompt = `${content}\n\nDialogue instruction: Speak the complete actor script exactly once and in order. Per-shot actor-line text is for shot timing and allocation only; do not repeat or add dialogue beyond the complete actor script. Each shot description is a separate sequential moment in one video, never a set of simultaneous panels.\n\n${GROK_NO_TEXT_INSTRUCTIONS}`;
 
   const aspectRatio = grokSourceAspectRatio(job.aspectRatio);
 

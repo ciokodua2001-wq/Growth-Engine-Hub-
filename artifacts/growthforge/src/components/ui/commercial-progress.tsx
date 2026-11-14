@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, type CSSProperties }
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Check, AlertCircle, RefreshCw, Download,
+  Check, AlertCircle, RefreshCw, Download, Image as ImageIcon,
   Loader2, Clock, Film, Music, Sparkles, BarChart2,
   Target, FileText, Clapperboard, Play,
   Lock as LockIcon,
@@ -49,6 +49,8 @@ interface AssemblyRecord {
   videoUrl: string | null;
   errorMessage: string | null;
 }
+
+interface ProjectLogoAsset { id: number; name: string; url: string | null; mimeType: string | null; type: string }
 
 interface AssembliesResponse {
   overallStatus: "idle" | "processing" | "complete" | "partial" | "failed";
@@ -614,6 +616,17 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const [captionX, setCaptionX] = useState(0.5);
   const [captionY, setCaptionY] = useState(0.85);
   const [captionScale, setCaptionScale] = useState(1.0);
+  const [logoAssets, setLogoAssets] = useState<ProjectLogoAsset[]>([]);
+  const [logoAssetId, setLogoAssetId] = useState<number | null>(null);
+  const [logoX, setLogoX] = useState(0.82);
+  const [logoY, setLogoY] = useState(0.82);
+  const [logoScale, setLogoScale] = useState(0.2);
+  const [logoExportBusy, setLogoExportBusy] = useState(false);
+  const [logoExportUrl, setLogoExportUrl] = useState<string | null>(null);
+  const [logoExportAssemblyId, setLogoExportAssemblyId] = useState<number | null>(null);
+  const [logoBaseVideoUrl, setLogoBaseVideoUrl] = useState<string | null>(null);
+  const logoBaseAssemblyIdRef = useRef<number | null>(null);
+  const logoCacheRef = useRef<string | null>(null);
   // Edit vs Play caption modes: PAUSED = editing (shows the SELECTED transcript
   // segment as a real sample); PLAYING = live time-synced captions (hidden
   // outside speech intervals). Never a generic placeholder.
@@ -937,6 +950,54 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     }
   }, [apiBase]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Load project-owned transparent PNG logo assets for the optional post-render editor.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/projects/${projectId}/assets`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then((assets: ProjectLogoAsset[]) => {
+        if (!cancelled) setLogoAssets((Array.isArray(assets) ? assets : []).filter(a => a.url && a.mimeType?.toLowerCase() === "image/png"));
+      })
+      .catch(() => { if (!cancelled) setLogoAssets([]); });
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  const logoSourceAssemblyId = logoBaseAssemblyIdRef.current ?? finalAssemblyId;
+  const logoFingerprint = `${logoSourceAssemblyId}|${logoAssetId}|${logoX.toFixed(3)}|${logoY.toFixed(3)}|${logoScale.toFixed(3)}`;
+  const exportWithLogo = useCallback(async () => {
+    if (captionsEnabled) {
+      toast({ title: "Turn off post-render captions first", description: "Logo processing starts from the original render. Export captions separately if both overlays are needed." });
+      return;
+    }
+    const sourceAssemblyId = logoBaseAssemblyIdRef.current ?? finalAssemblyId;
+    if (!sourceAssemblyId || !logoAssetId) return;
+    if (logoCacheRef.current === logoFingerprint && logoExportUrl) return;
+    setLogoExportBusy(true);
+    try {
+      const response = await fetch(`${apiBase}/assemblies/${sourceAssemblyId}/logo`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assetId: logoAssetId, x: logoX, y: logoY, scale: logoScale }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.url) throw new Error(payload.error || "Logo export failed");
+      logoCacheRef.current = logoFingerprint;
+      setLogoExportUrl(payload.url);
+      if (payload.assemblyId) setLogoExportAssemblyId(payload.assemblyId);
+      if (payload.assemblyId) setFinalAssemblyId(payload.assemblyId);
+      setFinalVideoUrl(payload.url);
+      setCopied(false);
+      toast({ title: "Logo added", description: "Exported from your existing render; no AI generation was used." });
+    } catch (error) {
+      toast({ title: "Could not add logo", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    } finally { setLogoExportBusy(false); }
+  }, [apiBase, finalAssemblyId, logoAssetId, logoX, logoY, logoScale, logoFingerprint, logoExportUrl, captionsEnabled, toast]);
+
+  useEffect(() => {
+    logoCacheRef.current = null;
+    setLogoExportUrl(null);
+    setLogoExportAssemblyId(null);
+  }, [logoFingerprint]);
+
   // ── Share / copy-link / download handlers ──────────────────────────────────
 
   // Returns the proxy download URL for the current clean (caption-free) assembly.
@@ -1031,13 +1092,14 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
    * present an error state or leave the customer stuck.
    */
   const resolveShareTarget = useCallback(async (): Promise<{ assemblyId: number | null; videoUrl: string | null }> => {
+    if (!captionsEnabled && logoExportAssemblyId && logoExportUrl) return { assemblyId: logoExportAssemblyId, videoUrl: logoExportUrl };
     if (!captionsEnabled) {
       return { assemblyId: finalAssemblyId, videoUrl: finalVideoUrl };
     }
     const captioned = await ensureCaptionedAssembly();
     if (captioned) return { assemblyId: captioned.id, videoUrl: captioned.videoUrl };
     return { assemblyId: finalAssemblyId, videoUrl: finalVideoUrl };
-  }, [captionsEnabled, ensureCaptionedAssembly, finalAssemblyId, finalVideoUrl]);
+  }, [captionsEnabled, ensureCaptionedAssembly, finalAssemblyId, finalVideoUrl, logoExportAssemblyId, logoExportUrl]);
 
   /** Bails out of waiting for the captioned render - shares/downloads the plain video right now. */
   const skipCaptionWaitRef = useRef(false);
@@ -1046,6 +1108,17 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     setDownloading(true);
     skipCaptionWaitRef.current = false;
     try {
+      if (!captionsEnabled && logoExportAssemblyId && logoExportUrl) {
+        const logoUrl = getProxyDownloadUrl(logoExportAssemblyId);
+        if (logoUrl) {
+          const res = await fetch(logoUrl);
+          if (!res.ok) throw new Error(`Server returned ${res.status}`);
+          const blob = await res.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          const a = document.createElement("a"); a.href = objectUrl; a.download = `${video.title ?? "commercial"}-logo.mp4`;
+          document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(objectUrl); return;
+        }
+      }
       let assemblyId: number | null = finalAssemblyId;
       if (captionsEnabled) {
         const captioned = await ensureCaptionedAssembly();
@@ -1080,7 +1153,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
       setDownloading(false);
       setCaptionPrepState("idle");
     }
-  }, [ensureCaptionedAssembly, getProxyDownloadUrl, finalAssemblyId, captionsEnabled, video.title, toast]);
+  }, [ensureCaptionedAssembly, getProxyDownloadUrl, finalAssemblyId, captionsEnabled, video.title, toast, logoExportAssemblyId, logoExportUrl]);
 
   const handleShare = useCallback(async () => {
     skipCaptionWaitRef.current = false;
@@ -1388,6 +1461,8 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             ) ?? data.assemblies.find(a => a.status === "complete" && a.videoUrl);
           const url = primaryAssembly?.videoUrl ?? null;
           setFinalAssemblyId(primaryAssembly?.id ?? null);
+          logoBaseAssemblyIdRef.current = primaryAssembly?.id ?? null;
+          setLogoBaseVideoUrl(url);
 
           setCompletedStages(prev => {
             const next = new Set(prev);
@@ -1621,8 +1696,21 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
             controlsList="nofullscreen"
             playsInline
             style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
-            src={finalVideoUrl}
+            src={logoBaseVideoUrl ?? finalVideoUrl}
           />
+          {logoAssetId && logoAssets.find(asset => asset.id === logoAssetId)?.url && (
+            <img
+              src={logoAssets.find(asset => asset.id === logoAssetId)!.url!}
+              alt="Logo preview"
+              draggable={false}
+              style={{
+                position: "absolute", left: `${logoX * 100}%`, top: `${logoY * 100}%`,
+                width: `${logoScale * 100}%`, maxHeight: "45%", objectFit: "contain",
+                transform: "translate(-50%, -50%)", pointerEvents: "none",
+                filter: "drop-shadow(0 1px 2px rgba(0,0,0,.45))",
+              }}
+            />
+          )}
           <button
             type="button"
             onClick={() => setIsTheaterMode(v => !v)}
@@ -1873,6 +1961,33 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
           </div>
 
         {/* Share / download - captions (if enabled) are applied automatically before either action */}
+        <div className="rounded-xl bg-white/3 border border-white/8 p-3 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <ImageIcon className="w-3.5 h-3.5 text-white/50" />
+            <span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider">Logo (optional, post-render)</span>
+            <span className="ml-auto text-[9px] text-[#00E676]">No AI generation cost</span>
+          </div>
+          <select value={logoAssetId ?? ""} onChange={e => setLogoAssetId(e.target.value ? Number(e.target.value) : null)} className="w-full rounded bg-black/30 border border-white/10 px-2 py-1.5 text-[11px] text-white">
+            <option value="">No logo</option>
+            {logoAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+          </select>
+          {logoAssetId && <div className="space-y-1.5">
+            <label className="block text-[9px] text-white/40">Size · {Math.round(logoScale * 100)}% of video width
+              <input type="range" min={0.05} max={0.5} step={0.01} value={logoScale} onChange={e => setLogoScale(Number(e.target.value))} className="w-full accent-[#00E676]" />
+            </label>
+            <label className="block text-[9px] text-white/40">Horizontal position · {Math.round(logoX * 100)}%
+              <input type="range" min={0.02} max={0.98} step={0.01} value={logoX} onChange={e => setLogoX(Number(e.target.value))} className="w-full accent-[#00E676]" />
+            </label>
+            <label className="block text-[9px] text-white/40">Vertical position · {Math.round(logoY * 100)}%
+              <input type="range" min={0.02} max={0.98} step={0.01} value={logoY} onChange={e => setLogoY(Number(e.target.value))} className="w-full accent-[#00E676]" />
+            </label>
+            <p className="text-[9px] text-white/35">Adjust the logo on the video preview above, then apply it to an export. Choose a transparent PNG logo attached to this project.</p>
+            <button onClick={() => void exportWithLogo()} disabled={logoExportBusy || !finalAssemblyId} className="w-full rounded-lg bg-[#00E676] text-black text-[11px] font-bold px-3 py-2 disabled:opacity-50">
+              {logoExportBusy ? <><Loader2 className="inline w-3 h-3 mr-1 animate-spin" /> Applying logo...</> : logoExportUrl ? "Re-apply logo to updated position" : "Apply logo to export"}
+            </button>
+          </div>}
+          {logoAssets.length === 0 && <p className="text-[9px] text-white/35">No transparent PNG logo assets found. Upload one to this project to use it here.</p>}
+        </div>
         <div className="space-y-2">
           {captionPrepState === "preparing" && (
             <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-[#00D4FF]/8 border border-[#00D4FF]/20">

@@ -117,21 +117,26 @@ router.post("/projects/:id/videos/:videoId/transcript", async (req, res) => {
   }
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "gf-transcribe-"));
+  let failureStage = "prepare";
   try {
     // 1. Download the assembled MP4.
+    failureStage = "download assembled video";
     const mp4Path = path.join(tmpDir, "in.mp4");
     const dl = await fetch(sourceUrl, { signal: AbortSignal.timeout(120_000) });
     if (!dl.ok) throw new Error(`Assembly fetch HTTP ${dl.status}`);
     fs.writeFileSync(mp4Path, Buffer.from(await dl.arrayBuffer()));
 
     // 2. Extract the audio track (mono 16k mp3 for the transcription model).
+    failureStage = "extract audio";
     const mp3Path = path.join(tmpDir, "audio.mp3");
     await execFileAsync("ffmpeg", ["-y", "-i", mp4Path, "-vn", "-ac", "1", "-ar", "16000", "-b:a", "64k", mp3Path]);
     const audioB64 = fs.readFileSync(mp3Path).toString("base64");
 
     // 3. Transcribe the actual audio (existing Gemini key - phrase-level, no word timestamps).
+    failureStage = "transcribe audio";
     const languageHint = typeof req.body?.languageHint === "string" ? req.body.languageHint : undefined;
     const transcriptText = await transcribeAudioWithGemini(audioB64, "audio/mp3", languageHint);
+    if (!transcriptText) throw new Error("Transcription provider returned no spoken words");
 
     const rawSegments: TranscriptSegment[] = transcriptText
       .split(/\n+/)
@@ -159,6 +164,16 @@ router.post("/projects/:id/videos/:videoId/transcript", async (req, res) => {
       .where(eq(videosTable.id, videoId));
 
     res.json({ transcript: segments, transcriptText, fidelity: report });
+  } catch (error) {
+    logger.error({ videoId, projectId, stage: failureStage, error: error instanceof Error ? error.message : String(error) }, "[script] Transcript and fidelity check failed");
+    res.status(502).json({
+      error: "Transcribe & Check Fidelity failed",
+      message: failureStage === "download assembled video"
+        ? "The assembled video could not be retrieved. Please retry in a moment."
+        : failureStage === "extract audio"
+          ? "Audio could not be extracted from this video. Please contact support if this continues."
+          : "The audio transcription service did not complete. Please retry in a moment.",
+    });
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

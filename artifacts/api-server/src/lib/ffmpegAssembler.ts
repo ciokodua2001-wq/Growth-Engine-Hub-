@@ -1054,6 +1054,40 @@ function runFFmpeg(args: string[]): Promise<void> {
   });
 }
 
+/** Composite a supplied transparent logo onto an existing rendered video. No AI or scene generation is invoked. */
+export async function compositeLogoOnVideo(inputUrl: string, logoBuffer: Buffer, options: {
+  projectId: number;
+  videoId: number;
+  x: number;
+  y: number;
+  scale: number;
+}): Promise<{ url: string; bytes: number }> {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "logo-overlay-"));
+  const inputPath = path.join(tmpDir, "input.mp4");
+  const logoPath = path.join(tmpDir, "logo.png");
+  const outputPath = path.join(tmpDir, "output.mp4");
+  try {
+    await downloadFile(inputUrl, inputPath);
+    fs.writeFileSync(logoPath, logoBuffer);
+    const xPct = Math.round(Math.min(0.98, Math.max(0.02, options.x)) * 1000) / 10;
+    const yPct = Math.round(Math.min(0.98, Math.max(0.02, options.y)) * 1000) / 10;
+    const scalePct = Math.round(Math.min(0.5, Math.max(0.05, options.scale)) * 1000) / 10;
+    const filter = `[1:v][0:v]scale2ref=w=main_w*${scalePct / 100}:h=-1[logo][base];[base][logo]overlay=x=W*${xPct / 100}-w/2:y=H*${yPct / 100}-h/2:format=auto[v]`;
+    await runFFmpeg(["-y", "-i", inputPath, "-i", logoPath, "-filter_complex", filter,
+      "-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
+      "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", outputPath]);
+    const outputBuffer = fs.readFileSync(outputPath);
+    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+    if (!bucketId) throw new Error("Object storage is not configured");
+    const objectName = `renders/assembled/video-${options.videoId}-logo-${Date.now()}.mp4`;
+    await objectStorageClient.bucket(bucketId).file(objectName).save(outputBuffer, { metadata: { contentType: "video/mp4" } });
+    const url = await signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 86_400 });
+    return { url, bytes: outputBuffer.length };
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
 // ── Audio stream probe ────────────────────────────────────────────────────────
 // Runs ffprobe to read the stored rotation tag (in degrees: 0, 90, 180, 270).
 // Kling sometimes stores portrait clips as 1920×1080 + rotate=90 rather than

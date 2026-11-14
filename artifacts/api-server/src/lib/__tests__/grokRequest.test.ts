@@ -14,14 +14,16 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
 
     expect(body).toEqual({
       model: GROK_VIDEO_MODEL,
-      prompt: "Four shots in a bright Lagos home.\n\nSpoken dialogue here.\n\nDialogue instruction: Speak the complete actor script exactly once and in order. Per-shot actor-line text is for shot timing and allocation only; do not repeat or add dialogue beyond the complete actor script.\n\nDo not add unrequested captions, subtitles, text overlays, logos, or legible written text. Preserve and accurately render any customer-requested branding, logos, product labels, or approved on-screen text described in the brief or storyboard.",
+      prompt: expect.stringContaining("Four shots in a bright Lagos home."),
       duration: 15,
       aspect_ratio: "9:16",
       resolution: "720p",
       generate_audio: true,
     });
-    expect(body.prompt).toMatch(/Do not add unrequested captions, subtitles, text overlays/);
-    expect(body.prompt).toMatch(/Preserve and accurately render any customer-requested branding/);
+    expect(body.prompt).toMatch(/Never create split-screen, divided panels, triptychs, grids, contact sheets/);
+    expect(body.prompt).toMatch(/opening frame must be a normal full-frame cinematic image/);
+    expect(body.prompt).toMatch(/Do not invent, approximate, synthesize, or display any logo/);
+    expect(body.prompt).not.toMatch(/Preserve and accurately render any customer-requested branding/);
   });
 
   it("rejects missing prompt text", () => {
