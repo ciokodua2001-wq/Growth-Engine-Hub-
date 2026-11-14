@@ -1575,7 +1575,6 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
           )}
 
           <button
-            disabled={!hasBlueprint}
             disabled
             className="w-full py-2.5 rounded-xl font-bold text-sm text-black bg-[#00E676]/40 cursor-not-allowed flex items-center justify-center gap-2"
           >
