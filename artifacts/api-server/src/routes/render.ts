@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { videosTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
-import { checkRenderRequirements, startVideoRender, type RenderResolution, type AspectRatio } from "../lib/videoRenderPipeline.js";
+import { checkRenderRequirements, checkGrokRenderRequirements, startVideoRender, type RenderResolution, type AspectRatio } from "../lib/videoRenderPipeline.js";
 import { checkVideoSeconds } from "../lib/videoWallet.js";
 import pino from "pino";
 
@@ -29,14 +29,24 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     resolution     = "1080p",
     aspectRatio    = "16:9",
     captionsEnabled = false,
+    provider = "kling",
   } = req.body as {
     resolution?: RenderResolution;
     aspectRatio?: string;
     captionsEnabled?: boolean;
+    provider?: "kling" | "grok";
   };
 
   const validResolutions  = ["1080p", "4k"];
   const validAspectRatios = ["16:9", "9:16", "1:1", "4:5"];
+  if (provider !== "kling" && provider !== "grok") {
+    res.status(400).json({ error: "provider must be kling or grok" });
+    return;
+  }
+  if (provider === "grok" && aspectRatio === "4:5") {
+    res.status(400).json({ error: "Grok does not support aspect ratio 4:5" });
+    return;
+  }
   if (!validResolutions.includes(resolution)) {
     res.status(400).json({ error: `resolution must be one of: ${validResolutions.join(", ")}` });
     return;
@@ -59,10 +69,10 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     return;
   }
 
-  const { ready, missing } = checkRenderRequirements();
+  const { ready, missing } = provider === "grok" ? checkGrokRenderRequirements() : checkRenderRequirements();
   if (!ready) {
     // Full detail (may reference internal vendors/infra) stays server-side only.
-    logger.error({ missing }, "[render] Video rendering unavailable — missing configuration");
+    logger.error({ missing }, "[render] Video rendering unavailable - missing configuration");
     res.status(503).json({
       error: "Video rendering is temporarily unavailable",
       message: "Please try again later or contact support if this persists.",
@@ -77,7 +87,8 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     .where(eq(usersTable.id, userId));
 
   const plan            = user?.plan ?? "trial";
-  const requiredSeconds = video.duration ?? 60;
+  // Grok generates a single clip capped at 15 seconds; check its billable duration.
+  const requiredSeconds = provider === "grok" ? Math.min(15, Math.max(1, video.duration ?? 15)) : video.duration ?? 60;
 
   const { allowed, balance, message } = await checkVideoSeconds(userId, plan, requiredSeconds);
   if (!allowed) {
@@ -102,7 +113,7 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     renderCompletedAt:  null,
   }).where(eq(videosTable.id, videoId));
 
-  startVideoRender(videoId, resolution, aspectRatio as AspectRatio, captionsEnabled);
+  startVideoRender(videoId, resolution, aspectRatio as AspectRatio, captionsEnabled, provider);
 
   const [updated] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
   res.json(updated);

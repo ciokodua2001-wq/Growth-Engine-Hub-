@@ -396,6 +396,7 @@ function RenderPanel({
   isStarterPlan: boolean;
 }) {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
+  const [renderProvider, setRenderProvider] = useState<"kling" | "grok">("kling");
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
   const [locallyStarted, setLocallyStarted] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -471,7 +472,7 @@ function RenderPanel({
       {
         id: projectId,
         videoId: video.id,
-        data: { resolution: "1080p" as const, aspectRatio, captionsEnabled },
+        data: { resolution: "1080p" as const, aspectRatio, captionsEnabled, provider: renderProvider },
       },
       {
         onSuccess: () => {
@@ -619,6 +620,20 @@ function RenderPanel({
                   <p className="text-[8px] text-white/30 mt-0.5 leading-tight">{r.sub}</p>
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Video Provider</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setRenderProvider("kling")} className="py-2 px-3 rounded-xl border border-[#00D4FF]/50 bg-[#00D4FF]/10 text-left text-[#00D4FF]">
+                <span className="text-[11px] font-black">Kling</span>
+                <span className="block text-[9px] text-white/35 mt-0.5">Current provider</span>
+              </button>
+              <button type="button" disabled title="Grok is disabled until DEV configuration and end-to-end generation are verified." className="py-2 px-3 rounded-xl border border-white/8 text-left text-white/50 cursor-not-allowed opacity-45">
+                <span className="text-[11px] font-black">Grok</span>
+                <span className="block text-[9px] text-white/35 mt-0.5">Disabled pending DEV verification</span>
+              </button>
             </div>
           </div>
 
