@@ -106,17 +106,12 @@ async function runGrokRender(videoId: number, resolution: RenderResolution, aspe
   await db.update(videosTable).set({ renderStatus: "processing", renderResolution: resolution, renderStartedAt: new Date(), renderError: null }).where(eq(videosTable.id, videoId));
   let chargedDuration = grokBillableSeconds(video.duration);
   try {
-    let dialogue = "";
-    if (video.cinematicPlan) {
-      try {
-        const plan = JSON.parse(video.cinematicPlan) as { shots?: Array<{ dialogue?: string }> };
-        dialogue = plan.shots?.map(shot => shot.dialogue?.trim()).filter((line): line is string => Boolean(line)).join(" ") ?? "";
-      } catch { /* malformed optional plan: retain available script/storyboard */ }
-    }
-    const script = (video.approvedScript ?? video.voiceover ?? video.script ?? video.title).trim();
+    // The editable full script is authoritative. Do not append per-shot
+    // dialogue from the original blueprint, which can be stale after an edit.
+    const script = (video.script ?? video.approvedScript ?? video.voiceover ?? video.title).trim();
     const renderJob: CommercialRenderJob = {
       videoId, resolution, aspectRatio: aspectRatio as CommercialAspectRatio, captionsEnabled: false,
-      script: dialogue ? `${script}\n\nDialogue by shot: ${dialogue}` : script,
+      script,
       storyboard: video.storyboard, cinematicPlan: video.cinematicPlan,
       durationSec: Math.min(15, Math.max(1, video.duration ?? 15)),
     };

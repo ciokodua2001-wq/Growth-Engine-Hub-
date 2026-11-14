@@ -1014,15 +1014,18 @@ function VideoCard({
                       )}
                     </div>
                   ) : null}
-                  {video.script && (
-                    <div className="mt-3 rounded-xl border border-border bg-white/2 p-3 space-y-2">
+                  <div className="mt-3 rounded-xl border border-border bg-white/2 p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-semibold text-white/70">Actor Script</p>
-                        {!editingScript && <button type="button" onClick={() => { setScriptDraft(video.script ?? ""); setScriptSaveError(null); setEditingScript(true); }} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/5">Edit script</button>}
+                        <div>
+                          <p className="text-xs font-semibold text-white/70">Full Actor Script</p>
+                          <p className="text-[10px] text-white/35 mt-0.5">Edit the complete script. Changes require re-approval before production.</p>
+                        </div>
+                        {!editingScript && <button type="button" onClick={() => { setScriptDraft(video.script ?? ""); setScriptSaveError(null); setEditingScript(true); }} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/5">Edit full script</button>}
                       </div>
                       {editingScript && (
                         <>
-                          <textarea aria-label={`Edit script for ${video.title}`} value={scriptDraft} onChange={(event) => setScriptDraft(event.target.value)} rows={Math.min(14, Math.max(5, scriptDraft.split("\n").length + 2))} className="w-full resize-y rounded-lg border border-white/15 bg-[#07111d] p-3 text-sm leading-relaxed text-white outline-none focus:border-[#00E676]/60" />
+                          <textarea aria-label={`Edit full script for ${video.title}`} value={scriptDraft} onChange={(event) => setScriptDraft(event.target.value)} rows={18} spellCheck className="min-h-[320px] w-full resize-y rounded-lg border border-white/15 bg-[#07111d] p-3 text-sm leading-relaxed text-white outline-none focus:border-[#00E676]/60" />
+                          <p className="text-[10px] text-white/35">{scriptDraft.length.toLocaleString()} characters · No editor character limit</p>
                           <div className="flex flex-wrap items-center justify-end gap-2">
                             <button type="button" onClick={() => { setScriptDraft(video.script ?? ""); setEditingScript(false); setScriptSaveError(null); }} disabled={updateVideo.isPending} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/70 disabled:opacity-50">Cancel</button>
                             <button type="button" onClick={saveScript} disabled={updateVideo.isPending || scriptDraft.trim() === (video.script ?? "").trim()} className="rounded-lg bg-[#00E676] px-3 py-1.5 text-xs font-bold text-[#04100a] disabled:opacity-45">{updateVideo.isPending ? "Saving..." : "Save script"}</button>
@@ -1031,7 +1034,6 @@ function VideoCard({
                         </>
                       )}
                     </div>
-                  )}
                   <ScriptFidelityPanel video={video} projectId={projectId} />
                   <RenderPanel video={video} projectId={projectId} isTrial={isTrial} isStarterPlan={isStarterPlan} />
                 </>

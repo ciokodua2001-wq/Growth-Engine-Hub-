@@ -112,7 +112,9 @@ app.post("/api/owner/resend-webhook", express.raw({ type: "application/json" }),
 
 // 2b. Body parsers (after webhook so json() doesn't intercept the raw buffer)
 app.use(cors({ credentials: true, origin: true }));
-app.use(express.json());
+// Full actor scripts can be long; Express defaults to 100kb and otherwise
+// rejects valid script edits with 413 before the video route sees the body.
+app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // 3. Session middleware - verifies the Better Auth session cookie (if any) and

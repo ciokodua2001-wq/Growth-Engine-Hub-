@@ -50,19 +50,21 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
     expect(buildGrokGenerationRequest({ script: "Ad prompt", aspectRatio: "1:1" }).duration).toBe(15);
   });
 
-  it("preserves ordered storyboard shots and dialogue in the provider prompt", () => {
+  it("preserves ordered visual storyboard shots but uses only the editable full script for dialogue", () => {
     const job = {
-      script: "Brand story",
+      script: "Customer's newly edited complete script",
       storyboard: "Visual overview",
       cinematicPlan: JSON.stringify({ shots: [
-        { environment: "Kitchen", subjectAction: "Opens jar", dialogue: "Taste the difference", duration: 4 },
-        { environment: "Garden", subjectAction: "Smiles", cameraMovement: "Slow push-in", duration: 3 },
+        { environment: "Kitchen", subjectAction: "Opens jar", dialogue: "OLD STALE LINE", duration: 4 },
+        { environment: "Garden", subjectAction: "Smiles", cameraMovement: "Slow push-in", dialogue: "STALE SECOND LINE", duration: 3 },
       ] }),
       aspectRatio: "9:16", durationSec: 7,
     } as CommercialRenderJob;
     const request = buildGrokGenerationRequest(job);
     expect(request.prompt.indexOf("Shot 1:")).toBeLessThan(request.prompt.indexOf("Shot 2:"));
-    expect(request.prompt).toContain("Spoken dialogue: Taste the difference");
+    expect(request.prompt).toContain("Customer's newly edited complete script");
+    expect(request.prompt).not.toContain("OLD STALE LINE");
+    expect(request.prompt).not.toContain("STALE SECOND LINE");
     expect(request.generate_audio).toBe(true);
   });
 

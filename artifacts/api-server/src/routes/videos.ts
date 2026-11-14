@@ -136,18 +136,20 @@ router.patch("/projects/:id/videos/:videoId", async (req, res): Promise<void> =>
   const parsed = UpdateVideoBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const updateData: Record<string, unknown> = { ...parsed.data };
-  // Editing the script after approval invalidates the approval - the revised
-  // wording must be re-approved before generation (Phase C). Also clear the
-  // now-stale fidelity/transcript so it isn't presented against new dialogue.
+  // Any changed script invalidates its approval and audio review. Otherwise an
+  // old approvedScript or transcript can silently override the customer's edit.
   if (typeof parsed.data.script === "string") {
     const [current] = await db
-      .select({ approvedScript: videosTable.approvedScript })
+      .select({ script: videosTable.script, approvedScript: videosTable.approvedScript })
       .from(videosTable)
       .where(and(eq(videosTable.id, params.data.videoId), eq(videosTable.projectId, params.data.id)));
-    if (current?.approvedScript && current.approvedScript !== parsed.data.script) {
+    if (current && current.script !== parsed.data.script) {
       updateData.scriptStatus = "proposed";
+      updateData.approvedScript = null;
+      updateData.approvedAt = null;
       updateData.fidelityStatus = "unverified";
       updateData.fidelityReport = null;
+      updateData.dialogueTranscript = null;
       updateData.transcriptStatus = "pending";
     }
   }

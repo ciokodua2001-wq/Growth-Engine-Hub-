@@ -42,8 +42,9 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
     catch { return null; }
   })();
   const shotText = plan?.shots?.map((shot, i) => {
-    const parts = [shot.environment, shot.subjectAction, shot.cameraMovement, shot.lighting,
-      shot.dialogue ? `Spoken dialogue: ${shot.dialogue}` : ""].filter(Boolean);
+    // Spoken words come only from the editable full script. Shot-level dialogue
+    // can be stale when a customer replaces the script, so never reinsert it.
+    const parts = [shot.environment, shot.subjectAction, shot.cameraMovement, shot.lighting].filter(Boolean);
     return parts.length ? `Shot ${i + 1}: ${parts.join(". ")}` : "";
   }).filter(Boolean).join("\n");
   const content = [job.storyboard, shotText, job.script]
