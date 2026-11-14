@@ -14,7 +14,7 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
 
     expect(body).toEqual({
       model: GROK_VIDEO_MODEL,
-      prompt: "Four shots in a bright Lagos home.\n\nSpoken dialogue here.\n\nDo not add unrequested captions, subtitles, text overlays, logos, or legible written text. Preserve and accurately render any customer-requested branding, logos, product labels, or approved on-screen text described in the brief or storyboard.",
+      prompt: "Four shots in a bright Lagos home.\n\nSpoken dialogue here.\n\nDialogue instruction: Speak the complete actor script exactly once and in order. Per-shot actor-line text is for shot timing and allocation only; do not repeat or add dialogue beyond the complete actor script.\n\nDo not add unrequested captions, subtitles, text overlays, logos, or legible written text. Preserve and accurately render any customer-requested branding, logos, product labels, or approved on-screen text described in the brief or storyboard.",
       duration: 15,
       aspect_ratio: "9:16",
       resolution: "720p",
@@ -50,21 +50,34 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
     expect(buildGrokGenerationRequest({ script: "Ad prompt", aspectRatio: "1:1" }).duration).toBe(15);
   });
 
-  it("preserves ordered visual storyboard shots but uses only the editable full script for dialogue", () => {
+  it("preserves all editable production brief and shot fields while full script remains dialogue authority", () => {
     const job = {
       script: "Customer's newly edited complete script",
       storyboard: "Visual overview",
-      cinematicPlan: JSON.stringify({ shots: [
-        { environment: "Kitchen", subjectAction: "Opens jar", dialogue: "OLD STALE LINE", duration: 4 },
-        { environment: "Garden", subjectAction: "Smiles", cameraMovement: "Slow push-in", dialogue: "STALE SECOND LINE", duration: 3 },
-      ] }),
+      cinematicPlan: JSON.stringify({
+        visualStyle: "Bright editorial style",
+        performanceDirection: "Warm and confident",
+        textOverlayPlacement: "Lower third",
+        finalHeroShot: "Product close-up",
+        shots: [
+          { environment: "Kitchen", subjectAction: "Opens jar", dialogue: "New shot one line", facialExpression: "Delighted", bodyMovement: "Leans forward", lensStyle: "50mm", lighting: "Soft key", visualEffects: "None", transition: "Cut", cameraMovement: "Push-in", duration: 4 },
+          { environment: "Garden", subjectAction: "Smiles", cameraMovement: "Slow push-in", dialogue: "New shot two line", duration: 3 },
+        ],
+      }),
       aspectRatio: "9:16", durationSec: 7,
     } as CommercialRenderJob;
     const request = buildGrokGenerationRequest(job);
-    expect(request.prompt.indexOf("Shot 1:")).toBeLessThan(request.prompt.indexOf("Shot 2:"));
+    expect(request.prompt.indexOf("Shot 1\n")).toBeLessThan(request.prompt.indexOf("Shot 2\n"));
     expect(request.prompt).toContain("Customer's newly edited complete script");
-    expect(request.prompt).not.toContain("OLD STALE LINE");
-    expect(request.prompt).not.toContain("STALE SECOND LINE");
+    expect(request.prompt).toContain("Visual style: Bright editorial style");
+    expect(request.prompt).toContain("Performance direction: Warm and confident");
+    expect(request.prompt).toContain("Actor-line timing/reference: New shot one line");
+    expect(request.prompt).toContain("Facial expression: Delighted");
+    expect(request.prompt).toContain("Body movement: Leans forward");
+    expect(request.prompt).toContain("Lens: 50mm");
+    expect(request.prompt).toContain("Text overlay placement: Lower third");
+    expect(request.prompt).toContain("Final hero shot: Product close-up");
+    expect(request.prompt).toContain("Speak the complete actor script exactly once and in order");
     expect(request.generate_audio).toBe(true);
   });
 

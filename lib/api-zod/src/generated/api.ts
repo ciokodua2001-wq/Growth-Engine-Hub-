@@ -1239,7 +1239,8 @@ export const UpdateVideoBody = zod.object({
   "title": zod.string().optional(),
   "script": zod.string().optional(),
   "storyboard": zod.string().optional(),
-  "voiceover": zod.string().optional()
+  "voiceover": zod.string().optional(),
+  "cinematicPlan": zod.string().optional()
 })
 
 export const UpdateVideoResponse = zod.object({
@@ -1573,15 +1574,15 @@ export const GetCampaignPerformanceParams = zod.object({
 export const GetCampaignPerformanceResponse = zod.object({
   "campaignId": zod.number(),
   "period": zod.string(),
-  "impressions": zod.number().nullable().optional(),
-  "clicks": zod.number().nullable().optional(),
-  "conversions": zod.number().nullable().optional(),
-  "spend": zod.number().nullable().optional(),
-  "revenue": zod.number().nullable().optional(),
-  "roas": zod.number().nullable().optional(),
-  "ctr": zod.number().nullable().optional(),
-  "cpc": zod.number().nullable().optional(),
-  "cpa": zod.number().nullable().optional()
+  "impressions": zod.number().nullish(),
+  "clicks": zod.number().nullish(),
+  "conversions": zod.number().nullish(),
+  "spend": zod.number().nullish(),
+  "revenue": zod.number().nullish(),
+  "roas": zod.number().nullish(),
+  "ctr": zod.number().nullish(),
+  "cpc": zod.number().nullish(),
+  "cpa": zod.number().nullish()
 })
 
 
@@ -1616,19 +1617,19 @@ export const GetProjectAnalyticsParams = zod.object({
 export const GetProjectAnalyticsResponse = zod.object({
   "projectId": zod.number(),
   "period": zod.string(),
-  "adSpend": zod.number().nullable().optional(),
-  "roas": zod.number().nullable().optional(),
-  "impressions": zod.number().nullable().optional(),
-  "clicks": zod.number().nullable().optional(),
-  "conversions": zod.number().nullable().optional(),
+  "adSpend": zod.number().nullish(),
+  "roas": zod.number().nullish(),
+  "impressions": zod.number().nullish(),
+  "clicks": zod.number().nullish(),
+  "conversions": zod.number().nullish(),
   "activeCampaigns": zod.number().optional(),
-  "revenue": zod.number().nullable().optional(),
+  "revenue": zod.number().nullish(),
   "socialReach": zod.number().optional(),
   "socialEngagement": zod.number().optional(),
   "publishedPosts": zod.number().optional(),
   "emailRecipients": zod.number().optional(),
   "sentCampaigns": zod.number().optional(),
-  "emailOpenRate": zod.number().nullable().optional(),
+  "emailOpenRate": zod.number().nullish(),
   "contentPieces": zod.number().optional(),
   "videosCreated": zod.number().optional(),
   "adsGenerated": zod.number().optional(),
@@ -1638,8 +1639,8 @@ export const GetProjectAnalyticsResponse = zod.object({
   "value": zod.number(),
   "label": zod.string().optional()
 })).optional(),
-  "websiteTraffic": zod.number().optional(),
-  "leads": zod.number().optional()
+  "websiteTraffic": zod.number().nullish(),
+  "leads": zod.number().nullish()
 })
 
 

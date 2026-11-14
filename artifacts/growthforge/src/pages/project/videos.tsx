@@ -911,16 +911,51 @@ function VideoCard({
   const updateVideo = useUpdateVideo();
   const [editingScript, setEditingScript] = useState(false);
   const [scriptDraft, setScriptDraft] = useState(video.script ?? "");
+  const [storyboardDraft, setStoryboardDraft] = useState(video.storyboard ?? "");
+  const [voiceoverDraft, setVoiceoverDraft] = useState(video.voiceover ?? "");
+  const [planDraft, setPlanDraft] = useState<CinematicPlan | null>(parseCinematicPlan(video.cinematicPlan));
   const [scriptSaveError, setScriptSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!editingScript) setScriptDraft(video.script ?? "");
-  }, [video.script, editingScript]);
+    if (!editingScript) {
+      setScriptDraft(video.script ?? "");
+      setStoryboardDraft(video.storyboard ?? "");
+      setVoiceoverDraft(video.voiceover ?? "");
+      setPlanDraft(parseCinematicPlan(video.cinematicPlan));
+    }
+  }, [video.script, video.storyboard, video.voiceover, video.cinematicPlan, editingScript]);
+
+  const startEditingScript = () => {
+    setScriptDraft(video.script ?? "");
+    setStoryboardDraft(video.storyboard ?? "");
+    setVoiceoverDraft(video.voiceover ?? "");
+    setPlanDraft(parseCinematicPlan(video.cinematicPlan) ?? { visualStyle: "", characterDescription: "", environment: "", lighting: "", cameraLanguage: "", performanceDirection: "", shots: [], textOverlayPlacement: "", finalHeroShot: "" });
+    setScriptSaveError(null);
+    setEditingScript(true);
+  };
+
+  const updatePlanField = (field: keyof Omit<CinematicPlan, "shots">, value: string) => {
+    setPlanDraft((current) => current ? { ...current, [field]: value } : current);
+  };
+
+  const updateShotField = (index: number, field: keyof CinematicShot, value: string | number) => {
+    setPlanDraft((current) => current ? { ...current, shots: current.shots.map((shot, shotIndex) => shotIndex === index ? { ...shot, [field]: value } : shot) } : current);
+  };
+
+  const addShot = () => setPlanDraft((current) => current ? {
+    ...current,
+    shots: [...current.shots, { shotNumber: current.shots.length + 1, duration: 5, dialogue: "", environment: "", subjectAction: "", facialExpression: "", bodyMovement: "", cameraMovement: "", lensStyle: "", lighting: "", visualEffects: "", transition: "" }],
+  } : { visualStyle: "", characterDescription: "", environment: "", lighting: "", cameraLanguage: "", performanceDirection: "", shots: [{ shotNumber: 1, duration: 5, dialogue: "", environment: "", subjectAction: "", facialExpression: "", bodyMovement: "", cameraMovement: "", lensStyle: "", lighting: "", visualEffects: "", transition: "" }], textOverlayPlacement: "", finalHeroShot: "" });
+
+  const removeShot = (index: number) => setPlanDraft((current) => current ? {
+    ...current,
+    shots: current.shots.filter((_, shotIndex) => shotIndex !== index).map((shot, shotIndex) => ({ ...shot, shotNumber: shotIndex + 1 })),
+  } : current);
 
   const saveScript = () => {
     setScriptSaveError(null);
     updateVideo.mutate(
-      { id: projectId, videoId: video.id, data: { script: scriptDraft } },
+      { id: projectId, videoId: video.id, data: { script: scriptDraft, storyboard: storyboardDraft, voiceover: voiceoverDraft, ...(planDraft ? { cinematicPlan: JSON.stringify(planDraft) } : {}) } },
       {
         onSuccess: async () => {
           setEditingScript(false);
@@ -929,6 +964,15 @@ function VideoCard({
         onError: (error) => setScriptSaveError(error.message || "Unable to save script"),
       },
     );
+  };
+
+  const cancelScriptEdit = () => {
+    setScriptDraft(video.script ?? "");
+    setStoryboardDraft(video.storyboard ?? "");
+    setVoiceoverDraft(video.voiceover ?? "");
+    setPlanDraft(parseCinematicPlan(video.cinematicPlan));
+    setEditingScript(false);
+    setScriptSaveError(null);
   };
 
   return (
@@ -1017,21 +1061,37 @@ function VideoCard({
                   <div className="mt-3 rounded-xl border border-border bg-white/2 p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <div>
-                          <p className="text-xs font-semibold text-white/70">Full Actor Script</p>
-                          <p className="text-[10px] text-white/35 mt-0.5">Edit the complete script. Changes require re-approval before production.</p>
+                          <p className="text-xs font-semibold text-white/70">Complete Commercial Script &amp; Blueprint</p>
+                          <p className="text-[10px] text-white/35 mt-0.5">Edit dialogue, every shot and direction, production brief, storyboard, and voiceover together.</p>
                         </div>
-                        {!editingScript && <button type="button" onClick={() => { setScriptDraft(video.script ?? ""); setScriptSaveError(null); setEditingScript(true); }} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/5">Edit full script</button>}
+                        {!editingScript && <button type="button" onClick={startEditingScript} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/70 hover:bg-white/5">Edit entire script</button>}
                       </div>
                       {editingScript && (
-                        <>
-                          <textarea aria-label={`Edit full script for ${video.title}`} value={scriptDraft} onChange={(event) => setScriptDraft(event.target.value)} rows={18} spellCheck className="min-h-[320px] w-full resize-y rounded-lg border border-white/15 bg-[#07111d] p-3 text-sm leading-relaxed text-white outline-none focus:border-[#00E676]/60" />
-                          <p className="text-[10px] text-white/35">{scriptDraft.length.toLocaleString()} characters · No editor character limit</p>
-                          <div className="flex flex-wrap items-center justify-end gap-2">
-                            <button type="button" onClick={() => { setScriptDraft(video.script ?? ""); setEditingScript(false); setScriptSaveError(null); }} disabled={updateVideo.isPending} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/70 disabled:opacity-50">Cancel</button>
-                            <button type="button" onClick={saveScript} disabled={updateVideo.isPending || scriptDraft.trim() === (video.script ?? "").trim()} className="rounded-lg bg-[#00E676] px-3 py-1.5 text-xs font-bold text-[#04100a] disabled:opacity-45">{updateVideo.isPending ? "Saving..." : "Save script"}</button>
-                          </div>
+                        <div className="space-y-4 pt-2">
+                          <label className="block space-y-1"><span className="text-xs font-semibold text-[#00E676]">Complete actor dialogue / script</span><textarea aria-label="Complete actor dialogue" value={scriptDraft} onChange={(event) => setScriptDraft(event.target.value)} rows={10} spellCheck className="min-h-[180px] w-full resize-y rounded-lg border border-white/15 bg-[#07111d] p-3 text-sm leading-relaxed text-white outline-none focus:border-[#00E676]/60" /></label>
+                          {planDraft && <>
+                            <div className="grid gap-3 rounded-lg border border-white/10 p-3 md:grid-cols-2">
+                              <p className="text-xs font-bold text-[#00E676] md:col-span-2">Production brief</p>
+                              {([ ["Visual style", "visualStyle"], ["Overall environment", "environment"], ["Overall lighting", "lighting"], ["Camera language", "cameraLanguage"], ["Character description", "characterDescription"], ["Performance direction", "performanceDirection"], ["Text overlay placement", "textOverlayPlacement"], ["Final hero shot", "finalHeroShot"] ] as [string, keyof Omit<CinematicPlan, "shots">][]).map(([label, field]) => <label key={field} className="block space-y-1"><span className="text-[10px] text-white/55">{label}</span><textarea aria-label={label} value={planDraft[field]} onChange={(event) => updatePlanField(field, event.target.value)} rows={2} className="w-full resize-y rounded-md border border-white/10 bg-[#07111d] p-2 text-xs text-white outline-none focus:border-[#00E676]/50" /></label>)}
+                            </div>
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between"><p className="text-xs font-bold text-[#00D4FF]">Every shot · {planDraft.shots.length}</p><button type="button" onClick={addShot} className="rounded-md border border-white/10 px-2.5 py-1 text-xs text-white/70 hover:bg-white/5">Add shot</button></div>
+                              {planDraft.shots.map((shot, shotIndex) => <div key={shotIndex} className="space-y-3 rounded-lg border border-white/10 bg-[#07111d]/70 p-3">
+                                <div className="flex items-center justify-between"><p className="text-xs font-bold text-[#00D4FF]">Shot {shotIndex + 1}</p><button type="button" onClick={() => removeShot(shotIndex)} disabled={planDraft.shots.length <= 1} className="rounded-md border border-red-400/20 px-2 py-1 text-[10px] text-red-300 disabled:opacity-40">Remove shot</button></div>
+                                <div className="grid gap-2 md:grid-cols-2">
+                                  <label className="space-y-1"><span className="text-[10px] text-white/55">Duration (seconds)</span><input type="number" min="1" value={shot.duration} onChange={(event) => updateShotField(shotIndex, "duration", Number(event.target.value))} className="w-full rounded-md border border-white/10 bg-[#07111d] p-2 text-xs text-white" /></label>
+                                  {([ ["Actor dialogue for this shot", "dialogue"], ["Environment", "environment"], ["Subject action", "subjectAction"], ["Facial expression", "facialExpression"], ["Body movement", "bodyMovement"], ["Camera movement", "cameraMovement"], ["Lens style", "lensStyle"], ["Lighting", "lighting"], ["Visual effects", "visualEffects"], ["Transition", "transition"] ] as [string, keyof CinematicShot][]).map(([label, field]) => <label key={field} className="block space-y-1"><span className="text-[10px] text-white/55">{label}</span><textarea aria-label={`Shot ${shotIndex + 1} ${label}`} value={shot[field]} onChange={(event) => updateShotField(shotIndex, field, event.target.value)} rows={field === "dialogue" || field === "subjectAction" ? 3 : 2} className="w-full resize-y rounded-md border border-white/10 bg-[#07111d] p-2 text-xs text-white outline-none focus:border-[#00D4FF]/50" /></label>)}
+                                </div>
+                              </div>)}
+                            </div>
+                          </>}
+                          {!planDraft && <div className="rounded-lg border border-white/10 p-3 text-xs text-white/55">No cinematic shot blueprint exists for this video. You can still edit the full dialogue, storyboard, and voiceover here.</div>}
+                          <label className="block space-y-1"><span className="text-xs font-semibold text-white/70">Complete storyboard</span><textarea aria-label="Complete storyboard" value={storyboardDraft} onChange={(event) => setStoryboardDraft(event.target.value)} rows={6} className="min-h-[120px] w-full resize-y rounded-lg border border-white/15 bg-[#07111d] p-3 text-sm text-white outline-none focus:border-[#00E676]/60" /></label>
+                          <label className="block space-y-1"><span className="text-xs font-semibold text-white/70">Voiceover</span><textarea aria-label="Voiceover" value={voiceoverDraft} onChange={(event) => setVoiceoverDraft(event.target.value)} rows={4} className="w-full resize-y rounded-lg border border-white/15 bg-[#07111d] p-3 text-sm text-white outline-none focus:border-[#00E676]/60" /></label>
+                          <p className="text-[10px] text-white/35">{scriptDraft.length.toLocaleString()} dialogue characters · Save updates the complete blueprint together.</p>
+                          <div className="flex flex-wrap items-center justify-end gap-2"><button type="button" onClick={cancelScriptEdit} disabled={updateVideo.isPending} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/70 disabled:opacity-50">Cancel</button><button type="button" onClick={saveScript} disabled={updateVideo.isPending} className="rounded-lg bg-[#00E676] px-3 py-1.5 text-xs font-bold text-[#04100a] disabled:opacity-45">{updateVideo.isPending ? "Saving..." : "Save entire script"}</button></div>
                           {scriptSaveError && <p role="alert" className="text-xs text-red-400">{scriptSaveError}</p>}
-                        </>
+                        </div>
                       )}
                     </div>
                   <ScriptFidelityPanel video={video} projectId={projectId} />

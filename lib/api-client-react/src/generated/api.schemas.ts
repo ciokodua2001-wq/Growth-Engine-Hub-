@@ -608,6 +608,7 @@ export interface VideoUpdate {
   script?: string;
   storyboard?: string;
   voiceover?: string;
+  cinematicPlan?: string;
 }
 
 export interface CampaignInput {
@@ -653,14 +654,23 @@ export interface Campaign {
 export interface CampaignPerformance {
   campaignId: number;
   period: string;
+  /** @nullable */
   impressions?: number | null;
+  /** @nullable */
   clicks?: number | null;
+  /** @nullable */
   conversions?: number | null;
+  /** @nullable */
   spend?: number | null;
+  /** @nullable */
   revenue?: number | null;
+  /** @nullable */
   roas?: number | null;
+  /** @nullable */
   ctr?: number | null;
+  /** @nullable */
   cpc?: number | null;
+  /** @nullable */
   cpa?: number | null;
 }
 
@@ -689,25 +699,34 @@ export interface ChartDataPoint {
 export interface ProjectAnalytics {
   projectId: number;
   period: string;
+  /** @nullable */
   adSpend?: number | null;
+  /** @nullable */
   roas?: number | null;
+  /** @nullable */
   impressions?: number | null;
+  /** @nullable */
   clicks?: number | null;
+  /** @nullable */
   conversions?: number | null;
   activeCampaigns?: number;
+  /** @nullable */
   revenue?: number | null;
   socialReach?: number;
   socialEngagement?: number;
   publishedPosts?: number;
   emailRecipients?: number;
   sentCampaigns?: number;
+  /** @nullable */
   emailOpenRate?: number | null;
   contentPieces?: number;
   videosCreated?: number;
   adsGenerated?: number;
   connectedPlatforms?: string[];
   chartData?: ChartDataPoint[];
+  /** @nullable */
   websiteTraffic?: number | null;
+  /** @nullable */
   leads?: number | null;
 }
 
@@ -752,6 +771,17 @@ export const VideoRenderInputAspectRatio = {
   '4:5': '4:5',
 } as const;
 
+/**
+ * Video generation provider for this render. Grok is disabled unless explicitly enabled by deployment configuration.
+ */
+export type VideoRenderInputProvider = typeof VideoRenderInputProvider[keyof typeof VideoRenderInputProvider];
+
+
+export const VideoRenderInputProvider = {
+  kling: 'kling',
+  grok: 'grok',
+} as const;
+
 export interface VideoRenderInput {
   resolution?: VideoRenderInputResolution;
   /** Output aspect ratio for the rendered video. */
@@ -759,7 +789,7 @@ export interface VideoRenderInput {
   /** When true, bold burned-in captions are embedded in the video. */
   captionsEnabled?: boolean;
   /** Video generation provider for this render. Grok is disabled unless explicitly enabled by deployment configuration. */
-  provider?: 'kling' | 'grok';
+  provider?: VideoRenderInputProvider;
 }
 
 export interface VideoRenderStatus {

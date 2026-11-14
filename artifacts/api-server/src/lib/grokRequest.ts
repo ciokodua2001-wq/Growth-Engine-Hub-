@@ -38,20 +38,34 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
 >): GrokGenerationRequest {
   const plan = (() => {
     if (!job.cinematicPlan) return null;
-    try { return JSON.parse(job.cinematicPlan) as { shots?: Array<{ duration?: number; environment?: string; subjectAction?: string; cameraMovement?: string; lighting?: string; dialogue?: string }> }; }
+    try { return JSON.parse(job.cinematicPlan) as {
+      visualStyle?: string; characterDescription?: string; environment?: string; lighting?: string;
+      cameraLanguage?: string; performanceDirection?: string; textOverlayPlacement?: string; finalHeroShot?: string;
+      shots?: Array<{ duration?: number; environment?: string; subjectAction?: string; facialExpression?: string; bodyMovement?: string; cameraMovement?: string; lensStyle?: string; lighting?: string; visualEffects?: string; transition?: string; dialogue?: string }>;
+    }; }
     catch { return null; }
   })();
+  const briefText = plan ? [
+    ["Visual style", plan.visualStyle], ["Character", plan.characterDescription],
+    ["Overall environment", plan.environment], ["Overall lighting", plan.lighting],
+    ["Camera language", plan.cameraLanguage], ["Performance direction", plan.performanceDirection],
+    ["Text overlay placement", plan.textOverlayPlacement], ["Final hero shot", plan.finalHeroShot],
+  ].filter(([, value]) => typeof value === "string" && value.trim()).map(([label, value]) => `${label}: ${value}`).join("\n") : "";
   const shotText = plan?.shots?.map((shot, i) => {
-    // Spoken words come only from the editable full script. Shot-level dialogue
-    // can be stale when a customer replaces the script, so never reinsert it.
-    const parts = [shot.environment, shot.subjectAction, shot.cameraMovement, shot.lighting].filter(Boolean);
-    return parts.length ? `Shot ${i + 1}: ${parts.join(". ")}` : "";
+    const parts = [
+      ["Duration", shot.duration ? `${shot.duration} seconds` : ""], ["Environment", shot.environment],
+      ["Subject action", shot.subjectAction], ["Actor-line timing/reference", shot.dialogue],
+      ["Facial expression", shot.facialExpression], ["Body movement", shot.bodyMovement],
+      ["Camera movement", shot.cameraMovement], ["Lens", shot.lensStyle], ["Lighting", shot.lighting],
+      ["Visual effects", shot.visualEffects], ["Transition", shot.transition],
+    ].filter(([, value]) => typeof value === "string" && value.trim()).map(([label, value]) => `${label}: ${value}`);
+    return parts.length ? `Shot ${i + 1}\n${parts.join("\n")}` : "";
   }).filter(Boolean).join("\n");
-  const content = [job.storyboard, shotText, job.script]
+  const content = [briefText, job.storyboard, shotText, job.script]
     .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
     .join("\n\n");
   if (!content.trim()) throw new Error("Grok generation requires a non-empty prompt");
-  const prompt = `${content}\n\n${GROK_NO_TEXT_INSTRUCTIONS}`;
+  const prompt = `${content}\n\nDialogue instruction: Speak the complete actor script exactly once and in order. Per-shot actor-line text is for shot timing and allocation only; do not repeat or add dialogue beyond the complete actor script.\n\n${GROK_NO_TEXT_INSTRUCTIONS}`;
 
   const aspectRatio = grokSourceAspectRatio(job.aspectRatio);
 

@@ -2510,6 +2510,8 @@ components:
           type: string
         voiceover:
           type: string
+        cinematicPlan:
+          type: string
 
     # ── Campaigns ────────────────────────────────────────────────────────────
     CampaignInput:

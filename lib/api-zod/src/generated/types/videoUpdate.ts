@@ -11,4 +11,5 @@ export interface VideoUpdate {
   script?: string;
   storyboard?: string;
   voiceover?: string;
+  cinematicPlan?: string;
 }
