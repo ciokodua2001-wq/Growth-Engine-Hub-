@@ -396,7 +396,7 @@ function RenderPanel({
   isStarterPlan: boolean;
 }) {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
-  const [renderProvider, setRenderProvider] = useState<"kling" | "grok">("kling");
+  const [renderProvider, setRenderProvider] = useState<"kling" | "grok">("grok");
   const [grokAvailable, setGrokAvailable] = useState(false);
   const [grokCostPerSecond, setGrokCostPerSecond] = useState<number | null>(null);
   const [confirmGrokCost, setConfirmGrokCost] = useState(false);
@@ -483,7 +483,7 @@ function RenderPanel({
   };
 
   const handleRender = () => {
-    if (renderProvider === "grok" && !confirmGrokCost) {
+    if (renderProvider === "kling" && !confirmGrokCost) {
       setConfirmGrokCost(true);
       return;
     }
@@ -648,13 +648,13 @@ function RenderPanel({
           <div>
             <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Video Provider</p>
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setRenderProvider("kling")} className="py-2 px-3 rounded-xl border border-[#00D4FF]/50 bg-[#00D4FF]/10 text-left text-[#00D4FF]">
-                <span className="text-[11px] font-black">Kling</span>
-                <span className="block text-[9px] text-white/35 mt-0.5">Current provider</span>
-              </button>
-              <button type="button" onClick={() => { setRenderProvider("grok"); setConfirmGrokCost(false); }} disabled={!grokAvailable} title={grokAvailable ? "Grok Imagine video with native spoken audio" : "Grok is not enabled for this DEV owner account."} className={`py-2 px-3 rounded-xl border text-left ${renderProvider === "grok" ? "border-[#00E676]/50 bg-[#00E676]/10 text-[#00E676]" : "border-white/8 text-white/50"} ${grokAvailable ? "" : "cursor-not-allowed opacity-45"}`}>
+              <button type="button" onClick={() => { setRenderProvider("grok"); setConfirmGrokCost(false); }} disabled={!grokAvailable} title={grokAvailable ? "Grok Imagine 1.5 Lite with native spoken audio" : "Grok is not enabled for this DEV owner account."} className={`py-2 px-3 rounded-xl border text-left ${renderProvider === "grok" ? "border-[#00E676]/50 bg-[#00E676]/10 text-[#00E676]" : "border-white/8 text-white/50"} ${grokAvailable ? "" : "cursor-not-allowed opacity-45"}`}>
                 <span className="text-[11px] font-black">Grok</span>
-                <span className="block text-[9px] text-white/35 mt-0.5">{grokAvailable ? "Native spoken audio · DEV owner test" : "Not enabled for this account"}</span>
+                <span className="block text-[9px] text-white/35 mt-0.5">{grokAvailable ? "Primary provider · native spoken audio" : "Not enabled for this account"}</span>
+              </button>
+              <button type="button" onClick={() => { setRenderProvider("kling"); setConfirmGrokCost(false); }} className={`py-2 px-3 rounded-xl border text-left ${renderProvider === "kling" ? "border-[#00D4FF]/50 bg-[#00D4FF]/10 text-[#00D4FF]" : "border-white/8 text-white/50"}`}>
+                <span className="text-[11px] font-black">Google Omni</span>
+                <span className="block text-[9px] text-white/35 mt-0.5">Fallback provider · confirm before paid generation</span>
               </button>
             </div>
           </div>
@@ -700,11 +700,11 @@ function RenderPanel({
           </div>}
 
           {renderProvider === "grok" && <div className="rounded-xl border border-[#00E676]/20 bg-[#00E676]/5 px-3 py-2 text-[11px] text-white/70">
-            Estimated maximum provider cost: <strong>{grokCostPerSecond === null ? "unavailable" : `$${(grokCostPerSecond * Math.min(15, Math.max(1, video.duration ?? 15))).toFixed(2)} USD`}</strong> (up to {Math.min(15, Math.max(1, video.duration ?? 15))} seconds). The wallet reservation is shown separately by the server before generation; no provider call starts until you confirm.
+            Grok is the primary provider for Commercial Studio. It uses native spoken audio and keeps the existing preview, download, and history workflow.
           </div>}
-          {confirmGrokCost && renderProvider === "grok" && <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 p-3 space-y-2">
-            <p className="text-xs text-amber-100">Confirm Grok paid generation with estimated maximum provider cost {grokCostPerSecond === null ? "unavailable" : `$${(grokCostPerSecond * Math.min(15, Math.max(1, video.duration ?? 15))).toFixed(2)} USD`}?</p>
-            <div className="flex gap-2"><button type="button" onClick={() => setConfirmGrokCost(false)} className="rounded-lg px-3 py-1.5 text-xs border border-white/10">Cancel</button><button type="button" onClick={() => { setConfirmGrokCost(false); setLocallyStarted(true); startRender.mutate({ id: projectId, videoId: video.id, data: { resolution: "1080p", aspectRatio, captionsEnabled: false, provider: "grok" } }, { onSuccess: () => void queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) }), onError: () => setLocallyStarted(false) }); }} className="rounded-lg px-3 py-1.5 text-xs font-bold bg-[#00E676] text-[#040B14]">Confirm paid generation</button></div>
+          {confirmGrokCost && renderProvider === "kling" && <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 p-3 space-y-2">
+            <p className="text-xs text-amber-100">Confirm Google Omni fallback generation. Use this only if Grok failed and you want to proceed with the alternate paid provider.</p>
+            <div className="flex gap-2"><button type="button" onClick={() => setConfirmGrokCost(false)} className="rounded-lg px-3 py-1.5 text-xs border border-white/10">Cancel</button><button type="button" onClick={() => { setConfirmGrokCost(false); setLocallyStarted(true); startRender.mutate({ id: projectId, videoId: video.id, data: { resolution: "1080p", aspectRatio, captionsEnabled, provider: "kling" } }, { onSuccess: () => void queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) }), onError: () => setLocallyStarted(false) }); }} className="rounded-lg px-3 py-1.5 text-xs font-bold bg-[#00D4FF] text-[#040B14]">Confirm Omni fallback</button></div>
           </div>}
 
           {/* Render button */}
