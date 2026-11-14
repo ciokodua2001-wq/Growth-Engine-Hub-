@@ -37,7 +37,7 @@ describe("GrokCommercialRenderer (mocked provider, no paid requests)", () => {
     const saved: unknown[] = [];
     const fetchMock = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(JSON.stringify({ request_id: "req-123", status: "pending" }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ request_id: "req-123", status: "completed", video: { url: "https://assets.grok.com/output.mp4", duration: 8 } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ request_id: "req-123", status: "done", video: { url: "https://vidgen.x.ai/output.mp4", duration: 8 } }), { status: 200 }))
       .mockResolvedValueOnce(new Response(new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]), { status: 200, headers: { "content-type": "video/mp4", "content-length": "8" } }));
     const renderer = new GrokCommercialRenderer({
       fetch: fetchMock, sleep: async () => {}, pollIntervalMs: 0, maxPolls: 3,
@@ -49,7 +49,7 @@ describe("GrokCommercialRenderer (mocked provider, no paid requests)", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.x.ai/v1/videos/generations");
     expect(fetchMock.mock.calls[1]?.[0]).toBe("https://api.x.ai/v1/videos/req-123");
     expect(fetchMock.mock.calls[2]?.[0]).toBeInstanceOf(URL);
-    expect(String(fetchMock.mock.calls[2]?.[0])).toBe("https://assets.grok.com/output.mp4");
+    expect(String(fetchMock.mock.calls[2]?.[0])).toBe("https://vidgen.x.ai/output.mp4");
     expect(saved).toHaveLength(1);
     expect(result.videoUrl).toMatch(/^grok-object:\/\/mock-bucket\/commercial\/grok\/42\//);
     expect(result.durationSec).toBe(8);
