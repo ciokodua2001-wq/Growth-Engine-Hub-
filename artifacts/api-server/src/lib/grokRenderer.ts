@@ -7,6 +7,8 @@ const logger = pino({ name: "grokRenderer" });
 const DEFAULT_POLL_INTERVAL_MS = 10_000;
 const DEFAULT_MAX_POLLS = 90;
 const MAX_VIDEO_BYTES = 256 * 1024 * 1024;
+export const GROK_STORAGE_REFERENCE_PREFIX = "grok-object://";
+export const GROK_MEDIA_PATH = "/api/projects";
 
 type GrokStatus = { request_id?: string; status?: string; video?: { url?: string; duration?: number }; error?: string };
 export interface GrokRendererDependencies {
@@ -50,7 +52,14 @@ export class GrokCommercialRenderer implements CommercialRenderer {
 
   isAvailable(): boolean {
     return process.env.GROK_VIDEO_ENABLED === "true" &&
-      Boolean(process.env.GROWTHFORGE_GROK_API_KEY && process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID);
+      Boolean(
+        process.env.GROWTHFORGE_GROK_API_KEY &&
+        process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID &&
+        process.env.OBJECT_STORAGE_ENDPOINT &&
+        process.env.OBJECT_STORAGE_REGION &&
+        process.env.OBJECT_STORAGE_ACCESS_KEY_ID &&
+        process.env.OBJECT_STORAGE_SECRET_ACCESS_KEY
+      );
   }
 
   async render(job: CommercialRenderJob): Promise<CommercialRenderResult> {
@@ -101,7 +110,9 @@ export class GrokCommercialRenderer implements CommercialRenderer {
 
     const key = `commercial/grok/${job.videoId}/${Date.now()}-${requestId}.mp4`;
     await this.deps.save(bucket, key, bytes, "video/mp4");
-    const videoUrl = await this.deps.signUrl(bucket, key);
+    // Persist a stable internal reference, not an expiring presigned URL.
+    // Routes convert it into an authenticated media link on demand.
+    const videoUrl = `grok-object://${encodeURIComponent(bucket)}/${key.split("/").map(encodeURIComponent).join("/")}`;
     logger.info({ videoId: job.videoId, requestId, bytes: bytes.length }, "Grok video stored in object storage");
     return { videoUrl, durationSec: completed.video?.duration ?? request.duration };
   }

@@ -14,13 +14,14 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
 
     expect(body).toEqual({
       model: GROK_VIDEO_MODEL,
-      prompt: "Four shots in a bright Lagos home.\n\nSpoken dialogue here.\n\nDo not render captions, subtitles, text overlays, logos, or legible written text in the video.",
+      prompt: "Four shots in a bright Lagos home.\n\nSpoken dialogue here.\n\nDo not add unrequested captions, subtitles, text overlays, logos, or legible written text. Preserve and accurately render any customer-requested branding, logos, product labels, or approved on-screen text described in the brief or storyboard.",
       duration: 15,
       aspect_ratio: "9:16",
       resolution: "720p",
       generate_audio: true,
     });
-    expect(body.prompt).toMatch(/Do not render captions, subtitles, text overlays/);
+    expect(body.prompt).toMatch(/Do not add unrequested captions, subtitles, text overlays/);
+    expect(body.prompt).toMatch(/Preserve and accurately render any customer-requested branding/);
   });
 
   it("rejects missing prompt text", () => {

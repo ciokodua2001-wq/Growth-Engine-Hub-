@@ -397,6 +397,9 @@ function RenderPanel({
 }) {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
   const [renderProvider, setRenderProvider] = useState<"kling" | "grok">("kling");
+  const [grokAvailable, setGrokAvailable] = useState(false);
+  const [grokCostPerSecond, setGrokCostPerSecond] = useState<number | null>(null);
+  const [confirmGrokCost, setConfirmGrokCost] = useState(false);
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
   const [locallyStarted, setLocallyStarted] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -404,6 +407,20 @@ function RenderPanel({
   const queryClient = useQueryClient();
 
   const startRender = useStartVideoRender();
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/grok-capabilities", { credentials: "include" })
+      .then(response => response.ok ? response.json() : null)
+      .then(data => {
+        if (active) {
+          setGrokAvailable(data?.enabled === true);
+          setGrokCostPerSecond(typeof data?.estimatedCostPerSecondUsd === "number" ? data.estimatedCostPerSecondUsd : null);
+        }
+      })
+      .catch(() => { if (active) setGrokAvailable(false); });
+    return () => { active = false; };
+  }, []);
 
   // Poll render status when in progress (either from DB or just started locally)
   const renderInProgress =
@@ -466,6 +483,11 @@ function RenderPanel({
   };
 
   const handleRender = () => {
+    if (renderProvider === "grok" && !confirmGrokCost) {
+      setConfirmGrokCost(true);
+      return;
+    }
+    setConfirmGrokCost(false);
     setLocallyStarted(true);
     setElapsedSec(0);
     startRender.mutate(
@@ -630,15 +652,15 @@ function RenderPanel({
                 <span className="text-[11px] font-black">Kling</span>
                 <span className="block text-[9px] text-white/35 mt-0.5">Current provider</span>
               </button>
-              <button type="button" disabled title="Grok is disabled until DEV configuration and end-to-end generation are verified." className="py-2 px-3 rounded-xl border border-white/8 text-left text-white/50 cursor-not-allowed opacity-45">
+              <button type="button" onClick={() => { setRenderProvider("grok"); setConfirmGrokCost(false); }} disabled={!grokAvailable} title={grokAvailable ? "Grok Imagine video with native spoken audio" : "Grok is not enabled for this DEV owner account."} className={`py-2 px-3 rounded-xl border text-left ${renderProvider === "grok" ? "border-[#00E676]/50 bg-[#00E676]/10 text-[#00E676]" : "border-white/8 text-white/50"} ${grokAvailable ? "" : "cursor-not-allowed opacity-45"}`}>
                 <span className="text-[11px] font-black">Grok</span>
-                <span className="block text-[9px] text-white/35 mt-0.5">Disabled pending DEV verification</span>
+                <span className="block text-[9px] text-white/35 mt-0.5">{grokAvailable ? "Native spoken audio · DEV owner test" : "Not enabled for this account"}</span>
               </button>
             </div>
           </div>
 
           {/* Captions Toggle */}
-          <div className="flex items-center justify-between rounded-xl border border-white/8 bg-white/2 px-3 py-2.5">
+          {renderProvider !== "grok" && <div className="flex items-center justify-between rounded-xl border border-white/8 bg-white/2 px-3 py-2.5">
             <div>
               <p className="text-xs font-semibold text-white/70">Bold Captions</p>
               <p className="text-[10px] text-white/35 mt-0.5">Burned-in subtitles for social engagement</p>
@@ -675,7 +697,15 @@ function RenderPanel({
                 }}
               />
             </button>
-          </div>
+          </div>}
+
+          {renderProvider === "grok" && <div className="rounded-xl border border-[#00E676]/20 bg-[#00E676]/5 px-3 py-2 text-[11px] text-white/70">
+            Estimated maximum provider cost: <strong>{grokCostPerSecond === null ? "unavailable" : `$${(grokCostPerSecond * Math.min(15, Math.max(1, video.duration ?? 15))).toFixed(2)} USD`}</strong> (up to {Math.min(15, Math.max(1, video.duration ?? 15))} seconds). The wallet reservation is shown separately by the server before generation; no provider call starts until you confirm.
+          </div>}
+          {confirmGrokCost && renderProvider === "grok" && <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 p-3 space-y-2">
+            <p className="text-xs text-amber-100">Confirm Grok paid generation with estimated maximum provider cost {grokCostPerSecond === null ? "unavailable" : `$${(grokCostPerSecond * Math.min(15, Math.max(1, video.duration ?? 15))).toFixed(2)} USD`}?</p>
+            <div className="flex gap-2"><button type="button" onClick={() => setConfirmGrokCost(false)} className="rounded-lg px-3 py-1.5 text-xs border border-white/10">Cancel</button><button type="button" onClick={() => { setConfirmGrokCost(false); setLocallyStarted(true); startRender.mutate({ id: projectId, videoId: video.id, data: { resolution: "1080p", aspectRatio, captionsEnabled: false, provider: "grok" } }, { onSuccess: () => void queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) }), onError: () => setLocallyStarted(false) }); }} className="rounded-lg px-3 py-1.5 text-xs font-bold bg-[#00E676] text-[#040B14]">Confirm paid generation</button></div>
+          </div>}
 
           {/* Render button */}
           <button

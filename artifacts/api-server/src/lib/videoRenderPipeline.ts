@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import pino from "pino";
 import { synthesizeSpeech, type NarrationLocale } from "@workspace/integrations-google-tts-server";
 import { deductPlatformCredits } from "./platformCredits.js";
-import { deductVideoSeconds } from "./videoWallet.js";
+import { deductVideoSeconds, refundReservedVideoSeconds } from "./videoWallet.js";
 import { GrokCommercialRenderer } from "./grokRenderer.js";
 import { grokBillableSeconds } from "./grokRequest.js";
 import type { CommercialAspectRatio, CommercialRenderJob } from "./commercialRenderer.js";
@@ -67,6 +67,11 @@ export function checkGrokRenderRequirements(): RenderRequirementsResult {
   if (process.env.GROK_VIDEO_ENABLED !== "true") missing.push("GROK_VIDEO_ENABLED=true (Grok remains disabled by default)");
   if (!process.env.GROWTHFORGE_GROK_API_KEY) missing.push("GROWTHFORGE_GROK_API_KEY");
   if (!process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID) missing.push("DEFAULT_OBJECT_STORAGE_BUCKET_ID");
+  if (!process.env.OBJECT_STORAGE_ENDPOINT) missing.push("OBJECT_STORAGE_ENDPOINT");
+  if (!process.env.OBJECT_STORAGE_REGION) missing.push("OBJECT_STORAGE_REGION");
+  if (!process.env.OBJECT_STORAGE_ACCESS_KEY_ID) missing.push("OBJECT_STORAGE_ACCESS_KEY_ID");
+  if (!process.env.OBJECT_STORAGE_SECRET_ACCESS_KEY) missing.push("OBJECT_STORAGE_SECRET_ACCESS_KEY");
+  if (!(Number(process.env.GROK_VIDEO_COST_PER_SECOND_USD) > 0)) missing.push("GROK_VIDEO_COST_PER_SECOND_USD (required for explicit cost estimate)");
   return { ready: missing.length === 0, missing };
 }
 
@@ -125,17 +130,24 @@ async function runGrokRender(videoId: number, resolution: RenderResolution, aspe
     await db.update(videosTable).set({ renderStatus: "complete", videoUrl: result.videoUrl, duration: chargedDuration, renderCompletedAt: new Date(), captionsEnabled: false, fidelityStatus: "unverified" }).where(eq(videosTable.id, videoId));
   } catch (error) {
     logger.error({ err: error, videoId }, "Grok render failed");
-    await markFailed(videoId, "Grok generation failed. No automatic retry was attempted; your credits were not charged.");
+    await markFailed(videoId, "Grok generation failed. No automatic retry was attempted; reserved video seconds were returned.");
+    if (ownerUserId) {
+      try {
+        await refundReservedVideoSeconds(ownerUserId, Number.MAX_SAFE_INTEGER, videoId, video.projectId, "Grok generation failed; reservation returned");
+      } catch (refundError) {
+        logger.error({ err: refundError, ownerUserId, videoId }, "Failed to return Grok reservation; reconciliation required");
+      }
+    }
     return;
   }
 
-  // The completed object/video remains available even if wallet accounting has
-  // a transient database error; do not relabel a delivered video as failed.
-  if (ownerUserId) {
+  // The wallet was reserved before provider submission; refund any unused
+  // seconds when the completed video is shorter than the estimate.
+  if (ownerUserId && chargedDuration < grokBillableSeconds(video.duration)) {
     try {
-      await deductVideoSeconds(ownerUserId, chargedDuration, videoId, video.projectId, `Grok video render completed - "${video.title}"`);
+      await refundReservedVideoSeconds(ownerUserId, grokBillableSeconds(video.duration) - chargedDuration, videoId, video.projectId, "Unused Grok reservation returned after shorter completed clip");
     } catch (error) {
-      logger.error({ err: error, ownerUserId, videoId }, "Grok render completed but video-second deduction failed; reconciliation required");
+      logger.error({ err: error, ownerUserId, videoId }, "Grok clip completed but unused reservation refund failed; reconciliation required");
     }
   }
 }
