@@ -1,0 +1,143 @@
+{
+  "generatedAt": "2026-11-15T22:41:46.137Z",
+  "activeTextProvider": "gemini (default)",
+  "qwen": {
+    "model": "qwen-flash",
+    "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    "thinking": false,
+    "costRatesConfigured": false
+  },
+  "gemini": {
+    "quality": "gemini-3.6-flash",
+    "fast": "gemini-3.1-flash-lite"
+  },
+  "rows": [
+    {
+      "task": "social-post",
+      "provider": "gemini",
+      "model": "gemini-3.6-flash",
+      "ok": false,
+      "latencyMs": 188,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "costUsd": 0,
+      "error": "{\"error\":{\"code\":402,\"message\":\"Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing. Learn more at https://ai.google.dev/gemini-api/docs/billing#prepay. \",\"status\":\"RESOURCE_EXHAUSTED\"}}"
+    },
+    {
+      "task": "social-post",
+      "provider": "qwen",
+      "model": "qwen-flash",
+      "ok": true,
+      "latencyMs": 2285,
+      "inputTokens": 1958,
+      "outputTokens": 213,
+      "costUsd": 0,
+      "data": {
+        "caption": "Event season is here — and your brand needs to stand out. At MegaPrint NG, we deliver 24-hour large-format printing in Ikeja, Lagos. Whether it’s a wedding, product launch, or corporate event, your banners are ready in under a day.\n\nNo delays. No stress. Just bold, high-quality prints that grab attention and drive results.\n\nWe’ve printed for over 300 businesses across Lagos — from pop-up shops to major events. Our clients trust us because we deliver on time, every time.\n\nNeed a banner by tomorrow? We’ve got you.\n\nOrder now and get same-day production with next-day delivery across Lagos.\n\nPay on delivery. No hidden fees. No wahala.",
+        "hashtags": [
+          "MegaPrintNG",
+          "BannerPrintingLagos",
+          "EventMarketingNigeria",
+          "LargeFormatPrinting",
+          "BrandingInIkeja",
+          "HustleWithPurpose",
+          "NaijaBusiness"
+        ],
+        "cta": "Order now"
+      }
+    },
+    {
+      "task": "video-script",
+      "provider": "gemini",
+      "model": "gemini-3.6-flash",
+      "ok": false,
+      "latencyMs": 107,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "costUsd": 0,
+      "error": "{\"error\":{\"code\":402,\"message\":\"Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing. Learn more at https://ai.google.dev/gemini-api/docs/billing#prepay. \",\"status\":\"RESOURCE_EXHAUSTED\"}}"
+    },
+    {
+      "task": "video-script",
+      "provider": "qwen",
+      "model": "qwen-flash",
+      "ok": true,
+      "latencyMs": 1492,
+      "inputTokens": 153,
+      "outputTokens": 201,
+      "costUsd": 0,
+      "data": {
+        "title": "Launch Your Brand in 24 Hours",
+        "scenes": [
+          {
+            "line": "Your new shop opens tomorrow. Need banners, standees, and branded packaging? We’ve got you.",
+            "visual": "A bustling Lagos street scene with a shop front being prepped for opening; workers placing a large banner on the wall."
+          },
+          {
+            "line": "MegaPrint NG delivers same-day large-format printing — 24-hour turnaround, no delays.",
+            "visual": "Close-up of a printer rapidly producing a vibrant vehicle wrap, then transitioning to a branded packaging box being sealed."
+          },
+          {
+            "line": "Get your brand seen fast. Call MegaPrint NG in Ikeja — quality that prints, and delivers, in one day.",
+            "visual": "Logo reveal: 'MegaPrint NG' in bold letters over a sleek studio background, with contact number displayed clearly."
+          }
+        ]
+      }
+    },
+    {
+      "task": "ad-headlines",
+      "provider": "gemini",
+      "model": "gemini-3.6-flash",
+      "ok": false,
+      "latencyMs": 107,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "costUsd": 0,
+      "error": "{\"error\":{\"code\":402,\"message\":\"Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing. Learn more at https://ai.google.dev/gemini-api/docs/billing#prepay. \",\"status\":\"RESOURCE_EXHAUSTED\"}}"
+    },
+    {
+      "task": "ad-headlines",
+      "provider": "qwen",
+      "model": "qwen-flash",
+      "ok": true,
+      "latencyMs": 650,
+      "inputTokens": 132,
+      "outputTokens": 56,
+      "costUsd": 0,
+      "data": {
+        "headlines": [
+          "24-Hour Banner Printing Lagos",
+          "Fast Banner Printing NGN",
+          "Large Banners Same Day Lagos",
+          "Quality Banners in 24hrs",
+          "Banner Printing Ikeja Fast"
+        ]
+      }
+    },
+    {
+      "task": "agent-intent",
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
+      "ok": false,
+      "latencyMs": 95,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "costUsd": 0,
+      "error": "{\"error\":{\"code\":402,\"message\":\"Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing. Learn more at https://ai.google.dev/gemini-api/docs/billing#prepay. \",\"status\":\"RESOURCE_EXHAUSTED\"}}"
+    },
+    {
+      "task": "agent-intent",
+      "provider": "qwen",
+      "model": "qwen-flash",
+      "ok": true,
+      "latencyMs": 468,
+      "inputTokens": 72,
+      "outputTokens": 15,
+      "costUsd": 0,
+      "data": {
+        "intent": "billing",
+        "confidence": 0.95
+      }
+    }
+  ]
+}

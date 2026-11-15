@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { logger } from "./logger.js";
 
-export type Provider = "google-genai" | "google-tts" | "minimax" | "kling" | "heygen";
+export type Provider = "google-genai" | "google-tts" | "minimax" | "kling" | "heygen" | "qwen";
 
 const MANUAL_BANKS: Array<{ provider: Provider; displayName: string; unit: string }> = [
   { provider: "kling",  displayName: "Kling AI (Video)",  unit: "clips"   },

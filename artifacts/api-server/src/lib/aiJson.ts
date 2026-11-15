@@ -1,14 +1,21 @@
-import { ThinkingLevel } from "@google/genai";
-import { genai } from "@workspace/integrations-google-genai";
 import { deductPlatformCredits } from "./platformCredits.js";
 import { getLocaleProfile, injectCulturalNuance } from "./localization.js";
+import { callGeminiRaw, callQwenRaw, type RawTextCall } from "./textProviders.js";
+import {
+  checkTextProviderReadiness,
+  getActiveTextProvider,
+  getQwenCostRates,
+  type QwenTextTier,
+  type TextProvider,
+} from "./textProviderConfig.js";
 
-const THINKING_LEVEL: Record<"minimal" | "low" | "medium" | "high", ThinkingLevel> = {
-  minimal: ThinkingLevel.MINIMAL,
-  low: ThinkingLevel.LOW,
-  medium: ThinkingLevel.MEDIUM,
-  high: ThinkingLevel.HIGH,
-};
+// Provider note: these two tiers are how ALL LLM text leaves GrowthForge (32
+// call sites across routes/libraries). ACTIVE_TEXT_PROVIDER decides which
+// transport answers - "gemini" (default, the models named below) or "qwen"
+// (Qwen-Flash, for the Gemini-vs-Qwen benchmark). The model constants below
+// describe the Gemini side only; see textProviderConfig.ts + textProviders.ts.
+// Note `thinkingLevel` is a Gemini-only knob - Qwen runs instant mode unless
+// QWEN_ALLOW_THINKING=true (see qwenThinkingEnabled()).
 
 // Full-quality tier — campaign generation, ad copy, video scripts, automated
 // workflows: everything that needs real reasoning quality.
@@ -20,6 +27,7 @@ const MODEL = "gemini-3.6-flash";
 const COST_PER_INPUT_TOKEN  = 1.50 / 1_000_000;
 const COST_PER_OUTPUT_TOKEN = 7.50 / 1_000_000;
 
+
 // Fast/cheap tier — used for Forge AI agent chat (intent classification +
 // conversational replies), where latency and cost matter more than depth.
 // ~5x cheaper than gemini-3.6-flash; imperceptible quality difference for
@@ -27,6 +35,26 @@ const COST_PER_OUTPUT_TOKEN = 7.50 / 1_000_000;
 const FAST_MODEL = "gemini-3.1-flash-lite";
 const FAST_COST_PER_INPUT_TOKEN  = 0.25 / 1_000_000;
 const FAST_COST_PER_OUTPUT_TOKEN = 1.50 / 1_000_000;
+
+/**
+ * The exact per-tier Gemini config production uses, exported so the
+ * provider-vs-provider benchmark measures the real path instead of a copy of
+ * these constants that could drift away from it.
+ */
+export const TEXT_TIERS = {
+  quality: {
+    geminiModel: MODEL,
+    geminiCostPerInputToken: COST_PER_INPUT_TOKEN,
+    geminiCostPerOutputToken: COST_PER_OUTPUT_TOKEN,
+    thinkingLevel: "low" as const,
+  },
+  fast: {
+    geminiModel: FAST_MODEL,
+    geminiCostPerInputToken: FAST_COST_PER_INPUT_TOKEN,
+    geminiCostPerOutputToken: FAST_COST_PER_OUTPUT_TOKEN,
+    thinkingLevel: "minimal" as const,
+  },
+};
 
 function extractJsonBlock(text: string): string {
   // Case 1: complete fenced block  ```json ... ```
@@ -63,10 +91,20 @@ function extractJsonBlock(text: string): string {
   return candidate.trim();
 }
 
-async function callGemini<T>(params: {
-  model: string;
-  costPerInputToken: number;
-  costPerOutputToken: number;
+/**
+ * Shared text-model call: locale enrichment -> provider transport -> JSON
+ * recovery -> platform-credit accounting.
+ *
+ * Both providers land here, so switching ACTIVE_TEXT_PROVIDER does not change
+ * what routes see: same `AI response was not valid JSON` / `AI response was
+ * truncated` errors, same credit rows, same optional locale injection.
+ */
+async function callTextModel<T>(params: {
+  tier: QwenTextTier;
+  provider?: TextProvider;
+  geminiModel: string;
+  geminiCostPerInputToken: number;
+  geminiCostPerOutputToken: number;
   system: string;
   prompt: string;
   maxTokens?: number;
@@ -74,6 +112,39 @@ async function callGemini<T>(params: {
   label?: string;
   locale?: string;
 }): Promise<T> {
+  const outcome = await runTextModel<T>(params);
+  return outcome.data;
+}
+
+export interface TextModelOutcome<T> {
+  data: T;
+  provider: TextProvider;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  latencyMs: number;
+}
+
+/**
+ * Same as callTextModel but hands back the transport metadata (which provider
+ * answered, tokens, wall-clock latency). The benchmark harness needs exactly
+ * this, and production routes ignore it - keeping the two paths on one code
+ * path rather than a parallel "benchmark-only" implementation that could drift.
+ */
+export async function runTextModel<T>(params: {
+  tier: QwenTextTier;
+  provider?: TextProvider;
+  geminiModel: string;
+  geminiCostPerInputToken: number;
+  geminiCostPerOutputToken: number;
+  system: string;
+  prompt: string;
+  maxTokens?: number;
+  thinkingLevel: "minimal" | "low" | "medium" | "high";
+  label?: string;
+  locale?: string;
+}): Promise<TextModelOutcome<T>> {
   // ── Cultural nuance injection ─────────────────────────────────────────────
   // Fetch the locale profile (null = English fallback) and upgrade the system
   // prompt with native copywriting directives before the request is sent.
@@ -82,63 +153,71 @@ async function callGemini<T>(params: {
   const localeProfile = params.locale ? getLocaleProfile(params.locale) : null;
   const enrichedSystem = injectCulturalNuance(params.system, localeProfile, params.locale);
 
-  const maxOutputTokens = params.maxTokens ?? 8192;
+  const provider = params.provider ?? getActiveTextProvider();
+  const transportParams = {
+    system: enrichedSystem,
+    prompt: params.prompt,
+    maxTokens: params.maxTokens,
+    thinkingLevel: params.thinkingLevel,
+  };
 
-  // Gemini has no separate "system" message slot in generateContent's simple
-  // form — folded into systemInstruction, which is the supported equivalent.
-  const response = await genai.models.generateContent({
-    model: params.model,
-    contents: params.prompt,
-    config: {
-      systemInstruction: enrichedSystem,
-      maxOutputTokens,
-      // Gemini 3.x models "think" before answering by default (thinkingLevel
-      // defaults to MEDIUM/HIGH depending on model), and thinking tokens are
-      // billed from — and count against — the same maxOutputTokens budget as
-      // the actual JSON we want back. For structured template-filling tasks
-      // like these (no deep multi-step reasoning needed), an unconstrained
-      // thinking budget risks silently eating most of maxOutputTokens and
-      // truncating the JSON response before it's complete. Keep it low/minimal
-      // so the budget goes to real content instead.
-      thinkingConfig: { thinkingLevel: THINKING_LEVEL[params.thinkingLevel] },
-      // Structured JSON output mode — the model is constrained to emit valid
-      // JSON directly, removing the need for markdown-fence scraping in the
-      // common case. extractJsonBlock() below stays as a defensive fallback
-      // for any edge cases (e.g. truncated output) where it doesn't apply.
-      responseMimeType: "application/json",
-    },
-  });
+  let raw: RawTextCall;
+  if (provider === "qwen") {
+    const readiness = checkTextProviderReadiness("qwen");
+    if (!readiness.ok) throw new Error(readiness.reason ?? "Qwen text provider is not configured");
+    raw = await callQwenRaw(params.tier, transportParams);
+    const rates = getQwenCostRates();
+    return finishCall<T>(raw, rates.costPerInputToken, rates.costPerOutputToken, params.label, params.maxTokens);
+  }
 
-  const usage = response.usageMetadata;
-  const inTok  = usage?.promptTokenCount ?? 0;
-  const outTok = usage?.candidatesTokenCount ?? 0;
-  const cost   = inTok * params.costPerInputToken + outTok * params.costPerOutputToken;
+  raw = await callGeminiRaw(params.geminiModel, transportParams);
+  return finishCall<T>(raw, params.geminiCostPerInputToken, params.geminiCostPerOutputToken, params.label, params.maxTokens);
+}
+
+function finishCall<T>(
+  raw: RawTextCall,
+  costPerInputToken: number,
+  costPerOutputToken: number,
+  label: string | undefined,
+  maxTokens: number | undefined,
+): TextModelOutcome<T> {
+  const cost = raw.inputTokens * costPerInputToken + raw.outputTokens * costPerOutputToken;
   deductPlatformCredits(
-    "google-genai",
+    raw.provider === "qwen" ? "qwen" : "google-genai",
     cost,
-    `${params.label ?? "AI call"} (${inTok} in / ${outTok} out tokens)`,
+    `${label ?? "AI call"} (${raw.provider}/${raw.inputTokens} in / ${raw.outputTokens} out tokens)`,
   ).catch(() => {});
 
-  const text = response.text ?? "";
-  const jsonText = extractJsonBlock(text);
-  const hitTokenLimit =
-    response.candidates?.[0]?.finishReason === "MAX_TOKENS" || outTok >= maxOutputTokens;
+  const jsonText = extractJsonBlock(raw.text);
+  const maxOutputTokens = maxTokens ?? 8192;
 
+  let data: T;
   try {
-    return JSON.parse(jsonText) as T;
+    data = JSON.parse(jsonText) as T;
   } catch {
-    if (hitTokenLimit) {
+    if (raw.truncatedAtTokenLimit) {
       throw new Error(
         `AI response was truncated (hit the ${maxOutputTokens}-token output limit) before it finished ` +
-          `— increase maxTokens for this call. Partial output: ${text.slice(0, 300)}`,
+          `— increase maxTokens for this call. Partial output: ${raw.text.slice(0, 300)}`,
       );
     }
-    throw new Error(`AI response was not valid JSON: ${text.slice(0, 500)}`);
+    throw new Error(`AI response was not valid JSON: ${raw.text.slice(0, 500)}`);
   }
+
+  return {
+    data,
+    provider: raw.provider,
+    model: raw.model,
+    inputTokens: raw.inputTokens,
+    outputTokens: raw.outputTokens,
+    costUsd: cost,
+    latencyMs: raw.latencyMs,
+  };
 }
 
 /**
- * Full-quality generation with Gemini 3.6 Flash — used for all content and analysis
+ * Full-quality generation (Gemini 3.6 Flash, or Qwen-Flash when
+ * ACTIVE_TEXT_PROVIDER=qwen) — used for all content and analysis
  * (campaign generation, ad copy, landing page code, video scripts, tutoring text).
  * Pass `locale` (BCP-47 code, e.g. "es-MX") to upgrade the system prompt with
  * native copywriting directives via injectCulturalNuance(). Omit for English.
@@ -155,17 +234,16 @@ export async function generateJson<T>(params: {
   label?: string;
   locale?: string;
 }): Promise<T> {
-  return callGemini<T>({
-    model: MODEL,
-    costPerInputToken: COST_PER_INPUT_TOKEN,
-    costPerOutputToken: COST_PER_OUTPUT_TOKEN,
-    thinkingLevel: "low",
+  return callTextModel<T>({
+    tier: "quality",
+    ...TEXT_TIERS.quality,
     ...params,
   });
 }
 
 /**
- * Fast, low-cost generation with Gemini 3.1 Flash-Lite — used exclusively for Forge AI
+ * Fast, low-cost generation (Gemini 3.1 Flash-Lite, or the QWEN_FAST_TEXT_MODEL
+ * when ACTIVE_TEXT_PROVIDER=qwen) — used exclusively for Forge AI
  * agent chat (intent classification + conversational replies). ~5x cheaper than the
  * full tier with no perceptible quality difference for chat and routing tasks.
  * Locale injection is intentionally omitted here — chat responses are always in English.
@@ -177,11 +255,9 @@ export async function generateJsonFast<T>(params: {
   thinkingLevel?: "minimal" | "low" | "medium" | "high";
   label?: string;
 }): Promise<T> {
-  return callGemini<T>({
-    model: FAST_MODEL,
-    costPerInputToken: FAST_COST_PER_INPUT_TOKEN,
-    costPerOutputToken: FAST_COST_PER_OUTPUT_TOKEN,
-    thinkingLevel: "minimal",
+  return callTextModel<T>({
+    tier: "fast",
+    ...TEXT_TIERS.fast,
     ...params,
   });
 }
