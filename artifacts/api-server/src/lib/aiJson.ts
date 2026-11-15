@@ -1,10 +1,12 @@
 import { deductPlatformCredits } from "./platformCredits.js";
 import { getLocaleProfile, injectCulturalNuance } from "./localization.js";
-import { callGeminiRaw, callQwenRaw, type RawTextCall } from "./textProviders.js";
+import { callGeminiRaw, callQwenRaw, isProviderOutageError, type RawTextCall } from "./textProviders.js";
 import {
   checkTextProviderReadiness,
+  describeTextProviderChain,
   getActiveTextProvider,
   getQwenCostRates,
+  getTextProviderChain,
   type QwenTextTier,
   type TextProvider,
 } from "./textProviderConfig.js";
@@ -153,7 +155,10 @@ export async function runTextModel<T>(params: {
   const localeProfile = params.locale ? getLocaleProfile(params.locale) : null;
   const enrichedSystem = injectCulturalNuance(params.system, localeProfile, params.locale);
 
-  const provider = params.provider ?? getActiveTextProvider();
+  // An explicit provider pins the call (no failover): the benchmark must know
+  // which model answered, and a comparison where one vendor silently covered
+  // for the other would be measuring nothing.
+  const chain = params.provider ? [params.provider] : getTextProviderChain();
   const transportParams = {
     system: enrichedSystem,
     prompt: params.prompt,
@@ -161,17 +166,63 @@ export async function runTextModel<T>(params: {
     thinkingLevel: params.thinkingLevel,
   };
 
-  let raw: RawTextCall;
-  if (provider === "qwen") {
+  const attempt = async (provider: TextProvider): Promise<RawTextCall> => {
+    if (provider !== "qwen") return callGeminiRaw(params.geminiModel, transportParams);
     const readiness = checkTextProviderReadiness("qwen");
     if (!readiness.ok) throw new Error(readiness.reason ?? "Qwen text provider is not configured");
-    raw = await callQwenRaw(params.tier, transportParams);
-    const rates = getQwenCostRates();
-    return finishCall<T>(raw, rates.costPerInputToken, rates.costPerOutputToken, params.label, params.maxTokens);
+    return callQwenRaw(params.tier, transportParams);
+  };
+
+  const failures: string[] = [];
+  let raw: RawTextCall | null = null;
+  let servedBy: TextProvider = chain[0]!;
+
+  for (const [index, provider] of chain.entries()) {
+    try {
+      raw = await attempt(provider);
+      servedBy = provider;
+      break;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      failures.push(`${provider}: ${message}`);
+      // Only a transport/account outage moves to the next provider; anything
+      // else surfaces to the caller completely unchanged.
+      if (!isProviderOutageError(err)) throw err;
+
+      const next = chain[index + 1];
+      if (!next) {
+        // Chain exhausted. Report EVERY reason, oldest first, so the operator
+        // still sees the original outage (e.g. "prepayment credits are
+        // depleted") instead of only the fallback's failure.
+        console.warn(
+          `[text-provider] no text provider available for ${params.label ?? "AI call"} (${describeTextProviderChain(chain)}): ${failures.join(" | ")}`,
+        );
+        throw new Error(
+          `All text providers failed (${describeTextProviderChain(chain)}) - ${failures.join(" | ")}`,
+        );
+      }
+      console.warn(
+        `[text-provider] ${provider} unavailable for ${params.label ?? "AI call"} - failing over to ${next}. Reason: ${message}`,
+      );
+    }
   }
 
-  raw = await callGeminiRaw(params.geminiModel, transportParams);
-  return finishCall<T>(raw, params.geminiCostPerInputToken, params.geminiCostPerOutputToken, params.label, params.maxTokens);
+  if (!raw) {
+    // Every provider in the chain was unreachable: report all reasons so the
+    // operator can see the original outage, not just the last error.
+    throw new Error(`All text providers failed (${describeTextProviderChain(chain)}) - ${failures.join(" | ")}`);
+  }
+
+  const rates = servedBy === "qwen" ? getQwenCostRates() : null;
+  const costPerInputToken = rates ? rates.costPerInputToken : params.geminiCostPerInputToken;
+  const costPerOutputToken = rates ? rates.costPerOutputToken : params.geminiCostPerOutputToken;
+  return finishCall<T>(
+    raw,
+    costPerInputToken,
+    costPerOutputToken,
+    params.label,
+    params.maxTokens,
+  );
 }
 
 function finishCall<T>(

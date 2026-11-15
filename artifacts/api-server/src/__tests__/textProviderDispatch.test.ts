@@ -13,7 +13,12 @@ const { callGeminiRaw, callQwenRaw, deductPlatformCredits } = vi.hoisted(() => (
   deductPlatformCredits: vi.fn(),
 }));
 
-vi.mock("../lib/textProviders.js", () => ({ callGeminiRaw, callQwenRaw }));
+// Partial mock: keep the REAL isProviderOutageError so these tests exercise the
+// actual failover policy, and stub only the two network transports.
+vi.mock("../lib/textProviders.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/textProviders.js")>();
+  return { ...actual, callGeminiRaw, callQwenRaw };
+});
 vi.mock("../lib/platformCredits.js", () => ({ deductPlatformCredits }));
 
 import { generateJson, generateJsonFast, runTextModel } from "../lib/aiJson.js";
@@ -140,24 +145,26 @@ describe("provider dispatch", () => {
 });
 
 describe("failure isolation", () => {
-  it("fails loudly, without a Gemini fallback, when Qwen is selected with no key", async () => {
+  it("fails loudly when Qwen is primary with no credential (nothing else in the chain)", async () => {
     process.env.ACTIVE_TEXT_PROVIDER = "qwen";
     delete process.env.QWEN_GROWTHFORGE_KEY;
 
     await expect(generateJson({ system: "s", prompt: "p" })).rejects.toThrow(/QWEN_GROWTHFORGE_KEY/);
     expect(callQwenRaw).not.toHaveBeenCalled();
-    // The whole point of no-fallback: traffic must not silently reappear on the
-    // model the operator chose not to use.
+    // Qwen as primary means the default fallback (qwen) dedupes away, and Gemini
+    // is never offered as a silent rescue - the operator asked for Qwen here.
     expect(callGeminiRaw).not.toHaveBeenCalled();
   });
 
-  it("propagates a Qwen transport error verbatim instead of retrying on Gemini", async () => {
+  it("surfaces a Qwen outage without quietly moving traffic to Gemini", async () => {
     process.env.ACTIVE_TEXT_PROVIDER = "qwen";
     process.env.QWEN_GROWTHFORGE_KEY = "sk-test";
     callQwenRaw.mockRejectedValue(new Error("Qwen request failed (invalid_api_key): Incorrect API key provided."));
 
     await expect(generateJson({ system: "s", prompt: "p" })).rejects.toThrow(/invalid_api_key/);
     expect(callGeminiRaw).not.toHaveBeenCalled();
+    // Failover is Gemini-first by design; the reverse is not automatic.
+    await expect(generateJson({ system: "s", prompt: "p" })).rejects.toThrow(/All text providers failed/);
   });
 });
 

@@ -260,4 +260,48 @@ describe.skipIf(!RUN)("live text-provider benchmark (Qwen-Flash vs Gemini)", () 
       }
     }
   }, 300_000);
+
+  it("falls back to Qwen-Flash for real when the Gemini primary is down", async () => {
+    expect(getQwenApiKey(), "no Qwen credential available to the benchmark").toBeTruthy();
+
+    // Step 1: pin Gemini so we know which world we are in - funded or not.
+    let geminiError: string | null = null;
+    try {
+      await runTextModel<Record<string, unknown>>({
+        provider: "gemini",
+        tier: "quality",
+        ...TEXT_TIERS.quality,
+        system: `Return ONLY JSON: {"ok": boolean}`,
+        prompt: "Health check.",
+        maxTokens: 100,
+        label: "failover-probe:gemini",
+      });
+    } catch (err) {
+      geminiError = err instanceof Error ? err.message : String(err);
+    }
+
+    // Step 2: the UNSCOPED production call (no provider pin) must succeed either
+    // way - from Gemini when it is healthy, from Qwen when it is not. This is the
+    // behaviour the platform depends on while the Google key has no credit.
+    const outcome = await runTextModel<Record<string, unknown>>({
+      tier: "quality",
+      ...TEXT_TIERS.quality,
+      system: `Return ONLY JSON: {"ok": boolean}`,
+      prompt: "Health check.",
+      maxTokens: 100,
+      label: "failover-check",
+    });
+
+    expect(outcome.data).toBeDefined();
+
+    if (geminiError) {
+      console.log(`\nGemini primary is down (${geminiError.slice(0, 120)}...)`);
+      console.log(`Failover served the same call from: ${outcome.provider}/${outcome.model} in ${outcome.latencyMs}ms`);
+      // Only a transport/account outage triggers failover, so a Gemini failure
+      // here must land the call on Qwen - not error, and not silently retry.
+      expect(outcome.provider).toBe("qwen");
+    } else {
+      console.log(`\nGemini primary is healthy; call served by ${outcome.provider}/${outcome.model} (failover not needed).`);
+    }
+  }, 120_000);
 });

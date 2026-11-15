@@ -10,19 +10,72 @@ export type TextProvider = "gemini" | "qwen";
  * scattered across the 30+ call sites.
  *
  * Deliberate design choices, matching the video-provider policy:
- *  - `ACTIVE_TEXT_PROVIDER` is EXCLUSIVE for new calls. There is no automatic
- *    per-call fallback between Gemini and Qwen: a Qwen outage must fail
- *    visibly rather than silently land traffic on a model the operator did not
- *    choose (a benchmark whose results come from the wrong model is worthless).
  *  - Any unset/unknown value resolves to "gemini", so every environment that
  *    has not explicitly opted in behaves exactly as it did before this switch
  *    existed.
+ *  - A provider whose outage ends the chain still FAILS VISIBLY; only a
+ *    transport-level outage (quota, credit, 5xx, timeout) triggers failover,
+ *    so model-output problems are never silently retried on another model.
  */
 const VALID_PROVIDERS: TextProvider[] = ["gemini", "qwen"];
 
 export function getActiveTextProvider(): TextProvider {
   const raw = (process.env.ACTIVE_TEXT_PROVIDER ?? "").trim().toLowerCase();
   return VALID_PROVIDERS.includes(raw as TextProvider) ? (raw as TextProvider) : "gemini";
+}
+
+/**
+ * Failover target when the PRIMARY provider has a transport-level outage.
+ *
+ * Default is "qwen", and it only takes effect when a Qwen credential actually
+ * exists (see getTextProviderChain), which is what the platform needs right
+ * now: the Gemini key is out of prepaid credit (HTTP 402), so with no fallback
+ * every text feature is down. Failover is deliberately NOT applied to bad
+ * model output - see isProviderOutageError() in textProviders.ts.
+ *
+ * Set TEXT_PROVIDER_FALLBACK=none to restore strict single-provider behaviour
+ * (an outage then fails loudly instead of quietly spending on another vendor).
+ */
+const FALLBACK_NONE = new Set(["none", "off", "false", "0", "disabled"]);
+
+export function getTextProviderFallback(primary: TextProvider): TextProvider | null {
+  // NOTE: an UNSET/empty value means "use the default fallback", not "disabled" -
+  // only an explicit none/off turns failover off. (Empty-string-as-disable was
+  // the first version of this function and silently left the platform with no
+  // fallback at all, which is the opposite of why this exists.)
+  const raw = (process.env.TEXT_PROVIDER_FALLBACK ?? "").trim().toLowerCase();
+  if (FALLBACK_NONE.has(raw)) return null;
+  const candidate = VALID_PROVIDERS.includes(raw as TextProvider) ? (raw as TextProvider) : "qwen";
+  // Never "fall back" to the provider that just failed.
+  if (candidate === primary) return null;
+  // No credential -> no point offering a fallback that can only error.
+  if (candidate === "qwen" && !getQwenApiKey()) return null;
+  return candidate;
+}
+
+/**
+ * Ordered providers to try for a text call. `getActiveTextProvider()` first,
+ * then its fallback. This is the whole failover policy in one place so a route,
+ * a benchmark and a unit test can never disagree about who answers.
+ */
+export function getTextProviderChain(): TextProvider[] {
+  const primary = getActiveTextProvider();
+  const fallback = getTextProviderFallback(primary);
+  return fallback ? [primary, fallback] : [primary];
+}
+
+/**
+ * Human-readable chain for logs, e.g. "gemini -> qwen(qwen-flash)" or just
+ * "gemini" when failover is disabled/unavailable. Takes the chain so callers
+ * that already resolved it (and know the tier model) don't resolve it twice.
+ */
+export function describeTextProviderChain(
+  chain: TextProvider[] = getTextProviderChain(),
+  tier: QwenTextTier = "quality",
+): string {
+  return chain
+    .map((provider) => (provider === "qwen" ? `qwen(${getQwenTextModel(tier)})` : "gemini"))
+    .join(" -> ");
 }
 
 /** Model Studio's instant-mode flash model - the direct cost/latency peer of

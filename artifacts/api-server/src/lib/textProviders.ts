@@ -47,6 +47,75 @@ export interface RawTextCall {
   latencyMs: number;
 }
 
+/**
+ * Failover policy - which failures mean "this provider is not serving us, try
+ * the next one" and which mean "the model answered badly, do not paper over it
+ * by asking a different model".
+ *
+ * Qualifying (transport / account state):
+ *   402 + "prepayment credits are depleted"  <- the outage happening today
+ *   401/403 credential rejected or revoked   <- same user-visible effect: no text
+ *   429 / RESOURCE_EXHAUSTED / rate limit
+ *   5xx, timeouts, connection failures
+ *
+ * NOT qualifying (deliberately): a malformed or truncated model response.
+ * Retrying those on another vendor doubles spend, changes the output the
+ * operator was evaluating, and hides a prompt bug. The caller sees the real
+ * error instead.
+ *
+ * Works by inspecting the error because @google/genai throws its own APIError
+ * class (with `.code`/`.status`) while the Qwen transport throws plain Errors -
+ * both shapes are covered, and anything unrecognised defaults to NOT failing
+ * over, so an unknown bug can never cause a silent provider swap.
+ */
+const OUTAGE_HTTP_STATUS = new Set([401, 402, 403, 408, 425, 429, 500, 502, 503, 504, 529]);
+
+const OUTAGE_STATUS_NAMES = new Set([
+  "UNAUTHENTICATED",
+  "PERMISSION_DENIED",
+  "RESOURCE_EXHAUSTED",
+  "UNAVAILABLE",
+  "DEADLINE_EXCEEDED",
+  "INTERNAL",
+  "SERVICE_UNAVAILABLE",
+  "TOO_MANY_REQUESTS",
+  "BAD_GATEWAY",
+  "GATEWAY_TIMEOUT",
+]);
+
+const OUTAGE_MESSAGE_PATTERN =
+  /prepayment credits|credits? (?:are )?(?:depleted|exhausted|insufficient)|out of credits|quota|rate.?limit|billing|RESOURCE_EXHAUSTED|PERMISSION_DENIED|UNAUTHENTICATED|UNAVAILABLE|DEADLINE_EXCEEDED|HTTP (40[1238]|429|5\d\d)\b|"code"\s*:\s*(40[1238]|429|5\d\d)\b|status[^0-9]{0,12}(40[1238]|429|5\d\d)\b|\babort(?:ed)?\b|fetch failed|socket hang up|ETIMEDOUT|ECONNRESET|EAI_AGAIN|ENOTFOUND|timed? ?out|could not be completed|model.{0,20}(?:not found|no longer available)|API key not valid|invalid_api_key|API_KEY_INVALID/i;
+
+/** Errors that must NEVER trigger failover, even if they contain a matching word. */
+const NOT_AN_OUTAGE_PATTERN = /not valid JSON|was truncated|non-empty prompt|positive integer/i;
+
+export function isProviderOutageError(err: unknown): boolean {
+  // Collect the whole cause chain: @google/genai wraps the underlying fetch
+  // failure, so the outage signal is often on err.cause rather than err itself.
+  const messages: string[] = [];
+  let cursor: unknown = err;
+  for (let depth = 0; cursor && depth < 4; depth++) {
+    if (typeof cursor !== "object") break;
+    const candidate = cursor as {
+      message?: unknown;
+      code?: unknown;
+      status?: unknown;
+      statusCode?: unknown;
+      cause?: unknown;
+    };
+    if (typeof candidate.message === "string") messages.push(candidate.message);
+    for (const value of [candidate.code, candidate.status, candidate.statusCode]) {
+      if (typeof value === "number" && OUTAGE_HTTP_STATUS.has(value)) return true;
+      if (typeof value === "string" && OUTAGE_STATUS_NAMES.has(value.toUpperCase())) return true;
+    }
+    cursor = candidate.cause;
+  }
+
+  const text = messages.join(" ");
+  if (NOT_AN_OUTAGE_PATTERN.test(text)) return false;
+  return OUTAGE_MESSAGE_PATTERN.test(text);
+}
+
 export interface RawTextCallParams {
   system: string;
   prompt: string;
