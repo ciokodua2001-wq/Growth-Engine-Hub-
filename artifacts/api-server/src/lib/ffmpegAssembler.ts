@@ -1088,6 +1088,95 @@ export async function compositeLogoOnVideo(inputUrl: string, logoBuffer: Buffer,
   }
 }
 
+/** Reads a video's pixel dimensions via ffprobe so caption layout matches the real frame. */
+function probeDimensions(filePath: string): Promise<{ width: number; height: number }> {
+  return new Promise(resolve => {
+    const proc = spawn("ffprobe", [
+      "-v", "error",
+      "-select_streams", "v:0",
+      "-show_entries", "stream=width,height",
+      "-of", "json",
+      filePath,
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    proc.stdout?.on("data", (d: Buffer) => { out += d.toString(); });
+    proc.on("close", () => {
+      try {
+        const parsed = JSON.parse(out) as { streams?: Array<{ width?: number; height?: number }> };
+        const s = parsed.streams?.[0];
+        if (s && Number.isFinite(s.width) && Number.isFinite(s.height) && s.width! > 0 && s.height! > 0) {
+          resolve({ width: s.width!, height: s.height! });
+          return;
+        }
+      } catch { /* fall through to defaults */ }
+      resolve({ width: 1920, height: 1080 });
+    });
+    proc.on("error", () => resolve({ width: 1920, height: 1080 }));
+  });
+}
+
+/**
+ * Composite reviewed-transcript captions onto an existing rendered video.
+ * Pure FFmpeg/libass work - no AI, no scene generation, no re-render of media.
+ * Mirrors compositeLogoOnVideo so captions and a logo can be chained onto the
+ * same completed render without ever touching a model provider.
+ */
+export async function compositeCaptionsOnVideo(
+  inputUrl: string,
+  transcript: TranscriptSegment[] | null | undefined,
+  options: {
+    projectId: number;
+    videoId: number;
+    preset: CaptionPreset;
+    x: number;
+    y: number;
+    scale: number;
+  },
+): Promise<{ url: string; bytes: number }> {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "caption-overlay-"));
+  const inputPath = path.join(tmpDir, "input.mp4");
+  const assPath = path.join(tmpDir, "captions.ass");
+  const outputPath = path.join(tmpDir, "output.mp4");
+  try {
+    await downloadFile(inputUrl, inputPath);
+    const entries = transcriptToCaptionEntries(transcript ?? null);
+    if (entries.length === 0) throw new Error("No reviewed transcript segments to caption");
+
+    const { width, height } = await probeDimensions(inputPath);
+    const preset = options.preset;
+    const x = Math.min(0.95, Math.max(0.05, options.x));
+    const y = Math.min(0.95, Math.max(0.05, options.y));
+    const scale = Math.min(2.0, Math.max(0.5, options.scale));
+
+    const events = preset === "karaoke"
+      ? buildKaraokeForScenes(entries)
+      : entries.map(e => ({ startSec: e.startSec, endSec: e.endSec, assText: escapeAssText(e.text) }));
+    fs.writeFileSync(assPath, buildAssDocument(events, width, height, preset, x, y, scale));
+
+    const assEscaped = assPath
+      .replace(/\\/g, "\\\\")
+      .replace(/:/g, "\\:")
+      .replace(/'/g, "\\'");
+    await runFFmpeg([
+      "-y", "-i", inputPath,
+      "-vf", `ass='${assEscaped}'`,
+      "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
+      "-c:a", "copy", "-movflags", "+faststart",
+      outputPath,
+    ]);
+
+    const outputBuffer = fs.readFileSync(outputPath);
+    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+    if (!bucketId) throw new Error("Object storage is not configured");
+    const objectName = `renders/assembled/video-${options.videoId}-captions-${Date.now()}.mp4`;
+    await objectStorageClient.bucket(bucketId).file(objectName).save(outputBuffer, { metadata: { contentType: "video/mp4" } });
+    const url = await signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 86_400 });
+    return { url, bytes: outputBuffer.length };
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
 // ── Audio stream probe ────────────────────────────────────────────────────────
 // Runs ffprobe to read the stored rotation tag (in degrees: 0, 90, 180, 270).
 // Kling sometimes stores portrait clips as 1920×1080 + rotate=90 rather than

@@ -46,7 +46,7 @@ import {
   type AssemblyOptions,
   type CaptionPreset,
 } from "../lib/ffmpegAssembler.js";
-import { compositeLogoOnVideo } from "../lib/ffmpegAssembler.js";
+import { compositeLogoOnVideo, compositeCaptionsOnVideo } from "../lib/ffmpegAssembler.js";
 import pino from "pino";
 
 const router = Router();
@@ -216,6 +216,119 @@ router.post("/projects/:id/videos/:videoId/logo", async (req, res) => {
   } catch (error) {
     logger.error({ projectId, videoId, assetId, error: error instanceof Error ? error.message : String(error) }, "[assemble] Post-render logo export failed");
     res.status(502).json({ error: "Could not export the video with this logo. Please try again." });
+  }
+});
+
+// Post-render caption burn-in: reviewed-transcript captions composited onto an
+// already completed render via FFmpeg/libass. No AI is invoked, so caption
+// placement/style/scale changes never incur model charges - they re-encode the
+// existing MP4 exactly like the post-render logo pass.
+const VALID_CAPTION_PRESETS = [
+  "clean", "boldPop", "karaoke", "neonGlow", "cinematic", "gradientChip", "retroVHS", "socialBubble",
+];
+
+function parseCaptionOptions(body: Record<string, unknown>): { preset: CaptionPreset; x: number; y: number; scale: number } {
+  const clampNum = (v: unknown, min: number, max: number, fallback: number): number =>
+    typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
+  return {
+    preset: VALID_CAPTION_PRESETS.includes(String(body.captionPreset ?? ""))
+      ? (body.captionPreset as CaptionPreset)
+      : "clean",
+    x: clampNum(body.captionX, 0, 1, 0.5),
+    y: clampNum(body.captionY, 0, 1, 0.85),
+    scale: clampNum(body.captionScale, 0.5, 2.0, 1.0),
+  };
+}
+
+function assertCaptionsReviewable(video: { transcriptStatus?: string | null; dialogueTranscript?: unknown }): string | null {
+  const reviewed = (video.transcriptStatus === "ready" || video.transcriptStatus === "accepted")
+    && Array.isArray(video.dialogueTranscript)
+    && video.dialogueTranscript.length > 0;
+  if (!reviewed) return "Captions require a reviewed transcript. Transcribe the actual audio and review/correct the transcript (including timing) before exporting captions.";
+  const UNCLEAR_RE = /\[(?:unclear|inaudible|mumbled|\?)\]/i;
+  const unclearCount = (video.dialogueTranscript as Array<{ text?: string }>).filter(s => UNCLEAR_RE.test(s?.text ?? "")).length;
+  if (unclearCount > 0) return `${unclearCount} caption segment(s) contain uncertain transcription (marked [unclear]). Open the caption editor, replay the audio, and correct or accept the wording before exporting.`;
+  return null;
+}
+
+// Primary caption path: burn reviewed-transcript captions onto the video's
+// completed render. Mirrors POST /videos/:videoId/logo.
+router.post("/projects/:id/videos/:videoId/captions", async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const projectId = Number(req.params.id);
+  const videoId = Number(req.params.videoId);
+  if (![projectId, videoId].every(Number.isSafeInteger)) {
+    res.status(400).json({ error: "Invalid project or video ID" });
+    return;
+  }
+  const [video] = await db.select().from(videosTable)
+    .where(and(eq(videosTable.id, videoId), eq(videosTable.projectId, projectId)));
+  if (!video?.videoUrl || video.renderStatus !== "complete") {
+    res.status(404).json({ error: "Completed video render not found" });
+    return;
+  }
+  const gate = assertCaptionsReviewable(video);
+  if (gate) { res.status(422).json({ error: "Captions require a reviewed transcript", message: gate }); return; }
+  const { preset, x, y, scale } = parseCaptionOptions((req.body ?? {}) as Record<string, unknown>);
+  try {
+    const result = await compositeCaptionsOnVideo(
+      await resolveCompletedVideoUrl(projectId, videoId, video.videoUrl),
+      video.dialogueTranscript as Parameters<typeof compositeCaptionsOnVideo>[1],
+      { projectId, videoId, preset, x, y, scale },
+    );
+    const [exported] = await db.insert(commercialAssembliesTable).values({
+      videoId,
+      outputFormat: video.aspectRatio === "9:16" || video.aspectRatio === "4:5" ? "vertical" : video.aspectRatio === "1:1" ? "square" : "landscape",
+      status: "complete", videoUrl: result.url, durationSec: video.duration == null ? null : String(video.duration),
+      fileSizeBytes: result.bytes,
+      options: { postRenderCaptions: { preset, x, y, scale }, processing: "ffmpeg-only" },
+      completedAt: new Date(),
+    }).returning({ id: commercialAssembliesTable.id });
+    res.json({ ...result, assemblyId: exported!.id, sourceVideoId: videoId, processing: "ffmpeg-only" });
+  } catch (error) {
+    logger.error({ projectId, videoId, error: error instanceof Error ? error.message : String(error) }, "[assemble] Post-render caption export failed");
+    res.status(502).json({ error: "Could not export the video with captions. Please try again." });
+  }
+});
+
+// Chained caption path: burn captions onto an existing completed assembly so it
+// composes with a post-render logo (apply logo, then captions, or vice versa).
+router.post("/projects/:id/videos/:videoId/assemblies/:assemblyId/captions", async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const projectId = Number(req.params.id);
+  const videoId = Number(req.params.videoId);
+  const assemblyId = Number(req.params.assemblyId);
+  if (![projectId, videoId, assemblyId].every(Number.isSafeInteger)) {
+    res.status(400).json({ error: "Invalid project, video, or assembly ID" });
+    return;
+  }
+  const [video] = await db.select().from(videosTable)
+    .where(and(eq(videosTable.id, videoId), eq(videosTable.projectId, projectId)));
+  if (!video) { res.status(404).json({ error: "Video not found" }); return; }
+  const [assembly] = await db.select().from(commercialAssembliesTable)
+    .where(and(eq(commercialAssembliesTable.id, assemblyId), eq(commercialAssembliesTable.videoId, videoId), eq(commercialAssembliesTable.status, "complete")));
+  if (!assembly?.videoUrl) { res.status(404).json({ error: "Completed video render not found" }); return; }
+  const gate = assertCaptionsReviewable(video);
+  if (gate) { res.status(422).json({ error: "Captions require a reviewed transcript", message: gate }); return; }
+  const { preset, x, y, scale } = parseCaptionOptions((req.body ?? {}) as Record<string, unknown>);
+  try {
+    const result = await compositeCaptionsOnVideo(
+      await refreshAssemblyUrl(assembly.videoUrl),
+      video.dialogueTranscript as Parameters<typeof compositeCaptionsOnVideo>[1],
+      { projectId, videoId, preset, x, y, scale },
+    );
+    const [exported] = await db.insert(commercialAssembliesTable).values({
+      videoId, outputFormat: assembly.outputFormat, status: "complete", videoUrl: result.url,
+      durationSec: assembly.durationSec, fileSizeBytes: result.bytes,
+      options: { postRenderCaptions: { preset, x, y, scale }, sourceAssemblyId: assemblyId, processing: "ffmpeg-only" },
+      completedAt: new Date(),
+    }).returning({ id: commercialAssembliesTable.id });
+    res.json({ ...result, assemblyId: exported!.id, sourceAssemblyId: assemblyId, processing: "ffmpeg-only" });
+  } catch (error) {
+    logger.error({ projectId, videoId, assemblyId, error: error instanceof Error ? error.message : String(error) }, "[assemble] Post-render caption export failed");
+    res.status(502).json({ error: "Could not export the video with captions. Please try again." });
   }
 });
 
