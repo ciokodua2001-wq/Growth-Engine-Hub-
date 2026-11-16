@@ -407,6 +407,16 @@ function RenderPanel({
   const [logoExportAssemblyId, setLogoExportAssemblyId] = useState<number | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
+  // Latest post-render assembly id, so caption + logo can be chained onto the
+  // same completed render (logo then captions, or captions then logo) without
+  // ever re-rendering media or calling a model.
+  const [postRenderAssemblyId, setPostRenderAssemblyId] = useState<number | null>(null);
+  const [captionPreset, setCaptionPreset] = useState<string>("clean");
+  const [captionPosition, setCaptionPosition] = useState({ x: 0.5, y: 0.85, scale: 1.0 });
+  const [captionExportUrl, setCaptionExportUrl] = useState<string | null>(null);
+  const [captionExportAssemblyId, setCaptionExportAssemblyId] = useState<number | null>(null);
+  const [captionBusy, setCaptionBusy] = useState(false);
+  const [captionError, setCaptionError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const startRender = useStartVideoRender();
@@ -476,16 +486,40 @@ function RenderPanel({
     if (!currentVideoUrl || !logoAssetId || logoBusy) return;
     setLogoBusy(true); setLogoError(null);
     try {
-      const response = await fetch(`/api/projects/${projectId}/videos/${video.id}/logo`, {
+      const endpoint = postRenderAssemblyId
+        ? `/api/projects/${projectId}/videos/${video.id}/assemblies/${postRenderAssemblyId}/logo`
+        : `/api/projects/${projectId}/videos/${video.id}/logo`;
+      const response = await fetch(endpoint, {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assetId: logoAssetId, ...logoPosition }),
       });
       const payload = await response.json();
       if (!response.ok || !payload.url || !payload.assemblyId) throw new Error(payload.error || "Logo export failed");
       setLogoExportUrl(payload.url); setLogoExportAssemblyId(payload.assemblyId);
+      setPostRenderAssemblyId(payload.assemblyId);
     } catch (error) {
       setLogoError(error instanceof Error ? error.message : "Logo export failed. Please try again.");
     } finally { setLogoBusy(false); }
+  };
+
+  const applyPostRenderCaptions = async () => {
+    if (!currentVideoUrl || captionBusy) return;
+    setCaptionBusy(true); setCaptionError(null);
+    try {
+      const endpoint = postRenderAssemblyId
+        ? `/api/projects/${projectId}/videos/${video.id}/assemblies/${postRenderAssemblyId}/captions`
+        : `/api/projects/${projectId}/videos/${video.id}/captions`;
+      const response = await fetch(endpoint, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ captionPreset, ...captionPosition }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.url || !payload.assemblyId) throw new Error(payload.error || "Caption export failed");
+      setCaptionExportUrl(payload.url); setCaptionExportAssemblyId(payload.assemblyId);
+      setPostRenderAssemblyId(payload.assemblyId);
+    } catch (error) {
+      setCaptionError(error instanceof Error ? error.message : "Caption export failed. Please try again.");
+    } finally { setCaptionBusy(false); }
   };
 
   // Pick the most descriptive step label based on elapsed time
@@ -589,13 +623,13 @@ function RenderPanel({
             <LogoIcon className="h-4 w-4 text-[#00D4FF]" />
             <div>
               <p className="text-sm font-bold text-white">Post-render logo</p>
-              <p className="text-[11px] text-white/45">Add your transparent project logo to this finished render — no AI re-render.</p>
+              <p className="text-[11px] text-white/45">Add your transparent project logo to this finished render - no AI re-render.</p>
             </div>
           </div>
           <label className="block space-y-1">
             <span className="text-xs text-white/65">Project logo (transparent PNG)</span>
             <select aria-label="Choose project logo" value={logoAssetId ?? ""} onChange={event => { setLogoAssetId(event.target.value ? Number(event.target.value) : null); setLogoExportUrl(null); setLogoExportAssemblyId(null); }} className="w-full rounded-lg border border-white/15 bg-[#07111d] p-2.5 text-sm text-white">
-              <option value="">Choose an attached logo…</option>
+              <option value="">Choose an attached logo...</option>
               {logoAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
             </select>
             {logoAssets.length === 0 && <span className="block text-[10px] text-amber-300/75">No PNG logos attached. Upload a transparent PNG in Project → Assets first.</span>}
@@ -609,12 +643,57 @@ function RenderPanel({
           <label className="block space-y-1"><span className="flex justify-between text-[11px] text-white/55"><span>Logo size</span><span>{Math.round(logoPosition.scale * 100)}% of frame width</span></span><input aria-label="Logo size" type="range" min="0.05" max="0.5" step="0.01" value={logoPosition.scale} onChange={event => setLogoPosition(position => ({ ...position, scale: Number(event.target.value) }))} className="w-full accent-[#00D4FF]" /></label>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" disabled={!logoAssetId || logoBusy} onClick={() => void applyPostRenderLogo()} className="inline-flex items-center gap-2 rounded-lg bg-[#00D4FF] px-4 py-2 text-xs font-bold text-[#041018] disabled:cursor-not-allowed disabled:opacity-40">
-              {logoBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Applying logo…</> : <><LogoIcon className="h-3.5 w-3.5" /> Apply logo to render</>}
+              {logoBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Applying logo...</> : <><LogoIcon className="h-3.5 w-3.5" /> Apply logo to render</>}
             </button>
             {logoExportUrl && logoExportAssemblyId && <button type="button" onClick={() => { const anchor = document.createElement("a"); anchor.href = `/api/projects/${projectId}/videos/${video.id}/assemblies/${logoExportAssemblyId}/download`; anchor.download = "growthforge-video-with-logo.mp4"; anchor.click(); }} className="inline-flex items-center gap-1.5 rounded-lg border border-[#00E676]/30 bg-[#00E676]/10 px-3 py-2 text-xs font-semibold text-[#00E676]"><Download className="h-3.5 w-3.5" /> Download logo video</button>}
           </div>
           {logoError && <p role="alert" className="text-xs text-red-300">{logoError}</p>}
           {logoExportUrl && <p role="status" className="text-[10px] text-[#00E676]/80">Logo export ready. Your original render remains unchanged.</p>}
+        </div>
+      )}
+
+      {/* Post-render captions - burned in with FFmpeg from the reviewed transcript. No AI. */}
+      {currentStatus === "complete" && currentVideoUrl && (
+        <div className="rounded-xl border border-[#00D4FF]/25 bg-[#06121b] p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Film className="h-4 w-4 text-[#00D4FF]" />
+            <div>
+              <p className="text-sm font-bold text-white">Post-render captions</p>
+              <p className="text-[11px] text-white/45">Burn your reviewed transcript onto this render - FFmpeg only, no AI re-render.</p>
+            </div>
+          </div>
+
+          <label className="block space-y-1">
+            <span className="text-xs text-white/65">Caption style</span>
+            <select aria-label="Caption style" value={captionPreset} onChange={event => setCaptionPreset(event.target.value)} className="w-full rounded-lg border border-white/15 bg-[#07111d] p-2.5 text-sm text-white">
+              <option value="clean">Clean</option>
+              <option value="boldPop">Bold Pop</option>
+              <option value="karaoke">Karaoke</option>
+              <option value="neonGlow">Neon Glow</option>
+              <option value="cinematic">Cinematic</option>
+              <option value="gradientChip">Gradient Chip</option>
+              <option value="retroVHS">Retro VHS</option>
+              <option value="socialBubble">Social Bubble</option>
+            </select>
+          </label>
+
+          <div className="relative mx-auto w-full max-w-xl overflow-hidden rounded-lg bg-black" style={{ aspectRatio: outputAspectRatio === "9:16" ? "9 / 16" : outputAspectRatio === "1:1" ? "1 / 1" : outputAspectRatio === "4:5" ? "4 / 5" : "16 / 9" }}>
+            <video src={currentVideoUrl} muted playsInline className="absolute inset-0 h-full w-full object-contain" />
+            <div className="pointer-events-none absolute text-center font-semibold drop-shadow" style={{ left: `${captionPosition.x * 100}%`, top: `${captionPosition.y * 100}%`, transform: "translate(-50%, -50%)", fontSize: `${Math.round(16 * captionPosition.scale)}px`, color: captionPreset === "boldPop" || captionPreset === "neonGlow" || captionPreset === "retroVHS" ? "#ffff00" : "#ffffff", fontStyle: captionPreset === "cinematic" || captionPreset === "retroVHS" ? "italic" : "normal", textTransform: captionPreset === "retroVHS" ? "uppercase" : "none", background: captionPreset === "gradientChip" || captionPreset === "socialBubble" ? "rgba(0,0,0,0.55)" : "transparent", padding: captionPreset === "gradientChip" || captionPreset === "socialBubble" ? "0.15em 0.5em" : "0", borderRadius: "0.25em" }}>Caption preview</div>
+          </div>
+
+          <label className="block space-y-1"><span className="flex justify-between text-[11px] text-white/55"><span>Horizontal position</span><span>{Math.round(captionPosition.x * 100)}%</span></span><input aria-label="Caption horizontal position" type="range" min="0.05" max="0.95" step="0.01" value={captionPosition.x} onChange={event => setCaptionPosition(position => ({ ...position, x: Number(event.target.value) }))} className="w-full accent-[#00D4FF]" /></label>
+          <label className="block space-y-1"><span className="flex justify-between text-[11px] text-white/55"><span>Vertical position</span><span>{Math.round(captionPosition.y * 100)}%</span></span><input aria-label="Caption vertical position" type="range" min="0.05" max="0.95" step="0.01" value={captionPosition.y} onChange={event => setCaptionPosition(position => ({ ...position, y: Number(event.target.value) }))} className="w-full accent-[#00D4FF]" /></label>
+          <label className="block space-y-1"><span className="flex justify-between text-[11px] text-white/55"><span>Caption size</span><span>{Math.round(captionPosition.scale * 100)}%</span></span><input aria-label="Caption size" type="range" min="0.5" max="2" step="0.05" value={captionPosition.scale} onChange={event => setCaptionPosition(position => ({ ...position, scale: Number(event.target.value) }))} className="w-full accent-[#00D4FF]" /></label>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" disabled={captionBusy} onClick={() => void applyPostRenderCaptions()} className="inline-flex items-center gap-2 rounded-lg bg-[#00D4FF] px-4 py-2 text-xs font-bold text-[#041018] disabled:cursor-not-allowed disabled:opacity-40">
+              {captionBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Burning captions...</> : <><Film className="h-3.5 w-3.5" /> Apply captions to render</>}
+            </button>
+            {captionExportUrl && captionExportAssemblyId && <button type="button" onClick={() => { const anchor = document.createElement("a"); anchor.href = `/api/projects/${projectId}/videos/${video.id}/assemblies/${captionExportAssemblyId}/download`; anchor.download = "growthforge-video-captions.mp4"; anchor.click(); }} className="inline-flex items-center gap-1.5 rounded-lg border border-[#00E676]/30 bg-[#00E676]/10 px-3 py-2 text-xs font-semibold text-[#00E676]"><Download className="h-3.5 w-3.5" /> Download captioned video</button>}
+          </div>
+          {captionError && <p role="alert" className="text-xs text-red-300">{captionError}</p>}
+          {captionExportUrl && <p role="status" className="text-[10px] text-[#00E676]/80">Captioned render ready. Apply a logo next to combine both, or download now.</p>}
         </div>
       )}
 
