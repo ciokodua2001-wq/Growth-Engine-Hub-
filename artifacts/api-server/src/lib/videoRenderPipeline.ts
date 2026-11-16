@@ -26,7 +26,14 @@ const KLING_BASE_URL = "https://api-singapore.klingai.com";
 const KLING_DEFAULT_MODEL = "kling-v2-5-turbo";
 const KLING_MODE = "std";
 const KLING_NEGATIVE_PROMPT =
-  "blurry, low quality, distorted, ugly, pixelated, amateur, watermark, text overlay";
+  "blurry, low quality, distorted, ugly, pixelated, amateur, watermark, text overlay, " +
+  // Gibberish-text-on-screens mitigation (kept identical to klingRenderer.ts).
+  "gibberish text, random letters, scrambled characters, corrupted typography, fake writing, " +
+  "readable computer screen, readable phone screen, readable dashboard, legible software interface, " +
+  "subtitles, captions, letterboxed words";
+
+const SCREEN_SAFE_SUFFIX =
+  "Any computer monitors, laptop screens, phones, dashboards, or software interfaces visible in frame must be rendered out of focus with only soft light and color gradients, or shown at a steep angle where no content is readable. Never render legible or invented text, letters, numbers, or UI labels on any screen surface.";
 
 // ── Google Cloud TTS voice resolution ─────────────────────────────────────────
 // Chirp 3: HD speaker names - shared across locales (en-CA / fr-CA), so the
@@ -493,8 +500,11 @@ function buildScenePrompts(title: string, storyboard: string, count: number, cin
         shot.visualEffects && !["none", "n/a"].includes(shot.visualEffects.toLowerCase())
           ? `Effects: ${shot.visualEffects}.` : "",
         "Natural motion, shallow depth of field, professional color grading.",
+        SCREEN_SAFE_SUFFIX,
       ].filter(Boolean).join(" ");
-      return parts.slice(0, 500);
+      // slice() on a string (not the array) was silently capping every scene
+      // prompt at 500 chars - long enough to drop the screen-safety suffix.
+      return parts;
     });
   }
 
@@ -505,7 +515,7 @@ function buildScenePrompts(title: string, storyboard: string, count: number, cin
   const base = scenes.length > 0 ? scenes : [`Marketing video for: ${title}`];
   return Array.from({ length: count }, (_, i) => {
     const scene = base[i % base.length] ?? title;
-    return `Cinematic marketing footage, professional grade, 4K quality. ${scene.slice(0, 400)}`;
+    return `Cinematic marketing footage, professional grade, 4K quality. ${scene.slice(0, 400)} ${SCREEN_SAFE_SUFFIX}`;
   });
 }
 

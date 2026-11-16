@@ -24,7 +24,18 @@ const KLING_MAX_POLLS = 120;            // 120 × 10s = 20 min max per scene
 const KLING_POLL_INTERVAL_MS = 10_000;
 const KLING_SCENE_BATCH_SIZE = 3;       // parallel submissions per batch
 const KLING_NEGATIVE_PROMPT =
-  "blurry, low quality, distorted, ugly, pixelated, amateur, watermark, text overlay";
+  "blurry, low quality, distorted, ugly, pixelated, amateur, watermark, text overlay, " +
+  // Gibberish-text-on-screens mitigation: the model renders mangled pseudo-letters
+  // on any screen surface it deems readable. Push screens to defocus/abstraction.
+  "gibberish text, random letters, scrambled characters, corrupted typography, fake writing, " +
+  "readable computer screen, readable phone screen, readable dashboard, legible software interface, " +
+  "subtitles, captions, letterboxed words";
+
+// Positive guidance appended to every scene prompt: screens are allowed but must
+// never carry legible content - out-of-focus glow or abstract UI shapes read as
+// professional; invented alphabets read as AI-generated.
+const SCREEN_SAFE_SUFFIX =
+  "Any computer monitors, laptop screens, phones, dashboards, or software interfaces visible in frame must be rendered out of focus with only soft light and color gradients, or shown at a steep angle where no content is readable. Never render legible or invented text, letters, numbers, or UI labels on any screen surface.";
 
 // ── API contract types ────────────────────────────────────────────────────────
 
@@ -139,10 +150,13 @@ function buildScenePrompts(
         i === 0 ? "Opening frame: one full-frame, single-view cinematic shot. Never start with split-screen, divided panels, a triptych, grid, contact sheet, storyboard, collage, picture-in-picture, or multiple simultaneous views." : "One full-frame cinematic shot.",
         "Do not invent or render any logo, brand mark, watermark, caption, subtitle, text overlay, or legible written text. Branding is composited only from an explicitly uploaded transparent logo asset after generation.",
         "Natural motion, shallow depth of field, professional color grading.",
+        SCREEN_SAFE_SUFFIX,
       ]
         .filter(Boolean)
         .join(" ");
-      return parts.slice(0, 500);
+      // slice() on a string (not the array) was silently capping every scene
+      // prompt at 500 chars - long enough to drop the screen-safety suffix.
+      return parts;
     });
   }
 
@@ -156,7 +170,7 @@ function buildScenePrompts(
   return Array.from({ length: count }, (_, i) => {
     const scene = base[i % base.length] ?? title;
     const openingGuard = i === 0 ? " Opening frame: a single full-frame cinematic view; never split-screen, divided panels, triptych, grid, collage, or contact sheet." : " One full-frame cinematic shot.";
-    return `Cinematic marketing footage, professional grade, 4K quality. ${scene.slice(0, 350)}${openingGuard} Do not invent or render any logos, brand marks, watermarks, captions, subtitles, or legible text.`;
+    return `Cinematic marketing footage, professional grade, 4K quality. ${scene.slice(0, 350)}${openingGuard} Do not invent or render any logos, brand marks, watermarks, captions, subtitles, or legible text. ${SCREEN_SAFE_SUFFIX}`;
   });
 }
 
