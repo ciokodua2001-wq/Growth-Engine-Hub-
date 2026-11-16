@@ -92,9 +92,23 @@ export const QWEN_DEFAULT_BASE_URL = "https://dashscope-intl.aliyuncs.com/compat
 
 export type QwenTextTier = "quality" | "fast";
 
+/**
+ * Audio-capable Qwen model used as the platform-wide transcription fallback
+ * when Gemini's audio path is unavailable (402 depleted credits, 429, 5xx).
+ * Verified against our DashScope key on dev: `qwen3-omni-flash` accepts
+ * OpenAI-compatible `input_audio` content parts and returns plain text.
+ * Override with QWEN_AUDIO_MODEL to benchmark another omni/asr model.
+ */
+export const QWEN_DEFAULT_AUDIO_MODEL = "qwen3-omni-flash";
+
 export function getQwenTextModel(tier: QwenTextTier): string {
   const raw = (tier === "fast" ? process.env.QWEN_FAST_TEXT_MODEL : process.env.QWEN_TEXT_MODEL) ?? "";
   return raw.trim() || QWEN_DEFAULT_MODEL;
+}
+
+export function getQwenAudioModel(): string {
+  const raw = (process.env.QWEN_AUDIO_MODEL ?? "").trim();
+  return raw || QWEN_DEFAULT_AUDIO_MODEL;
 }
 
 export function getQwenBaseUrl(): string {

@@ -11,6 +11,7 @@ import {
 import {
   getQwenApiKey,
   getQwenBaseUrl,
+  getQwenAudioModel,
   getQwenTextModel,
   getQwenTimeoutMs,
   type QwenTextTier,
@@ -242,6 +243,56 @@ interface QwenHttpResult {
   ok: boolean;
   status: number;
   payload: unknown;
+}
+
+/**
+ * Audio transcription via Qwen omni (OpenAI-compatible `input_audio` part).
+ * Platform-wide fallback for Gemini audio transcription: every AI capability
+ * in GrowthForge must survive a Gemini outage (402 depleted prepayment
+ * credits, 429, 5xx) by failing over to Qwen, per product policy.
+ * Returns raw text; callers keep their existing parsing semantics.
+ */
+export async function callQwenAudioTranscription(params: {
+  audioBase64: string;
+  mimeType: string;
+  instruction: string;
+}): Promise<RawTextCall> {
+  const apiKey = getQwenApiKey();
+  if (!apiKey) {
+    throw new Error(
+      "Qwen audio fallback requested but no API key is configured - set QWEN_GROWTHFORGE_KEY " +
+        "(aliases: QWEN_API_KEY / DASHSCOPE_API_KEY).",
+    );
+  }
+  const model = getQwenAudioModel();
+  const url = `${getQwenBaseUrl()}${QWEN_CHAT_COMPLETIONS_PATH}`;
+  const format = params.mimeType.includes("wav") ? "wav" : "mp3";
+  const started = Date.now();
+  const response = await postQwenChat(url, apiKey, {
+    model,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "input_audio", input_audio: { data: `data:audio/${format};base64,${params.audioBase64}`, format } },
+          { type: "text", text: params.instruction },
+        ],
+      },
+    ],
+    max_tokens: 4096,
+    enable_thinking: false,
+  } as unknown as QwenChatRequest);
+  if (!response.ok) throw new Error(describeQwenError(response.status, response.payload));
+  const completion = parseQwenChatResponse(response.payload);
+  return {
+    provider: "qwen",
+    model,
+    text: completion.text,
+    inputTokens: completion.inputTokens,
+    outputTokens: completion.outputTokens,
+    truncatedAtTokenLimit: completion.finishReason === "length",
+    latencyMs: Date.now() - started,
+  };
 }
 
 async function postQwenChat(

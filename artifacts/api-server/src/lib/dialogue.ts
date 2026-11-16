@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 // ── Script fidelity & dialogue-preservation helpers ──────────────────────────
 // Single source of truth for the "captions must match actual audio" and
 // "customers own their approved dialogue" product principles. Everything here
-// is deterministic (cheap) except transcribeAudioWithGemini, which uses the
+// is deterministic (cheap) except transcribeAudioWithFailover, which uses the
 // EXISTING Gemini Developer API key (no new provider) to transcribe actual
 // assembled audio - the authoritative speech source for captions and fidelity.
 
@@ -340,11 +340,18 @@ export function compareScriptToTranscript(approvedScript: string, transcript: st
 const TRANSCRIBE_MODEL = "gemini-3.1-flash-lite";
 const MAX_AUDIO_BYTES = 9_500_000; // keep inline payload within API limits
 
-export async function transcribeAudioWithGemini(
+/**
+ * Transcribe assembled audio with Gemini, automatically failing over to
+ * Qwen omni on any provider outage (402 depleted prepayment credits, 429,
+ * 5xx, timeouts). Platform policy: no AI capability may dead-end because a
+ * single vendor is down or unbilled. Returns the transcript text plus which
+ * provider answered, so routes can log/attribute honestly.
+ */
+export async function transcribeAudioWithFailover(
   audioBase64: string,
   mimeType: string,
   languageHint?: string,
-): Promise<string> {
+): Promise<{ text: string; provider: "gemini" | "qwen" }> {
   if (audioBase64.length > MAX_AUDIO_BYTES) {
     throw new Error("Audio too large to transcribe inline");
   }
@@ -355,16 +362,26 @@ export async function transcribeAudioWithGemini(
     `If a word is unclear, mark it with [unclear]. Do not add words that were not spoken.` +
     (languageHint ? ` The expected language is ${languageHint}.` : "");
 
-  const { genai } = await import("@workspace/integrations-google-genai");
-  const response = await genai.models.generateContent({
-    model: TRANSCRIBE_MODEL,
-    contents: [
-      { inlineData: { mimeType, data: audioBase64 } },
-      { text: instruction },
-    ],
-  });
-
-  return (response.text ?? "").trim();
+  const [{ genai }, { callQwenAudioTranscription, isProviderOutageError }] = await Promise.all([
+    import("@workspace/integrations-google-genai"),
+    import("./textProviders.js"),
+  ]);
+  try {
+    const response = await genai.models.generateContent({
+      model: TRANSCRIBE_MODEL,
+      contents: [
+        { inlineData: { mimeType, data: audioBase64 } },
+        { text: instruction },
+      ],
+    });
+    const text = (response.text ?? "").trim();
+    if (!text) throw new Error("Gemini transcription returned no content");
+    return { text, provider: "gemini" };
+  } catch (err) {
+    if (!isProviderOutageError(err)) throw err;
+    const fallback = await callQwenAudioTranscription({ audioBase64, mimeType, instruction });
+    return { text: fallback.text.trim(), provider: "qwen" };
+  }
 }
 
 // ── Optional single AI script-improvement suggestion ─────────────────────────
@@ -378,15 +395,31 @@ export function hashScript(script: string): string {
 }
 
 export async function suggestScriptImprovement(script: string): Promise<string> {
-  const { genai } = await import("@workspace/integrations-google-genai");
   const prompt =
     `You are a senior direct-response ad copywriter. Improve the following commercial script for ` +
     `persuasion, clarity and pacing while keeping the SAME brand voice and product claims. ` +
     `Do NOT change prices, numbers, guarantees, or add claims that are not already implied. ` +
     `Return ONLY the improved script text (no preamble, no commentary, no quotes).\n\n` +
     `Script:\n${script}`;
-  const response = await genai.models.generateContent({ model: SUGGEST_MODEL, contents: [{ text: prompt }] });
-  return (response.text ?? "").trim();
+  const [{ genai }, { callQwenRaw, isProviderOutageError }] = await Promise.all([
+    import("@workspace/integrations-google-genai"),
+    import("./textProviders.js"),
+  ]);
+  try {
+    const response = await genai.models.generateContent({ model: SUGGEST_MODEL, contents: [{ text: prompt }] });
+    const text = (response.text ?? "").trim();
+    if (!text) throw new Error("Gemini suggestion returned no content");
+    return text;
+  } catch (err) {
+    if (!isProviderOutageError(err)) throw err;
+    const fallback = await callQwenRaw("fast", {
+      system: "You improve advertising scripts. Return only the improved script text.",
+      prompt,
+      jsonMode: false,
+      thinkingLevel: "minimal",
+    });
+    return fallback.text.trim();
+  }
 }
 
 // ── Caption layout (responsive safe-area) ─────────────────────────────────────

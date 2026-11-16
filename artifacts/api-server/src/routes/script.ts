@@ -11,7 +11,7 @@ import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
 import { signObjectURL } from "../lib/objectStorage.js";
 import {
   compareScriptToTranscript,
-  transcribeAudioWithGemini,
+  transcribeAudioWithFailover,
   assignEstimatedTiming,
   hashScript,
   suggestScriptImprovement,
@@ -176,10 +176,12 @@ router.post("/projects/:id/videos/:videoId/transcript", async (req, res) => {
     await execFileAsync("ffmpeg", ["-y", "-i", mp4Path, "-vn", "-ac", "1", "-ar", "16000", "-b:a", "64k", mp3Path]);
     const audioB64 = fs.readFileSync(mp3Path).toString("base64");
 
-    // 3. Transcribe the actual audio (existing Gemini key - phrase-level, no word timestamps).
+    // 3. Transcribe the actual audio (Gemini primary, Qwen omni automatic
+    //    fallback on provider outage - phrase-level, no word timestamps).
     failureStage = "transcribe audio";
     const languageHint = typeof req.body?.languageHint === "string" ? req.body.languageHint : undefined;
-    const transcriptText = await transcribeAudioWithGemini(audioB64, "audio/mp3", languageHint);
+    const transcription = await transcribeAudioWithFailover(audioB64, "audio/mp3", languageHint);
+    const transcriptText = transcription.text;
     if (!transcriptText) throw new Error("Transcription provider returned no spoken words");
 
     const rawSegments: TranscriptSegment[] = transcriptText
@@ -196,6 +198,7 @@ router.post("/projects/:id/videos/:videoId/transcript", async (req, res) => {
     // 4. Compare against the approved (or draft) script.
     const reference = video.approvedScript ?? video.script ?? "";
     const report = compareScriptToTranscript(reference, transcriptText);
+    logger.info({ videoId, projectId, provider: transcription.provider }, "[script] Transcription completed");
 
     await db
       .update(videosTable)
