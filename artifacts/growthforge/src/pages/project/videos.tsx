@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import {
   useListVideos,
@@ -23,6 +23,7 @@ import {
   AlertCircle, ChevronDown, Image as ImageIcon, RefreshCw,
   Lock, Download, ExternalLink, Image as LogoIcon,
   Search, Filter, Clock, Archive, BarChart3, RotateCcw,
+  Upload,
 } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 import ScriptFidelityPanel from "@/components/ui/script-fidelity-panel";
@@ -408,6 +409,8 @@ function RenderPanel({
   const [logoExportAssemblyId, setLogoExportAssemblyId] = useState<number | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
+  const [logoUploadBusy, setLogoUploadBusy] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement | null>(null);
   // Latest post-render assembly id, so caption + logo can be chained onto the
   // same completed render (logo then captions, or captions then logo) without
   // ever re-rendering media or calling a model.
@@ -476,6 +479,31 @@ function RenderPanel({
   const currentStatus = polledStatus ?? video.renderStatus ?? "idle";
   const currentVideoUrl = renderStatus?.videoUrl ?? video.videoUrl;
   const outputAspectRatio = (video as VideoModel & { aspectRatio?: string }).aspectRatio;
+
+  // Upload a transparent PNG straight from this panel - no trip to Project → Assets.
+  const uploadLogoFile = async (file: File) => {
+    setLogoUploadBusy(true); setLogoError(null);
+    try {
+      if (!/\.png$/i.test(file.name) && file.type !== "image/png") throw new Error("Choose a PNG file with a transparent background.");
+      if (file.size > 10 * 1024 * 1024) throw new Error("Logo file must be 10 MB or smaller.");
+      const form = new FormData();
+      form.append("logo", file, file.name);
+      const response = await fetch(`/api/projects/${projectId}/logo-assets`, {
+        method: "POST", credentials: "include", body: form,
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.id) throw new Error(payload?.error || "Logo upload failed.");
+      const created = { id: payload.id as number, name: payload.name as string, url: `/api/projects/${projectId}/assets/${payload.id}/content`, mimeType: "image/png" };
+      setLogoAssets(prev => [created, ...prev.filter(asset => asset.id !== created.id)]);
+      setLogoAssetId(created.id);
+      setLogoExportUrl(null); setLogoExportAssemblyId(null);
+    } catch (error) {
+      setLogoError(error instanceof Error ? error.message : "Logo upload failed.");
+    } finally {
+      setLogoUploadBusy(false);
+      if (logoFileInputRef.current) logoFileInputRef.current.value = "";
+    }
+  };
 
   const applyPostRenderLogo = async () => {
     if (!currentVideoUrl || !logoAssetId || logoBusy) return;
@@ -607,7 +635,18 @@ function RenderPanel({
               <option value="">Choose an attached logo...</option>
               {logoAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
             </select>
-            {logoAssets.length === 0 && <span className="block text-[10px] text-amber-300/75">No PNG logos attached. Upload a transparent PNG in Project → Assets first.</span>}
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => logoFileInputRef.current?.click()}
+                disabled={logoUploadBusy}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-[11px] font-semibold text-white/85 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {logoUploadBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading...</> : <><Upload className="h-3.5 w-3.5" /> Upload PNG logo</>}
+              </button>
+              <input ref={logoFileInputRef} type="file" accept="image/png,.png" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) void uploadLogoFile(file); }} />
+              <span className="text-[10px] text-white/45">{logoAssets.length === 0 ? "Transparent PNG up to 10 MB - uploads and selects instantly." : "Or pick one you already attached."}</span>
+            </div>
           </label>
           <div className="relative mx-auto w-full max-w-xl overflow-hidden rounded-lg bg-black" style={{ aspectRatio: outputAspectRatio === "9:16" ? "9 / 16" : outputAspectRatio === "1:1" ? "1 / 1" : outputAspectRatio === "4:5" ? "4 / 5" : "16 / 9" }}>
             <video src={currentVideoUrl} muted playsInline className="absolute inset-0 h-full w-full object-contain" />

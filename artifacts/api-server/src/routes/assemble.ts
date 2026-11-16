@@ -155,6 +155,91 @@ function hasPngTransparency(png: Buffer): boolean {
   return false;
 }
 
+//
+// ── POST /projects/:id/logo-assets ───────────────────────────────────────────
+// Upload a transparent PNG logo directly into the project's asset library so
+// the Post-render logo section never has to leave Commercial Studio. Multipart
+// field name is "logo". Returns the created asset row (same shape as GET
+// /projects/:id/assets) so the picker can select it immediately.
+const logoAssetUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = /^image\/png$/i.test(file.mimetype) || /\.png$/i.test(file.originalname);
+    if (!ok) { cb(new Error("Only transparent PNG logos are supported")); return; }
+    cb(null, true);
+  },
+});
+
+router.post(
+  "/projects/:id/logo-assets",
+  logoAssetUpload.single("logo"),
+  async (req, res) => {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+    const projectId = Number(req.params.id);
+    if (!Number.isSafeInteger(projectId)) { res.status(400).json({ error: "Invalid project ID" }); return; }
+    if (!req.file) { res.status(400).json({ error: "No PNG logo file provided" }); return; }
+
+    const png = req.file.buffer;
+    const isPng = png.length >= 26 &&
+      png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) &&
+      png.toString("ascii", 12, 16) === "IHDR" && [4, 6].includes(png[25]!);
+    if (!isPng || !hasPngTransparency(png)) {
+      res.status(422).json({ error: "Logo must be a transparent PNG (RGBA). Flattened JPEG/PNG backgrounds are rejected." });
+      return;
+    }
+
+    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+    if (!bucketId) { res.status(503).json({ error: "Object storage not configured" }); return; }
+
+    try {
+      const safeName = req.file.originalname.replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "logo.png";
+      const objectName = `assets/project-${projectId}/logos/${randomUUID()}-${safeName}`;
+      await objectStorageClient.bucket(bucketId).file(objectName).save(png, {
+        metadata: { contentType: "image/png" },
+      });
+      const url = await signObjectURL({ bucketName: bucketId, objectName, method: "GET", ttlSec: 86_400 });
+      const [asset] = await db.insert(assetsTable).values({
+        projectId,
+        type: "logo",
+        name: safeName,
+        url,
+        mimeType: "image/png",
+        fileSize: req.file.size,
+      }).returning();
+      logger.info({ projectId, assetId: asset!.id, bytes: req.file.size }, "[assemble] Logo asset uploaded from Commercial Studio");
+      res.status(201).json({ ...asset, createdAt: asset!.createdAt.toISOString() });
+    } catch (error) {
+      logger.error({ projectId, error: error instanceof Error ? error.message : String(error) }, "[assemble] Logo asset upload failed");
+      res.status(502).json({ error: "Could not store the logo. Please try again." });
+    }
+  },
+);
+
+// Serve a stored asset's bytes through the API server (re-signs the object URL
+// on demand). The picker uses this for previews because the persisted signed
+// URL in assets.url expires after 24 hours and would render a broken image.
+router.get("/projects/:id/assets/:assetId/content", async (req, res) => {
+  const projectId = Number(req.params.id);
+  const assetId = Number(req.params.assetId);
+  if (![projectId, assetId].every(Number.isSafeInteger)) { res.status(400).json({ error: "Invalid IDs" }); return; }
+  const [asset] = await db.select().from(assetsTable)
+    .where(and(eq(assetsTable.id, assetId), eq(assetsTable.projectId, projectId)));
+  if (!asset?.url) { res.status(404).json({ error: "Asset not found" }); return; }
+  try {
+    const upstream = await fetch(await refreshAssemblyUrl(asset.url), { signal: AbortSignal.timeout(30_000) });
+    if (!upstream.ok) { res.status(502).json({ error: `Asset unavailable upstream (${upstream.status})` }); return; }
+    res.setHeader("Content-Type", asset.mimeType ?? "application/octet-stream");
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    res.send(buf);
+  } catch (error) {
+    logger.error({ assetId, error: error instanceof Error ? error.message : String(error) }, "[assemble] Asset content proxy failed");
+    res.status(502).json({ error: "Could not load this asset" });
+  }
+});
+
 // Primary Commercial Studio logo export path: apply a customer-supplied
 // transparent PNG to an already completed render; no AI is called.
 router.post("/projects/:id/videos/:videoId/logo", async (req, res) => {

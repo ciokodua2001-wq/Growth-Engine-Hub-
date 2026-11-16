@@ -8,6 +8,7 @@ import { db } from "@workspace/db";
 import { videosTable, commercialAssembliesTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
+import { signObjectURL } from "../lib/objectStorage.js";
 import {
   compareScriptToTranscript,
   transcribeAudioWithGemini,
@@ -23,6 +24,39 @@ const logger = pino({ name: "script.route" });
 const execFileAsync = promisify(execFile);
 
 router.param("id", requireProjectOwnershipParam());
+
+/**
+ * Re-sign a stored presigned object URL with a fresh short TTL.
+ *
+ * Assembly/video URLs are persisted with a 24-hour SigV4 TTL. The read paths
+ * (assemble.ts) re-sign before every fetch/player load, but any route that
+ * fetches the *stored* URL directly will fail with an opaque S3 403 once that
+ * TTL lapses - which is exactly what made "Transcribe & Check Fidelity" report
+ * "The assembled video could not be retrieved" on renders older than a day
+ * while the player kept working fine.
+ */
+async function refreshMediaUrl(storedUrl: string): Promise<string> {
+  if (!storedUrl || !storedUrl.startsWith("http")) return storedUrl;
+  try {
+    const u = new URL(storedUrl);
+    const parts = u.pathname.split("/").filter(Boolean);
+    if (parts.length < 2) return storedUrl;
+    const bucketName = parts[0]!;
+    const objectName = parts.slice(1).join("/");
+    return await signObjectURL({ bucketName, objectName, method: "GET", ttlSec: 86_400 });
+  } catch (err) {
+    logger.warn(
+      { err: err instanceof Error ? err.message : String(err), urlPrefix: storedUrl.slice(0, 90) },
+      "[script] Could not re-sign stored media URL; using it as-is",
+    );
+    return storedUrl;
+  }
+}
+
+/** Trimmed host + key of a media URL for diagnostics (never logs the signature). */
+function describeMediaUrl(url: string): string {
+  try { const u = new URL(url); return `${u.host}${u.pathname}`; } catch { return "<unparseable>"; }
+}
 
 async function loadOwnedVideo(projectId: number, videoId: number) {
   const [video] = await db
@@ -122,9 +156,19 @@ router.post("/projects/:id/videos/:videoId/transcript", async (req, res) => {
     // 1. Download the assembled MP4.
     failureStage = "download assembled video";
     const mp4Path = path.join(tmpDir, "in.mp4");
-    const dl = await fetch(sourceUrl, { signal: AbortSignal.timeout(120_000) });
-    if (!dl.ok) throw new Error(`Assembly fetch HTTP ${dl.status}`);
-    fs.writeFileSync(mp4Path, Buffer.from(await dl.arrayBuffer()));
+    const fetchUrl = await refreshMediaUrl(sourceUrl);
+    const dl = await fetch(fetchUrl, { signal: AbortSignal.timeout(120_000) });
+    if (!dl.ok) {
+      const body = (await dl.text().catch(() => "")).slice(0, 300);
+      logger.error(
+        { videoId, projectId, httpStatus: dl.status, media: describeMediaUrl(fetchUrl), usedAssembly: !!assembly?.videoUrl, body },
+        "[script] Assembled video download failed",
+      );
+      throw new Error(`Assembly fetch HTTP ${dl.status} for ${describeMediaUrl(fetchUrl)}: ${body}`);
+    }
+    const buf = Buffer.from(await dl.arrayBuffer());
+    if (buf.length < 1024) throw new Error(`Assembly fetch returned ${buf.length} bytes (expected a full MP4)`);
+    fs.writeFileSync(mp4Path, buf);
 
     // 2. Extract the audio track (mono 16k mp3 for the transcription model).
     failureStage = "extract audio";
