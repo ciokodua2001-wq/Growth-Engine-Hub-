@@ -205,24 +205,27 @@ export default function DashboardPage() {
     query: { queryKey: getListProjectsQueryKey(), enabled: isLoaded && !!user },
   });
   const isLoading = !isLoaded || (!!user && projectsLoading && !projects);
-  const { isAdmin, data: currentUserData, isLoading: isUserLoading } = useCurrentUser();
-  const isOwner = currentUserData?.isOwner ?? false;
+  const { isAdmin } = useCurrentUser();
 
   useEffect(() => {
     if (isLoaded && !user) setLocation("/sign-in");
   }, [isLoaded, user, setLocation]);
 
-  // Admins/super admins should never land on the user dashboard — send them to the Admin Console.
-  // Exception: the platform owner needs access to create content, so skip the redirect for them.
-  // Wait for the user record to load before deciding — isOwner is false until the API responds.
-  useEffect(() => {
-    if (!isUserLoading && isAdmin && !isOwner) setLocation("/admin", { replace: true });
-  }, [isUserLoading, isAdmin, isOwner, setLocation]);
+  // Admins/super admins should never *land* here after sign-in (AuthRedirectPage
+  // sends them to /admin), but explicit navigation to /dashboard - the "Back to
+  // App" link in the admin console, bookmarks, team work under this route - must
+  // always work for them. The old blanket bounce back to /admin broke exactly
+  // that whenever users.is_owner was false/stale, so it is removed entirely.
+  // Owner's Corner visibility stays keyed off isOwner; nothing else depends on
+  // this redirect.
 
   const firstName = user?.firstName ?? user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] ?? "there";
 
   if (isLoaded && !user) return null;
-  if (!isUserLoading && isAdmin && !isOwner) return null;
+  // NB: no admin/isOwner render gate here either - that blank-screen half of
+  // the old bounce made /dashboard look "broken" for non-owner admins even
+  // before the redirect fired. Sign-in landing behaviour lives in
+  // AuthRedirectPage (/admin for admins), not here.
 
   return (
     <div className="min-h-screen bg-background">
@@ -279,7 +282,7 @@ export default function DashboardPage() {
           </motion.button>
         </div>
 
-        {/* Meta reconnect banners — one per project with a broken/undecryptable token */}
+        {/* Meta reconnect banners - one per project with a broken/undecryptable token */}
         {projects && projects.length > 0 && (
           <div className="flex flex-col gap-2 mb-6 empty:hidden">
             {projects.map(p => (
@@ -295,9 +298,9 @@ export default function DashboardPage() {
         ) : projectsFailed ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <AlertTriangle className="h-10 w-10 text-amber-400 mb-4" />
-            <h2 className="text-xl font-bold mb-2">Couldn’t load your projects</h2>
+            <h2 className="text-xl font-bold mb-2">Couldn't load your projects</h2>
             <p className="text-muted-foreground max-w-sm mb-4">
-              The server didn’t return your project list. Refresh the page or click below to retry.
+              The server didn't return your project list. Refresh the page or click below to retry.
             </p>
             <button
               onClick={() => refetchProjects()}
