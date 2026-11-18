@@ -138,7 +138,7 @@ Respond with ONLY a single JSON object, no prose.`;
 
 async function generateSingleVideoBlueprint(
   ctx: GroundingContext,
-  opts: { type?: string; prompt?: string; index: number; total: number; targetDuration?: number; locale?: string },
+  opts: { type?: string; prompt?: string; sampleScript?: string; index: number; total: number; targetDuration?: number; locale?: string },
 ): Promise<VideoBlueprintResult> {
   // Generate exactly ONE video per call to guarantee the JSON response stays
   // well within the 8192-token output limit regardless of how verbose Claude is.
@@ -152,6 +152,7 @@ async function generateSingleVideoBlueprint(
     system: AI_VIDEO_DIRECTOR_SYSTEM,
     prompt: `${renderGroundingBlock(ctx)}
 ${opts.prompt ? `\nAdditional direction from the user: ${opts.prompt}\n` : ""}
+${opts.sampleScript ? `\nUSER SAMPLE SCRIPT / CREATIVE VISION (reference only — do not copy verbatim):\n${opts.sampleScript}\n\nInfer the intended story, voice, emotional beats, and energy. Preserve that core intent, then tailor and rewrite the dialogue for this business, its audience, and the ${durationTarget}-second runtime. When consistent with the sample, elevate it into a bolder, more boisterous, highly cinematic commercial with vivid visual escalation, confident performance, dynamic camera movement, dramatic lighting, and a memorable payoff. Keep claims grounded in the business context; do not invent product capabilities or promises. Deliver original, concise, speakable actor dialogue rather than pasted sample text.\n` : ""}
 Create exactly 1 short-form cinematic marketing video blueprint for this business${typeHint}. This is video ${opts.index + 1} of ${opts.total} — make it feel distinct from others in the set.
 
 TARGET DURATION: ${durationTarget} seconds. The "duration" field MUST be exactly ${durationTarget}. Script word count must match the duration guideline in the system prompt. Shot durations must sum to exactly ${durationTarget}s.
@@ -212,7 +213,7 @@ Return JSON with this exact structure:
 
 export async function generateVideoBlueprints(
   ctx: GroundingContext,
-  opts: { count: number; type?: string; prompt?: string; targetDuration?: number; locale?: string },
+  opts: { count: number; type?: string; prompt?: string; sampleScript?: string; targetDuration?: number; locale?: string },
 ): Promise<VideoBlueprintResult[]> {
   // Generate one video per Claude call (fits in 4096 tokens even for verbose output).
   // Run all in parallel for speed — N concurrent Sonnet calls is fine under normal quota.

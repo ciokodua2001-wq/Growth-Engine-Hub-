@@ -1389,10 +1389,10 @@ export default function ProjectVideos() {
     });
   };
 
-  const handleSubmit = (_url: string, _instructions: string, locale: string): Promise<void> =>
+  const handleSubmit = (_url: string, instructions: string, locale: string, sampleScript: string): Promise<void> =>
     new Promise((resolve, reject) => {
       generateVideos.mutate(
-        { id: projectId, data: { mode, count: blueprintCount, targetDuration, targetLocale: locale || undefined } },
+        { id: projectId, data: { mode, count: blueprintCount, prompt: instructions || undefined, sampleScript: sampleScript || undefined, targetDuration, targetLocale: locale || undefined } },
         {
           onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) }); resolve(); },
           onError: reject,
@@ -1755,6 +1755,7 @@ export default function ProjectVideos() {
         defaultWebsiteUrl={project?.websiteUrl ?? ""}
         detectedLocale={project?.detectedLocale ?? undefined}
         instructionsPlaceholder={`Examples:\n* Focus on product demo videos\n* Create viral TikTok hooks\n* Target founder pain points\n* Include customer testimonial style`}
+        sampleScriptField
         processingSteps={VIDEO_STEPS}
         onSubmit={handleSubmit}
         ctaLabel={`Generate ${blueprintCount} Blueprint${blueprintCount !== 1 ? "s" : ""}`}

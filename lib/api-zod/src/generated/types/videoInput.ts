@@ -16,4 +16,9 @@ export interface VideoInput {
   targetDuration?: VideoInputTargetDuration;
   /** BCP-47 locale code for localised output (e.g. es-MX, de-DE, pt-BR). Omit for English. */
   targetLocale?: string;
+  /**
+     * Optional creative reference; adapt its voice, beats, and energy without copying it verbatim.
+     * @maxLength 12000
+     */
+  sampleScript?: string;
 }

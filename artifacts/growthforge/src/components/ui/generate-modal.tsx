@@ -19,8 +19,9 @@ interface GenerateModalProps {
   subtitle?: string;
   defaultWebsiteUrl?: string;
   instructionsPlaceholder?: string;
+  sampleScriptField?: boolean;
   processingSteps: string[];
-  onSubmit: (websiteUrl: string, instructions: string, locale: string) => Promise<void>;
+  onSubmit: (websiteUrl: string, instructions: string, locale: string, sampleScript: string) => Promise<void>;
   ctaLabel?: string;
   /**
    * BCP-47 locale code auto-detected from the project's website URL during
@@ -53,6 +54,7 @@ export default function GenerateModal({
   subtitle,
   defaultWebsiteUrl = "",
   instructionsPlaceholder,
+  sampleScriptField = false,
   processingSteps,
   onSubmit,
   ctaLabel = "Generate",
@@ -62,6 +64,7 @@ export default function GenerateModal({
   const [phase, setPhase] = useState<Phase>("form");
   const [websiteUrl, setWebsiteUrl] = useState(defaultWebsiteUrl);
   const [instructions, setInstructions] = useState("");
+  const [sampleScript, setSampleScript] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -84,6 +87,7 @@ export default function GenerateModal({
     if (isOpen) {
       setWebsiteUrl(defaultWebsiteUrl);
       setInstructions("");
+      setSampleScript("");
       setLocale(resolvedDetectedLocale);
       setLocaleIsAutoDetected(resolvedDetectedLocale !== "");
       setCurrentStep(0);
@@ -115,7 +119,7 @@ export default function GenerateModal({
 
     try {
       await Promise.all([
-        onSubmit(websiteUrl.trim(), instructions, locale),
+        onSubmit(websiteUrl.trim(), instructions, locale, sampleScript),
         new Promise<void>((r) => setTimeout(r, processingSteps.length * STEP_DURATION)),
       ]);
       clearInterval(interval);
@@ -153,7 +157,7 @@ export default function GenerateModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 16 }}
             transition={{ type: "spring", duration: 0.3, bounce: 0.2 }}
-            className="w-full max-w-md bg-card border border-border rounded-2xl overflow-hidden shadow-2xl shadow-black/40"
+            className="w-full max-w-md max-h-[92vh] overflow-y-auto bg-card border border-border rounded-2xl shadow-2xl shadow-black/40"
           >
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
               <div>
@@ -206,6 +210,27 @@ export default function GenerateModal({
                     className="w-full bg-secondary border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none leading-relaxed"
                   />
                 </div>
+
+                {sampleScriptField && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Sample script / creative vision
+                      </label>
+                      <span className="text-[10px] text-muted-foreground/50 font-normal">Optional</span>
+                    </div>
+                    <textarea
+                      aria-label="Sample script or creative vision"
+                      value={sampleScript}
+                      onChange={(e) => setSampleScript(e.target.value)}
+                      placeholder="Paste a rough sample of the story, lines, or energy you have in mind. The writer will tailor it to your brand and make it more cinematic—not copy it word-for-word."
+                      rows={5}
+                      maxLength={12000}
+                      className="w-full bg-secondary border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-y leading-relaxed"
+                    />
+                    <p className="text-[10px] text-muted-foreground/60 mt-1">Use this for inspiration, tone, beats, or sample dialogue. It is not treated as final approved dialogue.</p>
+                  </div>
+                )}
 
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
