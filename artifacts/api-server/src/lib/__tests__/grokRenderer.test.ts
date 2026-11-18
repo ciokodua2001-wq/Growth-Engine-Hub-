@@ -113,6 +113,37 @@ describe("GrokCommercialRenderer (mocked provider, no paid requests)", () => {
     expect(result.durationSec).toBe(45);
   });
 
+  it("assembles an exact non-multiple duration using a short final segment", async () => {
+    process.env.GROK_VIDEO_ENABLED = "true";
+    process.env.GROWTHFORGE_GROK_API_KEY = "mock-key";
+    process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID = "mock-bucket";
+    process.env.OBJECT_STORAGE_ENDPOINT = "https://storage.invalid";
+    process.env.OBJECT_STORAGE_REGION = "us-east-1";
+    process.env.OBJECT_STORAGE_ACCESS_KEY_ID = "mock-access";
+    process.env.OBJECT_STORAGE_SECRET_ACCESS_KEY = "mock-secret";
+    const durations: number[] = [];
+    const fetchMock = vi.fn<typeof fetch>((async (url: string | URL, init?: RequestInit) => {
+      const href = String(url);
+      if (href.endsWith("/generations")) {
+        durations.push((JSON.parse(String(init?.body)) as { duration: number }).duration);
+        return new Response(JSON.stringify({ request_id: `segment-${durations.length}` }), { status: 200 });
+      }
+      if (href.includes("/videos/")) return new Response(JSON.stringify({ request_id: "segment", status: "done", video: { url: "https://vidgen.x.ai/clip.mp4", duration: 15 } }), { status: 200 });
+      return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
+    }) as typeof fetch);
+    let assembledDuration = 0;
+    const renderer = new GrokCommercialRenderer({
+      fetch: fetchMock, sleep: async () => {}, pollIntervalMs: 0, maxPolls: 1,
+      save: async () => {}, signUrl: async () => "unused", normalizeFrame: async input => input,
+      synthesize: async () => Buffer.from("tts"), probeAudioDuration: async () => 1,
+      assemble: async (_clips, _audio, duration) => { assembledDuration = duration; return Buffer.from("complete"); },
+    });
+    const result = await renderer.render({ ...job, script: "Approved plain dialogue.", durationSec: 37 });
+    expect(durations).toEqual([15, 15, 7]);
+    expect(assembledDuration).toBe(37);
+    expect(result.durationSec).toBe(37);
+  });
+
   it("stays disabled unless the enable flag and credentials are explicitly present", async () => {
     process.env.GROK_VIDEO_ENABLED = "false";
     process.env.GROWTHFORGE_GROK_API_KEY = "mock-key";

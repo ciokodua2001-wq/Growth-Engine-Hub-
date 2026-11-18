@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { VideoRenderInputAspectRatio } from './videoRenderInputAspectRatio';
+import type { VideoRenderInputProvider } from './videoRenderInputProvider';
 import type { VideoRenderInputResolution } from './videoRenderInputResolution';
 
 export interface VideoRenderInput {
@@ -15,5 +16,11 @@ export interface VideoRenderInput {
   /** When true, bold burned-in captions are embedded in the video. */
   captionsEnabled?: boolean;
   /** Video generation provider for this render. Grok is disabled unless explicitly enabled by deployment configuration. */
-  provider?: 'kling' | 'grok';
+  provider?: VideoRenderInputProvider;
+  /**
+     * Exact requested final commercial duration in seconds (Grok provider only).
+     * @minimum 1
+     * @maximum 60
+     */
+  durationSec?: number;
 }

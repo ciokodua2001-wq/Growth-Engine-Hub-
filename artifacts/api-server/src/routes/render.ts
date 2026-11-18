@@ -47,10 +47,12 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     resolution     = "1080p",
     aspectRatio    = "16:9",
     captionsEnabled = false,
+    durationSec,
   } = req.body as {
     resolution?: RenderResolution;
     aspectRatio?: string;
     captionsEnabled?: boolean;
+    durationSec?: number;
   };
   const validResolutions: RenderResolution[] = ["1080p", "4k"];
   const validAspectRatios: AspectRatio[] = ["16:9", "9:16", "1:1", "4:5"];
@@ -60,6 +62,10 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
   }
   if (!validAspectRatios.includes(aspectRatio as AspectRatio)) {
     res.status(400).json({ error: `aspectRatio must be one of: ${validAspectRatios.join(", ")}` });
+    return;
+  }
+  if (durationSec !== undefined && (!Number.isInteger(durationSec) || durationSec < 1 || durationSec > 60)) {
+    res.status(400).json({ error: "durationSec must be an integer from 1 to 60 seconds" });
     return;
   }
 
@@ -108,7 +114,8 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
 
   const plan            = user?.plan ?? "trial";
   // Reserve the full requested runtime; Grok renders are assembled from <=15s segments.
-  const requiredSeconds = provider === "grok" ? Math.min(60, Math.max(1, video.duration ?? 15)) : video.duration ?? 60;
+  const selectedDuration = durationSec ?? video.duration ?? 15;
+  const requiredSeconds = provider === "grok" ? Math.min(60, Math.max(1, selectedDuration)) : selectedDuration;
 
   const { allowed, balance, message } = await checkVideoSeconds(userId, plan, requiredSeconds);
   if (!allowed) {
@@ -128,6 +135,7 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     renderStatus:       "queued",
     renderResolution:   resolution,
     aspectRatio,
+    ...(provider === "grok" ? { duration: selectedDuration } : {}),
     captionsEnabled,
     renderError:        null,
     renderJobId:        null,

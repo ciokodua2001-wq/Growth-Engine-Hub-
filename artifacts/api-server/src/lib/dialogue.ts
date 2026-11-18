@@ -57,8 +57,21 @@ export function extractNarrationLines(script: string): string[] {
     .filter(line => /^(actor line|dialogue)\s*:/i.test(line))
     .map(line => line.replace(/^(actor line|dialogue)\s*:\s*/i, "").replace(/^["“]|["”]$/g, "").trim())
     .filter(line => line.length > 0 && !quoted.includes(line));
-  return [...quoted, ...labeled];
-}export function extractDialogueLines(script: string | null, cinematicPlan: string | null): string[] {
+  if (quoted.length || labeled.length) return [...quoted, ...labeled];
+
+  // Plain approved narration is valid too (for example, a single paragraph
+  // pasted into the exact-dialogue field). Remove obvious production notes,
+  // but preserve the customer's spoken wording and order verbatim.
+  return script
+    .replace(/```[\s\S]*?```/g, "\n")
+    .replace(/\[[^\]]*\]/g, " ")
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line && !/^(?:#{1,6}\s*)?(?:scene|shot|visual(?: direction)?|camera(?: direction)?|setting|stage direction|production notes?|fade\s+(?:in|out)|cut\s+to|transition)\s*\d*\s*:?.*$/i.test(line))
+    .map(line => line.replace(/^(?:script|dialogue|actor line|voiceover|narration)\s*:\s*/i, "").trim())
+    .filter(Boolean);
+}
+export function extractDialogueLines(script: string | null, cinematicPlan: string | null): string[] {
   if (cinematicPlan) {
     try {
       const plan = JSON.parse(cinematicPlan) as CinematicPlanShape;

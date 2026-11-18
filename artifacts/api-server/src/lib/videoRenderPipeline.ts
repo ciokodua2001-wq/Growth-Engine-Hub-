@@ -115,7 +115,7 @@ async function runGrokRender(videoId: number, resolution: RenderResolution, aspe
   try {
     // The editable full script is authoritative. Do not append per-shot
     // dialogue from the original blueprint, which can be stale after an edit.
-    const script = (video.script ?? video.approvedScript ?? video.voiceover ?? video.title).trim();
+    const script = [video.script, video.approvedScript, video.voiceover, video.title].find(value => typeof value === "string" && value.trim().length > 0)?.trim() ?? "";
     const renderJob: CommercialRenderJob = {
       videoId, resolution, aspectRatio: aspectRatio as CommercialAspectRatio, captionsEnabled: false,
       script,

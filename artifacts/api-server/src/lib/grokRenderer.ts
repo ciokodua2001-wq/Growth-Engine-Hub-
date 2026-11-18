@@ -160,17 +160,28 @@ export class GrokCommercialRenderer implements CommercialRenderer {
   }
 
   private async requestJson(method: "GET" | "POST", url: string, apiKey: string, body?: unknown): Promise<GrokStatus> {
-    const response = await this.deps.fetch(url, {
-      method,
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!response.ok) {
-      const errorText = (await response.text()).slice(0, 500);
-      throw new Error(`Grok API ${method} failed (HTTP ${response.status}): ${errorText}`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(new DOMException("Grok API request timed out", "TimeoutError")), 30_000);
+    try {
+      const response = await this.deps.fetch(url, {
+        method,
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        signal: controller.signal,
+      });
+      // Consume response text in this try/catch: fetch may resolve headers and
+      // then abort while the body is streaming. Awaiting json() outside guarded
+      // handling caused an unhandled Readable error to terminate the API process.
+      const responseText = await response.text();
+      if (!response.ok) throw new Error(`Grok API ${method} failed (HTTP ${response.status}): ${responseText.slice(0, 500)}`);
+      try { return JSON.parse(responseText) as GrokStatus; }
+      catch { throw new Error(`Grok API ${method} returned invalid JSON`); }
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error(`Grok API ${method} timed out while requesting ${new URL(url).pathname}`);
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
-    return await response.json() as GrokStatus;
   }
 }
 

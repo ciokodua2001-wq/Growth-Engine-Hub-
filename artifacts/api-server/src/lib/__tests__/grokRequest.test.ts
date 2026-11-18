@@ -8,6 +8,11 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
     expect(extractNarrationLines(`SHOT 1\n3s\nActor Line\n"WHAT?! Seven out of thirty?!"\nMother reacts.\n\nSHOT 2\nDialogue: Seven?! Are you serious?`))
       .toEqual(["WHAT?! Seven out of thirty?!", "Seven?! Are you serious?"]);
     expect(extractNarrationLines("[Smiles, then points at the product.]\nFade out.\nSHOT 1")).toEqual([]);
+    expect(extractNarrationLines("From frustration to confidence!\nChoose Quantivarian today.")).toEqual([
+      "From frustration to confidence!", "Choose Quantivarian today.",
+    ]);
+    expect(extractNarrationLines("Visual direction: A calm, bright home\nActor Line: Welcome to our home."))
+      .toEqual(["Welcome to our home."]);
   });
   it("builds the approved 9:16 silent picture request with no captions", () => {
     const body = buildGrokGenerationRequest({

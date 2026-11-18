@@ -557,7 +557,7 @@ function RenderPanel({
       {
         id: projectId,
         videoId: video.id,
-        data: { resolution: "1080p" as const, aspectRatio, captionsEnabled: false, provider: "grok" as const },
+        data: { resolution: "1080p" as const, aspectRatio, captionsEnabled: false, provider: "grok" as const, durationSec: Math.min(60, Math.max(1, Math.round(video.duration ?? 45))) },
       },
       {
         onSuccess: () => {
@@ -1439,7 +1439,7 @@ export default function ProjectVideos() {
           <div className="flex flex-col gap-0.5">
             <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider px-0.5">Duration</p>
             <div className="flex rounded-xl border border-border overflow-hidden">
-              {([15, 30, 45, 60, 90] as const).map((d) => (
+              {([15, 30, 45, 60] as const).map((d) => (
                 <button key={d} onClick={() => setTargetDuration(d)}
                   className={`px-3 py-2 text-sm font-medium transition-colors ${targetDuration === d ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
                   {d}s

@@ -795,6 +795,12 @@ export interface VideoRenderInput {
   captionsEnabled?: boolean;
   /** Video generation provider for this render. Grok is disabled unless explicitly enabled by deployment configuration. */
   provider?: VideoRenderInputProvider;
+  /**
+     * Exact requested final commercial duration in seconds (Grok provider only).
+     * @minimum 1
+     * @maximum 60
+     */
+  durationSec?: number;
 }
 
 export interface VideoRenderStatus {
