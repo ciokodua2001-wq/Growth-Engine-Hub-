@@ -8,6 +8,7 @@ import { GROK_STORAGE_REFERENCE_PREFIX } from "../lib/grokRenderer.js";
 import { checkRenderRequirements, checkGrokRenderRequirements, startVideoRender, type RenderResolution, type AspectRatio } from "../lib/videoRenderPipeline.js";
 import { checkVideoSeconds, reserveVideoSeconds } from "../lib/videoWallet.js";
 import pino from "pino";
+import { pipeReadableHandled } from "../lib/streamProxy.js";
 
 const router = Router();
 const logger = pino({ name: "render.route" });
@@ -249,7 +250,13 @@ router.get("/projects/:id/videos/:videoId/media", async (req, res) => {
     res.setHeader("Content-Disposition", 'inline; filename="growthforge-commercial.mp4"');
     if (upstream.body) {
       const { Readable } = await import("stream");
-      Readable.fromWeb(upstream.body as import("stream/web").ReadableStream).pipe(res);
+      const source = Readable.fromWeb(upstream.body as import("stream/web").ReadableStream);
+      pipeReadableHandled(source, res, (error) => {
+        logger.error({ err: error, projectId, videoId }, "Grok video body stream failed");
+        if (res.destroyed) return;
+        if (!res.headersSent) res.status(502).json({ error: "Stored video is temporarily unavailable" });
+        else res.end();
+      });
     } else res.end();
   } catch (error) {
     logger.error({ err: error, projectId, videoId }, "Grok video stream failed");
