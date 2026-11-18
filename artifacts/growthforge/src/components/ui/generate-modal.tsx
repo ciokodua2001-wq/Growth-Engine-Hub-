@@ -215,20 +215,20 @@ export default function GenerateModal({
                   <div>
                     <div className="flex items-center gap-2 mb-1.5">
                       <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Sample script / creative vision
+                        Sample script / creative brief
                       </label>
                       <span className="text-[10px] text-muted-foreground/50 font-normal">Optional</span>
                     </div>
                     <textarea
-                      aria-label="Sample script or creative vision"
+                      aria-label="Sample script or creative brief"
                       value={sampleScript}
                       onChange={(e) => setSampleScript(e.target.value)}
-                      placeholder="Paste a rough sample of the story, lines, or energy you have in mind. The writer will tailor it to your brand and make it more cinematic—not copy it word-for-word."
+                      placeholder="Paste your sample script or detailed brief. The writer should follow your scene structure, key dialogue, timing, language, and CTA, then build on it with cinematic direction."
                       rows={5}
                       maxLength={12000}
                       className="w-full bg-secondary border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-y leading-relaxed"
                     />
-                    <p className="text-[10px] text-muted-foreground/60 mt-1">Use this for inspiration, tone, beats, or sample dialogue. It is not treated as final approved dialogue.</p>
+                    <p className="text-[10px] text-muted-foreground/60 mt-1">Your scenes and key lines guide the generated brief; added cinematic direction should build on them, not replace them.</p>
                   </div>
                 )}
 

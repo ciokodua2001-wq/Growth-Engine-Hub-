@@ -109,32 +109,28 @@ export interface VideoBlueprintResult {
   viralPotential: number;
 }
 
-const AI_VIDEO_DIRECTOR_SYSTEM = `You are a world-class screenwriter and commercial film director. You write ACTOR PERFORMANCE SCRIPTS — dialogue spoken BY a character directly to camera, not narration about them.
+const AI_VIDEO_DIRECTOR_SYSTEM = `You are a world-class commercial screenwriter, creative director, and film director. Create specific, production-ready commercial briefs grounded in the business context and the user's creative vision.
 
-The script and shot list you produce will be performed by a real AI actor with accurate lip sync. Every word must sound like a real human speaking conversationally — not a commercial announcer, not a documentary narrator.
+CREATIVE-VISION FIDELITY — HIGHEST PRIORITY
+When the user provides a sample script or detailed creative brief, treat it as the controlling source of creative intent, not a loose prompt. Preserve its core concept, scene order, named roles, key dialogue, requested language/accent, duration/timing, product benefits, visual beats, brand reveal, and call to action. Do not flatten a multi-character comedy or scene-by-scene brief into a generic single-speaker monologue. Do not replace distinctive requested dialogue with generic copy. Keep provided lines verbatim wherever possible; make only minimal edits needed for clarity, timing, or factual accuracy. If a requested product claim cannot be verified from the supplied brief/business context, retain the idea cautiously or flag it in the brief rather than inventing a claim.
 
-SCRIPT RULES
-- Write in FIRST PERSON as the character speaking directly to the viewer ("you", "your", "I", "we")
-- NO scene labels, NO beat markers, NO stage directions anywhere in the script field ([HOOK], [SCENE 1], etc. are FORBIDDEN)
-- NO narration phrases ("here we see...", "in this scene...", "let me show you...")
-- Natural, conversational speech: short sentences, contractions, direct questions, direct address
-- The full script is ONE continuous performance delivered start to finish by the actor
+ADAPTATION, NOT REPLACEMENT
+Build on the user's idea with stronger comedy, emotional escalation, vivid cinematic direction, performances, transitions, music, and a memorable payoff when these support the supplied vision. Preserve any exact requirements and do not introduce contradictory creative choices. Clearly distinguish spoken dialogue/voiceover from stage directions and on-screen text. Keep the requested language; never add unrequested languages or slang.
 
-PER-SHOT DIALOGUE
-Each shot must include the EXACT WORDS the actor speaks during that shot. The lip-sync engine uses these words at the frame level. Shots where the actor is silent (establishing shots, reaction beats, transition moments) must have an empty dialogue string "".
+SCRIPT AND SHOTS
+The script may use scene headings, time ranges, character names, action, dialogue, and voiceover when the concept calls for them. A multi-character script is allowed and expected when the user supplies multiple roles. Maintain identity, wardrobe, and location continuity. The script's spoken words should fit the selected duration; scene directions and headings are not spoken. Each cinematic-plan shot must include the exact words spoken in that shot (or an empty string when silent), in the same order as the script. Preserve user-provided dialogue verbatim in both the script and shot dialogue.
 
-WORD COUNT GUIDELINES (match script length to requested duration)
-15s → ~35–40 words | 30s → ~70–80 words | 45s → ~105–120 words | 60s → ~140–160 words | 90s → ~210–230 words | 120s → ~280–310 words
+DURATION
+15s → ~35–40 spoken words | 30s → ~70–80 | 45s → ~105–120 | 60s → ~140–160 | 90s → ~210–230 | 120s → ~280–310. The requested duration field must be exact, and shot durations must sum exactly to it. If supplied dialogue exceeds the speaking-time budget, preserve the user's key quoted lines and CTA first, tighten nonessential dialogue/voiceover, and retain every requested scene as a visual beat. Never solve a timing conflict by deleting scenes, changing the concept, or silently replacing the user's key dialogue with generic copy.
 
 CINEMATIC DIRECTION
-Think like: Director + Cinematographer + Commercial Producer + Creative Agency.
-Every shot must feel filmed by a real production crew — real locations, real lighting, real motion, real performance.
-Output should resemble: Kling-quality, Higgsfield-quality, Runway-quality productions. Luxury commercial advertisements.
+Think like a director, cinematographer, and commercial production company. Give concrete, filmable action, authentic performances, camera movement, lighting, transitions, music/sound cues, and visual progression. Preserve described casting, setting, cultural context, wardrobe, and continuity. Do not invent product capabilities, guarantees, endorsements, or other factual claims.
 
-CHARACTER CONSISTENCY
-If an avatar or character is described, preserve their look across every shot: face structure, hair, skin, clothing, distinguishing features. Identity consistency is mandatory.
+Respond with ONLY a single JSON object matching the requested structure, no prose outside the JSON.`;
 
-Respond with ONLY a single JSON object, no prose.`;
+export function buildCreativeVisionInstructions(sampleScript: string, targetDuration: number): string {
+  return `\n\nUSER CREATIVE BRIEF — CONTROLLING SOURCE OF TRUTH\nThe complete sample below is intentional creative direction, not disposable inspiration. Follow its scene sequence, roles, timing, key dialogue, language, tone, brand reveal, and CTA. Preserve distinctive supplied dialogue substantially verbatim; do not replace it with a generic monologue. Add or heighten cinematic comedy, emotion, music, transitions, and visuals around the user's idea, without contradicting it. Keep the selected runtime at exactly ${targetDuration} seconds and ensure the scenes and spoken lines fit.\n\nBEGIN USER SAMPLE (preserve the content and intent):\n${sampleScript}\nEND USER SAMPLE\n\nTranslate the supplied scene beats into a screenplay-style script and a matching cinematic shot plan. Keep all requested spoken lines in order and assign them accurately to shot dialogue. Use stage direction for visual/action/music cues; do not mistake those cues for spoken words.\n`;
+}
 
 async function generateSingleVideoBlueprint(
   ctx: GroundingContext,
@@ -152,16 +148,16 @@ async function generateSingleVideoBlueprint(
     system: AI_VIDEO_DIRECTOR_SYSTEM,
     prompt: `${renderGroundingBlock(ctx)}
 ${opts.prompt ? `\nAdditional direction from the user: ${opts.prompt}\n` : ""}
-${opts.sampleScript ? `\nUSER SAMPLE SCRIPT / CREATIVE VISION (reference only — do not copy verbatim):\n${opts.sampleScript}\n\nInfer the intended story, voice, emotional beats, and energy. Preserve that core intent, then tailor and rewrite the dialogue for this business, its audience, and the ${durationTarget}-second runtime. When consistent with the sample, elevate it into a bolder, more boisterous, highly cinematic commercial with vivid visual escalation, confident performance, dynamic camera movement, dramatic lighting, and a memorable payoff. Keep claims grounded in the business context; do not invent product capabilities or promises. Deliver original, concise, speakable actor dialogue rather than pasted sample text.\n` : ""}
+${opts.sampleScript ? buildCreativeVisionInstructions(opts.sampleScript, durationTarget) : ""}
 Create exactly 1 short-form cinematic marketing video blueprint for this business${typeHint}. This is video ${opts.index + 1} of ${opts.total} — make it feel distinct from others in the set.
 
 TARGET DURATION: ${durationTarget} seconds. The "duration" field MUST be exactly ${durationTarget}. Script word count must match the duration guideline in the system prompt. Shot durations must sum to exactly ${durationTarget}s.
 
-OUTPUT CONSTRAINTS (strictly enforce to avoid truncation):
-- script: write exactly enough words to fill ${durationTarget}s of spoken delivery (see word count guidelines above)
-- storyboard: max 2 sentences
-- shots array: exactly 4 shots, no more; shot durations must sum to ${durationTarget}
-- All string fields: max 1 sentence each
+OUTPUT GUIDANCE:
+- Make the script and storyboard reflect the supplied creative brief, including scene headings, timing, character dialogue, transitions, and CTA where provided. Do not flatten or omit requested scenes.
+- Keep the total spoken dialogue within the selected runtime. If the sample is overlength, keep its signature quoted lines and CTA, shorten less-essential dialogue/voiceover, and preserve the full scene sequence visually. Do not silently omit content; where a material conflict remains, state it briefly in the storyboard instead of inventing a different concept.
+- Provide at least one cinematic-plan shot for every distinct scene in the user's sample (or 5–10 coherent shots if no scene structure is supplied). Additional shots are welcome when they help translate the brief. Shot durations must be positive integers summing to exactly ${durationTarget}.
+- Keep each shot's dialogue faithful to the corresponding spoken line(s), in order. Use multi-sentence descriptions wherever the requested visual detail needs them; do not compress away essential direction.
 
 Return JSON with this exact structure:
 {
@@ -169,42 +165,42 @@ Return JSON with this exact structure:
     {
       "title": "short punchy title",
       "type": "promo | product | social",
-      "script": "full actor dialogue as one continuous spoken performance — first person direct to camera, no scene markers or stage directions",
-      "storyboard": "2-sentence visual narrative overview",
+      "script": "complete screenplay-style commercial script. Preserve the user's scene structure, timing, named roles, key dialogue, requested language, and CTA; include concise stage directions and clearly labeled dialogue/voiceover as appropriate",
+      "storyboard": "scene-by-scene visual narrative reflecting the user's supplied beats, transitions, and cinematic direction",
       "duration": ${durationTarget},
       "hookStrength": <0–100 integer>,
       "engagementPotential": <0–100 integer>,
       "viralPotential": <0–100 integer>,
       "cinematicPlan": {
         "visualStyle": "one-sentence style description",
-        "characterDescription": "appearance in one sentence",
-        "environment": "location in one sentence",
-        "lighting": "lighting in one sentence",
-        "cameraLanguage": "primary techniques in one sentence",
-        "performanceDirection": "acting direction in one sentence",
+        "characterDescription": "consistent appearance and wardrobe of all featured characters",
+        "environment": "locations and continuity across scenes",
+        "lighting": "lighting direction, including any scene-to-scene transition",
+        "cameraLanguage": "camera and lens language suited to the supplied scenes",
+        "performanceDirection": "performance direction for each role, including comedic and emotional beats where needed",
         "shots": [
           {
             "shotNumber": 1,
             "duration": <integer seconds>,
             "dialogue": "exact words the actor speaks during this shot — or empty string if silent",
-            "environment": "location — one phrase",
-            "subjectAction": "what subject does — one phrase",
-            "facialExpression": "expression — two words",
-            "bodyMovement": "movement — one phrase",
+            "environment": "specific location and continuity detail",
+            "subjectAction": "filmable action and story beat for this shot",
+            "facialExpression": "specific readable expression",
+            "bodyMovement": "specific performance movement",
             "cameraMovement": "e.g. Dolly In",
             "lensStyle": "e.g. 35mm",
-            "lighting": "lighting — one phrase",
-            "visualEffects": "effects — one phrase or 'none'",
-            "transition": "e.g. Hard Cut"
+            "lighting": "specific lighting direction for this shot",
+            "visualEffects": "specific effect or 'none'",
+            "transition": "transition into the next story beat"
           }
         ],
-        "textOverlayPlacement": "one sentence",
-        "finalHeroShot": "one sentence"
+        "textOverlayPlacement": "placement and timing for requested on-screen brand/CTA text; include exact user-supplied text where appropriate",
+        "finalHeroShot": "detailed final brand reveal and call-to-action frame, including exact supplied URL and the duration it remains visible"
       }
     }
   ]
 }`,
-    maxTokens: 4096,
+    maxTokens: 8192,
     locale: opts.locale,
   });
   const v = response.videos[0];
