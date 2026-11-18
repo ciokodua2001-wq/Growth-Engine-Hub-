@@ -11,9 +11,7 @@ import { Buffer } from "node:buffer";
  * service-account key as a JSON *string* env var (not a mounted file path),
  * since Lightsail/VPS deployments pull all config from process.env.
  *
- * Falls back to a plain API key (GOOGLE_GENAI_API_KEY) if no service account
- * is configured — Cloud TTS's REST surface does accept API-key auth, so the
- * same single key used for Gemini can work here too in simpler deployments.
+ * A Gemini Developer API key is not valid authentication for Cloud Text-to-Speech.
  */
 // Treats unset, blank, and un-filled-in placeholder values (e.g. "REPLACE_ME",
 // copied verbatim from .env.example) as "not configured" rather than crashing
@@ -39,19 +37,28 @@ function buildClient(): TextToSpeechClient {
     return new TextToSpeechClient({ projectId, credentials });
   }
 
-  const apiKey = process.env["GOOGLE_GENAI_API_KEY"];
-  if (isConfigured(apiKey)) {
-    return new TextToSpeechClient({ apiKey });
-  }
-
   throw new Error(
-    "No Google Cloud TTS credentials configured. Set GOOGLE_CLOUD_PROJECT_ID + " +
-      "GOOGLE_APPLICATION_CREDENTIALS_JSON_STRING (service account, recommended), " +
-      "or GOOGLE_GENAI_API_KEY as a simpler fallback.",
+    "No Google Cloud TTS service-account credentials configured. Set GOOGLE_CLOUD_PROJECT_ID and " +
+      "GOOGLE_APPLICATION_CREDENTIALS_JSON_STRING to a valid service-account identity. GOOGLE_GENAI_API_KEY " +
+      "cannot authenticate with Cloud Text-to-Speech.",
   );
 }
 
-export const ttsClient = buildClient();
+let cachedClient: TextToSpeechClient | undefined;
+function getClient(): TextToSpeechClient {
+  cachedClient ??= buildClient();
+  return cachedClient;
+}
+
+// Keep importing the TTS integration safe for unrelated render/provider code;
+// credentials are validated only when an actual Cloud TTS operation is made.
+export const ttsClient = new Proxy({} as TextToSpeechClient, {
+  get(_target, property) {
+    const client = getClient();
+    const value = Reflect.get(client, property, client) as unknown;
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});
 
 export type NarrationLocale = "en-CA" | "fr-CA";
 export type AudioFormat = "mp3" | "wav";

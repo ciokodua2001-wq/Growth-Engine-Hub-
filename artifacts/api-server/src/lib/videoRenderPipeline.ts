@@ -11,6 +11,7 @@ import { deductPlatformCredits } from "./platformCredits.js";
 import { deductVideoSeconds, refundReservedVideoSeconds } from "./videoWallet.js";
 import { GrokCommercialRenderer } from "./grokRenderer.js";
 import { grokBillableSeconds } from "./grokRequest.js";
+import { hasGoogleCloudTtsCredentials } from "./googleTtsReadiness.js";
 import type { CommercialAspectRatio, CommercialRenderJob } from "./commercialRenderer.js";
 
 const FFMPEG_BIN = "ffmpeg";
@@ -79,6 +80,7 @@ export function checkGrokRenderRequirements(): RenderRequirementsResult {
   if (!process.env.OBJECT_STORAGE_ACCESS_KEY_ID) missing.push("OBJECT_STORAGE_ACCESS_KEY_ID");
   if (!process.env.OBJECT_STORAGE_SECRET_ACCESS_KEY) missing.push("OBJECT_STORAGE_SECRET_ACCESS_KEY");
   if (!(Number(process.env.GROK_VIDEO_COST_PER_SECOND_USD) > 0)) missing.push("GROK_VIDEO_COST_PER_SECOND_USD (required for explicit cost estimate)");
+  if (!hasGoogleCloudTtsCredentials()) missing.push("Google Cloud Text-to-Speech service-account credentials (GOOGLE_CLOUD_PROJECT_ID + GOOGLE_APPLICATION_CREDENTIALS_JSON_STRING)");
   return { ready: missing.length === 0, missing };
 }
 

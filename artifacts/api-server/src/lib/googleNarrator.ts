@@ -16,6 +16,7 @@
 
 import pino from "pino";
 import { synthesizeSpeech, type NarrationLocale } from "@workspace/integrations-google-tts-server";
+import { hasGoogleCloudTtsCredentials } from "./googleTtsReadiness.js";
 import { deductPlatformCredits } from "./platformCredits.js";
 import { objectStorageClient, signObjectURL } from "./objectStorage.js";
 
@@ -166,10 +167,7 @@ export function checkNarratorRequirements(): {
   provider: "google-tts";
   configured: boolean;
 } {
-  const configured = !!(
-    (process.env.GOOGLE_CLOUD_PROJECT_ID && process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON_STRING) ||
-    process.env.GOOGLE_GENAI_API_KEY
-  );
+  const configured = hasGoogleCloudTtsCredentials();
   return { ready: configured, provider: "google-tts", configured };
 }
 
