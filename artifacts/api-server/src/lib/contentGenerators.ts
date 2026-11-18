@@ -75,6 +75,8 @@ export interface CinematicShot {
   duration: number;
   environment: string;
   subjectAction: string;
+  objectSupport?: string;
+  objectHandling?: string;
   facialExpression: string;
   bodyMovement: string;
   cameraMovement: string;
@@ -123,8 +125,8 @@ The script may use scene headings, time ranges, character names, action, dialogu
 DURATION
 15s → ~35–40 spoken words | 30s → ~70–80 | 45s → ~105–120 | 60s → ~140–160 | 90s → ~210–230 | 120s → ~280–310. The requested duration field must be exact, and shot durations must sum exactly to it. If supplied dialogue exceeds the speaking-time budget, preserve the user's key quoted lines and CTA first, tighten nonessential dialogue/voiceover, and retain every requested scene as a visual beat. Never solve a timing conflict by deleting scenes, changing the concept, or silently replacing the user's key dialogue with generic copy.
 
-CINEMATIC DIRECTION
-Think like a director, cinematographer, and commercial production company. Give concrete, filmable action, authentic performances, camera movement, lighting, transitions, music/sound cues, and visual progression. Preserve described casting, setting, cultural context, wardrobe, and continuity. Do not invent product capabilities, guarantees, endorsements, or other factual claims.
+CINEMATIC DIRECTION AND PHYSICAL REALISM
+Think like a director, cinematographer, and commercial production company. Give concrete, filmable action, authentic performances, camera movement, lighting, transitions, music/sound cues, and visual progression. Preserve described casting, setting, cultural context, wardrobe, and continuity. Do not invent product capabilities, guarantees, endorsements, or other factual claims. Actions must obey ordinary real-world physics: gravity, support, balance, friction, inertia, object permanence, and liquid behavior. Props never float, teleport, pass through objects, or move without a visible cause. Show contact before handling; objects remain held or supported until visibly released; liquids stay in vessels except while visibly poured. Match every physical action to the user’s script and shot plan, in order, without contradiction. Keep actions simple enough to complete within their shot duration; never invent a result or skip necessary handling steps.
 
 Respond with ONLY a single JSON object matching the requested structure, no prose outside the JSON.`;
 
@@ -157,6 +159,7 @@ OUTPUT GUIDANCE:
 - Make the script and storyboard reflect the supplied creative brief, including scene headings, timing, character dialogue, transitions, and CTA where provided. Do not flatten or omit requested scenes.
 - Keep the total spoken dialogue within the selected runtime. If the sample is overlength, keep its signature quoted lines and CTA, shorten less-essential dialogue/voiceover, and preserve the full scene sequence visually. Do not silently omit content; where a material conflict remains, state it briefly in the storyboard instead of inventing a different concept.
 - Provide at least one cinematic-plan shot for every distinct scene in the user's sample (or 5–10 coherent shots if no scene structure is supplied). Additional shots are welcome when they help translate the brief. Shot durations must be positive integers summing to exactly ${durationTarget}.
+- For every physical action, specify the object, who/what supports it, how contact is made, and the visible action/result. Preserve the exact real-world cause-and-effect in the supplied scene; do not add impossible or unsupported prop behavior.
 - Keep each shot's dialogue faithful to the corresponding spoken line(s), in order. Use multi-sentence descriptions wherever the requested visual detail needs them; do not compress away essential direction.
 
 Return JSON with this exact structure:
@@ -184,7 +187,9 @@ Return JSON with this exact structure:
             "duration": <integer seconds>,
             "dialogue": "exact words the actor speaks during this shot — or empty string if silent",
             "environment": "specific location and continuity detail",
-            "subjectAction": "filmable action and story beat for this shot",
+            "subjectAction": "filmable action and story beat for this shot, preserving script order",
+            "objectSupport": "what supports each visible prop and when it is held or set down",
+            "objectHandling": "visible contact, grip, transfer, opening, pouring, and release sequence; empty string if no prop interaction",
             "facialExpression": "specific readable expression",
             "bodyMovement": "specific performance movement",
             "cameraMovement": "e.g. Dolly In",

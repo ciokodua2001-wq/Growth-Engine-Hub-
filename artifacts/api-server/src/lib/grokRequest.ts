@@ -1,5 +1,6 @@
 import { extractNarrationLines } from "./dialogue.js";
 import type { CommercialRenderJob } from "./commercialRenderer.js";
+import { withPhysicalContinuity } from "./physicalContinuity.js";
 
 export const GROK_VIDEO_MODEL = "grok-imagine-video-1.5-lite";
 export const GROK_VIDEO_ENDPOINT = "https://api.x.ai/v1/videos/generations";
@@ -42,7 +43,7 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
     try { return JSON.parse(job.cinematicPlan) as {
       visualStyle?: string; characterDescription?: string; environment?: string; lighting?: string;
       cameraLanguage?: string; performanceDirection?: string; textOverlayPlacement?: string; finalHeroShot?: string;
-      shots?: Array<{ duration?: number; environment?: string; subjectAction?: string; facialExpression?: string; bodyMovement?: string; cameraMovement?: string; lensStyle?: string; lighting?: string; visualEffects?: string; transition?: string; dialogue?: string }>;
+      shots?: Array<{ duration?: number; environment?: string; subjectAction?: string; objectSupport?: string; objectHandling?: string; facialExpression?: string; bodyMovement?: string; cameraMovement?: string; lensStyle?: string; lighting?: string; visualEffects?: string; transition?: string; dialogue?: string }>;
     }; }
     catch { return null; }
   })();
@@ -65,7 +66,8 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
     if (shotEnd <= segmentStartSec || shotStart >= segmentEndSec) return "";
     const parts = [
       ["Duration", shot.duration ? `${shot.duration} seconds` : ""], ["Environment", shot.environment],
-      ["Subject action", shot.subjectAction],
+      ["Subject action", shot.subjectAction], ["Prop support", shot.objectSupport],
+      ["Prop handling", shot.objectHandling],
       ["Facial expression", shot.facialExpression], ["Body movement", shot.bodyMovement],
       ["Camera movement", shot.cameraMovement], ["Lens", shot.lensStyle], ["Lighting", shot.lighting],
       ["Visual effects", shot.visualEffects], ["Transition", shot.transition],
@@ -82,7 +84,7 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
   const dialogueInstruction = spokenLines.length
     ? `STRICT AUDIO RULE: The only intelligible speech allowed is this exact approved dialogue, verbatim and in order: ${spokenLines.map(line => `“${line}”`).join(" ")}. Speak these lines only. Never speak, sing, paraphrase, describe, or narrate any visual action, gesture, expression, shot description, scene direction, camera instruction, character description, prompt text, or stage direction. Do not add any other words or voices. Natural synchronized ambience/music is allowed only without intelligible extra speech and must not obscure the approved lines.`
     : "STRICT AUDIO RULE: Generate only natural synchronized environmental audio/music appropriate to the scene. Absolutely no intelligible speech, narration, lyrics, words, or voices.";
-  const prompt = `${content}\n\n${dialogueInstruction}\n\nVisual shot descriptions are silent visual directions, not dialogue. Show each shot sequentially, never as simultaneous panels.\n\n${GROK_NO_TEXT_INSTRUCTIONS}`;
+  const prompt = withPhysicalContinuity(`${content}\n\n${dialogueInstruction}\n\nVisual shot descriptions are silent visual directions, not dialogue. Show each shot sequentially, never as simultaneous panels.\n\n${GROK_NO_TEXT_INSTRUCTIONS}`);
 
   const aspectRatio = grokSourceAspectRatio(job.aspectRatio);
 

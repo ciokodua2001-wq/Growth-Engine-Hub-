@@ -12,6 +12,7 @@ import { getVeoRenderer, VEO_SCENE_DURATION_SEC } from "./veoRenderer.js";
 import { getOmniRenderer, OMNI_SCENE_DURATION_SEC } from "./omniRenderer.js";
 import type { CommercialSceneType, KlingSceneJob } from "@workspace/db";
 import { extractDialogueLines, distributeDialogue } from "./dialogue.js";
+import { formatCinematicShotPlan, withPhysicalContinuity } from "./physicalContinuity.js";
 
 const logger = pino({ name: "sceneManager" });
 
@@ -307,6 +308,7 @@ export class SceneManager {
               .filter(Boolean)
               .join(" "),
           );
+          const physicallyGroundedPrompt = withPhysicalContinuity(fullPrompt);
           return {
             videoId,
             sceneIndex: s.sceneIndex,
@@ -322,7 +324,7 @@ export class SceneManager {
             marketingObjective: s.marketingObjective,
             narrationLine: s.narrationLine ?? null,
             audioMood: s.audioMood ?? null,
-            prompt: fullPrompt,
+            prompt: physicallyGroundedPrompt,
             promptHash,
             status: "pending" as const,
             model: KLING_DEFAULT_MODEL,
@@ -532,7 +534,7 @@ export class SceneManager {
         sceneJobId: scene.id,
         videoId: scene.videoId,
         sceneIndex: scene.sceneIndex,
-        prompt: scene.prompt,
+        prompt: withPhysicalContinuity(scene.prompt),
         aspectRatio: scene.aspectRatio,
         durationSec: KLING_DURATION_SEC,
         newSceneCut: scene.newSceneCut,
@@ -597,7 +599,7 @@ export class SceneManager {
         sceneJobId: scene.id,
         videoId: scene.videoId,
         sceneIndex: scene.sceneIndex,
-        prompt: scene.prompt,
+        prompt: withPhysicalContinuity(scene.prompt),
         aspectRatio: scene.aspectRatio,
         durationSec: VEO_SCENE_DURATION_SEC,
         newSceneCut: scene.newSceneCut,
@@ -650,7 +652,7 @@ export class SceneManager {
         sceneJobId: scene.id,
         videoId: scene.videoId,
         sceneIndex: scene.sceneIndex,
-        prompt: scene.prompt,
+        prompt: withPhysicalContinuity(scene.prompt),
         aspectRatio: scene.aspectRatio,
         durationSec: OMNI_SCENE_DURATION_SEC,
         newSceneCut: scene.newSceneCut,
@@ -734,7 +736,7 @@ export class SceneManager {
       let klingTaskId: string;
 
       try {
-        klingTaskId = await this.submitToKling(scene.prompt, scene.aspectRatio, externalTaskId);
+        klingTaskId = await this.submitToKling(withPhysicalContinuity(scene.prompt), scene.aspectRatio, externalTaskId);
         await db
           .update(klingSceneJobsTable)
           .set({ klingTaskId, externalTaskId, status: "submitted", updatedAt: new Date() })
@@ -996,6 +998,8 @@ Instead use: people in motion, natural landscapes, abstract environments, hands
 interacting with objects (not screens), aerial/drone shots, lifestyle moments,
 close-ups of faces with emotion, atmospheric environments without signage.
 
+PHYSICAL CONTINUITY: Every requested action must obey ordinary gravity, support, balance, friction, inertia, and object permanence. No floating, teleporting, clipping, unsupported motion, or impossible liquid behavior. Preserve each shot-plan action and the real prop handling sequence; show contact before lifting/placing/pouring and keep objects supported when released. Never invent a contradictory visual action.
+
 The Kling prompt (klingPrompt) is the VISUAL description only - do NOT include audio in it:
 - Photorealistic, cinema-grade, 4K quality
 - 350 characters max
@@ -1029,11 +1033,14 @@ Return ONLY valid JSON in this exact shape:
   ]
 }`;
 
+    const cinematicShotPlan = formatCinematicShotPlan(video.cinematicPlan);
     const userPrompt = `Create ${targetSceneCount} commercial scene${targetSceneCount === 1 ? "" : "s"} for this video:
 
 Title: ${video.title}
 Script: ${video.script ?? "(not provided)"}
 Storyboard: ${video.storyboard ?? "(not provided)"}
+Approved cinematic shot plan (preserve each physical action, prop state, support/contact, and action order; do not contradict it):
+${cinematicShotPlan || "(not provided)"}
 Duration: ${video.duration ?? 30} seconds (target: ${targetSceneCount} scenes × 5 s clips)
 Aspect ratio: ${video.aspectRatio ?? "16:9"}
 ${groundingBlock ? `\nBusiness context:\n${groundingBlock}` : ""}

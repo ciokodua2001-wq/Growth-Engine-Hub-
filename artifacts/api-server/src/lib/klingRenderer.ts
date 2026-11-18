@@ -2,6 +2,7 @@ import pino from "pino";
 import { db } from "@workspace/db";
 import { klingSceneJobsTable, videosTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { withPhysicalContinuity } from "./physicalContinuity.js";
 import type {
   CommercialRenderer,
   CommercialRenderJob,
@@ -88,6 +89,8 @@ interface CinematicShot {
   duration: number;
   environment: string;
   subjectAction: string;
+  objectSupport?: string;
+  objectHandling?: string;
   facialExpression: string;
   bodyMovement: string;
   cameraMovement: string;
@@ -156,7 +159,7 @@ function buildScenePrompts(
         .join(" ");
       // slice() on a string (not the array) was silently capping every scene
       // prompt at 500 chars - long enough to drop the screen-safety suffix.
-      return parts;
+      return withPhysicalContinuity(parts);
     });
   }
 
@@ -170,7 +173,7 @@ function buildScenePrompts(
   return Array.from({ length: count }, (_, i) => {
     const scene = base[i % base.length] ?? title;
     const openingGuard = i === 0 ? " Opening frame: a single full-frame cinematic view; never split-screen, divided panels, triptych, grid, collage, or contact sheet." : " One full-frame cinematic shot.";
-    return `Cinematic marketing footage, professional grade, 4K quality. ${scene.slice(0, 350)}${openingGuard} Do not invent or render any logos, brand marks, watermarks, captions, subtitles, or legible text. ${SCREEN_SAFE_SUFFIX}`;
+    return withPhysicalContinuity(`Cinematic marketing footage, professional grade, 4K quality. ${scene.slice(0, 350)}${openingGuard} Do not invent or render any logos, brand marks, watermarks, captions, subtitles, or legible text. ${SCREEN_SAFE_SUFFIX}`);
   });
 }
 
