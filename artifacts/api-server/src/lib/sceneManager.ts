@@ -40,7 +40,7 @@ const KLING_NEGATIVE_PROMPT =
   "Chinese characters, Japanese characters, Korean characters, Cyrillic characters, Arabic script, " +
   "Devanagari script, Hebrew script, Thai script, Asian text, non-English text, foreign language text, " +
   "written words, typography, subtitles, captions, on-screen text, signs with writing, " +
-  "billboards with text, labels with words, readable text of any kind";
+  "billboards with text, labels with words, readable text of any kind, extra limbs, extra arms, extra hands, missing limbs, deformed hands, fused fingers, more than five fingers, wrong number of limbs, detached hands";
 
 /**
  * Hard cap on per-scene user-initiated retries via the /retry route.

@@ -30,7 +30,7 @@ const KLING_NEGATIVE_PROMPT =
   // Gibberish-text-on-screens mitigation (kept identical to klingRenderer.ts).
   "gibberish text, random letters, scrambled characters, corrupted typography, fake writing, " +
   "readable computer screen, readable phone screen, readable dashboard, legible software interface, " +
-  "subtitles, captions, letterboxed words";
+  "subtitles, captions, letterboxed words, extra limbs, extra arms, extra hands, missing limbs, deformed hands, fused fingers, more than five fingers, wrong number of limbs, detached hands";
 
 const SCREEN_SAFE_SUFFIX =
   "Any computer monitors, laptop screens, phones, dashboards, or software interfaces visible in frame must be rendered out of focus with only soft light and color gradients, or shown at a steep angle where no content is readable. Never render legible or invented text, letters, numbers, or UI labels on any screen surface.";

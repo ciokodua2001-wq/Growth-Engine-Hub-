@@ -30,7 +30,7 @@ const KLING_NEGATIVE_PROMPT =
   // on any screen surface it deems readable. Push screens to defocus/abstraction.
   "gibberish text, random letters, scrambled characters, corrupted typography, fake writing, " +
   "readable computer screen, readable phone screen, readable dashboard, legible software interface, " +
-  "subtitles, captions, letterboxed words";
+  "subtitles, captions, letterboxed words, extra limbs, extra arms, extra hands, missing limbs, deformed hands, fused fingers, more than five fingers, wrong number of limbs, detached hands";
 
 // Positive guidance appended to every scene prompt: screens are allowed but must
 // never carry legible content - out-of-focus glow or abstract UI shapes read as

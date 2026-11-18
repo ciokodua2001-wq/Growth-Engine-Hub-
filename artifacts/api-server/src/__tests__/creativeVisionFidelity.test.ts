@@ -39,3 +39,11 @@ describe("creative vision prompt fidelity", () => {
     expect(prompt).toContain("assign them accurately to shot dialogue");
   });
 });
+
+describe("brand-reveal handling", () => {
+  const prompt = buildCreativeVisionInstructions(sample, 45);
+  it("converts brand-reveal requests into post-composited text, not drawn logos", () => {
+    expect(prompt).toContain("never describe a logo");
+    expect(prompt).toContain("post-production");
+  });
+});

@@ -8,6 +8,25 @@ export const GROK_VIDEO_STATUS_ENDPOINT = "https://api.x.ai/v1/videos";
 export const GROK_NO_TEXT_INSTRUCTIONS =
   "Generate one full-frame, single continuous cinematic shot. Never create split-screen, divided panels, triptychs, grids, contact sheets, storyboards, picture-in-picture, or multiple simultaneous views. The opening frame must be a normal full-frame cinematic image, not a collage or montage. Do not generate, invent, approximate, or display any logo, brand mark, watermark, brand name, product label, brand reveal, caption, subtitle, text overlay, or legible written text. Show no branding in this generated video; logo use is a separate optional action the user may choose after the render is complete. Any computer monitors, laptop screens, phones, dashboards, or software interfaces visible in frame must be rendered out of focus with only soft light and color gradients, or shown at a steep angle where no content is readable; never render legible or invented text, letters, numbers, or UI labels on any screen surface.";
 
+const BRAND_ARTIFACT_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/\b(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+\.(?:com|org|net|io|co|ng|ai|app|uk|us|ca|de|fr|xyz|dev|me|biz|info)\b/gi, "the brand website"],
+  [/\b(?:the |a |an )?(?:logo|logotype|brand mark|brandmark|wordmark|app icon|app badge|watermark|favicon)s?\b/gi, "a brand color accent"],
+  [/\b(?:brand reveal|logo reveal|end card|end slate|title card|on-screen (?:brand|cta|logo|text)|text overlay|lower third|website url|domain name|url)\b/gi, "a clean brand color moment"],
+  [/\b(?:home screen|app screen|app interface|software interface|screen shows|displayed on (?:the )?screen|visible on (?:the )?screen|on(?:-| )screen)\b/gi, "a softly glowing screen surface"],
+];
+
+/** Neutralise any request that would make the video model draw a logo, URL, or
+ * on-screen text. AI video cannot reproduce a real logo or real text and will
+ * hallucinate a wrong one; brand identity is conveyed by colour/product and the
+ * real brand text is composited in post-production. */
+export function scrubBrandArtifacts(text: string): string {
+  let result = text;
+  for (const [pattern, replacement] of BRAND_ARTIFACT_REPLACEMENTS) {
+    result = result.replace(pattern, replacement);
+  }
+  return result;
+}
+
 export function grokBillableSeconds(requestedDuration: number | null | undefined, actualDuration?: number): number {
   const duration = actualDuration !== undefined && Number.isFinite(actualDuration)
     ? Math.ceil(actualDuration)
@@ -76,9 +95,9 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
   }).filter(Boolean).join("\n");
   const visualFallback = shots.length ? "" : job.storyboard || job.script;
   const segmentLabel = job.segmentCount ? `Clip ${job.segmentIndex ?? 1} of ${job.segmentCount}, covering seconds ${segmentStartSec}-${segmentEndSec} of one continuous ${job.totalDurationSec ?? segmentEndSec}-second commercial.` : "";
-  const content = [briefText, visualFallback, shotText, segmentLabel]
+  const content = scrubBrandArtifacts([briefText, visualFallback, shotText, segmentLabel]
     .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
-    .join("\n\n");
+    .join("\n\n"));
   if (!content.trim()) throw new Error("Grok generation requires a non-empty prompt");
   const spokenLines = extractNarrationLines(job.script ?? "");
   const dialogueInstruction = spokenLines.length

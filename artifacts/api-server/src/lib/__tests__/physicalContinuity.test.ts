@@ -37,3 +37,10 @@ describe("physical continuity safeguards", () => {
     expect(PHYSICAL_CONTINUITY_RULES).toContain("object permanence");
   });
 });
+
+describe("human anatomy safeguards", () => {
+  it("requires correct limb and finger counts", () => {
+    expect(PHYSICAL_CONTINUITY_RULES).toContain("exactly two arms");
+    expect(PHYSICAL_CONTINUITY_RULES).toContain("five fingers per hand");
+  });
+});

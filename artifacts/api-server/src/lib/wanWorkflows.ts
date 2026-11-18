@@ -56,7 +56,7 @@ export const WAN_I2V_LOW_NOISE_FILE = "wan2.2_i2v_low_noise_14B_fp8_scaled.safet
 export const WAN_NEGATIVE_PROMPT =
   "blurry, low quality, distorted, ugly, pixelated, amateur, watermark, text overlay, logo, " +
   "subtitles, captions, on-screen text, static image, still frame, jpeg artifacts, " +
-  "extra limbs, deformed hands, deformed face, worst quality, low resolution";
+  "extra limbs, extra arms, extra hands, missing limbs, deformed hands, fused fingers, more than five fingers, wrong number of limbs, detached hands, deformed face, worst quality, low resolution";
 
 /** WEBM output — see wanFfmpeg.ts for the transcode-to-mp4 step (ComfyUI has no mp4 muxer node). */
 export const WAN_SAVE_NODE_ID = "98";

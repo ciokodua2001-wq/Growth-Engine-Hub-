@@ -128,10 +128,13 @@ DURATION
 CINEMATIC DIRECTION AND PHYSICAL REALISM
 Think like a director, cinematographer, and commercial production company. Give concrete, filmable action, authentic performances, camera movement, lighting, transitions, music/sound cues, and visual progression. Preserve described casting, setting, cultural context, wardrobe, and continuity. Do not invent product capabilities, guarantees, endorsements, or other factual claims. Actions must obey ordinary real-world physics: gravity, support, balance, friction, inertia, object permanence, and liquid behavior. Props never float, teleport, pass through objects, or move without a visible cause. Show contact before handling; objects remain held or supported until visibly released; liquids stay in vessels except while visibly poured. Match every physical action to the user’s script and shot plan, in order, without contradiction. Keep actions simple enough to complete within their shot duration; never invent a result or skip necessary handling steps.
 
+BRAND IDENTITY WITHOUT RENDERED TEXT OR LOGOS
+A "brand reveal", "end card", "logo", or "keep the URL/domain visible" request must never become an instruction to draw a logo, wordmark, app icon, domain, URL, or any letters or words. AI video models cannot render a real logo or real text and will invent a wrong one. Convey brand identity instead through the brand's color palette, product usage, aesthetic, and mood; the final beat is a clean brand-color/product hero moment. The real brand name and website are composited as clean text by the platform in post-production. Never write "logo", "brand mark", "app icon", "URL", "domain", "on-screen text", or "shows text" into any shot field, storyboard line, or finalHeroShot.
+
 Respond with ONLY a single JSON object matching the requested structure, no prose outside the JSON.`;
 
 export function buildCreativeVisionInstructions(sampleScript: string, targetDuration: number): string {
-  return `\n\nUSER CREATIVE BRIEF — CONTROLLING SOURCE OF TRUTH\nThe complete sample below is intentional creative direction, not disposable inspiration. Follow its scene sequence, roles, timing, key dialogue, language, tone, brand reveal, and CTA. Preserve distinctive supplied dialogue substantially verbatim; do not replace it with a generic monologue. Add or heighten cinematic comedy, emotion, music, transitions, and visuals around the user's idea, without contradicting it. Keep the selected runtime at exactly ${targetDuration} seconds and ensure the scenes and spoken lines fit.\n\nBEGIN USER SAMPLE (preserve the content and intent):\n${sampleScript}\nEND USER SAMPLE\n\nTranslate the supplied scene beats into a screenplay-style script and a matching cinematic shot plan. Keep all requested spoken lines in order and assign them accurately to shot dialogue. Use stage direction for visual/action/music cues; do not mistake those cues for spoken words.\n`;
+  return `\n\nUSER CREATIVE BRIEF — CONTROLLING SOURCE OF TRUTH\nThe complete sample below is intentional creative direction, not disposable inspiration. Follow its scene sequence, roles, timing, key dialogue, language, tone, brand reveal, and CTA. Preserve distinctive supplied dialogue substantially verbatim; do not replace it with a generic monologue. Add or heighten cinematic comedy, emotion, music, transitions, and visuals around the user's idea, without contradicting it. Keep the selected runtime at exactly ${targetDuration} seconds and ensure the scenes and spoken lines fit.\n\nBEGIN USER SAMPLE (preserve the content and intent):\n${sampleScript}\nEND USER SAMPLE\n\nTranslate the supplied scene beats into a screenplay-style script and a matching cinematic shot plan. Keep all requested spoken lines in order and assign them accurately to shot dialogue. Use stage direction for visual/action/music cues; do not mistake those cues for spoken words. A requested "brand reveal", "logo", or "keep the URL/domain visible" beat is delivered as a clean brand-color/product moment; never describe a logo, wordmark, app icon, domain, URL, or on-screen text for the video model to draw (the platform composites the real brand name and website as clean text in post-production).\n`;
 }
 
 async function generateSingleVideoBlueprint(
@@ -199,8 +202,8 @@ Return JSON with this exact structure:
             "transition": "transition into the next story beat"
           }
         ],
-        "textOverlayPlacement": "placement and timing for requested on-screen brand/CTA text; include exact user-supplied text where appropriate",
-        "finalHeroShot": "detailed final brand reveal and call-to-action frame, including exact supplied URL and the duration it remains visible"
+        "textOverlayPlacement": "abstract brand-color/visual-motif placement and timing for the final beat (never a logo, wordmark, URL, or on-screen text)",
+        "finalHeroShot": "detailed final brand-color/product hero moment and call-to-action frame (never a logo, wordmark, URL, or drawn text; the real brand name and website are composited in post-production)"
       }
     }
   ]

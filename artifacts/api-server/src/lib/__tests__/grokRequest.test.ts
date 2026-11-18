@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { extractNarrationLines } from "../dialogue.js";
-import { buildGrokGenerationRequest, GROK_VIDEO_MODEL, grokBillableSeconds, grokSourceAspectRatio } from "../grokRequest.js";
+import { buildGrokGenerationRequest, GROK_VIDEO_MODEL, grokBillableSeconds, grokSourceAspectRatio, scrubBrandArtifacts } from "../grokRequest.js";
 import type { CommercialRenderJob } from "../commercialRenderer.js";
 
 describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
@@ -127,5 +127,24 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
     expect(grokBillableSeconds(8)).toBe(8);
     expect(grokBillableSeconds(12, 7.2)).toBe(8);
     expect(grokBillableSeconds(3, 20)).toBe(20);
+  });
+});
+
+describe("scrubBrandArtifacts", () => {
+  it("neutralises logo/URL/on-screen-text requests", () => {
+    const clean = scrubBrandArtifacts("Show the logo and keep ng.quantivarian.com visible on screen for the final six seconds with an end card.");
+    expect(clean).not.toMatch(/logo|ng.quantivarian.com|end card|on screen/i);
+    expect(clean).toMatch(/brand color/i);
+  });
+
+  it("never lets a script's brand-reveal text reach the video model", () => {
+    const body = buildGrokGenerationRequest({
+      script: "Actor Line: \"Try Quantivarian today.\"",
+      storyboard: "Final shot: show the logo and keep ng.quantivarian.com visible.",
+      cinematicPlan: null, aspectRatio: "16:9", durationSec: 15,
+    });
+    expect(body.prompt).not.toContain("ng.quantivarian.com");
+    expect(body.prompt).not.toMatch(/show the logo/i);
+    expect(body.prompt).toContain("Try Quantivarian today.");
   });
 });
