@@ -33,9 +33,11 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
     });
     expect(body.prompt).toMatch(/Never create split-screen, divided panels, triptychs, grids, contact sheets/);
     expect(body.prompt).toContain("Spoken dialogue here.");
-    expect(body.prompt).toContain("ONLY these exact approved words");
+    expect(body.prompt).toContain("STRICT AUDIO RULE");
+    expect(body.prompt).toContain("Never speak, sing, paraphrase, describe, or narrate any visual action");
     expect(body.prompt).toMatch(/opening frame must be a normal full-frame cinematic image/);
-    expect(body.prompt).toMatch(/Do not invent, approximate, synthesize, or display any logo/);
+    expect(body.prompt).toMatch(/Do not generate, invent, approximate, or display any logo/);
+    expect(body.prompt).toContain("Show no branding in this generated video");
     expect(body.prompt).not.toMatch(/Preserve and accurately render any customer-requested branding/);
   });
 
@@ -57,6 +59,9 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
     });
     expect(request.prompt).toContain("Second scene");
     expect(request.prompt).toContain("Exact spoken dialogue.");
+    expect(request.prompt).toContain("visual directions, not dialogue");
+    expect(request.prompt).not.toContain("First scene");
+    expect(request.prompt).toContain("Never speak, sing, paraphrase, describe, or narrate any visual action");
     expect(request.prompt).not.toContain("First scene");
     expect(request.prompt).not.toContain("Third scene");
     expect(request.prompt).toContain("Clip 2 of 3");
@@ -108,10 +113,12 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
     expect(request.prompt).toContain("Facial expression: Delighted");
     expect(request.prompt).toContain("Body movement: Leans forward");
     expect(request.prompt).toContain("Lens: 50mm");
-    expect(request.prompt).toContain("Text overlay placement: Lower third");
-    expect(request.prompt).toContain("Final hero shot: Product close-up");
-    expect(request.prompt).toContain("Native audio instruction");
-    expect(request.prompt).toContain("ONLY these exact approved words");
+    expect(request.prompt).not.toContain("Text overlay placement:");
+    expect(request.prompt).not.toContain("Final hero shot:");
+    expect(request.prompt).not.toContain("Lower third");
+    expect(request.prompt).not.toContain("Product close-up");
+    expect(request.prompt).toContain("STRICT AUDIO RULE");
+    expect(request.prompt).toContain("Never speak, sing, paraphrase, describe, or narrate any visual action");
     expect(request.generate_audio).toBe(true);
   });
 

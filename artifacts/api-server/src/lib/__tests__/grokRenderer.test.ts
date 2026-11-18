@@ -63,7 +63,8 @@ describe("GrokCommercialRenderer (mocked provider, no paid requests)", () => {
     const generationBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
     expect(generationBody.generate_audio).toBe(true);
     expect(generationBody.prompt).toContain("Hello there.");
-    expect(generationBody.prompt).toContain("ONLY these exact approved words");
+    expect(generationBody.prompt).toContain("STRICT AUDIO RULE");
+    expect(generationBody.prompt).toContain("Never speak, sing, paraphrase, describe, or narrate any visual action");
     expect(generationBody.duration).toBe(8);
     expect(result.videoUrl).toMatch(/^grok-object:\/\/mock-bucket\/commercial\/grok\/42\//);
     expect(result.durationSec).toBe(8);

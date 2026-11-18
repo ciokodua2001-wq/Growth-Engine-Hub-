@@ -5,7 +5,7 @@ export const GROK_VIDEO_MODEL = "grok-imagine-video-1.5-lite";
 export const GROK_VIDEO_ENDPOINT = "https://api.x.ai/v1/videos/generations";
 export const GROK_VIDEO_STATUS_ENDPOINT = "https://api.x.ai/v1/videos";
 export const GROK_NO_TEXT_INSTRUCTIONS =
-  "Generate one full-frame, single continuous cinematic shot. Never create split-screen, divided panels, triptychs, grids, contact sheets, storyboards, picture-in-picture, or multiple simultaneous views. The opening frame must be a normal full-frame cinematic image, not a collage or montage. Do not invent, approximate, synthesize, or display any logo, brand mark, watermark, product label, caption, subtitle, text overlay, or legible written text. Branding will only be composited from an explicitly uploaded transparent logo asset after generation. Any computer monitors, laptop screens, phones, dashboards, or software interfaces visible in frame must be rendered out of focus with only soft light and color gradients, or shown at a steep angle where no content is readable; never render legible or invented text, letters, numbers, or UI labels on any screen surface.";
+  "Generate one full-frame, single continuous cinematic shot. Never create split-screen, divided panels, triptychs, grids, contact sheets, storyboards, picture-in-picture, or multiple simultaneous views. The opening frame must be a normal full-frame cinematic image, not a collage or montage. Do not generate, invent, approximate, or display any logo, brand mark, watermark, brand name, product label, brand reveal, caption, subtitle, text overlay, or legible written text. Show no branding in this generated video; logo use is a separate optional action the user may choose after the render is complete. Any computer monitors, laptop screens, phones, dashboards, or software interfaces visible in frame must be rendered out of focus with only soft light and color gradients, or shown at a steep angle where no content is readable; never render legible or invented text, letters, numbers, or UI labels on any screen surface.";
 
 export function grokBillableSeconds(requestedDuration: number | null | undefined, actualDuration?: number): number {
   const duration = actualDuration !== undefined && Number.isFinite(actualDuration)
@@ -50,7 +50,6 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
     ["Visual style", plan.visualStyle], ["Character", plan.characterDescription],
     ["Overall environment", plan.environment], ["Overall lighting", plan.lighting],
     ["Camera language", plan.cameraLanguage], ["Performance direction", plan.performanceDirection],
-    ["Text overlay placement", plan.textOverlayPlacement], ["Final hero shot", plan.finalHeroShot],
   ].filter(([, value]) => typeof value === "string" && value.trim()).map(([label, value]) => `${label}: ${value}`).join("\n") : "";
   const segmentStartSec = job.segmentStartSec ?? 0;
   const segmentEndSec = segmentStartSec + (job.durationSec ?? 15);
@@ -81,9 +80,9 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
   if (!content.trim()) throw new Error("Grok generation requires a non-empty prompt");
   const spokenLines = extractNarrationLines(job.script ?? "");
   const dialogueInstruction = spokenLines.length
-    ? `Native audio instruction: Include natural, clear spoken dialogue using ONLY these exact approved words, verbatim and in order. Do not paraphrase, omit, add, or invent speech: ${spokenLines.map(line => `“${line}”`).join(" ")}. Use realistic synchronized voices and suitable natural ambience/music only if it does not obscure the dialogue.`
-    : "Native audio instruction: Generate natural synchronized environmental audio and music appropriate to the scene; do not add intelligible speech.";
-  const prompt = `${content}\n\n${dialogueInstruction} Each shot description is a separate sequential moment in one video, never simultaneous panels.\n\n${GROK_NO_TEXT_INSTRUCTIONS}`;
+    ? `STRICT AUDIO RULE: The only intelligible speech allowed is this exact approved dialogue, verbatim and in order: ${spokenLines.map(line => `“${line}”`).join(" ")}. Speak these lines only. Never speak, sing, paraphrase, describe, or narrate any visual action, gesture, expression, shot description, scene direction, camera instruction, character description, prompt text, or stage direction. Do not add any other words or voices. Natural synchronized ambience/music is allowed only without intelligible extra speech and must not obscure the approved lines.`
+    : "STRICT AUDIO RULE: Generate only natural synchronized environmental audio/music appropriate to the scene. Absolutely no intelligible speech, narration, lyrics, words, or voices.";
+  const prompt = `${content}\n\n${dialogueInstruction}\n\nVisual shot descriptions are silent visual directions, not dialogue. Show each shot sequentially, never as simultaneous panels.\n\n${GROK_NO_TEXT_INSTRUCTIONS}`;
 
   const aspectRatio = grokSourceAspectRatio(job.aspectRatio);
 
