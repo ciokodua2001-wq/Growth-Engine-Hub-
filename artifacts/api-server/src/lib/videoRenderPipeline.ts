@@ -120,7 +120,7 @@ async function runGrokRender(videoId: number, resolution: RenderResolution, aspe
       videoId, resolution, aspectRatio: aspectRatio as CommercialAspectRatio, captionsEnabled: false,
       script,
       storyboard: video.storyboard, cinematicPlan: video.cinematicPlan,
-      durationSec: Math.min(15, Math.max(1, video.duration ?? 15)),
+      durationSec: Math.min(60, Math.max(1, video.duration ?? 15)),
     };
     const result = await new GrokCommercialRenderer().render(renderJob);
     if (result.durationSec && Number.isFinite(result.durationSec)) chargedDuration = grokBillableSeconds(video.duration, result.durationSec);

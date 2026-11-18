@@ -10,7 +10,7 @@ export function grokBillableSeconds(requestedDuration: number | null | undefined
   const duration = actualDuration !== undefined && Number.isFinite(actualDuration)
     ? Math.ceil(actualDuration)
     : requestedDuration ?? 15;
-  return Math.min(15, Math.max(1, duration));
+  return Math.min(60, Math.max(1, duration));
 }
 
 export interface GrokGenerationRequest {
@@ -19,7 +19,7 @@ export interface GrokGenerationRequest {
   duration: number;
   aspect_ratio: "16:9" | "9:16" | "1:1";
   resolution: "720p";
-  generate_audio: true;
+  generate_audio: false;
 }
 
 /** xAI currently accepts 16:9, 9:16 and 1:1. 4:5 is made exact by our
@@ -34,7 +34,7 @@ export function grokSourceAspectRatio(aspectRatio: CommercialRenderJob["aspectRa
  * Pure request builder; it performs no I/O and reads no credentials.
  */
 export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
-  "script" | "storyboard" | "cinematicPlan" | "aspectRatio" | "durationSec"
+  "script" | "storyboard" | "cinematicPlan" | "aspectRatio" | "durationSec" | "totalDurationSec" | "segmentStartSec" | "segmentIndex" | "segmentCount"
 >): GrokGenerationRequest {
   const plan = (() => {
     if (!job.cinematicPlan) return null;
@@ -51,21 +51,34 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
     ["Camera language", plan.cameraLanguage], ["Performance direction", plan.performanceDirection],
     ["Text overlay placement", plan.textOverlayPlacement], ["Final hero shot", plan.finalHeroShot],
   ].filter(([, value]) => typeof value === "string" && value.trim()).map(([label, value]) => `${label}: ${value}`).join("\n") : "";
+  const segmentStartSec = job.segmentStartSec ?? 0;
+  const segmentEndSec = segmentStartSec + (job.durationSec ?? 15);
+  const shots = plan?.shots ?? [];
+  const rawShotDuration = shots.reduce((sum, shot) => sum + (Number.isFinite(shot.duration) && shot.duration! > 0 ? shot.duration! : 0), 0);
+  const scale = rawShotDuration > 0 && job.totalDurationSec ? job.totalDurationSec / rawShotDuration : 1;
+  let shotCursor = 0;
   const shotText = plan?.shots?.map((shot, i) => {
+    const shotDuration = (Number.isFinite(shot.duration) && shot.duration! > 0 ? shot.duration! : 5) * scale;
+    const shotStart = shotCursor;
+    const shotEnd = shotStart + shotDuration;
+    shotCursor = shotEnd;
+    if (shotEnd <= segmentStartSec || shotStart >= segmentEndSec) return "";
     const parts = [
       ["Duration", shot.duration ? `${shot.duration} seconds` : ""], ["Environment", shot.environment],
-      ["Subject action", shot.subjectAction], ["Actor-line timing/reference", shot.dialogue],
+      ["Subject action", shot.subjectAction],
       ["Facial expression", shot.facialExpression], ["Body movement", shot.bodyMovement],
       ["Camera movement", shot.cameraMovement], ["Lens", shot.lensStyle], ["Lighting", shot.lighting],
       ["Visual effects", shot.visualEffects], ["Transition", shot.transition],
     ].filter(([, value]) => typeof value === "string" && value.trim()).map(([label, value]) => `${label}: ${value}`);
     return parts.length ? `Shot ${i + 1}\n${parts.join("\n")}` : "";
   }).filter(Boolean).join("\n");
-  const content = [briefText, job.storyboard, shotText, job.script]
+  const visualFallback = shots.length ? "" : job.storyboard || job.script;
+  const segmentLabel = job.segmentCount ? `Clip ${job.segmentIndex ?? 1} of ${job.segmentCount}, covering seconds ${segmentStartSec}-${segmentEndSec} of one continuous ${job.totalDurationSec ?? segmentEndSec}-second commercial.` : "";
+  const content = [briefText, visualFallback, shotText, segmentLabel]
     .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
     .join("\n\n");
   if (!content.trim()) throw new Error("Grok generation requires a non-empty prompt");
-  const prompt = `${content}\n\nDialogue instruction: Speak the complete actor script exactly once and in order. Per-shot actor-line text is for shot timing and allocation only; do not repeat or add dialogue beyond the complete actor script. Each shot description is a separate sequential moment in one video, never a set of simultaneous panels.\n\n${GROK_NO_TEXT_INSTRUCTIONS}`;
+  const prompt = `${content}\n\nVisual-only instruction: This is silent picture footage. Actors must not speak, mouth words, or produce dialogue. No music or sound effects. Dialogue will be added separately as controlled English narration. Each shot description is a separate sequential moment in one video, never simultaneous panels.\n\n${GROK_NO_TEXT_INSTRUCTIONS}`;
 
   const aspectRatio = grokSourceAspectRatio(job.aspectRatio);
 
@@ -74,14 +87,13 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
     throw new Error("Grok video duration must be an integer from 1 to 15 seconds");
   }
 
-  // Captions are intentionally not included: Grok audio is native and the
-  // current approved integration must not add subtitles or text overlays.
+  // Grok audio is disabled so only reviewed script text is spoken by TTS.
   return {
     model: GROK_VIDEO_MODEL,
     prompt,
     duration,
     aspect_ratio: aspectRatio,
     resolution: "720p",
-    generate_audio: true,
+    generate_audio: false,
   };
 }

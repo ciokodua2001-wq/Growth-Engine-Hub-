@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { extractNarrationLines } from "../dialogue.js";
 import { buildGrokGenerationRequest, GROK_VIDEO_MODEL, grokBillableSeconds, grokSourceAspectRatio } from "../grokRequest.js";
 import type { CommercialRenderJob } from "../commercialRenderer.js";
 
 describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
-  it("builds the approved 9:16 request with native audio and no captions", () => {
+  it("extracts spoken dialogue only and excludes stage direction", () => {
+    expect(extractNarrationLines(`SHOT 1\n3s\nActor Line\n"WHAT?! Seven out of thirty?!"\nMother reacts.\n\nSHOT 2\nDialogue: Seven?! Are you serious?`))
+      .toEqual(["WHAT?! Seven out of thirty?!", "Seven?! Are you serious?"]);
+    expect(extractNarrationLines("[Smiles, then points at the product.]\nFade out.\nSHOT 1")).toEqual([]);
+  });
+  it("builds the approved 9:16 silent picture request with no captions", () => {
     const body = buildGrokGenerationRequest({
       script: "Spoken dialogue here.",
       storyboard: "Four shots in a bright Lagos home.",
@@ -18,7 +24,7 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
       duration: 15,
       aspect_ratio: "9:16",
       resolution: "720p",
-      generate_audio: true,
+      generate_audio: false,
     });
     expect(body.prompt).toMatch(/Never create split-screen, divided panels, triptychs, grids, contact sheets/);
     expect(body.prompt).toMatch(/opening frame must be a normal full-frame cinematic image/);
@@ -30,6 +36,23 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
     expect(() => buildGrokGenerationRequest({
       script: " ", storyboard: null, cinematicPlan: null, aspectRatio: "9:16",
     })).toThrow("non-empty prompt");
+  });
+
+  it("allows 15-second provider segments to reference their correct shot window", () => {
+    const request = buildGrokGenerationRequest({
+      script: "Exact spoken dialogue is not sent as audio.", storyboard: "Overview", aspectRatio: "16:9",
+      durationSec: 15, totalDurationSec: 45, segmentStartSec: 15, segmentIndex: 2, segmentCount: 3,
+      cinematicPlan: JSON.stringify({ shots: [
+        { duration: 15, subjectAction: "First scene" },
+        { duration: 15, subjectAction: "Second scene" },
+        { duration: 15, subjectAction: "Third scene" },
+      ] }),
+    });
+    expect(request.prompt).toContain("Second scene");
+    expect(request.prompt).not.toContain("First scene");
+    expect(request.prompt).not.toContain("Third scene");
+    expect(request.prompt).toContain("Clip 2 of 3");
+    expect(request.generate_audio).toBe(false);
   });
 
   it("supports every product ratio and maps 4:5 to portrait source generation", () => {
@@ -70,23 +93,24 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
     } as CommercialRenderJob;
     const request = buildGrokGenerationRequest(job);
     expect(request.prompt.indexOf("Shot 1\n")).toBeLessThan(request.prompt.indexOf("Shot 2\n"));
-    expect(request.prompt).toContain("Customer's newly edited complete script");
+    expect(request.prompt).not.toContain("Customer's newly edited complete script");
     expect(request.prompt).toContain("Visual style: Bright editorial style");
     expect(request.prompt).toContain("Performance direction: Warm and confident");
-    expect(request.prompt).toContain("Actor-line timing/reference: New shot one line");
+    expect(request.prompt).not.toContain("New shot one line");
     expect(request.prompt).toContain("Facial expression: Delighted");
     expect(request.prompt).toContain("Body movement: Leans forward");
     expect(request.prompt).toContain("Lens: 50mm");
     expect(request.prompt).toContain("Text overlay placement: Lower third");
     expect(request.prompt).toContain("Final hero shot: Product close-up");
-    expect(request.prompt).toContain("Speak the complete actor script exactly once and in order");
-    expect(request.generate_audio).toBe(true);
+    expect(request.prompt).toContain("silent picture footage");
+    expect(request.prompt).toContain("controlled English narration");
+    expect(request.generate_audio).toBe(false);
   });
 
-  it("bills Grok using the requested/capped duration and actual returned duration", () => {
-    expect(grokBillableSeconds(60)).toBe(15);
+  it("bills requested duration and actual assembled duration without truncating to one provider segment", () => {
+    expect(grokBillableSeconds(60)).toBe(60);
     expect(grokBillableSeconds(8)).toBe(8);
     expect(grokBillableSeconds(12, 7.2)).toBe(8);
-    expect(grokBillableSeconds(3, 20)).toBe(15);
+    expect(grokBillableSeconds(3, 20)).toBe(20);
   });
 });

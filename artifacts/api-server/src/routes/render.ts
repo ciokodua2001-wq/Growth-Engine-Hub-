@@ -107,8 +107,8 @@ router.post("/projects/:id/videos/:videoId/render", async (req, res) => {
     .where(eq(usersTable.id, userId));
 
   const plan            = user?.plan ?? "trial";
-  // Grok generates a single clip capped at 15 seconds; check its billable duration.
-  const requiredSeconds = provider === "grok" ? Math.min(15, Math.max(1, video.duration ?? 15)) : video.duration ?? 60;
+  // Reserve the full requested runtime; Grok renders are assembled from <=15s segments.
+  const requiredSeconds = provider === "grok" ? Math.min(60, Math.max(1, video.duration ?? 15)) : video.duration ?? 60;
 
   const { allowed, balance, message } = await checkVideoSeconds(userId, plan, requiredSeconds);
   if (!allowed) {

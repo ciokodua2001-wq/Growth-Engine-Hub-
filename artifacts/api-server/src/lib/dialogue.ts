@@ -45,7 +45,20 @@ interface CinematicPlanShape {
  * Prefers the cinematicPlan shot list (which carries per-shot dialogue); falls
  * back to splitting the continuous `script` into sentences. Never rewrites.
  */
-export function extractDialogueLines(script: string | null, cinematicPlan: string | null): string[] {
+export function extractNarrationLines(script: string): string[] {
+  const quoted = [...script.matchAll(/["“]([^"”]+)["”]/g)]
+    .map(match => match[1]?.trim() ?? "")
+    .filter(Boolean);
+  const labeled = script
+    .replace(/```[\s\S]*?```/g, "\n")
+    .replace(/\[[^\]]*\]/g, " ")
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => /^(actor line|dialogue)\s*:/i.test(line))
+    .map(line => line.replace(/^(actor line|dialogue)\s*:\s*/i, "").replace(/^["“]|["”]$/g, "").trim())
+    .filter(line => line.length > 0 && !quoted.includes(line));
+  return [...quoted, ...labeled];
+}export function extractDialogueLines(script: string | null, cinematicPlan: string | null): string[] {
   if (cinematicPlan) {
     try {
       const plan = JSON.parse(cinematicPlan) as CinematicPlanShape;

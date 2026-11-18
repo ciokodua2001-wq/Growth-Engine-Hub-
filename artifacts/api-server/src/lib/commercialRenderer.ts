@@ -12,6 +12,10 @@ export interface CommercialRenderJob {
   cinematicPlan?: string | null;
   voiceoverUrl?: string | null;
   durationSec?: number;
+  totalDurationSec?: number;
+  segmentStartSec?: number;
+  segmentIndex?: number;
+  segmentCount?: number;
 }
 
 export interface CommercialRenderResult {

@@ -70,13 +70,14 @@ export async function synthesizeSpeech(params: {
   voiceName: string;
   locale: NarrationLocale;
   format?: AudioFormat;
+  speakingRate?: number;
 }): Promise<Buffer> {
-  const { text, voiceName, locale, format = "mp3" } = params;
+  const { text, voiceName, locale, format = "mp3", speakingRate } = params;
 
   const [response] = await ttsClient.synthesizeSpeech({
     input: { text },
     voice: { languageCode: locale, name: voiceName },
-    audioConfig: { audioEncoding: AUDIO_ENCODING[format] },
+    audioConfig: { audioEncoding: AUDIO_ENCODING[format], ...(speakingRate === undefined ? {} : { speakingRate }) },
   });
 
   const audioContent = response.audioContent;
