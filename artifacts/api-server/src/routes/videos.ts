@@ -30,6 +30,17 @@ router.get("/projects/:id/videos", async (req, res): Promise<void> => {
   res.json(videos.map(v => ({ ...v, videoUrl: v.videoUrl?.startsWith(GROK_STORAGE_REFERENCE_PREFIX) ? `/api/projects/${v.projectId}/videos/${v.id}/media` : v.videoUrl, createdAt: v.createdAt.toISOString() })));
 });
 
+function attachLogoToCinematicPlan(cinematicPlan: string | null | undefined, logoAssetId: number | null | undefined): string | null | undefined {
+  if (!logoAssetId) return cinematicPlan;
+  try {
+    const plan = cinematicPlan ? (JSON.parse(cinematicPlan) as Record<string, unknown>) : {};
+    plan.branding = { logoAssetId };
+    return JSON.stringify(plan);
+  } catch {
+    return cinematicPlan ?? JSON.stringify({ branding: { logoAssetId } });
+  }
+}
+
 router.post("/projects/:id/videos", requireActiveSubscription, async (req, res): Promise<void> => {
   const params = GenerateVideosParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
@@ -56,6 +67,7 @@ router.post("/projects/:id/videos", requireActiveSubscription, async (req, res):
       creativeMode: "my_script" as const,
       scriptStatus: "proposed" as const,
       duration: parsed.data.targetDuration ?? 30,
+      cinematicPlan: parsed.data.logoAssetId ? JSON.stringify({ branding: { logoAssetId: parsed.data.logoAssetId } }) : null,
     }]).returning();
     res.json(inserted.map(v => ({ ...v, createdAt: v.createdAt.toISOString() })));
     return;
@@ -99,7 +111,7 @@ router.post("/projects/:id/videos", requireActiveSubscription, async (req, res):
   }
 
   const inserted = await db.insert(videosTable).values(
-    videoResults.map(t => ({ ...t, projectId, status: "complete" as const }))
+    videoResults.map(t => ({ ...t, projectId, status: "complete" as const, cinematicPlan: attachLogoToCinematicPlan(t.cinematicPlan, parsed.data.logoAssetId ?? null) }))
   ).returning();
 
   await recordGeneratedBatch({

@@ -25,3 +25,13 @@ describe("GenerateVideosBody sample script reference", () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe("GenerateVideosBody logo asset id", () => {
+  it("accepts an optional positive logo asset id", () => {
+    const ok = GenerateVideosBody.safeParse({ mode: "prompt", logoAssetId: 42 });
+    expect(ok.success).toBe(true);
+    expect(ok.success && ok.data.logoAssetId).toBe(42);
+    expect(GenerateVideosBody.safeParse({ mode: "prompt", logoAssetId: 0 }).success).toBe(false);
+    expect(GenerateVideosBody.safeParse({ mode: "prompt" }).success).toBe(true);
+  });
+});

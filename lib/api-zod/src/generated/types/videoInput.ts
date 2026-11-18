@@ -21,4 +21,6 @@ export interface VideoInput {
      * @maxLength 12000
      */
   sampleScript?: string;
+  /** Optional transparent-PNG logo asset id to composite onto the finished render. */
+  logoAssetId?: number;
 }

@@ -3,15 +3,28 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { db } from "@workspace/db";
-import { videosTable, projectsTable } from "@workspace/db";
+import { videosTable, projectsTable, assetsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import pino from "pino";
 import { synthesizeSpeech, type NarrationLocale } from "@workspace/integrations-google-tts-server";
 import { deductPlatformCredits } from "./platformCredits.js";
 import { deductVideoSeconds, refundReservedVideoSeconds } from "./videoWallet.js";
-import { GrokCommercialRenderer } from "./grokRenderer.js";
+import { GrokCommercialRenderer, GROK_STORAGE_REFERENCE_PREFIX } from "./grokRenderer.js";
 import { grokBillableSeconds } from "./grokRequest.js";
+import { compositeLogoOnVideo } from "./ffmpegAssembler.js";
+import { objectStorageClient, signObjectURL } from "./objectStorage.js";
 import type { CommercialAspectRatio, CommercialRenderJob } from "./commercialRenderer.js";
+
+function blueprintLogoAssetId(cinematicPlan: string | null | undefined): number | null {
+  if (!cinematicPlan) return null;
+  try {
+    const plan = JSON.parse(cinematicPlan) as { branding?: { logoAssetId?: unknown } };
+    const id = plan.branding?.logoAssetId;
+    return typeof id === "number" && Number.isInteger(id) && id > 0 ? id : null;
+  } catch {
+    return null;
+  }
+}
 
 const FFMPEG_BIN = "ffmpeg";
 
@@ -124,7 +137,13 @@ async function runGrokRender(videoId: number, resolution: RenderResolution, aspe
     };
     const result = await new GrokCommercialRenderer().render(renderJob);
     if (result.durationSec && Number.isFinite(result.durationSec)) chargedDuration = grokBillableSeconds(video.duration, result.durationSec);
-    await db.update(videosTable).set({ renderStatus: "complete", videoUrl: result.videoUrl, duration: chargedDuration, renderCompletedAt: new Date(), captionsEnabled: false, fidelityStatus: "unverified" }).where(eq(videosTable.id, videoId));
+    let finalVideoUrl = result.videoUrl;
+    const blueprintLogoId = blueprintLogoAssetId(video.cinematicPlan);
+    if (blueprintLogoId) {
+      const composited = await applyBlueprintLogo(videoId, video.projectId, blueprintLogoId, result.videoUrl);
+      if (composited) finalVideoUrl = composited;
+    }
+    await db.update(videosTable).set({ renderStatus: "complete", videoUrl: finalVideoUrl, duration: chargedDuration, renderCompletedAt: new Date(), captionsEnabled: false, fidelityStatus: "unverified" }).where(eq(videosTable.id, videoId));
   } catch (error) {
     logger.error({ err: error, videoId }, "Grok render failed");
     await markFailed(videoId, "Grok generation failed. No automatic retry was attempted; reserved video seconds were returned.");
@@ -155,6 +174,56 @@ async function markFailed(videoId: number, error: string): Promise<void> {
     renderError: error,
     renderCompletedAt: new Date(),
   }).where(eq(videosTable.id, videoId));
+}
+
+async function grokRefToSignedUrl(ref: string): Promise<string> {
+  if (!ref.startsWith(GROK_STORAGE_REFERENCE_PREFIX)) return ref;
+  const storedRef = ref.slice(GROK_STORAGE_REFERENCE_PREFIX.length);
+  const slash = storedRef.indexOf("/");
+  if (slash <= 0) throw new Error("Invalid Grok storage reference");
+  const bucket = decodeURIComponent(storedRef.slice(0, slash));
+  const key = storedRef.slice(slash + 1).split("/").map(decodeURIComponent).join("/");
+  return signObjectURL({ bucketName: bucket, objectName: key, method: "GET", ttlSec: 300 });
+}
+
+function refreshSignedObjectUrl(storedUrl: string): Promise<string> {
+  if (!storedUrl || !storedUrl.startsWith("http")) return Promise.resolve(storedUrl);
+  try {
+    const u = new URL(storedUrl);
+    const parts = u.pathname.split("/").filter(Boolean);
+    if (parts.length < 2) return Promise.resolve(storedUrl);
+    return signObjectURL({ bucketName: parts[0]!, objectName: parts.slice(1).join("/"), method: "GET", ttlSec: 86_400 });
+  } catch {
+    return Promise.resolve(storedUrl);
+  }
+}
+
+/** Best-effort post composite of a blueprint-attached transparent logo. Returns
+ * the new stable grok-object:// reference, or null (never fails the render). */
+async function applyBlueprintLogo(videoId: number, projectId: number, logoAssetId: number, videoUrl: string): Promise<string | null> {
+  try {
+    const [asset] = await db.select().from(assetsTable).where(eq(assetsTable.id, logoAssetId));
+    if (!asset?.url || asset.mimeType?.toLowerCase() !== "image/png") return null;
+    const logoUrl = await refreshSignedObjectUrl(asset.url);
+    const logoRes = await fetch(logoUrl, { signal: AbortSignal.timeout(20_000) });
+    if (!logoRes.ok) throw new Error(`Logo asset unavailable (${logoRes.status})`);
+    const logo = Buffer.from(await logoRes.arrayBuffer());
+    const inputUrl = await grokRefToSignedUrl(videoUrl);
+    const composite = await compositeLogoOnVideo(inputUrl, logo, { projectId, videoId, x: 0.82, y: 0.82, scale: 0.2 });
+    const compositeRes = await fetch(composite.url, { signal: AbortSignal.timeout(120_000) });
+    if (!compositeRes.ok) throw new Error(`Composited video download failed (${compositeRes.status})`);
+    const compositeBuffer = Buffer.from(await compositeRes.arrayBuffer());
+    const bucket = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+    if (!bucket) throw new Error("Object storage is not configured");
+    const key = `commercial/grok/${videoId}/logo/${Date.now()}.mp4`;
+    await objectStorageClient.bucket(bucket).file(key).save(compositeBuffer, { metadata: { contentType: "video/mp4" } });
+    const ref = `grok-object://${encodeURIComponent(bucket)}/${key.split("/").map(encodeURIComponent).join("/")}`;
+    logger.info({ videoId, logoAssetId }, "Blueprint logo composited onto completed render");
+    return ref;
+  } catch (error) {
+    logger.error({ err: error, videoId, logoAssetId }, "Blueprint logo composite failed; keeping render without logo");
+    return null;
+  }
 }
 
 // ── Core render pipeline ──────────────────────────────────────────────────────

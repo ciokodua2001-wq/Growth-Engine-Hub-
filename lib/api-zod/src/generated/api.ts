@@ -1146,7 +1146,8 @@ export const GenerateVideosBody = zod.object({
   "prompt": zod.string().optional(),
   "targetDuration": zod.union([zod.literal(15),zod.literal(30),zod.literal(45),zod.literal(60),zod.literal(90)]).optional().describe('Target video duration in seconds. AI will write scripts and shots to match.'),
   "targetLocale": zod.string().optional().describe('BCP-47 locale code for localised output (e.g. es-MX, de-DE, pt-BR). Omit for English.'),
-  "sampleScript": zod.string().max(generateVideosBodySampleScriptMax).optional().describe('Optional creative reference; adapt its voice, beats, and energy without copying it verbatim.')
+  "sampleScript": zod.string().max(generateVideosBodySampleScriptMax).optional().describe('Optional creative reference; adapt its voice, beats, and energy without copying it verbatim.'),
+  "logoAssetId": zod.number().int().positive().optional()
 })
 
 export const GenerateVideosResponseItem = zod.object({

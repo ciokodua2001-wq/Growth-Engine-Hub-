@@ -1353,6 +1353,11 @@ export default function ProjectVideos() {
   const [modalOpen, setModalOpen]         = useState(false);
   const [imgModalOpen, setImgModalOpen]   = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<number | null>(null);
+  const [blueprintLogoId, setBlueprintLogoId] = useState<number | null>(null);
+  const [blueprintLogoName, setBlueprintLogoName] = useState<string | null>(null);
+  const [blueprintLogoBusy, setBlueprintLogoBusy] = useState(false);
+  const [blueprintLogoError, setBlueprintLogoError] = useState<string | null>(null);
+  const blueprintLogoInputRef = useRef<HTMLInputElement | null>(null);
 
   // Organisation state
   const [searchQuery,   setSearchQuery]   = useState("");
@@ -1392,13 +1397,33 @@ export default function ProjectVideos() {
   const handleSubmit = (_url: string, instructions: string, locale: string, sampleScript: string): Promise<void> =>
     new Promise((resolve, reject) => {
       generateVideos.mutate(
-        { id: projectId, data: { mode, count: blueprintCount, prompt: instructions || undefined, sampleScript: sampleScript || undefined, targetDuration, targetLocale: locale || undefined } },
+        { id: projectId, data: { mode, count: blueprintCount, prompt: instructions || undefined, sampleScript: sampleScript || undefined, targetDuration, targetLocale: locale || undefined, logoAssetId: blueprintLogoId ?? undefined } },
         {
           onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) }); resolve(); },
           onError: reject,
         },
       );
     });
+
+  const uploadBlueprintLogo = async (file: File) => {
+    setBlueprintLogoBusy(true); setBlueprintLogoError(null);
+    try {
+      if (!/\.png$/i.test(file.name) && file.type !== "image/png") throw new Error("Choose a transparent PNG.");
+      if (file.size > 10 * 1024 * 1024) throw new Error("Logo must be 10 MB or smaller.");
+      const form = new FormData();
+      form.append("logo", file, file.name);
+      const response = await fetch(`/api/projects/${projectId}/logo-assets`, { method: "POST", credentials: "include", body: form });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.id) throw new Error(payload?.error || "Logo upload failed.");
+      setBlueprintLogoId(payload.id as number);
+      setBlueprintLogoName(payload.name as string ?? file.name);
+    } catch (error) {
+      setBlueprintLogoError(error instanceof Error ? error.message : "Logo upload failed.");
+    } finally {
+      setBlueprintLogoBusy(false);
+      if (blueprintLogoInputRef.current) blueprintLogoInputRef.current.value = "";
+    }
+  };
 
   const allVideos     = videos ?? [];
   const activeVideos  = allVideos.filter(v => !archivedIds.has(v.id));
@@ -1466,6 +1491,32 @@ export default function ProjectVideos() {
               ))}
             </div>
           </div>
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider px-0.5">Brand logo</p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => blueprintLogoInputRef.current?.click()}
+                disabled={blueprintLogoBusy}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 text-xs text-white/70 hover:border-white/25 hover:text-white transition-colors disabled:opacity-40"
+              >
+                {blueprintLogoBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                {blueprintLogoName ?? "Add logo (optional)"}
+              </button>
+              {blueprintLogoId && (
+                <button type="button" onClick={() => { setBlueprintLogoId(null); setBlueprintLogoName(null); setBlueprintLogoError(null); }} className="text-xs text-white/40 hover:text-white/70 transition-colors">Clear</button>
+              )}
+              <input
+                ref={blueprintLogoInputRef}
+                type="file"
+                accept="image/png,.png"
+                className="hidden"
+                onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadBlueprintLogo(file); }}
+              />
+            </div>
+            {blueprintLogoError && <p role="alert" className="text-[10px] text-red-300">{blueprintLogoError}</p>}
+            <span className="text-[10px] text-white/35">Transparent PNG — composited on the render; leave empty for no logo.</span>
+          </div>
           {mode === "my_script" && (
             <div className="flex flex-col gap-0.5">
               <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider px-0.5">Your exact dialogue</p>
@@ -1478,7 +1529,7 @@ export default function ProjectVideos() {
                 />
                 <button
                   onClick={() => generateVideos.mutate(
-                    { id: projectId, data: { mode: "my_script", prompt: myScript, targetDuration } },
+                    { id: projectId, data: { mode: "my_script", prompt: myScript, targetDuration, logoAssetId: blueprintLogoId ?? undefined } },
                     { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) }) },
                   )}
                   disabled={!myScript.trim() || generateVideos.isPending}
