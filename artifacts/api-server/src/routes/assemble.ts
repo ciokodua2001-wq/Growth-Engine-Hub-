@@ -109,9 +109,9 @@ router.post("/projects/:id/videos/:videoId/assemblies/:assemblyId/logo", async (
     const result = await compositeLogoOnVideo(await refreshAssemblyUrl(assembly.videoUrl), logo, {
       projectId,
       videoId,
-      x: Number.isFinite(req.body?.x) ? req.body.x : 0.82,
-      y: Number.isFinite(req.body?.y) ? req.body.y : 0.82,
-      scale: Number.isFinite(req.body?.scale) ? req.body.scale : 0.2,
+      x: Number.isFinite(req.body?.x) ? Math.min(1, Math.max(0, req.body.x)) : 0.82,
+      y: Number.isFinite(req.body?.y) ? Math.min(1, Math.max(0, req.body.y)) : 0.82,
+      scale: Number.isFinite(req.body?.scale) ? Math.min(1, Math.max(0.02, req.body.scale)) : 0.2,
     });
     const [logoAssembly] = await db.insert(commercialAssembliesTable).values({
       videoId, outputFormat: assembly.outputFormat, status: "complete", videoUrl: result.url,
@@ -285,9 +285,9 @@ router.post("/projects/:id/videos/:videoId/logo", async (req, res) => {
     }
     const result = await compositeLogoOnVideo(await resolveCompletedVideoUrl(projectId, videoId, video.videoUrl), logo, {
       projectId, videoId,
-      x: typeof req.body?.x === "number" ? Math.min(0.98, Math.max(0.02, req.body.x)) : 0.82,
-      y: typeof req.body?.y === "number" ? Math.min(0.98, Math.max(0.02, req.body.y)) : 0.82,
-      scale: typeof req.body?.scale === "number" ? Math.min(0.5, Math.max(0.05, req.body.scale)) : 0.2,
+      x: typeof req.body?.x === "number" ? Math.min(1, Math.max(0, req.body.x)) : 0.82,
+      y: typeof req.body?.y === "number" ? Math.min(1, Math.max(0, req.body.y)) : 0.82,
+      scale: typeof req.body?.scale === "number" ? Math.min(1, Math.max(0.02, req.body.scale)) : 0.2,
     });
     const [exported] = await db.insert(commercialAssembliesTable).values({
       videoId,
@@ -321,7 +321,7 @@ function parseCaptionOptions(body: Record<string, unknown>): { preset: CaptionPr
       : "clean",
     x: clampNum(body.captionX, 0, 1, 0.5),
     y: clampNum(body.captionY, 0, 1, 0.85),
-    scale: clampNum(body.captionScale, 0.5, 2.0, 1.0),
+    scale: clampNum(body.captionScale, 0.25, 3.0, 1.0),
   };
 }
 
@@ -560,7 +560,7 @@ router.post("/projects/:id/videos/:videoId/assemble", async (req, res) => {
     typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
   const captionX = clampNum(body.captionX, 0, 1, 0.5);
   const captionY = clampNum(body.captionY, 0, 1, 0.85);
-  const captionScale = clampNum(body.captionScale, 0.5, 2.0, 1.0);
+  const captionScale = clampNum(body.captionScale, 0.25, 3.0, 1.0);
 
   const options: AssemblyOptions = {
     outputFormats: requestedFormats,

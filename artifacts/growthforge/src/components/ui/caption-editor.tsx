@@ -97,11 +97,13 @@ const CAPTION_PRESET_STYLES: Record<CaptionPreset, CSSProperties> = {
 // Shared between the browser preview and the FFmpeg export so captions wrap and
 // stay inside the frame identically everywhere. KEEP IN SYNC with
 // artifacts/api-server/src/lib/dialogue.ts.
-const CAPTION_SAFE_MARGIN_X = 0.02;      // left + right margin
-const CAPTION_SAFE_MARGIN_TOP = 0.02;    // top margin
-const CAPTION_SAFE_MARGIN_BOTTOM = 0.02; // bottom margin
-const CAPTION_NOMINAL_HALF_WIDTH = 0.10; // ~half a caption line @ scale 1
-const CAPTION_NOMINAL_HALF_HEIGHT = 0.02; // ~half a caption box @ scale 1
+const CAPTION_SAFE_MARGIN_X = 0;
+const CAPTION_SAFE_MARGIN_TOP = 0;
+const CAPTION_SAFE_MARGIN_BOTTOM = 0;
+const CAPTION_NOMINAL_HALF_WIDTH = 0;
+const CAPTION_NOMINAL_HALF_HEIGHT = 0;
+const CAPTION_SCALE_MIN = 0.25;
+const CAPTION_SCALE_MAX = 3.0;
 
 function captionMaxCharsPerLine(aspect: number): number {
   if (aspect >= 1.3) return 34;   // 16:9 landscape
@@ -116,25 +118,17 @@ function captionMaxWidthRatio(aspect: number): number {
 }
 
 function clampCaptionX(x: number, scale: number): number {
-  const halfW = CAPTION_NOMINAL_HALF_WIDTH * scale;
-  const lo = CAPTION_SAFE_MARGIN_X + halfW;
-  const hi = 1 - CAPTION_SAFE_MARGIN_X - halfW;
-  if (lo >= hi) return 0.5;
-  return Math.min(hi, Math.max(lo, x));
+  return Math.min(1, Math.max(0, x));
 }
 
 function clampCaptionY(y: number, scale: number): number {
-  const halfH = CAPTION_NOMINAL_HALF_HEIGHT * scale;
-  const lo = CAPTION_SAFE_MARGIN_TOP + halfH;
-  const hi = 1 - CAPTION_SAFE_MARGIN_BOTTOM - halfH;
-  if (lo >= hi) return 0.85;
-  return Math.min(hi, Math.max(lo, y));
+  return Math.min(1, Math.max(0, y));
 }
 
-const CAPTION_X_MIN = CAPTION_SAFE_MARGIN_X + CAPTION_NOMINAL_HALF_WIDTH;
-const CAPTION_X_MAX = 1 - CAPTION_SAFE_MARGIN_X - CAPTION_NOMINAL_HALF_WIDTH;
-const CAPTION_Y_MIN = CAPTION_SAFE_MARGIN_TOP + CAPTION_NOMINAL_HALF_HEIGHT;
-const CAPTION_Y_MAX = 1 - CAPTION_SAFE_MARGIN_BOTTOM - CAPTION_NOMINAL_HALF_HEIGHT;
+const CAPTION_X_MIN = 0;
+const CAPTION_X_MAX = 1;
+const CAPTION_Y_MIN = 0;
+const CAPTION_Y_MAX = 1;
 
 function getCaptionOverlayStyle(x: number, y: number, scale: number, preset: CaptionPreset, aspect: number): CSSProperties {
   const cx = clampCaptionX(x, scale);
@@ -363,9 +357,9 @@ export default function CaptionEditor({
 
   const derivedSegments = useMemo(() => {
     const { subtitle } = buildTranscriptTimings(dialogueTranscript, videoAspect ?? 0.5625);
-    if (subtitle.length > 0) return subtitle;
-    const fallback = (script || voiceover || "Sample caption text").trim();
-    return [{ text: wrapCaptionText(fallback, 40), startSec: 0, endSec: 15 }];
+    // Never turn screenplay/stage directions into a caption. No timed transcript
+    // means no overlay; the editor below explains how to enable real captions.
+    return subtitle;
   }, [dialogueTranscript, script, voiceover, videoAspect]);
 
   // Track state for transcript corrections
@@ -387,7 +381,7 @@ export default function CaptionEditor({
   const activeSegments = useMemo(() => {
     const { subtitle } = buildTranscriptTimings(localTranscript, videoAspect ?? 0.5625);
     if (subtitle.length > 0) return subtitle;
-    return derivedSegments;
+    return [];
   }, [localTranscript, derivedSegments, videoAspect]);
 
   const [currentCaptionText, setCurrentCaptionText] = useState<string | null>(null);
@@ -635,7 +629,7 @@ export default function CaptionEditor({
 
     const onMove = (ev: PointerEvent) => {
       const dy = startPointerY - ev.clientY; // drag the handle up to grow, down to shrink
-      setCaptionScale(clampNum(startScale + dy / 140, 0.5, 2.0));
+      setCaptionScale(clampNum(startScale + dy / 140, CAPTION_SCALE_MIN, CAPTION_SCALE_MAX));
     };
     const onUp = () => {
       target.releasePointerCapture(e.pointerId);
@@ -731,8 +725,8 @@ export default function CaptionEditor({
   // position, resize, and preview a style immediately.
   // EDITING (paused): show the SELECTED transcript segment - real text,
   // no placeholder. PLAYING: follow live time-sync, hide outside speech.
-  const editingSegment = activeSegments[editSegmentIndex] ?? activeSegments[0]!;
-  const activeText = isVideoPlaying ? currentCaptionText : editingSegment.text;
+  const editingSegment = activeSegments[editSegmentIndex] ?? activeSegments[0] ?? null;
+  const activeText = isVideoPlaying ? currentCaptionText : editingSegment?.text ?? null;
   const displayCaptionText = captionPreset !== "karaoke" ? activeText : null;
   const displayKaraokeWords = captionPreset === "karaoke"
     ? (isVideoPlaying && currentKaraokeWords?.length
@@ -932,6 +926,9 @@ export default function CaptionEditor({
             <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${captionsEnabled ? "left-4" : "left-0.5"}`} />
           </button>
         </div>
+        {captionsEnabled && activeSegments.length === 0 && (
+          <p role="status" className="rounded-lg border border-amber-400/25 bg-amber-400/5 p-2 text-[11px] leading-relaxed text-amber-100/80">No timed transcript is available yet. Captions stay blank rather than displaying the screenplay or stage directions. Transcribe and review the actual audio to enable editable captions.</p>
+        )}
         {captionsEnabled && (
           <>
             <div>
@@ -959,28 +956,30 @@ export default function CaptionEditor({
               </div>
             </div>
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="text-[9px] text-white/30 uppercase tracking-wider">Preview segment (paused)</p>
-                <p className="text-[9px] font-semibold text-white/50">{isVideoPlaying ? "Following playback" : `Editing segment ${editSegmentIndex + 1}`}</p>
-              </div>
-              <div className="flex gap-1 flex-wrap mb-2">
-                {activeSegments.map((seg, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setEditSegmentIndex(i)}
-                    title={seg.text}
-                    className={`px-2 py-1 rounded text-[9px] font-bold border transition-all ${
-                      editSegmentIndex === i ? "bg-[#00E676]/15 border-[#00E676]/50" : "bg-black/30 border-white/8 hover:border-white/25"
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-              </div>
+              {activeSegments.length > 0 && <>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[9px] text-white/30 uppercase tracking-wider">Preview segment (paused)</p>
+                  <p className="text-[9px] font-semibold text-white/50">{isVideoPlaying ? "Following playback" : `Editing segment ${editSegmentIndex + 1}`}</p>
+                </div>
+                <div className="flex gap-1 flex-wrap mb-2">
+                  {activeSegments.map((seg, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setEditSegmentIndex(i)}
+                      title={seg.text}
+                      className={`px-2 py-1 rounded text-[9px] font-bold border transition-all ${
+                        editSegmentIndex === i ? "bg-[#00E676]/15 border-[#00E676]/50" : "bg-black/30 border-white/8 hover:border-white/25"
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
+              </>}
               <div className="space-y-1.5">
                 <label className="block">
                   <span className="flex justify-between text-[9px] text-white/40"><span>Size</span><span>{Math.round(captionScale * 100)}%</span></span>
-                  <input type="range" aria-label="Caption size" min={0.5} max={2.0} step={0.05} value={captionScale} onChange={e => { setCaptionScale(Number(e.target.value)); invalidateExportCache(); }} className="w-full accent-[#00E676]" />
+                  <input type="range" aria-label="Caption size" min={CAPTION_SCALE_MIN} max={CAPTION_SCALE_MAX} step={0.05} value={captionScale} onChange={e => { setCaptionScale(Number(e.target.value)); invalidateExportCache(); }} className="w-full accent-[#00E676]" />
                 </label>
                 <label className="block">
                   <span className="flex justify-between text-[9px] text-white/40"><span>Vertical position</span><span>{Math.round(captionY * 100)}%</span></span>
@@ -1010,7 +1009,7 @@ export default function CaptionEditor({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            disabled={exportBusy || !!unclearSegment}
+            disabled={exportBusy || !!unclearSegment || activeSegments.length === 0}
             onClick={() => void handleApplyCaptions()}
             className="inline-flex items-center gap-2 rounded-lg bg-[#00D4FF] px-4 py-2 text-xs font-bold text-[#041018] disabled:cursor-not-allowed disabled:opacity-40"
           >

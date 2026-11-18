@@ -470,19 +470,11 @@ export function captionMaxWidthRatio(aspect: number): number {
   return 0.80;
 }
 
-export function clampCaptionX(x: number, scale: number): number {
-  const halfW = CAPION_NOMINAL_HALF_WIDTH * scale;
-  const lo = CAPION_SAFE_MARGIN_X + halfW;
-  const hi = 1 - CAPION_SAFE_MARGIN_X - halfW;
-  if (lo >= hi) return 0.5;
-  return Math.min(hi, Math.max(lo, x));
+export function clampCaptionX(x: number, _scale: number): number {
+  return Math.min(1, Math.max(0, x));
 }
 
-export function clampCaptionY(y: number, scale: number): number {
-  const halfH = CAPION_NOMINAL_HALF_HEIGHT * scale;
-  const lo = CAPION_SAFE_MARGIN_TOP + halfH;
-  const hi = 1 - CAPION_SAFE_MARGIN_BOTTOM - halfH;
-  if (lo >= hi) return 0.85;
-  return Math.min(hi, Math.max(lo, y));
+export function clampCaptionY(y: number, _scale: number): number {
+  return Math.min(1, Math.max(0, y));
 }
 

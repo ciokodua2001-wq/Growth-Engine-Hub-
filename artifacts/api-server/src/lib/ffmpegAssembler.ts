@@ -281,7 +281,7 @@ export class CommercialAssembler {
       const captionPreset: CaptionPreset = options.captionPreset ?? "clean";
       const captionX = clamp(options.captionX ?? 0.5, 0.05, 0.95);
       const captionY = clamp(options.captionY ?? 0.85, 0.05, 0.95);
-      const captionScale = clamp(options.captionScale ?? 1.0, 0.5, 2.0);
+      const captionScale = clamp(options.captionScale ?? 1.0, 0.25, 3.0);
       // Captions must match the dialogue actually passed to Veo - the verbatim
       // per-scene narration lines (never an AI paraphrase, never the whole script).
       // Timing is per-scene (real clip boundaries), not proportional char count.
@@ -1069,9 +1069,9 @@ export async function compositeLogoOnVideo(inputUrl: string, logoBuffer: Buffer,
   try {
     await downloadFile(inputUrl, inputPath);
     fs.writeFileSync(logoPath, logoBuffer);
-    const xPct = Math.round(Math.min(0.98, Math.max(0.02, options.x)) * 1000) / 10;
-    const yPct = Math.round(Math.min(0.98, Math.max(0.02, options.y)) * 1000) / 10;
-    const scalePct = Math.round(Math.min(0.5, Math.max(0.05, options.scale)) * 1000) / 10;
+    const xPct = Math.round(Math.min(1, Math.max(0, options.x)) * 1000) / 10;
+    const yPct = Math.round(Math.min(1, Math.max(0, options.y)) * 1000) / 10;
+    const scalePct = Math.round(Math.min(1, Math.max(0.02, options.scale)) * 1000) / 10;
     const filter = `[1:v][0:v]scale2ref=w=main_w*${scalePct / 100}:h=-1[logo][base];[base][logo]overlay=x=W*${xPct / 100}-w/2:y=H*${yPct / 100}-h/2:format=auto[v]`;
     await runFFmpeg(["-y", "-i", inputPath, "-i", logoPath, "-filter_complex", filter,
       "-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
@@ -1144,9 +1144,9 @@ export async function compositeCaptionsOnVideo(
 
     const { width, height } = await probeDimensions(inputPath);
     const preset = options.preset;
-    const x = Math.min(0.95, Math.max(0.05, options.x));
-    const y = Math.min(0.95, Math.max(0.05, options.y));
-    const scale = Math.min(2.0, Math.max(0.5, options.scale));
+    const x = Math.min(1, Math.max(0, options.x));
+    const y = Math.min(1, Math.max(0, options.y));
+    const scale = Math.min(3.0, Math.max(0.25, options.scale));
 
     const events = preset === "karaoke"
       ? buildKaraokeForScenes(entries)

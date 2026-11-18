@@ -956,7 +956,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
     fetch(`/api/projects/${projectId}/assets`, { credentials: "include" })
       .then(r => r.ok ? r.json() : [])
       .then((assets: ProjectLogoAsset[]) => {
-        if (!cancelled) setLogoAssets((Array.isArray(assets) ? assets : []).filter(a => a.url && a.mimeType?.toLowerCase() === "image/png"));
+        if (!cancelled) setLogoAssets((Array.isArray(assets) ? assets : []).filter(a => a.mimeType?.toLowerCase() === "image/png").map(a => ({ ...a, url: `/api/projects/${projectId}/assets/${a.id}/content` })));
       })
       .catch(() => { if (!cancelled) setLogoAssets([]); });
     return () => { cancelled = true; };
@@ -1705,7 +1705,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
               draggable={false}
               style={{
                 position: "absolute", left: `${logoX * 100}%`, top: `${logoY * 100}%`,
-                width: `${logoScale * 100}%`, maxHeight: "45%", objectFit: "contain",
+                width: `${logoScale * 100}%`, maxHeight: "95%", maxWidth: "95%", objectFit: "contain",
                 transform: "translate(-50%, -50%)", pointerEvents: "none",
                 filter: "drop-shadow(0 1px 2px rgba(0,0,0,.45))",
               }}
@@ -1935,7 +1935,7 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
                   <div className="space-y-1.5">
                     <label className="block">
                       <span className="flex justify-between text-[9px] text-white/40"><span>Size</span><span>{Math.round(captionScale * 100)}%</span></span>
-                      <input type="range" min={0.5} max={2.0} step={0.05} value={captionScale} onChange={e => setCaptionScale(Number(e.target.value))} className="w-full accent-[#00E676]" />
+                      <input type="range" min={0.25} max={3.0} step={0.05} value={captionScale} onChange={e => setCaptionScale(Number(e.target.value))} className="w-full accent-[#00E676]" />
                     </label>
                     <label className="block">
                       <span className="flex justify-between text-[9px] text-white/40"><span>Vertical position</span><span>{Math.round(captionY * 100)}%</span></span>
@@ -1973,13 +1973,13 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
           </select>
           {logoAssetId && <div className="space-y-1.5">
             <label className="block text-[9px] text-white/40">Size · {Math.round(logoScale * 100)}% of video width
-              <input type="range" min={0.05} max={0.5} step={0.01} value={logoScale} onChange={e => setLogoScale(Number(e.target.value))} className="w-full accent-[#00E676]" />
+              <input type="range" min={0.02} max={1.0} step={0.01} value={logoScale} onChange={e => setLogoScale(Number(e.target.value))} className="w-full accent-[#00E676]" />
             </label>
             <label className="block text-[9px] text-white/40">Horizontal position · {Math.round(logoX * 100)}%
-              <input type="range" min={0.02} max={0.98} step={0.01} value={logoX} onChange={e => setLogoX(Number(e.target.value))} className="w-full accent-[#00E676]" />
+              <input type="range" min={0} max={1} step={0.01} value={logoX} onChange={e => setLogoX(Number(e.target.value))} className="w-full accent-[#00E676]" />
             </label>
             <label className="block text-[9px] text-white/40">Vertical position · {Math.round(logoY * 100)}%
-              <input type="range" min={0.02} max={0.98} step={0.01} value={logoY} onChange={e => setLogoY(Number(e.target.value))} className="w-full accent-[#00E676]" />
+              <input type="range" min={0} max={1} step={0.01} value={logoY} onChange={e => setLogoY(Number(e.target.value))} className="w-full accent-[#00E676]" />
             </label>
             <p className="text-[9px] text-white/35">Adjust the logo on the video preview above, then apply it to an export. Choose a transparent PNG logo attached to this project.</p>
             <button onClick={() => void exportWithLogo()} disabled={logoExportBusy || !finalAssemblyId} className="w-full rounded-lg bg-[#00E676] text-black text-[11px] font-bold px-3 py-2 disabled:opacity-50">
