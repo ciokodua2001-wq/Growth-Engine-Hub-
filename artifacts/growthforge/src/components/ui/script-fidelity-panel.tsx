@@ -45,6 +45,7 @@ export default function ScriptFidelityPanel({ video, projectId }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [suggestionCached, setSuggestionCached] = useState(false);
+  const [showApprovedCopy, setShowApprovedCopy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const api = async (url: string, opts?: RequestInit) => {
@@ -120,7 +121,22 @@ export default function ScriptFidelityPanel({ video, projectId }: Props) {
             {scriptStatus === "approved" ? "Re-approve (lock new version)" : "Approve Script"}
           </button>
         </div>
-        {approvedScript && <pre className="text-[11px] text-emerald-200/80 whitespace-pre-wrap leading-relaxed font-sans">{approvedScript}</pre>}
+        {approvedScript && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-emerald-500/5 px-2.5 py-2">
+            <span className="text-[10px] text-emerald-200/70">
+              {approvedScript === video.script
+                ? "Approved copy matches the script above."
+                : "Approved copy is locked separately from the current draft."}
+            </span>
+            <button type="button" onClick={() => setShowApprovedCopy(value => !value)}
+              className="text-[10px] font-semibold text-emerald-200/80 hover:text-emerald-100">
+              {showApprovedCopy ? "Hide approved copy" : "Review approved copy"}
+            </button>
+            {showApprovedCopy && (
+              <pre className="w-full max-h-64 overflow-y-auto text-[11px] text-emerald-200/80 whitespace-pre-wrap leading-relaxed font-sans">{approvedScript}</pre>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Optional AI script suggestion (cached per script version) ── */}
