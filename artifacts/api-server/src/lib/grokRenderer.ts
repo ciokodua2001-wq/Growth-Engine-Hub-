@@ -3,7 +3,6 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import pino from "pino";
-import { synthesizeSpeech } from "@workspace/integrations-google-tts-server";
 import { extractNarrationLines } from "./dialogue.js";
 import type { CommercialRenderer, CommercialRenderJob, CommercialRenderResult, CommercialRendererCapabilities } from "./commercialRenderer.js";
 import { buildGrokGenerationRequest, GROK_VIDEO_ENDPOINT, GROK_VIDEO_STATUS_ENDPOINT } from "./grokRequest.js";
@@ -27,9 +26,7 @@ export interface GrokRendererDependencies {
   save(bucket: string, key: string, body: Buffer, contentType: string): Promise<void>;
   signUrl(bucket: string, key: string): Promise<string>;
   normalizeFrame(input: Buffer, aspectRatio: CommercialRenderJob["aspectRatio"], durationSec: number): Promise<Buffer>;
-  synthesize(text: string, speakingRate?: number): Promise<Buffer>;
-  probeAudioDuration(audio: Buffer): Promise<number>;
-  assemble(clips: Buffer[], narration: Buffer, targetDurationSec: number): Promise<Buffer>;
+  assemble(clips: Buffer[], targetDurationSec: number): Promise<Buffer>;
   pollIntervalMs: number;
   maxPolls: number;
 }
@@ -40,8 +37,6 @@ const defaults: GrokRendererDependencies = {
   save: async (bucket, key, body, contentType) => objectStorageClient.bucket(bucket).file(key).save(body, { metadata: { contentType } }),
   signUrl: (bucket, key) => signObjectURL({ bucketName: bucket, objectName: key, method: "GET", ttlSec: 604800 }),
   normalizeFrame: normalizeVideoFrame,
-  synthesize: (text, speakingRate) => synthesizeSpeech({ text, voiceName: "en-CA-Chirp3-HD-Charon", locale: "en-CA", format: "mp3", speakingRate } as Parameters<typeof synthesizeSpeech>[0] & { speakingRate?: number }),
-  probeAudioDuration: audio => probeBufferDuration(audio, "mp3"),
   assemble: assembleVideo,
   pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
   maxPolls: DEFAULT_MAX_POLLS,
@@ -89,16 +84,19 @@ export class GrokCommercialRenderer implements CommercialRenderer {
       throw new Error("Commercial duration must be an integer from 1 to 60 seconds");
     }
     const dialogueLines = extractNarrationLines(job.script);
-    const narrationText = dialogueLines.join(" ").trim();
-    if (!narrationText) throw new Error("No English dialogue was found for controlled narration");
 
     const segmentCount = Math.ceil(targetDurationSec / 15);
     const clips: Buffer[] = [];
+    const linesPerSegment = Math.ceil(dialogueLines.length / segmentCount);
+    const segmentDialogue = Array.from({ length: segmentCount }, (_, index) =>
+      dialogueLines.slice(index * linesPerSegment, (index + 1) * linesPerSegment),
+    );
     for (let index = 0; index < segmentCount; index++) {
       const startSec = index * 15;
       const durationSec = Math.min(15, targetDurationSec - startSec);
       const segmentJob: CommercialRenderJob = {
         ...job,
+        script: (segmentDialogue[index] ?? []).map(line => `Actor Line: ${line}`).join("\n"),
         durationSec,
         totalDurationSec: targetDurationSec,
         segmentStartSec: startSec,
@@ -108,13 +106,12 @@ export class GrokCommercialRenderer implements CommercialRenderer {
       clips.push(await this.renderClip(segmentJob));
     }
 
-    const narration = await synthesizeCompleteNarration(this.deps.synthesize, this.deps.probeAudioDuration, narrationText, targetDurationSec);
-    const finalBytes = await this.deps.assemble(clips, narration, targetDurationSec);
+    const finalBytes = await this.deps.assemble(clips, targetDurationSec);
     if (!finalBytes.length || finalBytes.length > MAX_VIDEO_BYTES) throw new Error("Assembled commercial is empty or exceeds the maximum allowed size");
     const bucketKey = `commercial/grok/${job.videoId}/${Date.now()}-assembled.mp4`;
     await this.deps.save(bucket, bucketKey, finalBytes, "video/mp4");
     const videoUrl = `grok-object://${encodeURIComponent(bucket)}/${bucketKey.split("/").map(encodeURIComponent).join("/")}`;
-    logger.info({ videoId: job.videoId, segments: segmentCount, durationSec: targetDurationSec, bytes: finalBytes.length }, "Assembled controlled-narration commercial stored");
+    logger.info({ videoId: job.videoId, segments: segmentCount, durationSec: targetDurationSec, bytes: finalBytes.length }, "Assembled native-audio commercial stored");
     return { videoUrl, durationSec: targetDurationSec, sceneJobIds: [] };
   }
 
@@ -124,7 +121,7 @@ export class GrokCommercialRenderer implements CommercialRenderer {
     const submitted = await this.requestJson("POST", GROK_VIDEO_ENDPOINT, apiKey, request);
     const requestId = submitted.request_id;
     if (!requestId) throw new Error("Grok submission returned no request_id");
-    logger.info({ videoId: job.videoId, requestId, duration: request.duration, segment: job.segmentIndex }, "Grok silent video segment submitted");
+    logger.info({ videoId: job.videoId, requestId, duration: request.duration, segment: job.segmentIndex }, "Grok native-audio video segment submitted");
 
     let completed: GrokStatus | undefined;
     for (let poll = 0; poll < this.deps.maxPolls; poll++) {
@@ -194,7 +191,7 @@ export async function normalizeVideoFrame(input: Buffer, aspectRatio: Commercial
     fs.writeFileSync(inputPath, input);
     await new Promise<void>((resolve, reject) => {
       const filter = `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1`;
-      const child = spawn("ffmpeg", ["-y", "-i", inputPath, "-t", String(durationSec), "-vf", filter, "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-movflags", "+faststart", outputPath], { stdio: ["ignore", "ignore", "pipe"] });
+      const child = spawn("ffmpeg", ["-y", "-i", inputPath, "-t", String(durationSec), "-vf", filter, "-map", "0:v:0", "-map", "0:a:0", "-af", `apad,atrim=duration=${durationSec}`, "-c:v", "libx264", "-c:a", "aac", "-b:a", "128k", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-movflags", "+faststart", outputPath], { stdio: ["ignore", "ignore", "pipe"] });
       let stderr = "";
       child.stderr?.on("data", (chunk: Buffer) => { stderr = (stderr + chunk.toString()).slice(-4000); });
       child.once("error", reject);
@@ -208,36 +205,7 @@ export async function normalizeVideoFrame(input: Buffer, aspectRatio: Commercial
   }
 }
 
-
-export async function synthesizeCompleteNarration(
-  synthesize: (text: string, speakingRate?: number) => Promise<Buffer>,
-  probeAudioDuration: (audio: Buffer) => Promise<number>,
-  text: string,
-  targetDurationSec: number,
-): Promise<Buffer> {
-  let speakingRate = 1;
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const audio = await synthesize(text, speakingRate);
-    const duration = await probeAudioDuration(audio);
-    if (duration <= targetDurationSec + 0.1) return audio;
-    if (speakingRate >= 4) break;
-    speakingRate = Math.min(4, Math.max(speakingRate + 0.1, speakingRate * duration / (targetDurationSec * 0.95)));
-  }
-  throw new Error(`Approved narration cannot fit within ${targetDurationSec}s at the supported speaking rate; refusing to truncate dialogue`);
-}
-
-async function probeBufferDuration(input: Buffer, extension: string): Promise<number> {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "grok-audio-probe-"));
-  const inputPath = path.join(dir, `input.${extension}`);
-  try {
-    fs.writeFileSync(inputPath, input);
-    return await probeDuration(inputPath);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-}
-
-export async function assembleVideo(clips: Buffer[], narration: Buffer, targetDurationSec: number): Promise<Buffer> {
+export async function assembleVideo(clips: Buffer[], targetDurationSec: number): Promise<Buffer> {
   if (clips.length === 0) throw new Error("Cannot assemble a commercial without picture clips");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "grok-commercial-"));
   const clipPaths = clips.map((clip, i) => {
@@ -246,17 +214,11 @@ export async function assembleVideo(clips: Buffer[], narration: Buffer, targetDu
     return clipPath;
   });
   const listPath = path.join(dir, "clips.txt");
-  const narrationPath = path.join(dir, "narration.mp3");
   const outputPath = path.join(dir, "assembled.mp4");
   fs.writeFileSync(listPath, clipPaths.map(file => `file '${file.replace(/'/g, "'\\''")}'`).join("\n") + "\n");
-  fs.writeFileSync(narrationPath, narration);
   try {
-    const narrationDuration = await probeDuration(narrationPath);
-    if (narrationDuration > targetDurationSec + 0.1) {
-      throw new Error(`Narration (${narrationDuration.toFixed(2)}s) exceeds the ${targetDurationSec}s commercial; refusing to truncate approved dialogue`);
-    }
-    await runFfmpeg(["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-i", narrationPath,
-      "-map", "0:v:0", "-map", "1:a:0", "-vf", `tpad=stop_mode=clone:stop_duration=${targetDurationSec}`,
+    await runFfmpeg(["-y", "-f", "concat", "-safe", "0", "-i", listPath,
+      "-map", "0:v:0", "-map", "0:a:0", "-vf", `tpad=stop_mode=clone:stop_duration=${targetDurationSec}`,
       "-af", `apad,atrim=duration=${targetDurationSec}`, "-t", String(targetDurationSec),
       "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
       "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", outputPath]);

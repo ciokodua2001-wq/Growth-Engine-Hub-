@@ -14,9 +14,9 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
     expect(extractNarrationLines("Visual direction: A calm, bright home\nActor Line: Welcome to our home."))
       .toEqual(["Welcome to our home."]);
   });
-  it("builds the approved 9:16 silent picture request with no captions", () => {
+  it("builds the 9:16 native-audio request with approved dialogue", () => {
     const body = buildGrokGenerationRequest({
-      script: "Spoken dialogue here.",
+      script: "Actor Line: \"Spoken dialogue here.\"",
       storyboard: "Four shots in a bright Lagos home.",
       cinematicPlan: null,
       aspectRatio: "9:16",
@@ -29,9 +29,11 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
       duration: 15,
       aspect_ratio: "9:16",
       resolution: "720p",
-      generate_audio: false,
+      generate_audio: true,
     });
     expect(body.prompt).toMatch(/Never create split-screen, divided panels, triptychs, grids, contact sheets/);
+    expect(body.prompt).toContain("Spoken dialogue here.");
+    expect(body.prompt).toContain("ONLY these exact approved words");
     expect(body.prompt).toMatch(/opening frame must be a normal full-frame cinematic image/);
     expect(body.prompt).toMatch(/Do not invent, approximate, synthesize, or display any logo/);
     expect(body.prompt).not.toMatch(/Preserve and accurately render any customer-requested branding/);
@@ -45,7 +47,7 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
 
   it("allows 15-second provider segments to reference their correct shot window", () => {
     const request = buildGrokGenerationRequest({
-      script: "Exact spoken dialogue is not sent as audio.", storyboard: "Overview", aspectRatio: "16:9",
+      script: "Actor Line: Exact spoken dialogue.", storyboard: "Overview", aspectRatio: "16:9",
       durationSec: 15, totalDurationSec: 45, segmentStartSec: 15, segmentIndex: 2, segmentCount: 3,
       cinematicPlan: JSON.stringify({ shots: [
         { duration: 15, subjectAction: "First scene" },
@@ -54,10 +56,11 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
       ] }),
     });
     expect(request.prompt).toContain("Second scene");
+    expect(request.prompt).toContain("Exact spoken dialogue.");
     expect(request.prompt).not.toContain("First scene");
     expect(request.prompt).not.toContain("Third scene");
     expect(request.prompt).toContain("Clip 2 of 3");
-    expect(request.generate_audio).toBe(false);
+    expect(request.generate_audio).toBe(true);
   });
 
   it("supports every product ratio and maps 4:5 to portrait source generation", () => {
@@ -98,7 +101,7 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
     } as CommercialRenderJob;
     const request = buildGrokGenerationRequest(job);
     expect(request.prompt.indexOf("Shot 1\n")).toBeLessThan(request.prompt.indexOf("Shot 2\n"));
-    expect(request.prompt).not.toContain("Customer's newly edited complete script");
+    expect(request.prompt).toContain("Customer's newly edited complete script");
     expect(request.prompt).toContain("Visual style: Bright editorial style");
     expect(request.prompt).toContain("Performance direction: Warm and confident");
     expect(request.prompt).not.toContain("New shot one line");
@@ -107,9 +110,9 @@ describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
     expect(request.prompt).toContain("Lens: 50mm");
     expect(request.prompt).toContain("Text overlay placement: Lower third");
     expect(request.prompt).toContain("Final hero shot: Product close-up");
-    expect(request.prompt).toContain("silent picture footage");
-    expect(request.prompt).toContain("controlled English narration");
-    expect(request.generate_audio).toBe(false);
+    expect(request.prompt).toContain("Native audio instruction");
+    expect(request.prompt).toContain("ONLY these exact approved words");
+    expect(request.generate_audio).toBe(true);
   });
 
   it("bills requested duration and actual assembled duration without truncating to one provider segment", () => {

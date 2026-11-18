@@ -1,3 +1,4 @@
+import { extractNarrationLines } from "./dialogue.js";
 import type { CommercialRenderJob } from "./commercialRenderer.js";
 
 export const GROK_VIDEO_MODEL = "grok-imagine-video-1.5-lite";
@@ -19,7 +20,7 @@ export interface GrokGenerationRequest {
   duration: number;
   aspect_ratio: "16:9" | "9:16" | "1:1";
   resolution: "720p";
-  generate_audio: false;
+  generate_audio: true;
 }
 
 /** xAI currently accepts 16:9, 9:16 and 1:1. 4:5 is made exact by our
@@ -78,7 +79,11 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
     .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
     .join("\n\n");
   if (!content.trim()) throw new Error("Grok generation requires a non-empty prompt");
-  const prompt = `${content}\n\nVisual-only instruction: This is silent picture footage. Actors must not speak, mouth words, or produce dialogue. No music or sound effects. Dialogue will be added separately as controlled English narration. Each shot description is a separate sequential moment in one video, never simultaneous panels.\n\n${GROK_NO_TEXT_INSTRUCTIONS}`;
+  const spokenLines = extractNarrationLines(job.script ?? "");
+  const dialogueInstruction = spokenLines.length
+    ? `Native audio instruction: Include natural, clear spoken dialogue using ONLY these exact approved words, verbatim and in order. Do not paraphrase, omit, add, or invent speech: ${spokenLines.map(line => `“${line}”`).join(" ")}. Use realistic synchronized voices and suitable natural ambience/music only if it does not obscure the dialogue.`
+    : "Native audio instruction: Generate natural synchronized environmental audio and music appropriate to the scene; do not add intelligible speech.";
+  const prompt = `${content}\n\n${dialogueInstruction} Each shot description is a separate sequential moment in one video, never simultaneous panels.\n\n${GROK_NO_TEXT_INSTRUCTIONS}`;
 
   const aspectRatio = grokSourceAspectRatio(job.aspectRatio);
 
@@ -87,13 +92,13 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
     throw new Error("Grok video duration must be an integer from 1 to 15 seconds");
   }
 
-  // Grok audio is disabled so only reviewed script text is spoken by TTS.
+  // Generate native, synchronized audio from the approved segment dialogue.
   return {
     model: GROK_VIDEO_MODEL,
     prompt,
     duration,
     aspect_ratio: aspectRatio,
     resolution: "720p",
-    generate_audio: false,
+    generate_audio: true,
   };
 }
