@@ -2,6 +2,9 @@ import { extractNarrationLines } from "./dialogue.js";
 import type { CommercialRenderJob } from "./commercialRenderer.js";
 import { withPhysicalContinuity } from "./physicalContinuity.js";
 
+export const CRITICAL_VISUAL_RULES =
+  "CRITICAL, NON-NEGOTIABLE VISUAL RULES (obey above all else): Every person has exactly two arms and two hands with five fingers each. Never render a third or extra arm, a hand emerging from behind or in front of a torso, a floating or detached hand, merged fingers, or more than five fingers. There is absolutely no text, lettering, numerals, logo, or interface graphics anywhere in the frame - no signs, labels, captions, subtitles, watermarks, or writing in any language; every screen, tablet, phone, monitor, or device that appears is blank, dark, or softly out of focus with no readable or invented content.";
+
 export const GROK_VIDEO_MODEL = "grok-imagine-video-1.5-lite";
 export const GROK_VIDEO_ENDPOINT = "https://api.x.ai/v1/videos/generations";
 export const GROK_VIDEO_STATUS_ENDPOINT = "https://api.x.ai/v1/videos";
@@ -103,7 +106,7 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
   const dialogueInstruction = spokenLines.length
     ? `STRICT AUDIO RULE: The only intelligible speech allowed is this exact approved dialogue, verbatim and in order: ${spokenLines.map(line => `“${line}”`).join(" ")}. Speak these lines only. Never speak, sing, paraphrase, describe, or narrate any visual action, gesture, expression, shot description, scene direction, camera instruction, character description, prompt text, or stage direction. Do not add any other words or voices. Natural synchronized ambience/music is allowed only without intelligible extra speech and must not obscure the approved lines.`
     : "STRICT AUDIO RULE: Generate only natural synchronized environmental audio/music appropriate to the scene. Absolutely no intelligible speech, narration, lyrics, words, or voices.";
-  const prompt = withPhysicalContinuity(`${content}\n\n${dialogueInstruction}\n\nVisual shot descriptions are silent visual directions, not dialogue. Show each shot sequentially, never as simultaneous panels.\n\n${GROK_NO_TEXT_INSTRUCTIONS}`);
+  const prompt = withPhysicalContinuity(`${CRITICAL_VISUAL_RULES}\n\n${content}\n\n${dialogueInstruction}\n\nVisual shot descriptions are silent visual directions, not dialogue. Show each shot sequentially, never as simultaneous panels.\n\n${GROK_NO_TEXT_INSTRUCTIONS}`);
 
   const aspectRatio = grokSourceAspectRatio(job.aspectRatio);
 

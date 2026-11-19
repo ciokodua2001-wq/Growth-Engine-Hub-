@@ -36,13 +36,28 @@ router.param("id", requireProjectOwnershipParam());
  * while the player kept working fine.
  */
 async function refreshMediaUrl(storedUrl: string): Promise<string> {
-  if (!storedUrl || !storedUrl.startsWith("http")) return storedUrl;
+  if (!storedUrl) return storedUrl;
+  // Grok renders persist a stable grok-object://{bucket}/{key} reference, not a
+  // presigned URL. Resolve it the same way the /media route does.
+  if (storedUrl.startsWith("grok-object://")) {
+    const ref = storedUrl.slice("grok-object://".length);
+    const slash = ref.indexOf("/");
+    if (slash > 0) {
+      const bucket = decodeURIComponent(ref.slice(0, slash));
+      const key = ref.slice(slash + 1).split("/").map(decodeURIComponent).join("/");
+      return signObjectURL({ bucketName: bucket, objectName: key, method: "GET", ttlSec: 86_400 });
+    }
+    return storedUrl;
+  }
+  if (!storedUrl.startsWith("http")) return storedUrl;
   try {
     const u = new URL(storedUrl);
     const parts = u.pathname.split("/").filter(Boolean);
     if (parts.length < 2) return storedUrl;
     const bucketName = parts[0]!;
-    const objectName = parts.slice(1).join("/");
+    // Decode percent-escapes (spaces etc.) so the object key is exact - an
+    // encoded "%20" re-encoded as "%2520" points at the wrong object (404).
+    const objectName = parts.slice(1).map(decodeURIComponent).join("/");
     return await signObjectURL({ bucketName, objectName, method: "GET", ttlSec: 86_400 });
   } catch (err) {
     logger.warn(

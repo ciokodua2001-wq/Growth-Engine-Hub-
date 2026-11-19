@@ -61,7 +61,7 @@ async function refreshAssemblyUrl(storedUrl: string): Promise<string> {
     const parts = u.pathname.split("/").filter(Boolean);
     if (parts.length < 2) return storedUrl;
     const bucketName = parts[0]!;
-    const objectName = parts.slice(1).join("/");
+    const objectName = parts.slice(1).map(decodeURIComponent).join("/");
     return await signObjectURL({ bucketName, objectName, method: "GET", ttlSec: 86_400 });
   } catch {
     return storedUrl;

@@ -192,7 +192,7 @@ function refreshSignedObjectUrl(storedUrl: string): Promise<string> {
     const u = new URL(storedUrl);
     const parts = u.pathname.split("/").filter(Boolean);
     if (parts.length < 2) return Promise.resolve(storedUrl);
-    return signObjectURL({ bucketName: parts[0]!, objectName: parts.slice(1).join("/"), method: "GET", ttlSec: 86_400 });
+    return signObjectURL({ bucketName: parts[0]!, objectName: parts.slice(1).map(decodeURIComponent).join("/"), method: "GET", ttlSec: 86_400 });
   } catch {
     return Promise.resolve(storedUrl);
   }
