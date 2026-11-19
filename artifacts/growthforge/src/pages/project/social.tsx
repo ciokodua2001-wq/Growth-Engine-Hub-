@@ -244,9 +244,36 @@ function useSocialHandles(projectId: number) {
   const [handles, setHandles] = useState<SocialHandles>(() => {
     try { return JSON.parse(localStorage.getItem(key) ?? "{}") as SocialHandles; } catch { return {}; }
   });
-  const save = (next: SocialHandles) => {
+
+  // Load the server-persisted copy on mount so handles survive logout/other
+  // devices. localStorage remains a fast local cache + offline fallback.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/projects/${projectId}/social-handles`, { credentials: "include" });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (active && j && typeof j.handles === "object") {
+          setHandles(j.handles as SocialHandles);
+          localStorage.setItem(key, JSON.stringify(j.handles));
+        }
+      } catch { /* offline - keep the cached copy */ }
+    })();
+    return () => { active = false; };
+  }, [projectId, key]);
+
+  const save = async (next: SocialHandles) => {
     setHandles(next);
     localStorage.setItem(key, JSON.stringify(next));
+    try {
+      await fetch(`/api/projects/${projectId}/social-handles`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ handles: next }),
+      });
+    } catch { /* offline - localStorage still holds it */ }
   };
   return { handles, save };
 }

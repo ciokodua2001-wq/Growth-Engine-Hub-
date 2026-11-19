@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, isNull } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { contentTable, socialPostsTable, emailCampaignsTable, adCreativesTable, activityTable, metaConnectionsTable } from "@workspace/db";
+import { contentTable, socialPostsTable, emailCampaignsTable, adCreativesTable, activityTable, metaConnectionsTable, businessSourcesTable } from "@workspace/db";
 import { consumeQuota, meetsMinPlan, getQuotaRemaining } from "../lib/planLimits.js";
 import { generateSocialPosts, generateEmailCampaign, generateContentPieces, type SocialPostResult, type EmailResult, type ContentPieceResult } from "../lib/contentGenerators.js";
 import {
@@ -1087,6 +1087,45 @@ router.post("/projects/:id/ads", requireActiveSubscription, async (req, res): Pr
   });
 
   res.json(inserted.map(a => ({ ...a, createdAt: a.createdAt.toISOString() })));
+});
+
+// ── Social publishing handles (server-persisted) ──────────────────────────────
+// The customer's @handle per platform, shown on post cards for "copy handle"
+// publishing. Previously browser-localStorage only, which vanished on logout /
+// other devices. Isolated under sourceType="social_handle" so these rows never
+// enter business-source ingestion or identity checks.
+router.get("/projects/:id/social-handles", async (req, res): Promise<void> => {
+  const projectId = req.project!.id;
+  const rows = await db
+    .select({ sourceValue: businessSourcesTable.sourceValue, declaredContent: businessSourcesTable.declaredContent })
+    .from(businessSourcesTable)
+    .where(and(eq(businessSourcesTable.projectId, projectId), eq(businessSourcesTable.sourceType, "social_handle")));
+  const handles: Record<string, string> = {};
+  for (const row of rows) if (row.sourceValue && row.declaredContent) handles[row.sourceValue] = row.declaredContent;
+  res.json({ handles });
+});
+
+router.put("/projects/:id/social-handles", async (req, res): Promise<void> => {
+  const projectId = req.project!.id;
+  const raw = (req.body as { handles?: unknown } | undefined)?.handles;
+  const handles: Record<string, string> = {};
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    for (const [platform, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof value === "string" && value.trim()) handles[platform] = value.trim();
+    }
+  }
+  await db.delete(businessSourcesTable).where(and(eq(businessSourcesTable.projectId, projectId), eq(businessSourcesTable.sourceType, "social_handle")));
+  for (const [platform, handle] of Object.entries(handles)) {
+    await db.insert(businessSourcesTable).values({
+      projectId,
+      sourceType: "social_handle",
+      sourceValue: platform,
+      displayLabel: platform,
+      declaredContent: handle,
+      status: "active",
+    });
+  }
+  res.json({ handles });
 });
 
 export default router;
