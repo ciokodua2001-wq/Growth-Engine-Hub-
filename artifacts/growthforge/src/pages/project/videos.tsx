@@ -747,8 +747,11 @@ function RenderPanel({
             </div>
           </label>
           <div ref={logoStageRef} className="relative mx-auto w-full max-w-xl overflow-hidden rounded-lg bg-black select-none" style={{ aspectRatio: outputAspectRatio === "9:16" ? "9 / 16" : outputAspectRatio === "1:1" ? "1 / 1" : outputAspectRatio === "4:5" ? "4 / 5" : "16 / 9" }}>
-            <video src={currentVideoUrl} muted playsInline className="absolute inset-0 h-full w-full object-contain" />
-            {logoAssetId && (
+            {/* Once an export exists, play the ACTUAL logo-burned file. Showing
+                the original render behind a CSS overlay made the logo vanish the
+                moment the video played or went fullscreen. */}
+            <video key={logoExportUrl ?? "base"} src={logoExportUrl ?? currentVideoUrl} controls playsInline className="absolute inset-0 h-full w-full object-contain" />
+            {logoAssetId && !logoExportUrl && (
               <img
                 src={`/api/projects/${projectId}/assets/${logoAssetId}/content`}
                 alt="Logo position preview - drag to reposition"
@@ -758,7 +761,8 @@ function RenderPanel({
                 style={{ left: `${logoPosition.x * 100}%`, top: `${logoPosition.y * 100}%`, width: `${logoPosition.scale * 100}%`, transform: "translate(-50%, -50%)" }}
               />
             )}
-            {logoAssetId && <p className="absolute bottom-1 left-0 right-0 text-center text-[9px] text-white/35 pointer-events-none">Drag the logo anywhere in the frame - it renders exactly here.</p>}
+            {logoAssetId && !logoExportUrl && <p className="absolute bottom-1 left-0 right-0 text-center text-[9px] text-white/35 pointer-events-none">Drag the logo anywhere in the frame - it renders exactly here.</p>}
+            {logoExportUrl && <p className="absolute bottom-1 left-0 right-0 text-center text-[9px] text-[#00E676]/70 pointer-events-none">Showing the exported file with the logo burned in.</p>}
           </div>
           <label className="block space-y-1"><span className="flex justify-between text-[11px] text-white/55"><span>Horizontal position</span><span>{Math.round(logoPosition.x * 100)}%</span></span><input aria-label="Logo horizontal position" type="range" min="0" max="1" step="0.005" value={logoPosition.x} onChange={event => setLogoPosition(position => ({ ...position, x: Number(event.target.value) }))} className="w-full accent-[#00D4FF]" /></label>
           <label className="block space-y-1"><span className="flex justify-between text-[11px] text-white/55"><span>Vertical position</span><span>{Math.round(logoPosition.y * 100)}%</span></span><input aria-label="Logo vertical position" type="range" min="0" max="1" step="0.005" value={logoPosition.y} onChange={event => setLogoPosition(position => ({ ...position, y: Number(event.target.value) }))} className="w-full accent-[#00D4FF]" /></label>

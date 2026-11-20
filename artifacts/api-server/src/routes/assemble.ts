@@ -54,6 +54,29 @@ const logger = pino({ name: "assemble.route" });
 
 // Re-sign a GCS signed URL with a fresh 24-hour TTL.
 // Both scene videos (4-hour TTL) and assembled videos (24-hour TTL) can expire.
+/**
+ * Fetch a stored object, re-signing on a 403/404 before giving up.
+ * Asset rows store presigned Wasabi URLs whose signature expires; reading them
+ * verbatim (or signing once and racing a slow encode) produced intermittent
+ * "Logo asset unavailable (403)" and the badge silently never appeared.
+ */
+async function fetchStoredObject(storedUrl: string, label: string): Promise<Buffer> {
+  const attempt = async (): Promise<Response> =>
+    fetch(await refreshAssemblyUrl(storedUrl), { signal: AbortSignal.timeout(20_000) });
+  let first: Response;
+  try { first = await attempt(); }
+  catch (e) { throw new Error(`${label} fetch failed: ${e instanceof Error ? e.message : String(e)}`); }
+  if (first.ok) return Buffer.from(await first.arrayBuffer());
+  if (first.status === 403 || first.status === 404) {
+    // Re-sign from scratch and retry once - a stale signature is indistinguishable
+    // from a genuinely missing key until you ask again with fresh credentials.
+    const second = await attempt();
+    if (second.ok) return Buffer.from(await second.arrayBuffer());
+    throw new Error(`${label} unavailable (${second.status})`);
+  }
+  throw new Error(`${label} unavailable (${first.status})`);
+}
+
 async function refreshAssemblyUrl(storedUrl: string): Promise<string> {
   if (!storedUrl || !storedUrl.startsWith("http")) return storedUrl;
   try {
@@ -97,9 +120,7 @@ router.post("/projects/:id/videos/:videoId/assemblies/:assemblyId/logo", async (
     return;
   }
   try {
-    const response = await fetch(asset.url, { signal: AbortSignal.timeout(20_000) });
-    if (!response.ok) throw new Error(`Logo asset unavailable (${response.status})`);
-    const logo = Buffer.from(await response.arrayBuffer());
+    const logo = await fetchStoredObject(asset.url, "Logo asset");
     if (logo.length < 26 || logo.length > 10 * 1024 * 1024 ||
       !logo.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
       logo.toString("ascii", 12, 16) !== "IHDR" || ![4, 6].includes(logo[25]!)) {
@@ -269,14 +290,16 @@ router.post("/projects/:id/videos/:videoId/logo", async (req, res) => {
     return;
   }
   try {
-    const response = await fetch(await refreshAssemblyUrl(asset.url), { signal: AbortSignal.timeout(20_000) });
-    if (!response.ok) throw new Error(`Logo asset unavailable (${response.status})`);
-    const length = Number(response.headers.get("content-length") ?? 0);
-    if (length > 10 * 1024 * 1024) {
+    const declaredSize = asset.fileSize ?? 0;
+    if (declaredSize > 10 * 1024 * 1024) {
       res.status(422).json({ error: "Logo file must be 10 MB or smaller" });
       return;
     }
-    const logo = Buffer.from(await response.arrayBuffer());
+    const logo = await fetchStoredObject(asset.url, "Logo asset");
+    if (logo.length > 10 * 1024 * 1024) {
+      res.status(422).json({ error: "Logo file must be 10 MB or smaller" });
+      return;
+    }
     if (logo.length < 26 || logo.length > 10 * 1024 * 1024 ||
       !logo.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
       logo.toString("ascii", 12, 16) !== "IHDR" || !hasPngTransparency(logo)) {
