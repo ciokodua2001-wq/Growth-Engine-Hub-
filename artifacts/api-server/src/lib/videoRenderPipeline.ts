@@ -8,9 +8,9 @@ import { eq } from "drizzle-orm";
 import pino from "pino";
 import { synthesizeSpeech, type NarrationLocale } from "@workspace/integrations-google-tts-server";
 import { deductPlatformCredits } from "./platformCredits.js";
-import { deductVideoSeconds, refundReservedVideoSeconds } from "./videoWallet.js";
-import { GrokCommercialRenderer, GROK_STORAGE_REFERENCE_PREFIX } from "./grokRenderer.js";
-import { grokBillableSeconds } from "./grokRequest.js";
+import { deductVideoSeconds, refundReservedVideoSeconds, refundRefineVideoSeconds } from "./videoWallet.js";
+import { GrokCommercialRenderer, GROK_STORAGE_REFERENCE_PREFIX, assembleVideo } from "./grokRenderer.js";
+import { grokBillableSeconds, GROK_EDIT_MAX_SOURCE_SECONDS } from "./grokRequest.js";
 import { compositeLogoOnVideo } from "./ffmpegAssembler.js";
 import { objectStorageClient, signObjectURL } from "./objectStorage.js";
 import type { CommercialAspectRatio, CommercialRenderJob } from "./commercialRenderer.js";
@@ -658,4 +658,127 @@ async function withRetry<T>(
 function isRetryable(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   return /429|502|503|504|ECONNRESET|ETIMEDOUT|ECONNREFUSED/i.test(msg);
+}
+
+// ── Segment refinement (xAI video editing) ─────────────────────────────────────
+
+function resolveRenderVideoUrl(videoUrl: string): Promise<string> {
+  if (videoUrl.startsWith(GROK_STORAGE_REFERENCE_PREFIX)) return grokRefToSignedUrl(videoUrl);
+  if (videoUrl.startsWith("http")) return refreshSignedObjectUrl(videoUrl);
+  return Promise.reject(new Error("Video has an unsupported URL scheme"));
+}
+
+function runFfmpegLocal(args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(FFMPEG_BIN, args, { stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr?.on("data", (c: Buffer) => { stderr = (stderr + c.toString()).slice(-4000); });
+    child.once("error", reject);
+    child.once("close", (code) => code === 0 ? resolve() : reject(new Error(`FFmpeg failed (${code}): ${stderr}`)));
+  });
+}
+
+function extractClip(inputPath: string, startSec: number, durSec: number, outputPath: string): Promise<void> {
+  return runFfmpegLocal(["-y", "-i", inputPath, "-ss", String(startSec), "-t", String(durSec),
+    "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
+    "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", outputPath]);
+}
+
+function hasAudioStream(filePath: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("ffprobe", ["-v", "error", "-select_streams", "a", "-show_entries", "stream=codec_type", "-of", "csv=p=0", filePath], { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    child.stdout?.on("data", (c: Buffer) => { stdout += c.toString(); });
+    child.once("error", reject);
+    child.once("close", (code) => code === 0 ? resolve(stdout.trim().length > 0) : reject(new Error("ffprobe audio check failed")));
+  });
+}
+
+async function normalizeEditedClip(inputPath: string, outputPath: string, durSec: number): Promise<void> {
+  const hasAudio = await hasAudioStream(inputPath);
+  const args = hasAudio
+    ? ["-y", "-i", inputPath, "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", outputPath]
+    : ["-y", "-i", inputPath, "-f", "lavfi", "-t", String(durSec), "-i", "anullsrc=r=44100:cl=stereo", "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart", outputPath];
+  await runFfmpegLocal(args);
+}
+
+export function startVideoRefine(videoId: number, startSec: number, endSec: number, instruction: string): void {
+  void runVideoRefine(videoId, startSec, endSec, instruction).catch((err) => {
+    logger.error({ err, videoId }, "Video refine unhandled error");
+    void markFailed(videoId, "Refinement failed unexpectedly; reserved seconds were returned.");
+  });
+}
+
+async function runVideoRefine(videoId: number, startSec: number, endSec: number, instruction: string): Promise<void> {
+  const [video] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
+  if (!video) throw new Error(`Video ${videoId} not found`);
+  if (!video.videoUrl) throw new Error("Video has no rendered content to refine");
+  const [project] = await db.select({ ownerId: projectsTable.ownerId }).from(projectsTable).where(eq(projectsTable.id, video.projectId));
+  const ownerUserId = project?.ownerId ?? null;
+  const fullDuration = Math.max(1, video.duration ?? 15);
+  const segStart = Math.max(0, Math.min(startSec, fullDuration));
+  const segEnd = Math.max(segStart, Math.min(endSec, fullDuration));
+  const segDur = segEnd - segStart;
+
+  if (segDur <= 0 || segDur > GROK_EDIT_MAX_SOURCE_SECONDS + 0.01) {
+    await markFailed(videoId, `Refinement window must be 0-${GROK_EDIT_MAX_SOURCE_SECONDS} seconds`);
+    if (ownerUserId) await refundRefineVideoSeconds(ownerUserId, Number.MAX_SAFE_INTEGER, videoId, video.projectId, "Refinement window invalid; reservation returned").catch(() => {});
+    return;
+  }
+
+  let tmpDir = "";
+  try {
+    await db.update(videosTable).set({ renderStatus: "processing", renderStartedAt: new Date(), renderError: null }).where(eq(videosTable.id, videoId));
+    const renderer = new GrokCommercialRenderer();
+
+    const fullUrl = await resolveRenderVideoUrl(video.videoUrl);
+    const fullRes = await fetch(fullUrl, { signal: AbortSignal.timeout(180_000) });
+    if (!fullRes.ok) throw new Error(`Rendered video download failed (HTTP ${fullRes.status})`);
+    const fullBuffer = Buffer.from(await fullRes.arrayBuffer());
+
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "gf-refine-"));
+    const fullPath = path.join(tmpDir, "full.mp4");
+    const headPath = path.join(tmpDir, "head.mp4");
+    const midPath = path.join(tmpDir, "middle.mp4");
+    const tailPath = path.join(tmpDir, "tail.mp4");
+    const editedPath = path.join(tmpDir, "edited.mp4");
+    const normPath = path.join(tmpDir, "edited-norm.mp4");
+    fs.writeFileSync(fullPath, fullBuffer);
+
+    if (segStart > 0) await extractClip(fullPath, 0, segStart, headPath);
+    await extractClip(fullPath, segStart, segDur, midPath);
+    if (segEnd < fullDuration) await extractClip(fullPath, segEnd, fullDuration - segEnd, tailPath);
+
+    const bucket = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+    if (!bucket) throw new Error("Object storage is not configured");
+    const midKey = `commercial/grok/${videoId}/refine-source/${Date.now()}.mp4`;
+    await objectStorageClient.bucket(bucket).file(midKey).save(fs.readFileSync(midPath), { metadata: { contentType: "video/mp4" } });
+    const midUrl = await signObjectURL({ bucketName: bucket, objectName: midKey, method: "GET", ttlSec: 604800 });
+
+    const edited = await renderer.refineClip(midUrl, instruction);
+    fs.writeFileSync(editedPath, edited);
+    await normalizeEditedClip(editedPath, normPath, segDur);
+
+    const parts: Buffer[] = [];
+    if (segStart > 0) parts.push(fs.readFileSync(headPath));
+    parts.push(fs.readFileSync(normPath));
+    if (segEnd < fullDuration) parts.push(fs.readFileSync(tailPath));
+    const spliced = await assembleVideo(parts, fullDuration);
+
+    const outKey = `commercial/grok/${videoId}/refined/${Date.now()}.mp4`;
+    await objectStorageClient.bucket(bucket).file(outKey).save(spliced, { metadata: { contentType: "video/mp4" } });
+    const ref = `grok-object://${encodeURIComponent(bucket)}/${outKey.split("/").map(encodeURIComponent).join("/")}`;
+    await db.update(videosTable).set({ renderStatus: "complete", videoUrl: ref, renderCompletedAt: new Date(), renderError: null, fidelityStatus: "unverified" }).where(eq(videosTable.id, videoId));
+    logger.info({ videoId, segStart, segDur }, "Video segment refined and spliced back");
+  } catch (error) {
+    logger.error({ err: error, videoId }, "Video refine failed");
+    await markFailed(videoId, "Refinement failed; reserved video seconds were returned.");
+    if (ownerUserId) {
+      try { await refundRefineVideoSeconds(ownerUserId, Number.MAX_SAFE_INTEGER, videoId, video.projectId, "Refinement failed; reservation returned"); }
+      catch (refundError) { logger.error({ err: refundError, videoId }, "Refine refund reconciliation required"); }
+    }
+    return;
+  } finally {
+    if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 }

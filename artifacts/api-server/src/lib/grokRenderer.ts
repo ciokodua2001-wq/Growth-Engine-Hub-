@@ -5,7 +5,7 @@ import * as path from "node:path";
 import pino from "pino";
 import { extractNarrationLines } from "./dialogue.js";
 import type { CommercialRenderer, CommercialRenderJob, CommercialRenderResult, CommercialRendererCapabilities } from "./commercialRenderer.js";
-import { buildGrokGenerationRequest, GROK_VIDEO_ENDPOINT, GROK_VIDEO_STATUS_ENDPOINT } from "./grokRequest.js";
+import { buildGrokGenerationRequest, buildGrokEditRequest, GROK_VIDEO_ENDPOINT, GROK_VIDEO_STATUS_ENDPOINT, GROK_VIDEO_EDIT_ENDPOINT } from "./grokRequest.js";
 import { objectStorageClient, signObjectURL } from "./objectStorage.js";
 
 const logger = pino({ name: "grokRenderer" });
@@ -134,6 +134,12 @@ export class GrokCommercialRenderer implements CommercialRenderer {
     if (!completed) throw new Error("Grok video generation timed out; no automatic retry was attempted");
     const url = completed.video?.url;
     if (!url) throw new Error("Grok completed without a downloadable video URL");
+    const input = await this.downloadVideo(url);
+    return this.deps.normalizeFrame(input, job.aspectRatio, request.duration);
+  }
+
+  /** Download a completed Grok video from a trusted xAI/grok.com host. */
+  private async downloadVideo(url: string): Promise<Buffer> {
     const downloadUrl = new URL(url);
     const host = downloadUrl.hostname.toLowerCase();
     const trustedHost = host === "x.ai" || host.endsWith(".x.ai") || host === "grok.com" || host.endsWith(".grok.com");
@@ -153,7 +159,30 @@ export class GrokCommercialRenderer implements CommercialRenderer {
     }
     const input = Buffer.concat(chunks, totalBytes);
     if (!input.length || input.length > MAX_VIDEO_BYTES) throw new Error("Grok returned an invalid or oversized video file");
-    return this.deps.normalizeFrame(input, job.aspectRatio, request.duration);
+    return input;
+  }
+
+  /** Edit an existing clip with a natural-language instruction. Returns the
+   * edited MP4 (same duration/aspect/resolution as the source, capped at 720p). */
+  async refineClip(sourceUrl: string, instruction: string): Promise<Buffer> {
+    if (!this.isAvailable()) throw new Error("Grok video editing is disabled or not configured");
+    const request = buildGrokEditRequest(sourceUrl, instruction);
+    const submitted = await this.requestJson("POST", GROK_VIDEO_EDIT_ENDPOINT, this.apiKey, request);
+    const requestId = submitted.request_id;
+    if (!requestId) throw new Error("Grok edit submission returned no request_id");
+    logger.info({ requestId, instruction: instruction.slice(0, 140) }, "Grok video edit submitted");
+    let completed: GrokStatus | undefined;
+    for (let poll = 0; poll < this.deps.maxPolls; poll++) {
+      await this.deps.sleep(this.deps.pollIntervalMs);
+      const status = await this.requestJson("GET", `${GROK_VIDEO_STATUS_ENDPOINT}/${encodeURIComponent(requestId)}`, this.apiKey);
+      const normalized = (status.status ?? "").toLowerCase();
+      if (["done", "completed", "succeeded"].includes(normalized)) { completed = status; break; }
+      if (["failed", "error", "cancelled"].includes(normalized)) throw new Error(`Grok edit failed${status.error ? `: ${status.error}` : ""}`);
+    }
+    if (!completed) throw new Error("Grok video edit timed out");
+    const url = completed.video?.url;
+    if (!url) throw new Error("Grok edit completed without a downloadable video URL");
+    return this.downloadVideo(url);
   }
 
   private async requestJson(method: "GET" | "POST", url: string, apiKey: string, body?: unknown): Promise<GrokStatus> {

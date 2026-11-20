@@ -441,3 +441,83 @@ export async function resetMonthlySecondsForUser(userId: string, plan: string): 
 
   logger.info({ userId, plan, monthlyAlloc }, "Monthly video seconds reset for user");
 }
+
+// ── Segment refinement billing ───────────────────────────────────────────────
+// A refinement is a *separate* billable operation from the original render, so
+// it uses its own log types. The render ledger is keyed one-deduction-per-video;
+// reusing type "deduction"/"refund" would silently no-op (and refund the wrong
+// charge). These types are free-form text, so no migration is required.
+const REFINE_DEDUCTION_TYPE = "refine_deduction";
+const REFINE_REFUND_TYPE = "refine_refund";
+
+export async function deductRefineVideoSeconds(
+  userId: string,
+  seconds: number,
+  videoId: number,
+  projectId: number,
+  description: string,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx.select().from(videoWalletsTable).where(eq(videoWalletsTable.userId, userId)).for("update");
+    if (!row) return false;
+    const monthlyAvail = Math.max(0, row.monthlyVideoSeconds - row.monthlySecondsUsed);
+    if (monthlyAvail + row.purchasedVideoSeconds < seconds) return false;
+    const fromMonthly = Math.min(seconds, monthlyAvail);
+    const fromPurchased = Math.max(0, seconds - fromMonthly);
+    await tx.update(videoWalletsTable).set({
+      monthlySecondsUsed: row.monthlySecondsUsed + fromMonthly,
+      purchasedVideoSeconds: Math.max(0, row.purchasedVideoSeconds - fromPurchased),
+      totalRenderedSeconds: row.totalRenderedSeconds + seconds,
+      updatedAt: new Date(),
+    }).where(eq(videoWalletsTable.userId, userId));
+    await tx.insert(videoSecondLogsTable).values({
+      userId, videoId, projectId, type: REFINE_DEDUCTION_TYPE, secondsChanged: -seconds,
+      fromMonthly, fromPurchased,
+      newMonthlyBalance: monthlyAvail - fromMonthly,
+      newPurchasedBalance: Math.max(0, row.purchasedVideoSeconds - fromPurchased),
+      description,
+    });
+    return true;
+  });
+}
+
+export async function refundRefineVideoSeconds(
+  userId: string,
+  refundTarget: number,
+  videoId: number,
+  projectId: number,
+  description: string,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [wallet] = await tx.select().from(videoWalletsTable).where(eq(videoWalletsTable.userId, userId)).for("update");
+    if (!wallet) return;
+    const deductions = await tx.select().from(videoSecondLogsTable).where(and(
+      eq(videoSecondLogsTable.userId, userId), eq(videoSecondLogsTable.videoId, videoId), eq(videoSecondLogsTable.type, REFINE_DEDUCTION_TYPE),
+    ));
+    if (deductions.length === 0) return;
+    const totalDeducted = deductions.reduce((sum, r) => sum + (-r.secondsChanged), 0);
+    const refunds = await tx.select().from(videoSecondLogsTable).where(and(
+      eq(videoSecondLogsTable.userId, userId), eq(videoSecondLogsTable.videoId, videoId), eq(videoSecondLogsTable.type, REFINE_REFUND_TYPE),
+    ));
+    const alreadyRefunded = refunds.reduce((sum, r) => sum + r.secondsChanged, 0);
+    const target = Math.min(Math.max(0, refundTarget), totalDeducted);
+    const delta = target - alreadyRefunded;
+    if (delta <= 0) return;
+    const deductedMonthly = deductions.reduce((sum, r) => sum + r.fromMonthly, 0);
+    const fromMonthly = Math.min(delta, deductedMonthly);
+    const fromPurchased = delta - fromMonthly;
+    await tx.update(videoWalletsTable).set({
+      monthlySecondsUsed: Math.max(0, wallet.monthlySecondsUsed - fromMonthly),
+      purchasedVideoSeconds: wallet.purchasedVideoSeconds + fromPurchased,
+      totalRenderedSeconds: Math.max(0, wallet.totalRenderedSeconds - delta),
+      updatedAt: new Date(),
+    }).where(eq(videoWalletsTable.userId, userId));
+    await tx.insert(videoSecondLogsTable).values({
+      userId, videoId, projectId, type: REFINE_REFUND_TYPE, secondsChanged: delta,
+      fromMonthly, fromPurchased,
+      newMonthlyBalance: Math.max(0, wallet.monthlyVideoSeconds - (wallet.monthlySecondsUsed - fromMonthly)),
+      newPurchasedBalance: wallet.purchasedVideoSeconds + fromPurchased,
+      description,
+    });
+  });
+}

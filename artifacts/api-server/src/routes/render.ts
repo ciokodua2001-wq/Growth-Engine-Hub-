@@ -5,8 +5,9 @@ import { eq, and, sql } from "drizzle-orm";
 import { requireUserId, requireProjectOwnershipParam } from "../lib/authz.js";
 import { signObjectURL } from "../lib/objectStorage.js";
 import { GROK_STORAGE_REFERENCE_PREFIX } from "../lib/grokRenderer.js";
-import { checkRenderRequirements, checkGrokRenderRequirements, startVideoRender, type RenderResolution, type AspectRatio } from "../lib/videoRenderPipeline.js";
-import { checkVideoSeconds, reserveVideoSeconds } from "../lib/videoWallet.js";
+import { checkRenderRequirements, checkGrokRenderRequirements, startVideoRender, startVideoRefine, type RenderResolution, type AspectRatio } from "../lib/videoRenderPipeline.js";
+import { checkVideoSeconds, reserveVideoSeconds, deductRefineVideoSeconds } from "../lib/videoWallet.js";
+import { grokBillableSeconds, GROK_EDIT_MAX_SOURCE_SECONDS } from "../lib/grokRequest.js";
 import pino from "pino";
 import { pipeReadableHandled } from "../lib/streamProxy.js";
 
@@ -299,6 +300,71 @@ router.delete("/projects/:id/videos/:videoId/render", async (req, res) => {
 
   const [updated] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
   res.json(updated);
+});
+
+// ── Refine a segment of a rendered video (xAI video editing) ─────────────────
+// Edits only the chosen window (<=8.7s), then splices it back into the full
+// video, so the customer is billed for the edited seconds only - not a re-render.
+router.post("/projects/:id/videos/:videoId/refine", async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const projectId = parseInt(req.params.id, 10);
+  const videoId = parseInt(req.params.videoId, 10);
+  if (isNaN(projectId) || isNaN(videoId)) { res.status(400).json({ error: "Invalid project or video ID" }); return; }
+
+  const body = req.body as { startSec?: unknown; endSec?: unknown; instruction?: unknown } | undefined;
+  const startSec = Number(body?.startSec);
+  const endSec = Number(body?.endSec);
+  const instruction = typeof body?.instruction === "string" ? body.instruction.trim() : "";
+
+  const [video] = await db.select().from(videosTable).where(and(eq(videosTable.id, videoId), eq(videosTable.projectId, projectId)));
+  if (!video) { res.status(404).json({ error: "Video not found" }); return; }
+  if (!video.videoUrl) { res.status(400).json({ error: "This video has not been rendered yet" }); return; }
+
+  const fullDuration = Math.max(1, video.duration ?? 15);
+  if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || startSec < 0 || endSec <= startSec || endSec > fullDuration + 0.01) {
+    res.status(400).json({ error: `Choose a valid time window within the ${fullDuration}s video` }); return;
+  }
+  const segDur = endSec - startSec;
+  if (segDur > GROK_EDIT_MAX_SOURCE_SECONDS + 0.01) {
+    res.status(400).json({ error: `A single refinement is limited to ${GROK_EDIT_MAX_SOURCE_SECONDS}s; choose a shorter window` }); return;
+  }
+  if (!instruction) { res.status(400).json({ error: "Describe what to change in the selected segment" }); return; }
+
+  const { ready, missing } = checkGrokRenderRequirements();
+  if (!ready) {
+    logger.error({ missing }, "[refine] unavailable - missing configuration");
+    res.status(503).json({ error: "Video refinement is temporarily unavailable" }); return;
+  }
+
+  const [user] = await db.select({ plan: usersTable.plan, isOwner: usersTable.isOwner }).from(usersTable).where(eq(usersTable.id, userId));
+  if (user?.isOwner !== true) { res.status(403).json({ error: "Video refinement is temporarily unavailable for this account." }); return; }
+  const plan = user?.plan ?? "trial";
+  const requiredSeconds = grokBillableSeconds(undefined, segDur);
+
+  const { allowed, balance, message } = await checkVideoSeconds(userId, plan, requiredSeconds);
+  if (!allowed) {
+    res.status(402).json({ error: "Insufficient video seconds", message: message ?? "Not enough video seconds to refine.", requiredSeconds, remainingSeconds: balance.totalRemaining });
+    return;
+  }
+
+  // Atomic claim prevents a refine racing a render or another refine.
+  const claimed = await db.update(videosTable).set({
+    renderStatus: "queued", renderError: null, renderStartedAt: new Date(), renderCompletedAt: null,
+  }).where(and(
+    eq(videosTable.id, videoId),
+    sql`${videosTable.renderStatus} NOT IN ('queued', 'processing')`,
+  )).returning({ id: videosTable.id });
+  if (claimed.length === 0) { res.status(409).json({ error: "A render or refinement is already in progress for this video" }); return; }
+
+  const deducted = await deductRefineVideoSeconds(userId, requiredSeconds, videoId, projectId, `Refine ${segDur.toFixed(1)}s of "${video.title}"`);
+  if (!deducted) {
+    await db.update(videosTable).set({ renderStatus: "idle" }).where(and(eq(videosTable.id, videoId), eq(videosTable.renderStatus, "queued")));
+    res.status(402).json({ error: "Insufficient video seconds", message: "Your available video seconds were used elsewhere. Refresh and try again." }); return;
+  }
+
+  startVideoRefine(videoId, startSec, endSec, instruction);
+  res.status(202).json({ status: "queued", startSec, endSec });
 });
 
 export default router;

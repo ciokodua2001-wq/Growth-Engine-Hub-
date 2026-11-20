@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { extractNarrationLines } from "../dialogue.js";
-import { buildGrokGenerationRequest, GROK_VIDEO_MODEL, grokBillableSeconds, grokSourceAspectRatio, scrubBrandArtifacts } from "../grokRequest.js";
+import { buildGrokGenerationRequest, buildGrokEditRequest, GROK_VIDEO_MODEL, GROK_VIDEO_EDIT_MODEL, GROK_EDIT_MAX_SOURCE_SECONDS, grokBillableSeconds, grokSourceAspectRatio, scrubBrandArtifacts } from "../grokRequest.js";
 import type { CommercialRenderJob } from "../commercialRenderer.js";
 
 describe("buildGrokGenerationRequest (offline, no provider calls)", () => {
@@ -147,4 +147,26 @@ describe("scrubBrandArtifacts", () => {
     expect(body.prompt).not.toMatch(/show the logo/i);
     expect(body.prompt).toContain("Try Quantivarian today.");
   });
+
+describe("buildGrokEditRequest (offline)", () => {
+  it("builds the grok-imagine-video edit payload from a public source URL", () => {
+    const req = buildGrokEditRequest("https://example.com/clip.mp4", "  Remove the extra arm.  ");
+    expect(req.model).toBe(GROK_VIDEO_EDIT_MODEL);
+    expect(req.prompt).toBe("Remove the extra arm.");
+    expect(req.video).toEqual({ url: "https://example.com/clip.mp4" });
+  });
+
+  it("rejects an empty instruction", () => {
+    expect(() => buildGrokEditRequest("https://example.com/clip.mp4", "   ")).toThrow(/instruction is required/);
+  });
+
+  it("rejects a non-https source URL", () => {
+    expect(() => buildGrokEditRequest("http://insecure/clip.mp4", "fix this")).toThrow(/https/);
+  });
+
+  it("exposes the documented 8.7s source cap", () => {
+    expect(GROK_EDIT_MAX_SOURCE_SECONDS).toBe(8.7);
+  });
+});
+
 });

@@ -8,6 +8,9 @@ export const CRITICAL_VISUAL_RULES =
 export const GROK_VIDEO_MODEL = "grok-imagine-video-1.5-lite";
 export const GROK_VIDEO_ENDPOINT = "https://api.x.ai/v1/videos/generations";
 export const GROK_VIDEO_STATUS_ENDPOINT = "https://api.x.ai/v1/videos";
+export const GROK_VIDEO_EDIT_ENDPOINT = "https://api.x.ai/v1/videos/edits";
+export const GROK_VIDEO_EDIT_MODEL = "grok-imagine-video";
+export const GROK_EDIT_MAX_SOURCE_SECONDS = 8.7;
 export const GROK_NO_TEXT_INSTRUCTIONS =
   "Generate one full-frame, single continuous cinematic shot. Never create split-screen, divided panels, triptychs, grids, contact sheets, storyboards, picture-in-picture, or multiple simultaneous views. The opening frame must be a normal full-frame cinematic image, not a collage or montage. Do not generate, invent, approximate, or display any logo, brand mark, watermark, brand name, product label, brand reveal, caption, subtitle, text overlay, or legible written text. Show no branding in this generated video; logo use is a separate optional action the user may choose after the render is complete. Any computer monitors, laptop screens, phones, dashboards, or software interfaces visible in frame must be rendered out of focus with only soft light and color gradients, or shown at a steep angle where no content is readable; never render legible or invented text, letters, numbers, or UI labels on any screen surface.";
 
@@ -124,4 +127,20 @@ export function buildGrokGenerationRequest(job: Pick<CommercialRenderJob,
     resolution: "720p",
     generate_audio: true,
   };
+}
+
+export interface GrokEditRequest {
+  model: typeof GROK_VIDEO_EDIT_MODEL;
+  prompt: string;
+  video: { url: string };
+}
+
+/** Pure builder for the xAI "edit a video from a prompt" endpoint. The edited
+ * output inherits the source clip's duration, aspect ratio and resolution
+ * (capped at 720p), so no duration/aspect_ratio/resolution fields are sent. */
+export function buildGrokEditRequest(sourceUrl: string, instruction: string): GrokEditRequest {
+  const prompt = instruction.trim();
+  if (!prompt) throw new Error("Refinement instruction is required");
+  if (!/^https:\/\//.test(sourceUrl)) throw new Error("Edit source must be an https URL");
+  return { model: GROK_VIDEO_EDIT_MODEL, prompt, video: { url: sourceUrl } };
 }
