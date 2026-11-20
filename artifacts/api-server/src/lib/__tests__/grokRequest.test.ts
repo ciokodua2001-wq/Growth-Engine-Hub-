@@ -152,7 +152,12 @@ describe("buildGrokEditRequest (offline)", () => {
   it("builds the grok-imagine-video edit payload from a public source URL", () => {
     const req = buildGrokEditRequest("https://example.com/clip.mp4", "  Remove the extra arm.  ");
     expect(req.model).toBe(GROK_VIDEO_EDIT_MODEL);
-    expect(req.prompt).toBe("Remove the extra arm.");
+    // The edit prompt is intentionally wrapped in EDIT_RULES, which tells the
+    // model to collapse any split-screen/stacked panels into one full-frame
+    // shot while preserving everything else. Assert both halves, not equality.
+    expect(req.prompt).toContain("CRITICAL, NON-NEGOTIABLE EDIT RULES");
+    expect(req.prompt).toContain("Collapse and remove any split-screen, divided, stacked, tiled");
+    expect(req.prompt).toContain("Apply this specific change:\nRemove the extra arm.");
     expect(req.video).toEqual({ url: "https://example.com/clip.mp4" });
   });
 

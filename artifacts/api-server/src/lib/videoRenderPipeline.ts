@@ -9,11 +9,12 @@ import pino from "pino";
 import { synthesizeSpeech, type NarrationLocale } from "@workspace/integrations-google-tts-server";
 import { deductPlatformCredits } from "./platformCredits.js";
 import { deductVideoSeconds, refundReservedVideoSeconds, refundRefineVideoSeconds } from "./videoWallet.js";
-import { GrokCommercialRenderer, GROK_STORAGE_REFERENCE_PREFIX, assembleVideo } from "./grokRenderer.js";
+import { GrokCommercialRenderer, GROK_STORAGE_REFERENCE_PREFIX, assembleVideo, assembleSequentialClips } from "./grokRenderer.js";
 import { grokBillableSeconds, GROK_EDIT_MAX_SOURCE_SECONDS } from "./grokRequest.js";
 import { compositeLogoOnVideo } from "./ffmpegAssembler.js";
 import { objectStorageClient, signObjectURL } from "./objectStorage.js";
-import type { CommercialAspectRatio, CommercialRenderJob } from "./commercialRenderer.js";
+import type { CommercialAspectRatio, CommercialRenderJob, CommercialRenderResult } from "./commercialRenderer.js";
+import { extractNarrationLines } from "./dialogue.js";
 
 function blueprintLogoAssetId(cinematicPlan: string | null | undefined): number | null {
   if (!cinematicPlan) return null;
@@ -178,6 +179,112 @@ export function startVideoRender(
   });
 }
 
+function cleanDialogueLine(raw: string): string {
+  return (raw ?? "").replace(/^['"“”]+|['"”]+$/g, "").trim();
+}
+
+/**
+ * Pure builder: turns a multi-shot cinematic plan into one render job per shot.
+ * Returns [] when the plan has 0-1 shots, so callers fall back to a single
+ * request. Each job wraps a single-shot plan (so Grok renders one full-frame
+ * scene rather than a stacked contact-sheet) and carries the shot's own
+ * dialogue line plus its segment window for continuity.
+ */
+export function buildPerShotRenderJobs(opts: {
+  videoId: number;
+  resolution: RenderResolution;
+  aspectRatio: CommercialAspectRatio;
+  script: string;
+  cinematicPlan: string;
+}): CommercialRenderJob[] {
+  const plan = parseCinematicPlan(opts.cinematicPlan);
+  // A shot with a missing or invalid duration is still real planned content, so
+  // default its length rather than dropping it: dropping silently shortened ads
+  // and could degrade an 8-shot plan back to 1 shot, which sends a single
+  // multi-shot request again and re-allows the contact-sheet tiling.
+  const shots = (plan?.shots ?? []).filter(shot => shot && typeof shot === "object");
+  if (!plan || shots.length <= 1) return [];
+
+  const hasPerShotDialogue = shots.some(sh => cleanDialogueLine(sh.dialogue ?? "").length > 0);
+  const narrationLines = hasPerShotDialogue ? [] : extractNarrationLines(opts.script);
+  const shotSeconds = (shot: CinematicShot) => Math.min(15, Math.max(3, Math.round(Number(shot.duration)) || 4));
+  const totalShotDuration = shots.reduce((sum, sh) => sum + shotSeconds(sh), 0);
+
+  let cursor = 0;
+  return shots.map((shot, i) => {
+    const shotDur = shotSeconds(shot);
+    const line = cleanDialogueLine(shot.dialogue ?? "") || (narrationLines.length ? narrationLines[i % narrationLines.length]! : "");
+    const singlePlan: CinematicPlan = { ...plan, shots: [shot] };
+    const job: CommercialRenderJob = {
+      videoId: opts.videoId, resolution: opts.resolution, aspectRatio: opts.aspectRatio, captionsEnabled: false,
+      script: line,
+      cinematicPlan: JSON.stringify(singlePlan),
+      durationSec: shotDur,
+      totalDurationSec: totalShotDuration,
+      segmentStartSec: cursor,
+      segmentIndex: i + 1,
+      segmentCount: shots.length,
+    };
+    cursor += shotDur;
+    return job;
+  });
+}
+
+/**
+ * Renders a commercial with Grok, one shot per generation request, and splices
+ * the clips back together. Asking Grok for the whole multi-shot commercial in a
+ * single request makes it tile every shot into a stacked contact-sheet of
+ * panels; a single-shot request returns one full-frame scene.
+ */
+async function renderGrokCommercial(
+  renderer: GrokCommercialRenderer,
+  opts: {
+    videoId: number;
+    resolution: RenderResolution;
+    aspectRatio: CommercialAspectRatio;
+    script: string;
+    storyboard?: string | null;
+    cinematicPlan?: string | null;
+    targetDuration: number;
+  },
+): Promise<CommercialRenderResult> {
+  const jobs = buildPerShotRenderJobs({
+    videoId: opts.videoId, resolution: opts.resolution, aspectRatio: opts.aspectRatio,
+    script: opts.script, cinematicPlan: opts.cinematicPlan ?? "",
+  });
+
+  if (jobs.length === 0) {
+    return renderer.render({
+      videoId: opts.videoId, resolution: opts.resolution, aspectRatio: opts.aspectRatio, captionsEnabled: false,
+      script: opts.script, storyboard: opts.storyboard, cinematicPlan: opts.cinematicPlan,
+      durationSec: Math.min(15, Math.max(1, opts.targetDuration)),
+      totalDurationSec: opts.targetDuration,
+    });
+  }
+
+  logger.info({ videoId: opts.videoId, shots: jobs.length }, "[grok] one-shot-per-clip render to prevent contact-sheet panels");
+  const clips: Buffer[] = [];
+  let cursor = 0;
+  for (const job of jobs) {
+    const result = await renderer.render(job);
+    const signed = await grokRefToSignedUrl(result.videoUrl);
+    const res = await fetch(signed, { signal: AbortSignal.timeout(120_000) });
+    if (!res.ok) throw new Error(`Shot ${job.segmentIndex ?? 0} download failed (HTTP ${res.status})`);
+    clips.push(Buffer.from(await res.arrayBuffer()));
+    cursor += job.durationSec ?? 0;
+    logger.info({ videoId: opts.videoId, shot: job.segmentIndex ?? 0, durationSec: job.durationSec }, "[grok] shot clip rendered");
+  }
+
+  const assembled = await assembleSequentialClips(clips);
+  const bucket = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+  if (!bucket) throw new Error("Object storage is not configured");
+  const key = `commercial/grok/${opts.videoId}/${Date.now()}-assembled.mp4`;
+  await objectStorageClient.bucket(bucket).file(key).save(assembled, { metadata: { contentType: "video/mp4" } });
+  const videoUrl = `grok-object://${encodeURIComponent(bucket)}/${key.split("/").map(encodeURIComponent).join("/")}`;
+  logger.info({ videoId: opts.videoId, clips: clips.length, durationSec: cursor }, "[grok] commercial spliced from per-shot clips");
+  return { videoUrl, durationSec: cursor };
+}
+
 async function runGrokRender(videoId: number, resolution: RenderResolution, aspectRatio: AspectRatio): Promise<void> {
   const [video] = await db.select().from(videosTable).where(eq(videosTable.id, videoId));
   if (!video) throw new Error(`Video ${videoId} not found`);
@@ -189,13 +296,15 @@ async function runGrokRender(videoId: number, resolution: RenderResolution, aspe
     // The editable full script is authoritative. Do not append per-shot
     // dialogue from the original blueprint, which can be stale after an edit.
     const script = [video.script, video.approvedScript, video.voiceover, video.title].find(value => typeof value === "string" && value.trim().length > 0)?.trim() ?? "";
-    const renderJob: CommercialRenderJob = {
-      videoId, resolution, aspectRatio: aspectRatio as CommercialAspectRatio, captionsEnabled: false,
+    const result = await renderGrokCommercial(new GrokCommercialRenderer(), {
+      videoId,
+      resolution,
+      aspectRatio: aspectRatio as CommercialAspectRatio,
       script,
-      storyboard: video.storyboard, cinematicPlan: video.cinematicPlan,
-      durationSec: Math.min(60, Math.max(1, video.duration ?? 15)),
-    };
-    const result = await new GrokCommercialRenderer().render(renderJob);
+      storyboard: video.storyboard,
+      cinematicPlan: video.cinematicPlan,
+      targetDuration: Math.min(60, Math.max(1, video.duration ?? 15)),
+    });
     if (result.durationSec && Number.isFinite(result.durationSec)) chargedDuration = grokBillableSeconds(video.duration, result.durationSec);
     let finalVideoUrl = result.videoUrl;
     const blueprintLogoId = blueprintLogoAssetId(video.cinematicPlan);

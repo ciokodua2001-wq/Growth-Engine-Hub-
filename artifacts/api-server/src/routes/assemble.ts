@@ -47,6 +47,7 @@ import {
   type CaptionPreset,
 } from "../lib/ffmpegAssembler.js";
 import { compositeLogoOnVideo, compositeCaptionsOnVideo } from "../lib/ffmpegAssembler.js";
+import { resolveLogoFreeSource } from "../lib/logoSource.js";
 import pino from "pino";
 
 const router = Router();
@@ -144,11 +145,22 @@ router.post("/projects/:id/videos/:videoId/assemblies/:assemblyId/logo", async (
         .where(and(eq(commercialAssembliesTable.id, nextId), eq(commercialAssembliesTable.videoId, videoId)));
       baseAssembly = next ?? null;
     }
-    const sourceUrl = baseAssembly?.videoUrl ?? video.videoUrl;
-    if (!sourceUrl) throw new Error("Source video URL is missing");
-    const logoInputUrl = baseAssembly
-      ? await refreshAssemblyUrl(sourceUrl)
-      : await resolveCompletedVideoUrl(projectId, videoId, sourceUrl);
+    // Candidates, cheapest-first: the logo-free ancestor we just walked to, then
+    // the video's own render. resolveLogoFreeSource additionally prefers the
+    // pipeline's recorded pre-logo render, so a badge is never composited on top
+    // of an existing badge (which is what disfigured the logo on re-apply).
+    const source = await resolveLogoFreeSource(videoId, [baseAssembly?.videoUrl, video.videoUrl]);
+    if (!source.pristine || !source.url) {
+      logger.warn({ projectId, videoId, assemblyId, assetId }, "[assemble] Refusing to stack a logo on already-badged footage");
+      res.status(409).json({
+        error: "This render already has a logo burned in",
+        message: "Re-applying would draw a second logo on top of the first. Re-render the video to place the logo again, or download the current export.",
+      });
+      return;
+    }
+    const logoInputUrl = source.url.startsWith("grok-object://")
+      ? await resolveCompletedVideoUrl(projectId, videoId, source.url)
+      : await refreshAssemblyUrl(source.url);
 
     const result = await compositeLogoOnVideo(logoInputUrl, logo, {
       projectId,
@@ -329,7 +341,20 @@ router.post("/projects/:id/videos/:videoId/logo", async (req, res) => {
       res.status(422).json({ error: "Choose a transparent PNG logo under 10 MB" });
       return;
     }
-    const result = await compositeLogoOnVideo(await resolveCompletedVideoUrl(projectId, videoId, video.videoUrl), logo, {
+    // Never burn a badge onto footage that already carries one. The Grok
+    // pipeline overwrites videos.videoUrl with the logo'd composite, so applying
+    // a second time would draw a new crest directly on top of the existing one -
+    // the disfigurement reported when Apply-to-render is clicked repeatedly.
+    const source = await resolveLogoFreeSource(videoId, [video.videoUrl]);
+    if (!source.pristine || !source.url) {
+      logger.warn({ projectId, videoId, assetId }, "[assemble] Refusing to stack a logo on already-badged footage");
+      res.status(409).json({
+        error: "This render already has a logo burned in",
+        message: "Re-applying would draw a second logo on top of the first. Re-render the video to place the logo again, or download the current export.",
+      });
+      return;
+    }
+    const result = await compositeLogoOnVideo(await resolveCompletedVideoUrl(projectId, videoId, source.url), logo, {
       projectId, videoId,
       x: typeof req.body?.x === "number" ? Math.min(1, Math.max(0, req.body.x)) : 0.82,
       y: typeof req.body?.y === "number" ? Math.min(1, Math.max(0, req.body.y)) : 0.82,

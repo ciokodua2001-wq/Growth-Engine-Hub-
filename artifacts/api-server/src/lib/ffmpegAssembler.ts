@@ -1072,6 +1072,39 @@ function runFFmpeg(args: string[]): Promise<void> {
 }
 
 /** Composite a supplied transparent logo onto an existing rendered video. No AI or scene generation is invoked. */
+/**
+ * Builds the logo overlay filtergraph from ABSOLUTE frame pixels.
+ *
+ * This deliberately avoids `scale2ref`. scale2ref does NOT take a target pixel
+ * size: it treats w/h as a ratio of the reference, computing
+ * out_w = input_w * (w_expr / main_w). Feeding it `w=main_w*0.2` therefore
+ * yields 2000 * (216/1080) = 400px wide for a 2000px logo on a 1080px frame,
+ * and its height derivation is inconsistent with that - which is how the badge
+ * came out 400x712 instead of 216x216. The vertical stretch turned the round
+ * crest into an ellipse, and the oversized height pushed its top 223px above
+ * the frame, clipping the book/star crown off entirely.
+ *
+ * Plain `scale` with an even pixel width and `-2` height derives the height
+ * from the PNG's own aspect ratio, so the badge can never be distorted, and
+ * `overlay` centres it on the caller's 0..1 anchor in real frame pixels.
+ */
+export function buildLogoOverlayFilter(opts: {
+  frameWidth: number;
+  frameHeight: number;
+  x: number;
+  y: number;
+  scale: number;
+}): string {
+  const frameWidth = Math.max(2, Math.round(opts.frameWidth) || 1080);
+  const frameHeight = Math.max(2, Math.round(opts.frameHeight) || 1920);
+  const scale = Math.min(1, Math.max(0.02, Number.isFinite(opts.scale) ? opts.scale : 0.2));
+  const x = Math.min(1, Math.max(0, Number.isFinite(opts.x) ? opts.x : 0.82));
+  const y = Math.min(1, Math.max(0, Number.isFinite(opts.y) ? opts.y : 0.82));
+  // Even width keeps yuv420p happy; -2 lets ffmpeg derive the matching even height.
+  const logoWidth = Math.max(2, Math.round((frameWidth * scale) / 2) * 2);
+  return `[1:v]scale=${logoWidth}:-2,format=rgba,setsar=1[lg];[0:v]setsar=1[bs];[bs][lg]overlay=x=W*${x}-w/2:y=H*${y}-h/2[v]`;
+}
+
 export async function compositeLogoOnVideo(inputUrl: string, logoBuffer: Buffer, options: {
   projectId: number;
   videoId: number;
@@ -1086,19 +1119,11 @@ export async function compositeLogoOnVideo(inputUrl: string, logoBuffer: Buffer,
   try {
     await downloadFile(inputUrl, inputPath);
     fs.writeFileSync(logoPath, logoBuffer);
-    const xPct = Math.round(Math.min(1, Math.max(0, options.x)) * 1000) / 10;
-    const yPct = Math.round(Math.min(1, Math.max(0, options.y)) * 1000) / 10;
-    const scalePct = Math.round(Math.min(1, Math.max(0.02, options.scale)) * 1000) / 10;
-    // Aspect-strict: only ONE logo dimension is derived (h=-2 keeps it even and
-    // preserves the PNG's true ratio), so the badge can never be stretched into
-    // an oval/oblong. setsar=1 on both inputs stops any pixel-aspect mismatch
-    // from skewing it, and format=rgba keeps the transparency. Position is the
-    // caller's 0..1 centre-anchored value with no extra clamping.
-    // scale2ref emits TWO outputs (scaled logo AND the reference passthrough), so
-    // BOTH must be labelled or the graph silently drops the badge. h=-2 derives
-    // only the height (even, aspect-preserving) so the PNG can never be stretched,
-    // and setsar=1 + format=rgba stop any pixel-aspect skew and keep transparency.
-    const filter = `[1:v][0:v]scale2ref=w=main_w*${scalePct / 100}:h=-2[logo][base];[logo]format=rgba,setsar=1[lg];[base]setsar=1[bs];[bs][lg]overlay=x=W*${xPct / 100}-w/2:y=H*${yPct / 100}-h/2[v]`;
+    const dims = await probeDimensions(inputPath);
+    const filter = buildLogoOverlayFilter({
+      frameWidth: dims.width, frameHeight: dims.height,
+      x: options.x, y: options.y, scale: options.scale,
+    });
     await runFFmpeg(["-y", "-i", inputPath, "-i", logoPath, "-filter_complex", filter,
       "-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
       "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", outputPath]);

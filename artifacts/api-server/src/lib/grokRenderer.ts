@@ -260,6 +260,36 @@ export async function assembleVideo(clips: Buffer[], targetDurationSec: number):
   }
 }
 
+/**
+ * Concatenates already-normalised Grok clips end-to-end with no padding and no
+ * duration assertion. Used for one-clip-per-shot rendering: each shot becomes a
+ * single full-frame generation (never a multi-panel contact sheet), then the
+ * shots are spliced back into one continuous commercial.
+ */
+export async function assembleSequentialClips(clips: Buffer[]): Promise<Buffer> {
+  if (clips.length === 0) throw new Error("Cannot assemble without clips");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "grok-splice-"));
+  const clipPaths = clips.map((clip, i) => {
+    const clipPath = path.join(dir, `clip-${i}.mp4`);
+    fs.writeFileSync(clipPath, clip);
+    return clipPath;
+  });
+  const listPath = path.join(dir, "clips.txt");
+  const outputPath = path.join(dir, "spliced.mp4");
+  fs.writeFileSync(listPath, clipPaths.map(file => `file '${file.replace(/'/g, "'\\''")}'`).join("\n") + "\n");
+  try {
+    await runFfmpeg(["-y", "-f", "concat", "-safe", "0", "-i", listPath,
+      "-map", "0:v:0", "-map", "0:a:0?",
+      "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
+      "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", outputPath]);
+    const output = fs.readFileSync(outputPath);
+    if (!output.length) throw new Error("Assembled video is empty");
+    return output;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 function runFfmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
