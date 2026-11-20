@@ -411,6 +411,11 @@ function RenderPanel({
   const [logoError, setLogoError] = useState<string | null>(null);
   const [logoUploadBusy, setLogoUploadBusy] = useState(false);
   const logoFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [refineStartSec, setRefineStartSec] = useState("");
+  const [refineEndSec, setRefineEndSec] = useState("");
+  const [refineInstruction, setRefineInstruction] = useState("");
+  const [refineBusy, setRefineBusy] = useState(false);
+  const [refineError, setRefineError] = useState<string | null>(null);
   // Latest post-render assembly id, so caption + logo can be chained onto the
   // same completed render (logo then captions, or captions then logo) without
   // ever re-rendering media or calling a model.
@@ -573,6 +578,43 @@ function RenderPanel({
     );
   };
 
+  const handleRefine = async () => {
+    if (!currentVideoUrl || refineBusy) return;
+    setRefineError(null);
+    const start = Number(refineStartSec);
+    const end = Number(refineEndSec);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) {
+      setRefineError("Choose a valid start and end time (in seconds).");
+      return;
+    }
+    if (end - start > 8.7 + 0.01) {
+      setRefineError("A single refinement is limited to 8.7 seconds - pick a shorter window.");
+      return;
+    }
+    if (!refineInstruction.trim()) {
+      setRefineError("Describe what to change in the selected window.");
+      return;
+    }
+    setRefineBusy(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/videos/${video.id}/refine`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startSec: start, endSec: end, instruction: refineInstruction.trim() }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error((payload as { error?: string } | null)?.error ?? "Refinement failed.");
+      setLocallyStarted(true);
+      setElapsedSec(0);
+      setRefineStartSec(""); setRefineEndSec(""); setRefineInstruction("");
+      await queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) });
+      await queryClient.invalidateQueries({ queryKey: getGetVideoRenderStatusQueryKey(projectId, video.id) });
+    } catch (error) {
+      setRefineError(error instanceof Error ? error.message : "Refinement failed. Please try again.");
+    } finally {
+      setRefineBusy(false);
+    }
+  };
+
   if (isTrial) {
     return (
       <div className="mt-4 pt-4 border-t border-border rounded-xl bg-[#00E676]/5 border border-[#00E676]/20 p-4">
@@ -616,6 +658,37 @@ function RenderPanel({
               <ExternalLink className="w-3 h-3" /> Open
             </a>
           </div>
+        </div>
+      )}
+
+      {/* Refine a part - edit a single window via xAI video editing (no full re-render). */}
+      {currentStatus === "complete" && currentVideoUrl && (
+        <div className="rounded-xl border border-[#FFB300]/25 bg-[#1a1405] p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-[#FFB300]" />
+            <div>
+              <p className="text-sm font-bold text-white">Refine a part</p>
+              <p className="text-[11px] text-white/45">Change one segment (up to 8.7s) without re-rendering the whole video - you're only billed for the edited seconds.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block space-y-1">
+              <span className="text-xs text-white/65">Start (seconds)</span>
+              <input aria-label="Refine start second" type="number" min="0" step="0.1" value={refineStartSec} onChange={event => setRefineStartSec(event.target.value)} placeholder="0" className="w-full rounded-lg border border-white/15 bg-[#07111d] p-2.5 text-sm text-white" />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-white/65">End (seconds)</span>
+              <input aria-label="Refine end second" type="number" min="0" step="0.1" value={refineEndSec} onChange={event => setRefineEndSec(event.target.value)} placeholder={String(Math.round(video.duration ?? 15))} className="w-full rounded-lg border border-white/15 bg-[#07111d] p-2.5 text-sm text-white" />
+            </label>
+          </div>
+          <label className="block space-y-1">
+            <span className="text-xs text-white/65">What should change?</span>
+            <textarea aria-label="Refine instruction" value={refineInstruction} onChange={event => setRefineInstruction(event.target.value)} rows={2} placeholder="e.g. Remove the extra arm, and make the tablet show no logo. Keep everything else the same." className="w-full rounded-lg border border-white/15 bg-[#07111d] p-2.5 text-sm text-white resize-none" />
+          </label>
+          <button type="button" disabled={refineBusy} onClick={() => void handleRefine()} className="inline-flex items-center gap-2 rounded-lg bg-[#FFB300] px-4 py-2 text-xs font-bold text-[#1a1405] disabled:cursor-not-allowed disabled:opacity-40">
+            {refineBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Refining...</> : <><Sparkles className="h-3.5 w-3.5" /> Refine selected segment</>}
+          </button>
+          {refineError && <p role="alert" className="text-xs text-red-300">{refineError}</p>}
         </div>
       )}
 
