@@ -12,7 +12,7 @@ export const GROK_VIDEO_EDIT_ENDPOINT = "https://api.x.ai/v1/videos/edits";
 export const GROK_VIDEO_EDIT_MODEL = "grok-imagine-video";
 export const GROK_EDIT_MAX_SOURCE_SECONDS = 8.7;
 export const GROK_NO_TEXT_INSTRUCTIONS =
-  "Generate one full-frame, single continuous cinematic shot. Never create split-screen, divided panels, triptychs, grids, contact sheets, storyboards, picture-in-picture, or multiple simultaneous views. The opening frame must be a normal full-frame cinematic image, not a collage or montage. Do not generate, invent, approximate, or display any logo, brand mark, watermark, brand name, product label, brand reveal, caption, subtitle, text overlay, or legible written text. Show no branding in this generated video; logo use is a separate optional action the user may choose after the render is complete. Any computer monitors, laptop screens, phones, dashboards, or software interfaces visible in frame must be rendered out of focus with only soft light and color gradients, or shown at a steep angle where no content is readable; never render legible or invented text, letters, numbers, or UI labels on any screen surface.";
+  "Generate ONE single full-frame, continuous cinematic shot that fills the entire frame for the whole duration. Never create split-screen, divided panels, triptychs, grids, contact sheets, storyboards, picture-in-picture, multiple simultaneous views, or any stacked, tiled, layered, or duplicated strips of the same scene (a single subject shown once, full-frame, never repeated vertically or horizontally). The opening frame must be a normal full-frame cinematic image, not a collage or montage. Do not generate, invent, approximate, or display any logo, brand mark, watermark, brand name, product label, brand reveal, caption, subtitle, text overlay, or legible written text. Show no branding in this generated video; logo use is a separate optional action the user may choose after the render is complete. Any computer monitors, laptop screens, phones, dashboards, or software interfaces visible in frame must be rendered out of focus with only soft light and color gradients, or shown at a steep angle where no content is readable; never render legible or invented text, letters, numbers, or UI labels on any screen surface.";
 
 const BRAND_ARTIFACT_REPLACEMENTS: Array<[RegExp, string]> = [
   [/\b(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+\.(?:com|org|net|io|co|ng|ai|app|uk|us|ca|de|fr|xyz|dev|me|biz|info)\b/gi, "the brand website"],
@@ -138,9 +138,13 @@ export interface GrokEditRequest {
 /** Pure builder for the xAI "edit a video from a prompt" endpoint. The edited
  * output inherits the source clip's duration, aspect ratio and resolution
  * (capped at 720p), so no duration/aspect_ratio/resolution fields are sent. */
+const EDIT_RULES =
+  "CRITICAL, NON-NEGOTIABLE EDIT RULES: Produce ONE single full-frame continuous shot that fills the entire frame. Collapse and remove any split-screen, divided, stacked, tiled, layered, duplicated, or grid panels into a single clean full-frame image of the main subject. Preserve the original subject, framing, lighting, color, motion, and audio. Do not add text, logos, watermarks, captions, or any new element not explicitly requested. Apply only the requested change; leave everything else identical.";
+
 export function buildGrokEditRequest(sourceUrl: string, instruction: string): GrokEditRequest {
   const prompt = instruction.trim();
   if (!prompt) throw new Error("Refinement instruction is required");
   if (!/^https:\/\//.test(sourceUrl)) throw new Error("Edit source must be an https URL");
-  return { model: GROK_VIDEO_EDIT_MODEL, prompt, video: { url: sourceUrl } };
+  const guided = `${EDIT_RULES}\n\nApply this specific change:\n${prompt}`;
+  return { model: GROK_VIDEO_EDIT_MODEL, prompt: guided, video: { url: sourceUrl } };
 }
