@@ -1470,7 +1470,7 @@ export default function ProjectVideos() {
   const handleSubmit = (_url: string, instructions: string, locale: string, sampleScript: string): Promise<void> =>
     new Promise((resolve, reject) => {
       generateVideos.mutate(
-        { id: projectId, data: { mode, count: blueprintCount, prompt: instructions || undefined, sampleScript: sampleScript || undefined, targetDuration, targetLocale: locale || undefined, logoAssetId: blueprintLogoId ?? undefined } },
+        { id: projectId, data: { mode, count: blueprintCount, prompt: mode === "my_script" ? (myScript || undefined) : (instructions || undefined), sampleScript: sampleScript || undefined, targetDuration, targetLocale: locale || undefined, logoAssetId: blueprintLogoId ?? undefined } },
         {
           onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListVideosQueryKey(projectId) }); resolve(); },
           onError: reject,
@@ -1621,7 +1621,7 @@ export default function ProjectVideos() {
             >
               <Lock className="h-4 w-4" /> Upgrade to Create
             </a>
-          ) : (
+          ) : mode === "my_script" ? null : (
             <div className="flex items-center gap-2 self-end">
               <VideoWalletWidget compact />
               <button
