@@ -7,6 +7,7 @@ import {
   estimateDialogueFit,
   compareScriptToTranscript,
   assignEstimatedTiming,
+  parseTimestampedTranscript,
   transcriptToCaptionEntries,
   hashScript,
   captionMaxCharsPerLine,
@@ -298,5 +299,78 @@ describe("extractNarrationLines", () => {
   it("returns plain narration verbatim when there is no screenplay structure", () => {
     const lines = extractNarrationLines("Explore. Practice. Master. Quantivarian brings learning to life.");
     expect(lines).toEqual(["Explore. Practice. Master. Quantivarian brings learning to life."]);
+  });
+});
+
+describe("parseTimestampedTranscript (audio-anchored caption timing)", () => {
+  const D = 30;
+  const stamped = [
+    "[00:04.000 - 00:07.200] What is the emergency?",
+    "[00:08.100 - 00:12.400] The books are due today.",
+    "[00:13.000 - 00:18.600] Nobody told me about the deadline.",
+    "[00:19.400 - 00:24.000] Quantivarian tracks every due date for you.",
+  ].join("\n");
+
+  it("parses timestamp-prefixed lines into measured segments", () => {
+    const m = parseTimestampedTranscript(stamped, D);
+    expect(m).not.toBeNull();
+    expect(m!).toHaveLength(4);
+    expect(m!.every(x => x.timingSource === "measured")).toBe(true);
+  });
+
+  it("anchors the first caption where speech actually starts, not at 0", () => {
+    const m = parseTimestampedTranscript(stamped, D)!;
+    expect(m[0]!.startSec).toBeCloseTo(4.0, 2);
+  });
+
+  it("keeps a mid-clip caption in sync instead of drifting", () => {
+    // This is the regression the owner reported: captions start aligned and
+    // fall progressively behind by the middle of the clip.
+    const m = parseTimestampedTranscript(stamped, D)!;
+    expect(m[2]!.startSec).toBeCloseTo(13.0, 2);
+
+    const est = assignEstimatedTiming(
+      stamped.split("\n").map(l => ({ text: l.replace(/^\[[^\]]+\]\s*/, "") })),
+      D,
+    );
+    // Character-count spacing is measurably wrong at the same index.
+    expect(Math.abs((est[2]?.startSec ?? 0) - 13.0)).toBeGreaterThan(1.0);
+  });
+
+  it("keeps every segment inside the real duration", () => {
+    const m = parseTimestampedTranscript(stamped, D)!;
+    for (const seg of m) {
+      expect(seg.startSec).toBeGreaterThanOrEqual(0);
+      expect(seg.endSec!).toBeLessThanOrEqual(D);
+      expect(seg.endSec!).toBeGreaterThan(seg.startSec ?? 0);
+    }
+  });
+
+  it("accepts start-only timestamps and derives the end from the next start", () => {
+    const m = parseTimestampedTranscript("[00:02.000] Hello there.\n[00:06.500] How are you?", D);
+    expect(m).not.toBeNull();
+    expect(m![1]!.startSec).toBeCloseTo(6.5, 2);
+    expect(m![0]!.endSec!).toBeCloseTo(6.5, 1);
+  });
+
+  it("returns null for untimestamped text so the caller falls back to estimates", () => {
+    expect(parseTimestampedTranscript("Hello there?\nThe books are due.", D)).toBeNull();
+  });
+
+  it("rejects non-monotonic timings", () => {
+    expect(parseTimestampedTranscript("[00:10.000 - 00:12.000] A\n[00:05.000 - 00:07.000] B", D)).toBeNull();
+  });
+
+  it("rejects timings that fall outside the clip", () => {
+    expect(parseTimestampedTranscript("[00:40.000 - 00:44.000] A\n[00:50.000 - 00:54.000] B", D)).toBeNull();
+  });
+
+  it("rejects a fabricated single repeated value", () => {
+    expect(parseTimestampedTranscript("[00:05.000 - 00:06.000] A\n[00:05.000 - 00:06.000] B", D)).toBeNull();
+  });
+
+  it("rejects empty input and a non-positive duration", () => {
+    expect(parseTimestampedTranscript("", D)).toBeNull();
+    expect(parseTimestampedTranscript("[00:01.000 - 00:02.000] A\n[00:03.000 - 00:04.000] B", 0)).toBeNull();
   });
 });

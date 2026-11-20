@@ -12,7 +12,7 @@ export interface TranscriptSegment {
   startSec?: number;
   endSec?: number;
   confidence?: number; // 0-1, optional; Gemini transcription is approximate
-  timingSource?: "estimated" | "manual"; // how startSec/endSec were produced
+  timingSource?: "estimated" | "manual" | "measured"; // how startSec/endSec were produced
   reviewed?: boolean; // customer confirmed text + timing (gate for caption export)
 }
 
@@ -196,6 +196,86 @@ export function assignEstimatedTiming(segments: TranscriptSegment[], totalDurati
     cursor = endSec + 0.08;
     return { text, startSec, endSec, timingSource: "estimated" as const, reviewed: false, confidence: segments[i]?.confidence };
   });
+}
+
+// ── Measured (audio-anchored) transcript timings ─────────────────────────────
+
+const TIME_TOKEN = "(\\d{1,3}):(\\d{1,2}(?:[.:]\\d{1,3})?)";
+const RANGE_RE = new RegExp(`^\\[?\\s*${TIME_TOKEN}\\s*(?:-|–|—|→|>|to)\\s*${TIME_TOKEN}\\s*\\]?\\s*(.*)$`);
+const SINGLE_RE = new RegExp(`^\\[?\\s*${TIME_TOKEN}\\s*\\]?\\s*[-–—:]?\\s*(.*)$`);
+
+function mmssToSeconds(min: string, sec: string): number {
+  return parseInt(min, 10) * 60 + parseFloat(String(sec).replace(",", "."));
+}
+
+/**
+ * Parses a timestamp-prefixed transcript into audio-anchored segments.
+ * Returns null whenever the model did NOT give usable timings, so the caller
+ * falls back to estimated spacing rather than trusting garbage. Guards:
+ * every line must carry a timestamp, starts must be monotonic, ends must be
+ * after their start, and timings must live inside the real duration.
+ */
+export function parseTimestampedTranscript(
+  raw: string,
+  totalDuration: number,
+): TranscriptSegment[] | null {
+  const lines = (raw ?? "").split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0 || !(totalDuration > 0)) return null;
+
+  const parsed: Array<{ text: string; startSec: number; endSec: number | null }> = [];
+  for (const line of lines) {
+    const range = line.match(RANGE_RE);
+    if (range) {
+      const text = (range[5] ?? "").trim();
+      if (!text) continue;
+      parsed.push({
+        text,
+        startSec: mmssToSeconds(range[1]!, range[2]!),
+        endSec: mmssToSeconds(range[3]!, range[4]!),
+      });
+      continue;
+    }
+    const single = line.match(SINGLE_RE);
+    if (single) {
+      const text = (single[3] ?? "").trim();
+      if (!text) continue;
+      parsed.push({ text, startSec: mmssToSeconds(single[1]!, single[2]!), endSec: null });
+      continue;
+    }
+    // A line with no timestamp at all means the model ignored the format -
+    // reject the whole batch rather than mix measured and unknown timings.
+    return null;
+  }
+
+  if (parsed.length < 2) return null;
+  // Sanity: timings must be non-negative, ordered, and within the clip. Allow a
+  // 1.15x slack because models round loosely, but anything beyond that is wrong.
+  if (parsed.some(p => !Number.isFinite(p.startSec) || p.startSec < 0)) return null;
+  if (parsed.some(p => p.startSec > totalDuration * 1.15)) return null;
+  for (let i = 1; i < parsed.length; i++) {
+    if (parsed[i]!.startSec < parsed[i - 1]!.startSec - 0.05) return null;
+  }
+  // If every timestamp is identical the model fabricated a single value.
+  const distinct = new Set(parsed.map(p => Math.round(p.startSec * 10)));
+  if (distinct.size < Math.min(2, parsed.length)) return null;
+
+  const out: TranscriptSegment[] = [];
+  for (let i = 0; i < parsed.length; i++) {
+    const cur = parsed[i]!;
+    const next = parsed[i + 1];
+    let end = cur.endSec ?? next?.startSec ?? totalDuration;
+    if (!Number.isFinite(end) || end <= cur.startSec) end = cur.startSec + 1.2;
+    const startSec = Math.min(Math.max(cur.startSec, 0), Math.max(0, totalDuration - 0.3));
+    const endSec = Math.min(Math.max(end, startSec + 0.3), Math.max(0.3, totalDuration - 0.05));
+    out.push({
+      text: cur.text,
+      startSec: Math.round(startSec * 1000) / 1000,
+      endSec: Math.round(endSec * 1000) / 1000,
+      timingSource: "measured",
+      reviewed: false,
+    });
+  }
+  return out;
 }
 
 /**
@@ -415,10 +495,12 @@ export function compareScriptToTranscript(approvedScript: string, transcript: st
 }
 
 // ── Actual-audio transcription (Phase F, existing Gemini key) ────────────────
-// Gemini Developer API transcribes audio but does NOT provide reliable
-// word-level timestamps - output is phrase/sentence-level. Documented honestly:
-// captions use these phrase-level timings; word-level alignment would need a
-// dedicated STT provider (not introduced without approval).
+// Gemini Developer API does NOT expose forced-alignment word timestamps, so
+// true per-WORD karaoke timing still needs a dedicated STT provider. What it
+// CAN do is report when each spoken PHRASE starts and ends in the audio. We ask
+// for that explicitly and parse it (parseTimestampedTranscript), so captions are
+// anchored to real speech events instead of being spread by character count -
+// which is what made them drift progressively out of sync.
 
 const TRANSCRIBE_MODEL = "gemini-3.1-flash-lite";
 const MAX_AUDIO_BYTES = 9_500_000; // keep inline payload within API limits
@@ -439,10 +521,15 @@ export async function transcribeAudioWithFailover(
     throw new Error("Audio too large to transcribe inline");
   }
   const instruction =
-    `Transcribe ONLY the spoken dialogue in this audio. Return the verbatim words the speaker says, ` +
-    `with natural punctuation and line breaks where the speaker pauses. ` +
-    `Do not describe music, sounds, or silence. Do not translate - keep the original language. ` +
-    `If a word is unclear, mark it with [unclear]. Do not add words that were not spoken.` +
+    `Transcribe ONLY the spoken dialogue in this audio. ` +
+    `Output ONE line per spoken phrase, and PREFIX every line with the time that phrase is actually ` +
+    `heard, in this exact format: [MM:SS.mmm - MM:SS.mmm] followed by the phrase text. ` +
+    `Times must be measured from the audio itself - when the voice actually starts and stops - ` +
+    `not evenly spaced. Account for any music-only intro, pauses or silent gaps: if speech begins ` +
+    `4 seconds in, the first line must start at 00:04.000. ` +
+    `Keep natural punctuation. Do not describe music, sounds, or silence. Do not translate - keep ` +
+    `the original language. If a word is unclear, mark it with [unclear]. Do not add words that ` +
+    `were not spoken. Output no preamble and no lines without a timestamp prefix.` +
     (languageHint ? ` The expected language is ${languageHint}.` : "");
 
   const [{ genai }, { callQwenAudioTranscription, isProviderOutageError }] = await Promise.all([
@@ -527,11 +614,26 @@ export function captionMaxWidthRatio(aspect: number): number {
   return 0.80;
 }
 
-export function clampCaptionX(x: number, _scale: number): number {
-  return Math.min(1, Math.max(0, x));
+/**
+ * Centre-anchored X clamp that respects the caption's own half-width, so a
+ * centre-anchored block can never hang outside the safe area. The box is
+ * allowed to consume the full range at scale 1; if a large scale makes it wider
+ * than the safe area, it is centred rather than pinned to a fractional edge.
+ */
+export function clampCaptionX(x: number, scale: number = 1): number {
+  const halfW = CAPION_NOMINAL_HALF_WIDTH * Math.max(0.25, scale);
+  const lo = CAPION_SAFE_MARGIN_X + halfW;
+  const hi = 1 - CAPION_SAFE_MARGIN_X - halfW;
+  if (lo > hi) return 0.5;
+  return Math.min(hi, Math.max(lo, x));
 }
 
-export function clampCaptionY(y: number, _scale: number): number {
-  return Math.min(1, Math.max(0, y));
+/** Vertical counterpart of clampCaptionX using the top/bottom safe margins. */
+export function clampCaptionY(y: number, scale: number = 1): number {
+  const halfH = CAPION_NOMINAL_HALF_HEIGHT * Math.max(0.25, scale);
+  const lo = CAPION_SAFE_MARGIN_TOP + halfH;
+  const hi = 1 - CAPION_SAFE_MARGIN_BOTTOM - halfH;
+  if (lo > hi) return 0.5;
+  return Math.min(hi, Math.max(lo, y));
 }
 

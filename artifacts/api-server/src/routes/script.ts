@@ -12,6 +12,7 @@ import { signObjectURL } from "../lib/objectStorage.js";
 import {
   compareScriptToTranscript,
   transcribeAudioWithFailover,
+  parseTimestampedTranscript,
   assignEstimatedTiming,
   hashScript,
   suggestScriptImprovement,
@@ -205,10 +206,19 @@ router.post("/projects/:id/videos/:videoId/transcript", async (req, res) => {
       .filter(Boolean)
       .map(text => ({ text }));
 
-    // Real assembled duration for estimated timing - never pretend word-accurate.
-    // Segments start as `estimated`; they must be reviewed before caption export.
+    // Real assembled duration - never pretend word-accurate.
     const totalDuration = Number(assembly?.durationSec) || Number(video.duration) || 15;
-    const segments = assignEstimatedTiming(rawSegments, totalDuration);
+
+    // Prefer timings the model measured FROM THE AUDIO. That is what keeps
+    // captions in sync through the middle of the clip; character-count spacing
+    // accumulates error and visibly drifts. Falls back to estimated spacing
+    // only when the model ignored the timestamp format.
+    const measured = parseTimestampedTranscript(transcriptText, totalDuration);
+    const segments = measured ?? assignEstimatedTiming(rawSegments, totalDuration);
+    logger.info(
+      { videoId, timing: measured ? "measured" : "estimated", segments: segments.length, totalDuration },
+      "[script] Caption timings assigned",
+    );
 
     // 4. Compare against the approved (or draft) script.
     const reference = video.approvedScript ?? video.script ?? "";
