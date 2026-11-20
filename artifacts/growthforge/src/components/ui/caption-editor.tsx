@@ -187,6 +187,23 @@ function wrapCaptionText(text: string, maxChars: number): string {
   return lines.join("\n");
 }
 
+/** Wraps karaoke words into display lines so the highlighted-word caption can
+ *  never render as one long line spilling past the frame edges (the bug where
+ *  the green "current word" caption overflowed the 9:16 video). */
+function wrapKaraokeWords(
+  words: Array<{ word: string; active: boolean }>,
+  maxChars: number,
+): Array<Array<{ word: string; active: boolean }>> {
+  const lines: Array<Array<{ word: string; active: boolean }>> = [[]];
+  for (const w of words) {
+    const cur = lines[lines.length - 1]!;
+    const curLen = cur.reduce((n, x) => n + x.word.length + 1, 0);
+    if (curLen + w.word.length > maxChars && cur.length > 0) lines.push([w]);
+    else cur.push(w);
+  }
+  return lines;
+}
+
 interface TimedPhrase {
   text: string;
   startSec: number;
@@ -749,6 +766,7 @@ export default function CaptionEditor({
   // no placeholder. PLAYING: follow live time-sync, hide outside speech.
   const editingSegment = activeSegments[editSegmentIndex] ?? activeSegments[0] ?? null;
   const activeText = isVideoPlaying ? currentCaptionText : editingSegment?.text ?? null;
+  const captionWrapChars = captionMaxCharsPerLine(videoAspect ?? 0.5625);
   const displayCaptionText = captionPreset !== "karaoke" ? activeText : null;
   const displayKaraokeWords = captionPreset === "karaoke"
     ? (isVideoPlaying && currentKaraokeWords?.length
@@ -778,7 +796,11 @@ export default function CaptionEditor({
           className={isTheaterMode ? "relative select-none" : "relative mx-auto rounded-xl overflow-hidden border border-[#00D4FF]/30 bg-black select-none"}
           style={{
             containerType: "inline-size",
-            aspectRatio: videoAspect ? String(videoAspect) : undefined,
+            // Always aspect-lock the stage to the video (falling back to 9:16
+            // before loadedmetadata reports the real dims) so the caption overlay
+            // and video share one rect - never a wider canvas that pillarboxes the
+            // 9:16 video and lets the caption spill into the black bars.
+            aspectRatio: String(videoAspect ?? 0.5625),
             ...(isTheaterMode
               ? { height: videoAspect ? `min(90vh, ${(90 / videoAspect).toFixed(2)}vw)` : undefined, maxWidth: "90vw", maxHeight: "90vh" }
               : { height: "320px", maxWidth: "100%" }),
@@ -835,9 +857,13 @@ export default function CaptionEditor({
                 <div style={{ border: "1px dashed rgba(255,255,255,0.35)", borderRadius: "6px", padding: "4px 6px" }}>
                   {displayKaraokeWords ? (
                     <span>
-                      {displayKaraokeWords.map((w, i) => (
-                        <span key={i} style={{ color: w.active ? KARAOKE_HIGHLIGHT_COLOR : undefined }}>
-                          {w.word}{i < displayKaraokeWords.length - 1 ? " " : ""}
+                      {wrapKaraokeWords(displayKaraokeWords, captionWrapChars).map((line, li) => (
+                        <span key={li} style={{ display: "block" }}>
+                          {line.map((w, i) => (
+                            <span key={i} style={{ color: w.active ? KARAOKE_HIGHLIGHT_COLOR : undefined }}>
+                              {w.word}{i < line.length - 1 ? " " : ""}
+                            </span>
+                          ))}
                         </span>
                       ))}
                     </span>

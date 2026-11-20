@@ -791,6 +791,11 @@ function buildKaraokeForScenes(entries: SubtitleEntry[]): AssEvent[] {
 }
 
 function wrapSubtitleLine(text: string, maxChars: number): string {
+  // Karaoke events arrive pre-wrapped (with \N line breaks) and carry inline
+  // colour override tags like {\1c&H...&}; re-wrapping them here would break the
+  // tags and re-join the lines, mangling the highlighted-word caption. Leave
+  // already-wrapped / tagged text untouched.
+  if (text.includes("\\") || text.includes("{")) return text;
   if (text.length <= maxChars) return text;
   const words = text.split(" ");
   const lines: string[] = [];
