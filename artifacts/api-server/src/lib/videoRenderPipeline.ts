@@ -26,6 +26,66 @@ function blueprintLogoAssetId(cinematicPlan: string | null | undefined): number 
   }
 }
 
+export interface LogoMeta {
+  assetId: number | null;
+  x: number;
+  y: number;
+  scale: number;
+  /** Stable reference to the render BEFORE any logo was burned in. Refinement
+   * edits this logo-free clip so the AI never re-renders (and distorts) the
+   * customer's badge, and the logo is re-applied deterministically afterwards. */
+  preLogoUrl: string | null;
+}
+
+const LOGO_DEFAULTS = { x: 0.82, y: 0.82, scale: 0.2 };
+
+function blueprintLogoMeta(cinematicPlan: string | null | undefined): LogoMeta {
+  if (!cinematicPlan) return { assetId: null, ...LOGO_DEFAULTS, preLogoUrl: null };
+  try {
+    const plan = JSON.parse(cinematicPlan) as {
+      branding?: {
+        logoAssetId?: unknown;
+        logoPlacement?: { x?: unknown; y?: unknown; scale?: unknown };
+        preLogoVideoUrl?: unknown;
+      };
+    };
+    const b = plan.branding ?? {};
+    const finite = (value: unknown, fallback: number) =>
+      typeof value === "number" && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : fallback;
+    const id = typeof b.logoAssetId === "number" && Number.isInteger(b.logoAssetId) && b.logoAssetId > 0
+      ? b.logoAssetId : null;
+    return {
+      assetId: id,
+      x: finite(b.logoPlacement?.x, LOGO_DEFAULTS.x),
+      y: finite(b.logoPlacement?.y, LOGO_DEFAULTS.y),
+      scale: typeof b.logoPlacement?.scale === "number" && Number.isFinite(b.logoPlacement.scale)
+        ? Math.min(1, Math.max(0.02, b.logoPlacement.scale)) : LOGO_DEFAULTS.scale,
+      preLogoUrl: typeof b.preLogoVideoUrl === "string" && b.preLogoVideoUrl ? b.preLogoVideoUrl : null,
+    };
+  } catch {
+    return { assetId: null, ...LOGO_DEFAULTS, preLogoUrl: null };
+  }
+}
+
+/** Merge logo placement / pristine-source pointers into cinematic_plan without
+ * disturbing the shot list stored alongside them. */
+async function persistLogoMeta(
+  videoId: number,
+  planRaw: string | null | undefined,
+  patch: { preLogoUrl?: string; placement?: { x: number; y: number; scale: number } },
+): Promise<void> {
+  let plan: Record<string, unknown> = {};
+  if (planRaw) {
+    try { plan = JSON.parse(planRaw) as Record<string, unknown>; } catch { plan = {}; }
+  }
+  const branding = (plan.branding && typeof plan.branding === "object")
+    ? plan.branding as Record<string, unknown> : {};
+  if (patch.preLogoUrl) branding.preLogoVideoUrl = patch.preLogoUrl;
+  if (patch.placement) branding.logoPlacement = patch.placement;
+  plan.branding = branding;
+  await db.update(videosTable).set({ cinematicPlan: JSON.stringify(plan) }).where(eq(videosTable.id, videoId));
+}
+
 const FFMPEG_BIN = "ffmpeg";
 
 const logger = pino({ name: "videoRenderPipeline" });
@@ -202,6 +262,8 @@ function refreshSignedObjectUrl(storedUrl: string): Promise<string> {
  * the new stable grok-object:// reference, or null (never fails the render). */
 async function applyBlueprintLogo(videoId: number, projectId: number, logoAssetId: number, videoUrl: string): Promise<string | null> {
   try {
+    const [current] = await db.select({ cinematicPlan: videosTable.cinematicPlan }).from(videosTable).where(eq(videosTable.id, videoId));
+    const meta = blueprintLogoMeta(current?.cinematicPlan);
     const [asset] = await db.select().from(assetsTable).where(eq(assetsTable.id, logoAssetId));
     if (!asset?.url || asset.mimeType?.toLowerCase() !== "image/png") return null;
     const logoUrl = await refreshSignedObjectUrl(asset.url);
@@ -209,7 +271,7 @@ async function applyBlueprintLogo(videoId: number, projectId: number, logoAssetI
     if (!logoRes.ok) throw new Error(`Logo asset unavailable (${logoRes.status})`);
     const logo = Buffer.from(await logoRes.arrayBuffer());
     const inputUrl = await grokRefToSignedUrl(videoUrl);
-    const composite = await compositeLogoOnVideo(inputUrl, logo, { projectId, videoId, x: 0.82, y: 0.82, scale: 0.2 });
+    const composite = await compositeLogoOnVideo(inputUrl, logo, { projectId, videoId, x: meta.x, y: meta.y, scale: meta.scale });
     const compositeRes = await fetch(composite.url, { signal: AbortSignal.timeout(120_000) });
     if (!compositeRes.ok) throw new Error(`Composited video download failed (${compositeRes.status})`);
     const compositeBuffer = Buffer.from(await compositeRes.arrayBuffer());
@@ -218,7 +280,13 @@ async function applyBlueprintLogo(videoId: number, projectId: number, logoAssetI
     const key = `commercial/grok/${videoId}/logo/${Date.now()}.mp4`;
     await objectStorageClient.bucket(bucket).file(key).save(compositeBuffer, { metadata: { contentType: "video/mp4" } });
     const ref = `grok-object://${encodeURIComponent(bucket)}/${key.split("/").map(encodeURIComponent).join("/")}`;
-    logger.info({ videoId, logoAssetId }, "Blueprint logo composited onto completed render");
+    // Remember the logo-free render and the exact placement, so a later refine
+    // edits the pristine clip and the badge is re-applied by ffmpeg (never by AI).
+    await persistLogoMeta(videoId, current?.cinematicPlan, {
+      preLogoUrl: videoUrl,
+      placement: { x: meta.x, y: meta.y, scale: meta.scale },
+    });
+    logger.info({ videoId, logoAssetId, x: meta.x, y: meta.y, scale: meta.scale }, "Blueprint logo composited onto completed render");
     return ref;
   } catch (error) {
     logger.error({ err: error, videoId, logoAssetId }, "Blueprint logo composite failed; keeping render without logo");
@@ -731,7 +799,11 @@ async function runVideoRefine(videoId: number, startSec: number, endSec: number,
     await db.update(videosTable).set({ renderStatus: "processing", renderStartedAt: new Date(), renderError: null }).where(eq(videosTable.id, videoId));
     const renderer = new GrokCommercialRenderer();
 
-    const fullUrl = await resolveRenderVideoUrl(video.videoUrl);
+    const logoMeta = blueprintLogoMeta(video.cinematicPlan);
+    // Refine the logo-free clip whenever one is on record, so the AI edit can
+    // never re-render (and distort) the customer's burned-in badge.
+    const refineSource = logoMeta.preLogoUrl ?? video.videoUrl;
+    const fullUrl = await resolveRenderVideoUrl(refineSource);
     const fullRes = await fetch(fullUrl, { signal: AbortSignal.timeout(180_000) });
     if (!fullRes.ok) throw new Error(`Rendered video download failed (HTTP ${fullRes.status})`);
     const fullBuffer = Buffer.from(await fullRes.arrayBuffer());
@@ -768,8 +840,15 @@ async function runVideoRefine(videoId: number, startSec: number, endSec: number,
     const outKey = `commercial/grok/${videoId}/refined/${Date.now()}.mp4`;
     await objectStorageClient.bucket(bucket).file(outKey).save(spliced, { metadata: { contentType: "video/mp4" } });
     const ref = `grok-object://${encodeURIComponent(bucket)}/${outKey.split("/").map(encodeURIComponent).join("/")}`;
-    await db.update(videosTable).set({ renderStatus: "complete", videoUrl: ref, renderCompletedAt: new Date(), renderError: null, fidelityStatus: "unverified" }).where(eq(videosTable.id, videoId));
-    logger.info({ videoId, segStart, segDur }, "Video segment refined and spliced back");
+    // The refined clip is logo-free; put the badge back with ffmpeg so it keeps
+    // its exact dimensions, position and look instead of being AI-redrawn.
+    let finalUrl = ref;
+    if (logoMeta.assetId) {
+      const recomposited = await applyBlueprintLogo(videoId, video.projectId, logoMeta.assetId, ref);
+      if (recomposited) finalUrl = recomposited;
+    }
+    await db.update(videosTable).set({ renderStatus: "complete", videoUrl: finalUrl, renderCompletedAt: new Date(), renderError: null, fidelityStatus: "unverified" }).where(eq(videosTable.id, videoId));
+    logger.info({ videoId, segStart, segDur, logoReapplied: Boolean(logoMeta.assetId) }, "Video segment refined and spliced back");
   } catch (error) {
     logger.error({ err: error, videoId }, "Video refine failed");
     await markFailed(videoId, "Refinement failed; reserved video seconds were returned.");

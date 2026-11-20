@@ -38,7 +38,7 @@ import { eq, and } from "drizzle-orm";
 import pino from "pino";
 import { objectStorageClient, signObjectURL } from "./objectStorage.js";
 import { prepareScript } from "./googleNarrator.js";
-import { transcriptToCaptionEntries, captionMaxCharsPerLine, clampCaptionX, clampCaptionY, type TranscriptSegment } from "./dialogue.js";
+import { transcriptToCaptionEntries, captionMaxCharsPerLine, captionMaxWidthRatio, clampCaptionX, clampCaptionY, type TranscriptSegment } from "./dialogue.js";
 
 const FFMPEG_BIN = "ffmpeg";
 const logger = pino({ name: "ffmpegAssembler" });
@@ -955,9 +955,26 @@ function buildAssDocument(
   // Safe-area layout: captions must stay inside the actual frame (never spill
   // past the edges) and wrap identically to the browser preview.
   const aspect = videoWidth / videoHeight;
-  const maxChars = captionMaxCharsPerLine(aspect);
-  const px = Math.round(clampCaptionX(captionX, captionScale) * videoWidth);
-  const py = Math.round(clampCaptionY(captionY, captionScale) * videoHeight);
+  const maxCharsBase = captionMaxCharsPerLine(aspect);
+  // A bigger caption means fewer glyphs fit the same safe width, so the wrap
+  // budget shrinks WITH the scale instead of overflowing the frame edges.
+  const maxChars = Math.max(8, Math.round(maxCharsBase / Math.max(0.6, captionScale)));
+  // Estimate the widest wrapped line and clamp the centre-anchored block so it
+  // can never hang past a frame edge - enforced for every aspect ratio
+  // (9:16, 16:9, 4:5, 1:1) from the real probed frame, not a fixed assumption.
+  const safeRatio = captionMaxWidthRatio(aspect);
+  const halfLineWidth = (videoWidth * safeRatio) / 2;
+  const pad = 8;
+  const maxLines = 3;
+  const halfBlockHeight = (maxLines * fontSize * 1.2) / 2;
+  const px = Math.min(
+    Math.max(Math.round(clampCaptionX(captionX, captionScale) * videoWidth), Math.round(halfLineWidth) + pad),
+    Math.max(Math.round(halfLineWidth) + pad, videoWidth - Math.round(halfLineWidth) - pad),
+  );
+  const py = Math.min(
+    Math.max(Math.round(clampCaptionY(captionY, captionScale) * videoHeight), Math.round(halfBlockHeight) + pad),
+    Math.max(Math.round(halfBlockHeight) + pad, videoHeight - Math.round(halfBlockHeight) - pad),
+  );
   const posTag = `{\\pos(${px},${py})}`;
 
   const header = [
@@ -966,7 +983,7 @@ function buildAssDocument(
     `PlayResX: ${videoWidth}`,
     `PlayResY: ${videoHeight}`,
     "Collisions: Normal",
-    "WrapStyle: 0",
+    "WrapStyle: 2",
     "",
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
@@ -1072,7 +1089,12 @@ export async function compositeLogoOnVideo(inputUrl: string, logoBuffer: Buffer,
     const xPct = Math.round(Math.min(1, Math.max(0, options.x)) * 1000) / 10;
     const yPct = Math.round(Math.min(1, Math.max(0, options.y)) * 1000) / 10;
     const scalePct = Math.round(Math.min(1, Math.max(0.02, options.scale)) * 1000) / 10;
-    const filter = `[1:v][0:v]scale2ref=w=main_w*${scalePct / 100}:h=-1[logo][base];[base][logo]overlay=x=W*${xPct / 100}-w/2:y=H*${yPct / 100}-h/2:format=auto[v]`;
+    // Aspect-strict: only ONE logo dimension is derived (h=-2 keeps it even and
+    // preserves the PNG's true ratio), so the badge can never be stretched into
+    // an oval/oblong. setsar=1 on both inputs stops any pixel-aspect mismatch
+    // from skewing it, and format=rgba keeps the transparency. Position is the
+    // caller's 0..1 centre-anchored value with no extra clamping.
+    const filter = `[1:v][0:v]scale2ref=w=main_w*${scalePct / 100}:h=-2[ls];[ls]format=rgba,setsar=1[logo];[0:v]setsar=1[base];[base][logo]overlay=x=W*${xPct / 100}-w/2:y=H*${yPct / 100}-h/2[v]`;
     await runFFmpeg(["-y", "-i", inputPath, "-i", logoPath, "-filter_complex", filter,
       "-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
       "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", outputPath]);
