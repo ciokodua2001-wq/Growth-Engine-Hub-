@@ -39,6 +39,61 @@ export interface FidelityReport {
 interface CinematicPlanShape {
   shots?: Array<{ dialogue?: string; duration?: number }>;
 }
+// ── Screenplay-format dialogue extraction ────────────────────────────────────
+// Commercial scripts are often authored as mini-screenplays:
+//
+//   SCENE 1 — TITLE (0–4s)
+//   INT. LOCATION - DAY
+//   Action description...
+//
+//   CHARACTER
+//   (parenthetical)
+//   The spoken line.
+//
+// Only the spoken lines are narration. Scene headings, slug lines (INT./EXT.),
+// action/description, character cues, parentheticals, and transitions are all
+// silent visual direction and must never reach the narrator or the video
+// model's native-audio prompt (they were previously read aloud verbatim).
+const SCENE_HEADING_RE = /^(?:SCENE\b|INT[.\s]|EXT[.\s]|INT\/|EXT\/|I\/E\b|EST\b)/i;
+const TRANSITION_RE = /^(?:CUT\s+TO|FADE\s+(?:IN|OUT)|DISSOLVE\s+TO|SMASH\s+CUT|JUMP\s+CUT|MATCH\s+CUT|TIME\s+CUT)\b/i;
+const PARENTHETICAL_RE = /^\([^)]*\)\s*$/;
+
+function isCharacterCue(line: string): boolean {
+  const t = line.trim();
+  if (!t || t.length > 50) return false;
+  if (SCENE_HEADING_RE.test(t) || TRANSITION_RE.test(t)) return false;
+  // Strip a trailing extension like (V.O.) / (O.S.) / (CONT'D), then require the
+  // remainder to be an ALL-CAPS name — lowercase prose is action/description.
+  const bare = t.replace(/\([^)]*\)\s*$/g, "").trim();
+  if (!bare || !/[A-Z]/.test(bare)) return false;
+  return /^[A-Z0-9 .'&\-]+$/.test(bare);
+}
+
+function extractScreenplayDialogue(script: string): string[] {
+  const lines = script.split(/\r?\n/);
+  const spoken: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!isCharacterCue(line)) continue;
+    let j = i + 1;
+    const block: string[] = [];
+    while (j < lines.length) {
+      const t = lines[j].trim();
+      if (t === "") {
+        if (block.length) break;   // dialogue block ended
+        j++;
+        continue;
+      }
+      if (PARENTHETICAL_RE.test(t)) { j++; continue; }
+      if (isCharacterCue(t) || SCENE_HEADING_RE.test(t) || TRANSITION_RE.test(t)) break;
+      block.push(t);               // a spoken line (dialogue)
+      j++;
+    }
+    if (block.length) spoken.push(block.join(" ").trim());
+  }
+  return spoken;
+}
+
 
 /**
  * Returns the exact customer-approved dialogue as a list of spoken lines.
@@ -57,7 +112,9 @@ export function extractNarrationLines(script: string): string[] {
     .filter(line => /^(actor line|dialogue)\s*:/i.test(line))
     .map(line => line.replace(/^(actor line|dialogue)\s*:\s*/i, "").replace(/^["“]|["”]$/g, "").trim())
     .filter(line => line.length > 0 && !quoted.includes(line));
-  if (quoted.length || labeled.length) return [...quoted, ...labeled];
+  const screenplay = extractScreenplayDialogue(script);
+  const merged = [...quoted, ...labeled, ...screenplay].filter((v, i, a) => a.indexOf(v) === i);
+  if (merged.length) return merged;
 
   // Plain approved narration is valid too (for example, a single paragraph
   // pasted into the exact-dialogue field). Remove obvious production notes,

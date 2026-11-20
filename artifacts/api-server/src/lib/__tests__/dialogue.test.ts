@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   segmentTextToPhrases,
   extractDialogueLines,
+  extractNarrationLines,
   distributeDialogue,
   estimateDialogueFit,
   compareScriptToTranscript,
@@ -251,3 +252,51 @@ describe("caption layout (responsive safe-area)", () => {
   });
 });
 
+describe("extractNarrationLines", () => {
+  it("extracts only spoken dialogue from a screenplay-format commercial script", () => {
+    const script = [
+      "SCENE 1 — THE CHAOS (0–4s)",
+      "INT. STUDY ROOM - DAY",
+      "A frustrated student stares at a mountain of cluttered textbooks and messy notes.",
+      "",
+      "STUDENT",
+      "(exhausted)",
+      "There has to be a better way to master this!",
+      "",
+      "Time freezes. A classmate slides a sleek, glowing tablet across the desk.",
+      "",
+      "FRIEND",
+      "(calm, confident)",
+      "There is.",
+      "",
+      "SCENE 2 — DISCOVER THE POSSIBILITIES (4–10s)",
+      "INT. VIRTUAL KNOWLEDGE SPACE - CONTINUOUS",
+      "The screen transforms into a vibrant hub of interactive lessons.",
+      "",
+      "VOICEOVER (V.O.)",
+      "Explore. Practice. Master. Quantivarian brings learning to life.",
+      "",
+      "Quick cuts show students intuitively mastering complex concepts.",
+      "",
+      "SCENE 3 — THE POWERFUL FINALE (10–15s)",
+      "INT. CINEMATIC GRADUATION STUDIO - CONTINUOUS",
+      "Students stand together, looking sharp and confident.",
+      "",
+      "VOICEOVER (V.O.)",
+      "One platform. Endless potential. Discover the power of Quantivarian today.",
+    ].join("\n");
+
+    const lines = extractNarrationLines(script);
+    expect(lines).toEqual([
+      "There has to be a better way to master this!",
+      "There is.",
+      "Explore. Practice. Master. Quantivarian brings learning to life.",
+      "One platform. Endless potential. Discover the power of Quantivarian today.",
+    ]);
+  });
+
+  it("returns plain narration verbatim when there is no screenplay structure", () => {
+    const lines = extractNarrationLines("Explore. Practice. Master. Quantivarian brings learning to life.");
+    expect(lines).toEqual(["Explore. Practice. Master. Quantivarian brings learning to life."]);
+  });
+});
