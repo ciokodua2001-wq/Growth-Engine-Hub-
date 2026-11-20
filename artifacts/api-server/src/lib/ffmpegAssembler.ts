@@ -1094,7 +1094,11 @@ export async function compositeLogoOnVideo(inputUrl: string, logoBuffer: Buffer,
     // an oval/oblong. setsar=1 on both inputs stops any pixel-aspect mismatch
     // from skewing it, and format=rgba keeps the transparency. Position is the
     // caller's 0..1 centre-anchored value with no extra clamping.
-    const filter = `[1:v][0:v]scale2ref=w=main_w*${scalePct / 100}:h=-2[ls];[ls]format=rgba,setsar=1[logo];[0:v]setsar=1[base];[base][logo]overlay=x=W*${xPct / 100}-w/2:y=H*${yPct / 100}-h/2[v]`;
+    // scale2ref emits TWO outputs (scaled logo AND the reference passthrough), so
+    // BOTH must be labelled or the graph silently drops the badge. h=-2 derives
+    // only the height (even, aspect-preserving) so the PNG can never be stretched,
+    // and setsar=1 + format=rgba stop any pixel-aspect skew and keep transparency.
+    const filter = `[1:v][0:v]scale2ref=w=main_w*${scalePct / 100}:h=-2[logo][base];[logo]format=rgba,setsar=1[lg];[base]setsar=1[bs];[bs][lg]overlay=x=W*${xPct / 100}-w/2:y=H*${yPct / 100}-h/2[v]`;
     await runFFmpeg(["-y", "-i", inputPath, "-i", logoPath, "-filter_complex", filter,
       "-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
       "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", outputPath]);
