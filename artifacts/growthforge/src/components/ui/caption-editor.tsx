@@ -97,11 +97,11 @@ const CAPTION_PRESET_STYLES: Record<CaptionPreset, CSSProperties> = {
 // Shared between the browser preview and the FFmpeg export so captions wrap and
 // stay inside the frame identically everywhere. KEEP IN SYNC with
 // artifacts/api-server/src/lib/dialogue.ts.
-const CAPTION_SAFE_MARGIN_X = 0;
-const CAPTION_SAFE_MARGIN_TOP = 0;
-const CAPTION_SAFE_MARGIN_BOTTOM = 0;
-const CAPTION_NOMINAL_HALF_WIDTH = 0;
-const CAPTION_NOMINAL_HALF_HEIGHT = 0;
+const CAPTION_SAFE_MARGIN_X = 0.02;
+const CAPTION_SAFE_MARGIN_TOP = 0.02;
+const CAPTION_SAFE_MARGIN_BOTTOM = 0.02;
+const CAPTION_NOMINAL_HALF_WIDTH = 0.10;
+const CAPTION_NOMINAL_HALF_HEIGHT = 0.02;
 const CAPTION_SCALE_MIN = 0.25;
 const CAPTION_SCALE_MAX = 3.0;
 
@@ -117,12 +117,32 @@ function captionMaxWidthRatio(aspect: number): number {
   return 0.80;
 }
 
-function clampCaptionX(x: number, scale: number): number {
-  return Math.min(1, Math.max(0, x));
+function clampCaptionX(x: number, scale: number = 1): number {
+  const halfW = CAPTION_NOMINAL_HALF_WIDTH * Math.max(0.25, scale);
+  const lo = CAPTION_SAFE_MARGIN_X + halfW;
+  const hi = 1 - CAPTION_SAFE_MARGIN_X - halfW;
+  if (lo > hi) return 0.5;
+  return Math.min(hi, Math.max(lo, x));
 }
 
-function clampCaptionY(y: number, scale: number): number {
-  return Math.min(1, Math.max(0, y));
+function clampCaptionY(y: number, scale: number = 1): number {
+  const halfH = CAPTION_NOMINAL_HALF_HEIGHT * Math.max(0.25, scale);
+  const lo = CAPTION_SAFE_MARGIN_TOP + halfH;
+  const hi = 1 - CAPTION_SAFE_MARGIN_BOTTOM - halfH;
+  if (lo > hi) return 0.5;
+  return Math.min(hi, Math.max(lo, y));
+}
+
+/** Hard clamp matching the FFmpeg export (buildAssDocument): keep the caption
+ * CENTRE inside the safe half-width/height so an 80%-wide line (or a 3-line
+ * block) can never hang off a frame edge, even when dragged to a corner. */
+function hardClampCaptionCenter(x: number, y: number, scale: number, aspect: number): { x: number; y: number } {
+  const maxWidthRatio = captionMaxWidthRatio(aspect);
+  const halfW = maxWidthRatio / 2;
+  const cx = Math.min(1 - halfW, Math.max(halfW, clampCaptionX(x, scale)));
+  const halfH = 3 * 0.0198 * scale * aspect;
+  const cy = Math.min(1 - halfH, Math.max(halfH, clampCaptionY(y, scale)));
+  return { x: cx, y: cy };
 }
 
 const CAPTION_X_MIN = 0;
@@ -131,8 +151,7 @@ const CAPTION_Y_MIN = 0;
 const CAPTION_Y_MAX = 1;
 
 function getCaptionOverlayStyle(x: number, y: number, scale: number, preset: CaptionPreset, aspect: number): CSSProperties {
-  const cx = clampCaptionX(x, scale);
-  const cy = clampCaptionY(y, scale);
+  const { x: cx, y: cy } = hardClampCaptionCenter(x, y, scale, aspect);
   const maxWidthPct = (captionMaxWidthRatio(aspect) * 100).toFixed(1);
   return {
     position: "absolute",
@@ -428,6 +447,8 @@ export default function CaptionEditor({
   const captionXRef = useRef(0.5);
   const captionYRef = useRef(0.85);
   const captionScaleRef = useRef(1.0);
+  const videoAspectRef = useRef<number>(0.5625);
+  useEffect(() => { videoAspectRef.current = videoAspect ?? 0.5625; }, [videoAspect]);
   useEffect(() => { captionXRef.current = captionX; }, [captionX]);
   useEffect(() => { captionYRef.current = captionY; }, [captionY]);
   useEffect(() => { captionScaleRef.current = captionScale; }, [captionScale]);
@@ -603,8 +624,9 @@ export default function CaptionEditor({
     const onMove = (ev: PointerEvent) => {
       const dx = (ev.clientX - startPointerX) / rect.width;
       const dy = (ev.clientY - startPointerY) / rect.height;
-      setCaptionX(clampCaptionX(startX + dx, captionScaleRef.current));
-      setCaptionY(clampCaptionY(startY + dy, captionScaleRef.current));
+      const { x: nx, y: ny } = hardClampCaptionCenter(startX + dx, startY + dy, captionScaleRef.current, videoAspectRef.current);
+      setCaptionX(nx);
+      setCaptionY(ny);
     };
     const onUp = () => {
       target.releasePointerCapture(e.pointerId);

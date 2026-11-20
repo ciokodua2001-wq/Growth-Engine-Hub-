@@ -947,10 +947,7 @@ function buildAssDocument(
 ): string {
   const s = CAPTION_STYLES[preset];
   const baseFontSize = Math.max(38, Math.round(videoWidth * 0.033));
-  const fontSize = Math.round(baseFontSize * s.sizeMul * captionScale);
-  const baseOutline = Math.max(2, Math.round(fontSize * 0.07));
-  const outline = Math.round(baseOutline * s.outlineMul);
-  const shadow = Math.round(fontSize * 0.1 * s.shadowMul);
+  let fontSize = Math.round(baseFontSize * s.sizeMul * captionScale);
 
   // Safe-area layout: captions must stay inside the actual frame (never spill
   // past the edges) and wrap identically to the browser preview.
@@ -959,14 +956,35 @@ function buildAssDocument(
   // A bigger caption means fewer glyphs fit the same safe width, so the wrap
   // budget shrinks WITH the scale instead of overflowing the frame edges.
   const maxChars = Math.max(8, Math.round(maxCharsBase / Math.max(0.6, captionScale)));
-  // Estimate the widest wrapped line and clamp the centre-anchored block so it
-  // can never hang past a frame edge - enforced for every aspect ratio
-  // (9:16, 16:9, 4:5, 1:1) from the real probed frame, not a fixed assumption.
   const safeRatio = captionMaxWidthRatio(aspect);
   const halfLineWidth = (videoWidth * safeRatio) / 2;
   const pad = 8;
-  const maxLines = 3;
+
+  // Wrap every caption BEFORE layout so the vertical reserve reflects the REAL
+  // line count of the tallest caption. A long sentence at a large scale
+  // previously wrapped past the fixed 3-line reserve and pushed text off the
+  // bottom of the frame.
+  let wrappedEvents = events.map(e => ({ ...e, text: wrapSubtitleLine(e.assText, maxChars) }));
+  let maxLines = Math.max(1, ...wrappedEvents.map(e => e.text.split("\\N").length));
+  const availableHeight = videoHeight - 2 * pad;
+  if (maxLines * fontSize * 1.2 > availableHeight) {
+    // Too tall to fit: shrink the font and re-wrap with a proportionally wider
+    // budget so the caption collapses into fewer lines and stays on-screen.
+    const targetFontSize = Math.max(18, Math.floor(availableHeight / (maxLines * 1.2)));
+    const widerMaxChars = Math.max(8, Math.round(maxChars * (fontSize / targetFontSize)));
+    fontSize = targetFontSize;
+    wrappedEvents = events.map(e => ({ ...e, text: wrapSubtitleLine(e.assText, widerMaxChars) }));
+    maxLines = Math.max(1, ...wrappedEvents.map(e => e.text.split("\\N").length));
+  }
   const halfBlockHeight = (maxLines * fontSize * 1.2) / 2;
+
+  const baseOutline = Math.max(2, Math.round(fontSize * 0.07));
+  const outline = Math.round(baseOutline * s.outlineMul);
+  const shadow = Math.round(fontSize * 0.1 * s.shadowMul);
+
+  // Estimate the widest wrapped line and clamp the centre-anchored block so it
+  // can never hang past a frame edge - enforced for every aspect ratio
+  // (9:16, 16:9, 4:5, 1:1) from the real probed frame, not a fixed assumption.
   const px = Math.min(
     Math.max(Math.round(clampCaptionX(captionX, captionScale) * videoWidth), Math.round(halfLineWidth) + pad),
     Math.max(Math.round(halfLineWidth) + pad, videoWidth - Math.round(halfLineWidth) - pad),
@@ -994,10 +1012,9 @@ function buildAssDocument(
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
   ].join("\n");
 
-  const body = events
+  const body = wrappedEvents
     .map(e => {
-      const wrapped = wrapSubtitleLine(e.assText, maxChars);
-      const text = s.uppercase ? wrapped.toUpperCase() : wrapped;
+      const text = s.uppercase ? e.text.toUpperCase() : e.text;
       return `Dialogue: 0,${toAssTime(e.startSec)},${toAssTime(e.endSec)},Default,,0,0,0,,${posTag}${text}`;
     })
     .join("\n");
