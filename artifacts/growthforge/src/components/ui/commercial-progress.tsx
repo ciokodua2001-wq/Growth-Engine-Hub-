@@ -10,7 +10,7 @@
  *   → Complete          (inline video player + download)
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo, type CSSProperties } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -731,6 +731,31 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
   const [isTheaterMode, setIsTheaterMode] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoStageRef = useRef<HTMLDivElement>(null);
+
+  // Drag the logo anywhere in the frame. Mirrors the ffmpeg composite exactly
+  // (centre-anchored at x/y, width = scale x frame width, aspect preserved), so
+  // the preview is a true 1:1 promise of what renders.
+  const startLogoDrag = (event: ReactPointerEvent<HTMLImageElement>) => {
+    event.preventDefault();
+    const stage = videoStageRef.current;
+    if (!stage) return;
+    const rect = stage.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const moveTo = (moveEvent: PointerEvent) => {
+      const x = (moveEvent.clientX - rect.left) / rect.width;
+      const y = (moveEvent.clientY - rect.top) / rect.height;
+      setLogoX(Math.min(1, Math.max(0, x)));
+      setLogoY(Math.min(1, Math.max(0, y)));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", moveTo);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+    window.addEventListener("pointermove", moveTo);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  };
   const subtitleTimingsRef = useRef<Array<{ text: string; startSec: number; endSec: number }>>([]);
   const karaokeTimingsRef = useRef<KaraokeSentenceTiming[]>([]);
   // Mirrors of drag-related state so pointer-move handlers always read the
@@ -1703,10 +1728,12 @@ export default function CommercialProductionProgress({ video, projectId, isTrial
               src={logoAssets.find(asset => asset.id === logoAssetId)!.url!}
               alt="Logo preview"
               draggable={false}
+              onPointerDown={startLogoDrag}
               style={{
                 position: "absolute", left: `${logoX * 100}%`, top: `${logoY * 100}%`,
-                width: `${logoScale * 100}%`, maxHeight: "95%", maxWidth: "95%", objectFit: "contain",
-                transform: "translate(-50%, -50%)", pointerEvents: "none",
+                width: `${logoScale * 100}%`, objectFit: "contain",
+                transform: "translate(-50%, -50%)",
+                cursor: "grab", touchAction: "none", userSelect: "none",
                 filter: "drop-shadow(0 1px 2px rgba(0,0,0,.45))",
               }}
             />
