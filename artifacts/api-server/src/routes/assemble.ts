@@ -107,7 +107,7 @@ router.post("/projects/:id/videos/:videoId/assemblies/:assemblyId/logo", async (
     res.status(400).json({ error: "Invalid project, video, assembly, or logo asset ID" });
     return;
   }
-  const [video] = await db.select({ id: videosTable.id }).from(videosTable)
+  const [video] = await db.select({ id: videosTable.id, videoUrl: videosTable.videoUrl }).from(videosTable)
     .where(and(eq(videosTable.id, videoId), eq(videosTable.projectId, projectId)));
   if (!video) { res.status(404).json({ error: "Video not found" }); return; }
   const [assembly] = await db.select().from(commercialAssembliesTable)
@@ -127,7 +127,30 @@ router.post("/projects/:id/videos/:videoId/assemblies/:assemblyId/logo", async (
       res.status(422).json({ error: "Choose a transparent PNG logo" });
       return;
     }
-    const result = await compositeLogoOnVideo(await refreshAssemblyUrl(assembly.videoUrl), logo, {
+    // Re-applying a logo must REPLACE the previous one, never stack a second
+    // crest on top. Walk the source chain back to the newest assembly that does
+    // not already carry a logo (a caption-only node, or the base render) and
+    // composite onto that, so any captions are preserved while the old logo is
+    // dropped.
+    let baseAssembly: typeof assembly | null = assembly;
+    const seen = new Set<number>();
+    while (baseAssembly && !seen.has(baseAssembly.id)) {
+      seen.add(baseAssembly.id);
+      const opts = (baseAssembly.options ?? {}) as Record<string, unknown>;
+      if (!opts.postRenderLogo && !opts.logoUrl) break; // logo-free ancestor found
+      const nextId = typeof opts.sourceAssemblyId === "number" ? opts.sourceAssemblyId : null;
+      if (!nextId) { baseAssembly = null; break; }
+      const [next] = await db.select().from(commercialAssembliesTable)
+        .where(and(eq(commercialAssembliesTable.id, nextId), eq(commercialAssembliesTable.videoId, videoId)));
+      baseAssembly = next ?? null;
+    }
+    const sourceUrl = baseAssembly?.videoUrl ?? video.videoUrl;
+    if (!sourceUrl) throw new Error("Source video URL is missing");
+    const logoInputUrl = baseAssembly
+      ? await refreshAssemblyUrl(sourceUrl)
+      : await resolveCompletedVideoUrl(projectId, videoId, sourceUrl);
+
+    const result = await compositeLogoOnVideo(logoInputUrl, logo, {
       projectId,
       videoId,
       x: Number.isFinite(req.body?.x) ? Math.min(1, Math.max(0, req.body.x)) : 0.82,
