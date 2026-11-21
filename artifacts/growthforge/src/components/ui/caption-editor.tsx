@@ -18,7 +18,7 @@
  * assembly-time /assemble burn-in.
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo, type CSSProperties } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, forwardRef, useImperativeHandle, type CSSProperties } from "react";
 import {
   AlertCircle, Download, Loader2, Play, Type,
   Maximize, Minimize, X as CloseIcon,
@@ -365,12 +365,22 @@ interface Props {
   baseAssemblyId?: number | null;
   /** Called after a successful caption export with the new assembly id + url. */
   onExported?: (info: { assemblyId: number; videoUrl: string }) => void;
+  /** Reports the live caption toggle + applied assembly upward, so the parent
+   * page can offer ONE download button that honours whichever overlays (logo
+   * and/or captions) are currently switched on. */
+  onStateChange?: (state: { captionsEnabled: boolean; exportAssemblyId: number | null }) => void;
 }
 
-export default function CaptionEditor({
+/** Imperative handle so the parent can burn captions as part of a single
+ * "download with everything the toggles ask for" action. */
+export interface CaptionEditorHandle {
+  applyCaptions: (opts?: { baseOverride?: number | null }) => Promise<number | null>;
+}
+
+const CaptionEditor = forwardRef<CaptionEditorHandle, Props>(function CaptionEditor({
   projectId, videoId, videoUrl, dialogueTranscript, script, voiceover, title,
-  baseAssemblyId = null, onExported,
-}: Props) {
+  baseAssemblyId = null, onExported, onStateChange,
+}: Props, ref) {
   const apiBase = `/api/projects/${projectId}/videos/${videoId}`;
 
   // ── Caption editor state (post-render, browser-side) ───────────────────────
@@ -716,15 +726,19 @@ export default function CaptionEditor({
   }, [apiBase, localTranscript, invalidateExportCache]);
 
   // ── Post-render FFmpeg caption burn (no AI) ────────────────────────────────
-  const handleApplyCaptions = useCallback(async () => {
-    if (exportBusy) return;
-    const fingerprint = `${baseAssemblyId ?? "render"}|${captionPreset}|${captionX.toFixed(3)}|${captionY.toFixed(3)}|${captionScale.toFixed(3)}`;
-    if (exportUrl && exportAssemblyId && exportFingerprintRef.current === fingerprint) return;
+  const handleApplyCaptions = useCallback(async (opts?: { baseOverride?: number | null }): Promise<number | null> => {
+    if (exportBusy) return exportAssemblyId;
+    // baseOverride lets the parent chain captions onto an assembly it applied
+    // moments ago (e.g. a just-burned logo) without waiting for this component
+    // to re-render with the new baseAssemblyId prop.
+    const base = opts && "baseOverride" in opts ? opts.baseOverride : baseAssemblyId;
+    const fingerprint = `${base ?? "render"}|${captionPreset}|${captionX.toFixed(3)}|${captionY.toFixed(3)}|${captionScale.toFixed(3)}`;
+    if (exportUrl && exportAssemblyId && exportFingerprintRef.current === fingerprint) return exportAssemblyId;
     setExportBusy(true);
     setExportError(null);
     try {
-      const endpoint = baseAssemblyId
-        ? `${apiBase}/assemblies/${baseAssemblyId}/captions`
+      const endpoint = base
+        ? `${apiBase}/assemblies/${base}/captions`
         : `${apiBase}/captions`;
       const response = await fetch(endpoint, {
         method: "POST",
@@ -740,8 +754,10 @@ export default function CaptionEditor({
       setExportUrl(payload.url);
       setExportAssemblyId(payload.assemblyId);
       onExported?.({ assemblyId: payload.assemblyId, videoUrl: payload.url });
+      return payload.assemblyId as number;
     } catch (error) {
       setExportError(error instanceof Error ? error.message : "Caption export failed. Please try again.");
+      return null;
     } finally {
       setExportBusy(false);
     }
@@ -754,6 +770,14 @@ export default function CaptionEditor({
     anchor.download = `${title ?? "growthforge-video"}-captioned.mp4`;
     anchor.click();
   }, [apiBase, exportAssemblyId, title]);
+
+  useImperativeHandle(ref, () => ({ applyCaptions: handleApplyCaptions }), [handleApplyCaptions]);
+
+  // Keep the parent page informed of the toggle + what has actually been burned,
+  // so its single download button can match the toggles exactly.
+  useEffect(() => {
+    onStateChange?.({ captionsEnabled, exportAssemblyId });
+  }, [captionsEnabled, exportAssemblyId, onStateChange]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1083,4 +1107,6 @@ export default function CaptionEditor({
       {exportUrl && <p role="status" className="text-[10px] text-[#00E676]/80">Captioned render ready. Your original render remains unchanged - apply a logo next to combine both.</p>}
     </div>
   );
-}
+});
+
+export default CaptionEditor;

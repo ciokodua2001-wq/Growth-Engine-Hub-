@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { useState, useEffect, useRef, useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import { useParams } from "wouter";
 import {
   useListVideos,
@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import GenerateModal from "@/components/ui/generate-modal";
 import ScriptFidelityPanel from "@/components/ui/script-fidelity-panel";
-import CaptionEditor from "@/components/ui/caption-editor";
+import CaptionEditor, { type CaptionEditorHandle } from "@/components/ui/caption-editor";
 import VideoWalletWidget from "@/components/video-wallet-widget";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { downloadFile } from "@/lib/utils";
@@ -445,6 +445,33 @@ function RenderPanel({
   // same completed render (logo then captions, or captions then logo) without
   // ever re-rendering media or calling a model.
   const [postRenderAssemblyId, setPostRenderAssemblyId] = useState<number | null>(null);
+
+  // ── Unified post-render download state ─────────────────────────────────────
+  // Which overlays are actually burned into the LATEST post-render assembly.
+  // The ref is the authoritative, synchronously-updated store (so a chained
+  // apply started in the same tick never reads a stale value); the state mirror
+  // exists purely to render the button's "includes..." label.
+  type Overlays = { logo: boolean; captions: boolean };
+  const bakedOverlaysRef = useRef<Overlays>({ logo: false, captions: false });
+  const [bakedOverlays, setBakedOverlays] = useState<Overlays>({ logo: false, captions: false });
+  // Assemblies are immutable files: remember what each one contains so an
+  // already-produced artifact can be reused instead of burning a new one.
+  const artifactOverlaysRef = useRef<Record<number, Overlays>>({});
+  const [captionsActive, setCaptionsActive] = useState(false);
+  const [compositeBusy, setCompositeBusy] = useState(false);
+  const [compositeError, setCompositeError] = useState<string | null>(null);
+  const captionEditorRef = useRef<CaptionEditorHandle | null>(null);
+
+  const recordOverlays = (assemblyId: number, overlays: Overlays) => {
+    artifactOverlaysRef.current[assemblyId] = overlays;
+    bakedOverlaysRef.current = overlays;
+    setBakedOverlays(overlays);
+  };
+
+  const handleCaptionStateChange = useCallback((state: { captionsEnabled: boolean; exportAssemblyId: number | null }) => {
+    setCaptionsActive(state.captionsEnabled);
+  }, []);
+
   const queryClient = useQueryClient();
 
   const startRender = useStartVideoRender();
@@ -535,12 +562,17 @@ function RenderPanel({
     }
   };
 
-  const applyPostRenderLogo = async () => {
-    if (!currentVideoUrl || !logoAssetId || logoBusy) return;
+  /** Burns the selected logo onto the render. `baseOverride` chooses which
+   * assembly to chain onto (null = the untouched render), letting the unified
+   * download build an exact overlay combination without waiting for a re-render.
+   * Resolves the new assembly id, or null on failure. */
+  const applyPostRenderLogo = async (opts?: { baseOverride?: number | null }): Promise<number | null> => {
+    if (!currentVideoUrl || !logoAssetId || logoBusy) return null;
+    const base = opts && "baseOverride" in opts ? opts.baseOverride : postRenderAssemblyId;
     setLogoBusy(true); setLogoError(null);
     try {
-      const endpoint = postRenderAssemblyId
-        ? `/api/projects/${projectId}/videos/${video.id}/assemblies/${postRenderAssemblyId}/logo`
+      const endpoint = base
+        ? `/api/projects/${projectId}/videos/${video.id}/assemblies/${base}/logo`
         : `/api/projects/${projectId}/videos/${video.id}/logo`;
       const response = await fetch(endpoint, {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
@@ -550,10 +582,97 @@ function RenderPanel({
       if (!response.ok || !payload.url || !payload.assemblyId) throw new Error(payload.error || "Logo export failed");
       setLogoExportUrl(payload.url); setLogoExportAssemblyId(payload.assemblyId);
       setPostRenderAssemblyId(payload.assemblyId);
+      // Chaining onto a caption assembly carries the captions through; burning
+      // onto the untouched render yields a logo-only file.
+      recordOverlays(payload.assemblyId as number, { logo: true, captions: base != null && bakedOverlaysRef.current.captions });
+      return payload.assemblyId as number;
     } catch (error) {
       setLogoError(error instanceof Error ? error.message : "Logo export failed. Please try again.");
+      return null;
     } finally { setLogoBusy(false); }
   };
+
+  const overlaySuffix = (overlays: Overlays) =>
+    [overlays.logo && "logo", overlays.captions && "captions"].filter(Boolean).join("-and-");
+
+  const triggerAssemblyDownload = (assemblyId: number, overlays: Overlays) => {
+    const suffix = overlaySuffix(overlays);
+    const anchor = document.createElement("a");
+    // Routed through the API so the response carries Content-Disposition:
+    // attachment - mobile Chrome ignores the download attribute on cross-origin
+    // object-storage URLs.
+    anchor.href = `/api/projects/${projectId}/videos/${video.id}/assemblies/${assemblyId}/download`;
+    anchor.download = `growthforge-video${suffix ? `-${suffix}` : ""}.mp4`;
+    anchor.click();
+  };
+
+  /** The one download button for every post-render combination: logo only,
+   * captions only, both, or the untouched render when both toggles are off.
+   * Anything the toggles ask for that has not been burned yet is burned first
+   * (logo before captions, so each pass chains onto the previous one). */
+  const downloadComposite = async () => {
+    if (!currentVideoUrl || compositeBusy) return;
+    const desired: Overlays = { logo: logoAssetId != null, captions: captionsActive };
+    setCompositeBusy(true);
+    setCompositeError(null);
+    try {
+      // Both toggles off: the original render is always the clean answer, and it
+      // sidesteps any previously burned overlay sitting in the chain.
+      if (!desired.logo && !desired.captions) {
+        await downloadFile(currentVideoUrl, "growthforge-video.mp4");
+        return;
+      }
+      // Reuse an artifact that already matches the toggles exactly.
+      const match = Object.entries(artifactOverlaysRef.current)
+        .find(([, overlays]) => overlays.logo === desired.logo && overlays.captions === desired.captions);
+      if (match) {
+        triggerAssemblyDownload(Number(match[0]), desired);
+        return;
+      }
+      // Otherwise build it. An overlay can never be stripped from a burned file,
+      // so when the latest chain carries MORE than the toggles ask for, rebuild
+      // from the untouched render instead of chaining onto it.
+      const overBaked =
+        (desired.logo && !desired.captions && bakedOverlaysRef.current.captions) ||
+        (!desired.logo && desired.captions && bakedOverlaysRef.current.logo);
+      let overlays: Overlays = overBaked ? { logo: false, captions: false } : bakedOverlaysRef.current;
+      let latest: number | null = overBaked ? null : postRenderAssemblyId;
+
+      if (desired.logo && !overlays.logo) {
+        const id = await applyPostRenderLogo({ baseOverride: latest });
+        if (id == null) throw new Error("Could not burn the logo. Check the logo panel for the error and try again.");
+        overlays = { logo: true, captions: overlays.captions };
+        latest = id;
+      }
+      if (desired.captions && !overlays.captions) {
+        const id = await captionEditorRef.current?.applyCaptions({ baseOverride: latest });
+        if (id == null) throw new Error("Could not burn the captions. Check the caption panel for the reason and try again.");
+        overlays = { logo: overlays.logo, captions: true };
+        latest = id;
+      }
+      if (latest == null) throw new Error("No export is ready yet.");
+      triggerAssemblyDownload(latest, overlays);
+    } catch (error) {
+      setCompositeError(error instanceof Error ? error.message : "Download failed. Please try again.");
+    } finally {
+      setCompositeBusy(false);
+    }
+  };
+
+  // Human-readable description of exactly what the Download button will produce,
+  // so the owner never has to guess which overlays ended up in the file.
+  const compositeSummary = (() => {
+    const wanted: string[] = [];
+    if (logoAssetId != null) wanted.push("logo");
+    if (captionsActive) wanted.push("captions");
+    if (wanted.length === 0) return "Clean render - logo and captions are both off.";
+    const pending: string[] = [];
+    if (logoAssetId != null && !bakedOverlays.logo) pending.push("logo");
+    if (captionsActive && !bakedOverlays.captions) pending.push("captions");
+    return pending.length > 0
+      ? `Includes ${wanted.join(" + ")} - ${pending.join(" and ")} not burned yet, applied first on download.`
+      : `Includes ${wanted.join(" + ")} burned in.`;
+  })();
 
   // Pick the most descriptive step label based on elapsed time
   const stepLabel = RENDER_STEPS.reduce(
@@ -666,13 +785,15 @@ function RenderPanel({
       {currentStatus === "complete" && currentVideoUrl && (
         <div className="rounded-xl overflow-hidden border border-[#00E676]/30 bg-[#00E676]/5">
           <video controls className="w-full max-h-48 bg-black" src={currentVideoUrl} />
-          <div className="flex gap-2 p-3">
+          <div className="flex flex-wrap items-center gap-2 p-3">
             <button
               type="button"
-              onClick={() => void downloadFile(currentVideoUrl, "growthforge-video.mp4")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white/70 transition-colors"
+              onClick={() => void downloadComposite()}
+              disabled={compositeBusy}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#00E676]/15 border border-[#00E676]/30 hover:bg-[#00E676]/25 text-[#00E676] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <Download className="w-3 h-3" /> Download
+              {compositeBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+              {compositeBusy ? "Preparing download..." : "Download video"}
             </button>
             <a
               href={currentVideoUrl}
@@ -682,7 +803,11 @@ function RenderPanel({
             >
               <ExternalLink className="w-3 h-3" /> Open
             </a>
+            <span role="status" className="text-[10px] text-white/45">{compositeSummary}</span>
           </div>
+          {compositeError && (
+            <p role="alert" className="px-3 pb-3 text-[10px] text-red-300">{compositeError}</p>
+          )}
         </div>
       )}
 
@@ -783,6 +908,7 @@ function RenderPanel({
           exporting via the post-render FFmpeg-only burn-in. No AI charges. */}
       {currentStatus === "complete" && currentVideoUrl && (
         <CaptionEditor
+          ref={captionEditorRef}
           projectId={projectId}
           videoId={video.id}
           videoUrl={logoExportUrl ?? currentVideoUrl}
@@ -791,7 +917,13 @@ function RenderPanel({
           voiceover={video.voiceover}
           title={video.title}
           baseAssemblyId={postRenderAssemblyId}
-          onExported={({ assemblyId }) => setPostRenderAssemblyId(assemblyId)}
+          onExported={({ assemblyId }) => {
+            setPostRenderAssemblyId(assemblyId);
+            // Captions chain onto the latest assembly, so whatever that base held
+            // (a logo, or nothing) survives and captions are added on top.
+            recordOverlays(assemblyId, { logo: bakedOverlaysRef.current.logo, captions: true });
+          }}
+          onStateChange={handleCaptionStateChange}
         />
       )}
 
