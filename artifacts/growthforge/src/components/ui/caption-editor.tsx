@@ -364,7 +364,7 @@ interface Props {
   /** Latest post-render assembly id (logo or caption), so passes chain. */
   baseAssemblyId?: number | null;
   /** Called after a successful caption export with the new assembly id + url. */
-  onExported?: (info: { assemblyId: number; videoUrl: string }) => void;
+  onExported?: (info: { assemblyId: number; videoUrl: string; baseAssemblyId: number | null }) => void;
   /** Reports the live caption toggle + applied assembly upward, so the parent
    * page can offer ONE download button that honours whichever overlays (logo
    * and/or captions) are currently switched on. */
@@ -731,7 +731,7 @@ const CaptionEditor = forwardRef<CaptionEditorHandle, Props>(function CaptionEdi
     // baseOverride lets the parent chain captions onto an assembly it applied
     // moments ago (e.g. a just-burned logo) without waiting for this component
     // to re-render with the new baseAssemblyId prop.
-    const base = opts && "baseOverride" in opts ? opts.baseOverride : baseAssemblyId;
+    const base: number | null = opts && "baseOverride" in opts ? (opts.baseOverride ?? null) : baseAssemblyId;
     const fingerprint = `${base ?? "render"}|${captionPreset}|${captionX.toFixed(3)}|${captionY.toFixed(3)}|${captionScale.toFixed(3)}`;
     if (exportUrl && exportAssemblyId && exportFingerprintRef.current === fingerprint) return exportAssemblyId;
     setExportBusy(true);
@@ -753,7 +753,10 @@ const CaptionEditor = forwardRef<CaptionEditorHandle, Props>(function CaptionEdi
       exportFingerprintRef.current = fingerprint;
       setExportUrl(payload.url);
       setExportAssemblyId(payload.assemblyId);
-      onExported?.({ assemblyId: payload.assemblyId, videoUrl: payload.url });
+      // Reporting the base lets the parent record exactly what this file
+      // contains: a burn onto null starts from the untouched render, so it can
+      // never carry a logo even if an earlier chain did.
+      onExported?.({ assemblyId: payload.assemblyId, videoUrl: payload.url, baseAssemblyId: base });
       return payload.assemblyId as number;
     } catch (error) {
       setExportError(error instanceof Error ? error.message : "Caption export failed. Please try again.");

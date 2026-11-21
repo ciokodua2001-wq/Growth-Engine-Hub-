@@ -468,6 +468,18 @@ function RenderPanel({
     setBakedOverlays(overlays);
   };
 
+  /** What a freshly burned assembly contains, derived from the base it chained
+   * onto rather than from a global "latest" snapshot. A burn onto null starts
+   * from the untouched render, so it inherits nothing - that distinction is what
+   * keeps a captions-only rebuild from being mislabelled as logo-bearing (which
+   * would later hand back a file missing the logo). */
+  const overlaysForChainedBurn = (base: number | null, add: "logo" | "captions"): Overlays => {
+    const inherited = base == null
+      ? { logo: false, captions: false }
+      : (artifactOverlaysRef.current[base] ?? { logo: false, captions: false });
+    return { ...inherited, [add]: true };
+  };
+
   const handleCaptionStateChange = useCallback((state: { captionsEnabled: boolean; exportAssemblyId: number | null }) => {
     setCaptionsActive(state.captionsEnabled);
   }, []);
@@ -568,7 +580,7 @@ function RenderPanel({
    * Resolves the new assembly id, or null on failure. */
   const applyPostRenderLogo = async (opts?: { baseOverride?: number | null }): Promise<number | null> => {
     if (!currentVideoUrl || !logoAssetId || logoBusy) return null;
-    const base = opts && "baseOverride" in opts ? opts.baseOverride : postRenderAssemblyId;
+    const base: number | null = opts && "baseOverride" in opts ? (opts.baseOverride ?? null) : postRenderAssemblyId;
     setLogoBusy(true); setLogoError(null);
     try {
       const endpoint = base
@@ -584,7 +596,7 @@ function RenderPanel({
       setPostRenderAssemblyId(payload.assemblyId);
       // Chaining onto a caption assembly carries the captions through; burning
       // onto the untouched render yields a logo-only file.
-      recordOverlays(payload.assemblyId as number, { logo: true, captions: base != null && bakedOverlaysRef.current.captions });
+      recordOverlays(payload.assemblyId as number, overlaysForChainedBurn(base, "logo"));
       return payload.assemblyId as number;
     } catch (error) {
       setLogoError(error instanceof Error ? error.message : "Logo export failed. Please try again.");
@@ -917,11 +929,11 @@ function RenderPanel({
           voiceover={video.voiceover}
           title={video.title}
           baseAssemblyId={postRenderAssemblyId}
-          onExported={({ assemblyId }) => {
+          onExported={({ assemblyId, baseAssemblyId: base }) => {
             setPostRenderAssemblyId(assemblyId);
-            // Captions chain onto the latest assembly, so whatever that base held
-            // (a logo, or nothing) survives and captions are added on top.
-            recordOverlays(assemblyId, { logo: bakedOverlaysRef.current.logo, captions: true });
+            // Captions chain onto `base`, so whatever that base held survives and
+            // captions are added on top.
+            recordOverlays(assemblyId, overlaysForChainedBurn(base, "captions"));
           }}
           onStateChange={handleCaptionStateChange}
         />
